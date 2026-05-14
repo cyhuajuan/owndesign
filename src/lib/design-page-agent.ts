@@ -18,7 +18,9 @@ export type DesignPageAgentResult = {
 };
 
 export type DesignPageAgent = {
-  generateProjectOutput(input: DesignPageAgentInput): Promise<DesignPageAgentResult>;
+  generateProjectOutput(
+    input: DesignPageAgentInput,
+  ): Promise<DesignPageAgentResult>;
 };
 
 type CreateDesignPageAgentInput = {
@@ -79,7 +81,7 @@ export function createDesignPageAgent({
   return new ToolLoopAgent({
     model: deepseek("deepseek-v4-flash"),
     instructions: buildDesignPageAgentInstructions(outputType),
-    stopWhen: stepCountIs(12),
+    stopWhen: stepCountIs(50),
     tools: {
       deletePath: tool({
         description:
@@ -89,7 +91,8 @@ export function createDesignPageAgent({
           properties: {
             path: {
               type: "string",
-              description: "Relative file or directory path inside the Project Workspace.",
+              description:
+                "Relative file or directory path inside the Project Workspace.",
             },
           },
           required: ["path"],
@@ -142,7 +145,8 @@ export function createDesignPageAgent({
         }),
       }),
       readFile: tool({
-        description: "Read one UTF-8 text file from the current Project Workspace.",
+        description:
+          "Read one UTF-8 text file from the current Project Workspace.",
         inputSchema: jsonSchema<WorkspacePathInput>({
           type: "object",
           properties: {
@@ -155,7 +159,10 @@ export function createDesignPageAgent({
           additionalProperties: false,
         }),
         execute: async ({ path }) => ({
-          content: await workspaceStore.readProjectWorkspaceFile(projectId, path),
+          content: await workspaceStore.readProjectWorkspaceFile(
+            projectId,
+            path,
+          ),
           path,
         }),
       }),
@@ -172,7 +179,8 @@ export function createDesignPageAgent({
             },
             query: {
               type: "string",
-              description: "Plain substring to search for. Regex is not supported.",
+              description:
+                "Plain substring to search for. Regex is not supported.",
             },
           },
           required: ["query"],
@@ -211,7 +219,9 @@ export function createDesignPageAgent({
   });
 }
 
-export function buildDesignPageAgentInstructions(outputType: ProjectOutputType) {
+export function buildDesignPageAgentInstructions(
+  outputType: ProjectOutputType,
+) {
   return [
     loadDesignPageAgentCorePrompt(),
     buildProjectOutputPrompt(outputType),

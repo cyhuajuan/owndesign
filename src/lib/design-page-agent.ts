@@ -1,5 +1,5 @@
 import { deepseek } from "@ai-sdk/deepseek";
-import { generateText, jsonSchema, stepCountIs, tool, ToolLoopAgent } from "ai";
+import { jsonSchema, stepCountIs, tool, ToolLoopAgent } from "ai";
 
 import type { ProjectOutputType } from "./workspace-store";
 import { WorkspaceStore } from "./workspace-store";
@@ -38,12 +38,13 @@ export class AiSdkDesignPageAgent implements DesignPageAgent {
       model: deepseek("deepseek-v4-flash"),
       instructions: [
         "You are HJDesign's design page agent.",
-      "Create one complete, production-quality HTML document for the user's requested interface.",
-      "Return valid standalone HTML with inline CSS and minimal inline JavaScript only when needed.",
-      "Do not use external CDNs, remote images, or markdown fences.",
-      "The page must render well inside an iframe preview.",
-      "Prefer calling writeHtmlFile with the full HTML document.",
-    ].join("\n"),
+        "First version Project Output Type is html only.",
+        "If the user's request is specific enough, create one complete, production-quality standalone HTML document and call writeHtmlFile with the full document.",
+        "If key design details are missing, respond with a normal assistant message that asks concise follow-up questions instead of calling writeHtmlFile.",
+        "The HTML must include inline CSS, use minimal inline JavaScript only when needed, and render well inside an iframe preview.",
+        "Do not use external CDNs, remote images, markdown fences, or explanatory wrapper text around the HTML.",
+        "Design real product UI with responsive layout, polished visual hierarchy, useful states, and domain-appropriate components.",
+      ].join("\n"),
       stopWhen: stepCountIs(4),
       tools: {
         writeHtmlFile: tool({
@@ -84,55 +85,9 @@ export class AiSdkDesignPageAgent implements DesignPageAgent {
         `User request: ${input.content}`,
       ].join("\n"),
     });
-    const fallbackHtml = extractHtmlDocument(result.text);
-
-    if (!outputPath && fallbackHtml) {
-      outputPath = await this.workspaceStore.writeProjectOutput(
-        input.projectId,
-        "html",
-        normalizeHtmlDocument(fallbackHtml),
-      );
-    }
 
     return {
-      content: result.text || "已生成 HTML 页面，并写入当前项目预览。",
-      outputPath,
-    };
-  }
-}
-
-export class TextOnlyDesignPageAgent implements DesignPageAgent {
-  constructor(private readonly workspaceStore: WorkspaceStore) {}
-
-  async generateProjectOutput(input: DesignPageAgentInput) {
-    if (input.outputType !== "html") {
-      throw new Error(`Unsupported Project Output Type: ${input.outputType}`);
-    }
-
-    const result = await generateText({
-      model: deepseek("deepseek-v4-flash"),
-      system: [
-        "You are HJDesign's design page agent.",
-        "Create one complete, production-quality HTML document for the user's requested interface.",
-        "Return only valid standalone HTML with inline CSS and minimal inline JavaScript only when needed.",
-        "Do not use external CDNs, remote images, markdown fences, or explanations.",
-        "The page must render well inside an iframe preview.",
-      ].join("\n"),
-      prompt: [
-        `Project: ${input.projectName}`,
-        `Conversation ID: ${input.conversationId}`,
-        `User request: ${input.content}`,
-      ].join("\n"),
-    });
-    const html = extractHtmlDocument(result.text) ?? result.text;
-    const outputPath = await this.workspaceStore.writeProjectOutput(
-      input.projectId,
-      "html",
-      normalizeHtmlDocument(html),
-    );
-
-    return {
-      content: "已生成 HTML 页面，并写入当前项目预览。",
+      content: result.text || "已处理请求。",
       outputPath,
     };
   }
@@ -146,20 +101,4 @@ function normalizeHtmlDocument(html: string) {
   }
 
   return `<!doctype html>\n${trimmedHtml}`;
-}
-
-function extractHtmlDocument(text: string) {
-  const withoutFence = text
-    .replace(/^```(?:html)?\s*/i, "")
-    .replace(/\s*```$/i, "")
-    .trim();
-  const doctypeIndex = withoutFence.toLowerCase().indexOf("<!doctype html>");
-  const htmlIndex = withoutFence.toLowerCase().indexOf("<html");
-  const startIndex = doctypeIndex >= 0 ? doctypeIndex : htmlIndex;
-
-  if (startIndex < 0) {
-    return undefined;
-  }
-
-  return withoutFence.slice(startIndex).trim();
 }

@@ -100,7 +100,7 @@ describe("ConversationService", () => {
     expect(state.activeConversationId).toBe("conversation-1");
   });
 
-  it("sends a user message, appends a deterministic Mock Agent Reply, and auto-generates the title from the first user message", async () => {
+  it("sends a user message, appends the agent reply, and auto-generates the title from the first user message", async () => {
     const workspaceStore = await createWorkspaceStore();
     const projectService = new ProjectService({
       workspaceStore,
@@ -203,6 +203,33 @@ describe("ConversationService", () => {
     );
   });
 
+  it("stores a visible failure message when the design agent throws", async () => {
+    const workspaceStore = await createWorkspaceStore();
+    const projectService = new ProjectService({
+      workspaceStore,
+      createId: sequenceIds("project-1", "conversation-1"),
+      now: fixedNow("2026-05-14T10:00:00.000Z"),
+    });
+    const project = await projectService.createProject({ name: "Project One" });
+    const conversationService = new ConversationService({
+      designPageAgent: buildThrowingDesignPageAgent(),
+      workspaceStore,
+      now: fixedNow("2026-05-14T10:20:00.000Z"),
+    });
+
+    const updatedConversation = await conversationService.sendUserMessage(
+      project.id,
+      "conversation-1",
+      "设计一个 CRM 仪表盘的界面",
+    );
+
+    expect(updatedConversation.messages.at(-1)).toEqual({
+      content: "生成失败：DeepSeek request failed",
+      createdAt: "2026-05-14T10:20:00.000Z",
+      role: "assistant",
+    });
+  });
+
   it("deleting the active last Conversation immediately replaces it with a new default Conversation", async () => {
     const workspaceStore = await createWorkspaceStore();
     const projectService = new ProjectService({
@@ -251,6 +278,14 @@ function buildFakeDesignPageAgent(): DesignPageAgent {
       return {
         content: `已生成测试 HTML：${input.content}`,
       };
+    },
+  };
+}
+
+function buildThrowingDesignPageAgent(): DesignPageAgent {
+  return {
+    async generateProjectOutput() {
+      throw new Error("DeepSeek request failed");
     },
   };
 }

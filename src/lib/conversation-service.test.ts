@@ -72,7 +72,7 @@ describe("ConversationService", () => {
       ),
     );
 
-    expect(storedConversation.title).toBe("New conversation");
+    expect(storedConversation.title).toBe("新建会话");
     expect(storedConversation.messages).toEqual([]);
   });
 
@@ -130,7 +130,7 @@ describe("ConversationService", () => {
       },
       {
         content:
-          "Mock reply: captured your request for Project project-1 in Conversation conversation-1.",
+          "模拟回复：已收到你在项目 project-1、会话 conversation-1 中的请求。",
         createdAt: "2026-05-14T10:10:00.000Z",
         role: "assistant",
       },
@@ -218,7 +218,7 @@ describe("ConversationService", () => {
 
     expect(state.activeConversationId).toBe("conversation-2");
     expect(state.conversations).toHaveLength(1);
-    expect(state.conversations[0]?.title).toBe("New conversation");
+    expect(state.conversations[0]?.title).toBe("新建会话");
   });
 });
 

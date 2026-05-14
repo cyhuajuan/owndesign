@@ -56,7 +56,7 @@ describe("ProjectService", () => {
     );
 
     expect(conversationJson.projectId).toBe(createdProject.id);
-    expect(conversationJson.title).toBe("New conversation");
+    expect(conversationJson.title).toBe("新建会话");
     expect(conversationJson.messages).toEqual([]);
   });
 

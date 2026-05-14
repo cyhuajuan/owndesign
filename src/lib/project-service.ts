@@ -50,7 +50,7 @@ export class ProjectService {
     const conversation: ConversationRecord = {
       id: this.createId(),
       projectId: project.id,
-      title: "New conversation",
+      title: "新建会话",
       createdAt: timestamp,
       updatedAt: timestamp,
       messages: [],

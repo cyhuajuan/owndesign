@@ -14,12 +14,12 @@ describe("ControlBar", () => {
 
     await user.click(
       screen.getByRole("button", {
-        name: "Project switcher Alpha Website",
+        name: "项目切换器 Alpha Website",
       }),
     );
 
     await user.type(
-      screen.getByPlaceholderText("Search projects..."),
+      screen.getByPlaceholderText("搜索项目..."),
       "mobile",
     );
     await user.click(
@@ -28,12 +28,12 @@ describe("ControlBar", () => {
 
     expect(
       screen.getByRole("button", {
-        name: "Project switcher Mobile App Refresh",
+        name: "项目切换器 Mobile App Refresh",
       }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", {
-        name: "Conversation switcher Navigation audit",
+        name: "会话切换器 Navigation audit",
       }),
     ).toBeInTheDocument();
   });
@@ -45,7 +45,7 @@ describe("ControlBar", () => {
 
     await user.click(
       screen.getByRole("button", {
-        name: "Conversation switcher Landing page polish",
+        name: "会话切换器 Landing page polish",
       }),
     );
 
@@ -53,7 +53,7 @@ describe("ControlBar", () => {
 
     expect(
       screen.getByRole("button", {
-        name: "Conversation switcher Hero messaging",
+        name: "会话切换器 Hero messaging",
       }),
     ).toBeInTheDocument();
   });
@@ -65,25 +65,25 @@ describe("ControlBar", () => {
 
     await user.click(
       screen.getByRole("button", {
-        name: "Project switcher Alpha Website",
+        name: "项目切换器 Alpha Website",
       }),
     );
-    await user.click(screen.getByRole("option", { name: "New Project" }));
-    await user.type(screen.getByLabelText("Project name"), "Control Bar Launch");
+    await user.click(screen.getByRole("option", { name: "新建项目" }));
+    await user.type(screen.getByLabelText("项目名称"), "Control Bar Launch");
     await user.type(
-      screen.getByLabelText("Project description"),
+      screen.getByLabelText("项目描述"),
       "Created from switcher",
     );
-    await user.click(screen.getByRole("button", { name: "Create Project" }));
+    await user.click(screen.getByRole("button", { name: "创建项目" }));
 
     expect(
       screen.getByRole("button", {
-        name: "Project switcher Control Bar Launch",
+        name: "项目切换器 Control Bar Launch",
       }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", {
-        name: "Conversation switcher New conversation",
+        name: "会话切换器 新建会话",
       }),
     ).toBeInTheDocument();
   });
@@ -95,14 +95,14 @@ describe("ControlBar", () => {
 
     await user.click(
       screen.getByRole("button", {
-        name: "Conversation switcher Landing page polish",
+        name: "会话切换器 Landing page polish",
       }),
     );
-    await user.click(screen.getByRole("option", { name: "New Conversation" }));
+    await user.click(screen.getByRole("option", { name: "新建会话" }));
 
     expect(
       screen.getByRole("button", {
-        name: "Conversation switcher New conversation 3",
+        name: "会话切换器 新建会话 3",
       }),
     ).toBeInTheDocument();
   });
@@ -184,7 +184,7 @@ function ControlBarHarness() {
         const nextConversation = {
           id: nextConversationId,
           projectId: activeProjectId,
-          title: `New conversation ${nextCount}`,
+          title: `新建会话 ${nextCount}`,
           createdAt: "2026-05-14T12:30:00.000Z",
           updatedAt: "2026-05-14T12:30:00.000Z",
           messages: [],
@@ -220,7 +220,7 @@ function ControlBarHarness() {
             {
               id: nextConversationId,
               projectId: nextProjectId,
-              title: "New conversation",
+              title: "新建会话",
               createdAt: "2026-05-14T12:00:00.000Z",
               updatedAt: "2026-05-14T12:00:00.000Z",
               messages: [],

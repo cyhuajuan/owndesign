@@ -42,8 +42,8 @@ export type ConversationEmptyStateProps = ComponentProps<"div"> & {
 
 export const ConversationEmptyState = ({
   className,
-  title = "No messages yet",
-  description = "Start a conversation to see messages here",
+  title = "暂无消息",
+  description = "开始一段会话后，消息会显示在这里",
   icon,
   children,
   ...props
@@ -117,7 +117,7 @@ export type ConversationDownloadProps = Omit<
 
 const defaultFormatMessage = (message: UIMessage): string => {
   const roleLabel =
-    message.role.charAt(0).toUpperCase() + message.role.slice(1);
+    message.role === "user" ? "用户" : "助手";
   return `**${roleLabel}:** ${getMessageText(message)}`;
 };
 

@@ -3,6 +3,7 @@
 import {
   startTransition,
   useDeferredValue,
+  useId,
   useMemo,
   useState,
   type FormEvent,
@@ -31,6 +32,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Field,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  FolderIcon,
+  MessageSquareIcon,
+  PlusIcon,
+} from "lucide-react";
 
 type ControlBarProps = {
   activeConversationId?: string;
@@ -64,6 +77,8 @@ export function ControlBar({
   const [conversationQuery, setConversationQuery] = useState("");
   const [projectName, setProjectName] = useState("");
   const [projectDescription, setProjectDescription] = useState("");
+  const projectNameId = useId();
+  const projectDescriptionId = useId();
   const deferredProjectQuery = useDeferredValue(projectQuery);
   const deferredConversationQuery = useDeferredValue(conversationQuery);
 
@@ -88,28 +103,30 @@ export function ControlBar({
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Button
-        aria-label={`Project switcher ${activeProject?.name ?? "No active Project"}`}
+        aria-label={`项目切换器 ${activeProject?.name ?? "暂无当前项目"}`}
         onClick={() => setOpenMenu("project")}
         size="sm"
         type="button"
         variant="outline"
       >
-        {activeProject?.name ?? "Select Project"}
+        <FolderIcon data-icon="inline-start" />
+        {activeProject?.name ?? "选择项目"}
       </Button>
 
       <Button
-        aria-label={`Conversation switcher ${activeConversation?.title ?? "No active Conversation"}`}
+        aria-label={`会话切换器 ${activeConversation?.title ?? "暂无当前会话"}`}
         disabled={!activeProject}
         onClick={() => setOpenMenu("conversation")}
         size="sm"
         type="button"
         variant="outline"
       >
-        {activeConversation?.title ?? "Select Conversation"}
+        <MessageSquareIcon data-icon="inline-start" />
+        {activeConversation?.title ?? "选择会话"}
       </Button>
 
       <CommandDialog
-        description="Search or create a Project."
+        description="搜索或创建项目。"
         onOpenChange={(open) => {
           setOpenMenu(open ? "project" : null);
           if (!open) {
@@ -117,18 +134,18 @@ export function ControlBar({
           }
         }}
         open={openMenu === "project"}
-        title="Project switcher"
+        title="项目切换器"
       >
         <Command shouldFilter={false}>
           <CommandInput
-            aria-label="Search projects"
+            aria-label="搜索项目"
             onValueChange={setProjectQuery}
-            placeholder="Search projects..."
+            placeholder="搜索项目..."
             value={projectQuery}
           />
           <CommandList>
-            <CommandEmpty>No Projects match.</CommandEmpty>
-            <CommandGroup heading="Projects">
+            <CommandEmpty>没有匹配的项目。</CommandEmpty>
+            <CommandGroup heading="项目">
               {filteredProjects.map((project) => (
                 <CommandItem
                   key={project.id}
@@ -145,7 +162,7 @@ export function ControlBar({
               ))}
             </CommandGroup>
             <CommandSeparator />
-            <CommandGroup heading="Actions">
+            <CommandGroup heading="操作">
               <CommandItem
                 onSelect={() => {
                   setOpenMenu(null);
@@ -153,7 +170,8 @@ export function ControlBar({
                 }}
                 value="new-project"
               >
-                New Project
+                <PlusIcon data-icon="inline-start" />
+                新建项目
               </CommandItem>
             </CommandGroup>
           </CommandList>
@@ -172,38 +190,46 @@ export function ControlBar({
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Create Project</DialogTitle>
+            <DialogTitle>创建项目</DialogTitle>
             <DialogDescription>
-              Start a new Project without leaving Control Bar.
+              无需离开控制栏即可开始一个新项目。
             </DialogDescription>
           </DialogHeader>
-          <form className="space-y-3" onSubmit={handleProjectCreate}>
-            <label className="grid gap-1 text-sm font-medium">
-              <span>Project name</span>
-              <input
-                className="rounded-xl border border-input bg-background px-3 py-2 text-sm"
-                onChange={(event) => setProjectName(event.target.value)}
-                required
-                value={projectName}
-              />
-            </label>
-            <label className="grid gap-1 text-sm font-medium">
-              <span>Project description</span>
-              <textarea
-                className="min-h-24 rounded-xl border border-input bg-background px-3 py-2 text-sm"
-                onChange={(event) => setProjectDescription(event.target.value)}
-                value={projectDescription}
-              />
-            </label>
-            <DialogFooter>
-              <Button type="submit">Create Project</Button>
+          <form onSubmit={handleProjectCreate}>
+            <FieldGroup>
+              <Field>
+                <FieldLabel htmlFor={projectNameId}>项目名称</FieldLabel>
+                <Input
+                  id={projectNameId}
+                  onChange={(event) => setProjectName(event.target.value)}
+                  required
+                  value={projectName}
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor={projectDescriptionId}>
+                  项目描述
+                </FieldLabel>
+                <Textarea
+                  className="min-h-24"
+                  id={projectDescriptionId}
+                  onChange={(event) => setProjectDescription(event.target.value)}
+                  value={projectDescription}
+                />
+              </Field>
+            </FieldGroup>
+            <DialogFooter className="mt-4">
+              <Button type="submit">
+                <PlusIcon data-icon="inline-start" />
+                创建项目
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
       <CommandDialog
-        description="Search or create a Conversation."
+        description="搜索或创建会话。"
         onOpenChange={(open) => {
           setOpenMenu(open ? "conversation" : null);
           if (!open) {
@@ -211,18 +237,18 @@ export function ControlBar({
           }
         }}
         open={openMenu === "conversation"}
-        title="Conversation switcher"
+        title="会话切换器"
       >
         <Command shouldFilter={false}>
           <CommandInput
-            aria-label="Search conversations"
+            aria-label="搜索会话"
             onValueChange={setConversationQuery}
-            placeholder="Search conversations..."
+            placeholder="搜索会话..."
             value={conversationQuery}
           />
           <CommandList>
-            <CommandEmpty>No Conversations match.</CommandEmpty>
-            <CommandGroup heading="Conversations">
+            <CommandEmpty>没有匹配的会话。</CommandEmpty>
+            <CommandGroup heading="会话">
               {filteredConversations.map((conversation) => (
                 <CommandItem
                   key={conversation.id}
@@ -239,7 +265,7 @@ export function ControlBar({
               ))}
             </CommandGroup>
             <CommandSeparator />
-            <CommandGroup heading="Actions">
+            <CommandGroup heading="操作">
               <CommandItem
                 onSelect={() => {
                   setOpenMenu(null);
@@ -249,7 +275,8 @@ export function ControlBar({
                 }}
                 value="new-conversation"
               >
-                New Conversation
+                <PlusIcon data-icon="inline-start" />
+                新建会话
               </CommandItem>
             </CommandGroup>
           </CommandList>

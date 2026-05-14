@@ -32,7 +32,7 @@ type AssistantMessage = {
   createdAt: string;
 };
 
-const DEFAULT_CONVERSATION_TITLE = "New conversation";
+const DEFAULT_CONVERSATION_TITLE = "新建会话";
 
 export class ConversationService {
   private readonly workspaceStore: WorkspaceStore;

@@ -6,6 +6,6 @@ type MockReplyInput = {
 
 export class MockReplyEngine {
   generateReply(input: MockReplyInput) {
-    return `Mock reply: captured your request for Project ${input.projectId} in Conversation ${input.conversationId}.`;
+    return `模拟回复：已收到你在项目 ${input.projectId}、会话 ${input.conversationId} 中的请求。`;
   }
 }

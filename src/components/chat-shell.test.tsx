@@ -12,58 +12,58 @@ describe("ChatShell", () => {
   it("renders conversation workflow and preview regions", () => {
     render(<ChatShell />);
 
-    expect(screen.getByRole("region", { name: "Conversation workflow" })).toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Preview pane" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "会话工作流" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "预览面板" })).toBeInTheDocument();
   });
 
   it("collapses and re-expands the conversation workflow from the preview header toggle", async () => {
     const user = userEvent.setup();
 
     render(<ChatShell />);
-    const [previewPane] = screen.getAllByRole("region", { name: "Preview pane" });
+    const [previewPane] = screen.getAllByRole("region", { name: "预览面板" });
 
     await user.click(
       within(previewPane).getByRole("button", {
-        name: "Collapse conversation pane",
+        name: "收起会话面板",
       }),
     );
 
     expect(
-      screen.queryAllByRole("region", { name: "Conversation workflow" }),
+      screen.queryAllByRole("region", { name: "会话工作流" }),
     ).toHaveLength(0);
 
     await user.click(
-      within(previewPane).getByRole("button", { name: "Expand conversation pane" }),
+      within(previewPane).getByRole("button", { name: "展开会话面板" }),
     );
 
     expect(
-      screen.getAllByRole("region", { name: "Conversation workflow" }),
+      screen.getAllByRole("region", { name: "会话工作流" }),
     ).not.toHaveLength(0);
   });
 
   it("remembers collapsed state across remounts", async () => {
     const user = userEvent.setup();
     const firstRender = render(<ChatShell />);
-    const [previewPane] = screen.getAllByRole("region", { name: "Preview pane" });
+    const [previewPane] = screen.getAllByRole("region", { name: "预览面板" });
 
     await user.click(
       within(previewPane).getByRole("button", {
-        name: "Collapse conversation pane",
+        name: "收起会话面板",
       }),
     );
 
     expect(
-      screen.queryAllByRole("region", { name: "Conversation workflow" }),
+      screen.queryAllByRole("region", { name: "会话工作流" }),
     ).toHaveLength(0);
 
     firstRender.unmount();
     render(<ChatShell />);
 
     expect(
-      screen.queryAllByRole("region", { name: "Conversation workflow" }),
+      screen.queryAllByRole("region", { name: "会话工作流" }),
     ).toHaveLength(0);
     expect(
-      screen.getAllByRole("button", { name: "Expand conversation pane" }),
+      screen.getAllByRole("button", { name: "展开会话面板" }),
     ).not.toHaveLength(0);
   });
 });

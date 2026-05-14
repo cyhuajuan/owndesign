@@ -26,20 +26,24 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
+import {
+  MessageSquareTextIcon,
+  PanelLeftCloseIcon,
+  PanelLeftOpenIcon,
+} from "lucide-react";
 
 const CONVERSATION_PANE_STORAGE_KEY = "hjdesign.app.conversation-pane-collapsed";
 const CONVERSATION_PANE_EVENT = "hjdesign:conversation-pane";
 
 const demoMessages = [
   {
-    content: "Create compact mobile hero for design critique workspace.",
+    content: "为设计评审工作台创建紧凑的移动端首屏。",
     role: "user" as const,
   },
   {
     content:
-      "Mock Agent Reply: preview shell ready. Next slices can wire live Project and Conversation state.",
+      "模拟助手回复：预览壳层已就绪。下一步可以接入实时项目和会话状态。",
     role: "assistant" as const,
   },
 ];
@@ -70,7 +74,7 @@ export function ChatShell({
   return (
     <div
       className={cn(
-        "grid min-h-screen gap-4 bg-muted/40 p-4",
+        "grid min-h-screen gap-4 bg-background p-4 text-foreground",
         isConversationCollapsed
           ? "lg:grid-cols-[minmax(0,1fr)]"
           : "lg:grid-cols-[minmax(22rem,30rem)_minmax(0,1fr)]",
@@ -78,38 +82,39 @@ export function ChatShell({
     >
       {isConversationCollapsed ? null : (
         <Card
-          aria-label="Conversation workflow"
-          className="flex min-h-[40rem] flex-col overflow-hidden"
+          aria-label="会话工作流"
+          className="flex min-h-[40rem] flex-col overflow-hidden border border-border/70 bg-card shadow-sm"
           role="region"
         >
-          <CardHeader className="gap-3">
+          <CardHeader className="gap-4 border-b bg-muted/35">
             <div className="flex items-center justify-between gap-3">
-              <div>
-                <CardTitle>Conversation workflow</CardTitle>
+              <div className="min-w-0">
+                <CardTitle className="flex items-center gap-2">
+                  <MessageSquareTextIcon data-icon="inline-start" />
+                  会话工作流
+                </CardTitle>
                 <CardDescription>
-                  Control Bar, message history, Composer.
+                  控制栏、消息历史和输入区。
                 </CardDescription>
               </div>
             </div>
             {controlBar ?? (
               <div className="flex items-center gap-2">
                 <Button size="sm" type="button" variant="secondary">
-                  Active Project
+                  当前项目
                 </Button>
                 <Button size="sm" type="button" variant="outline">
-                  Project switcher
+                  切换项目
                 </Button>
                 <Button size="sm" type="button" variant="outline">
-                  Conversation switcher
+                  切换会话
                 </Button>
                 <Button size="sm" type="button" variant="outline">
-                  New Conversation
+                  新建会话
                 </Button>
               </div>
             )}
           </CardHeader>
-
-          <Separator />
 
           <CardContent className="flex min-h-0 flex-1 flex-col gap-4 p-0">
             <Conversation className="min-h-0">
@@ -127,11 +132,11 @@ export function ChatShell({
               </ConversationContent>
             </Conversation>
 
-            <div className="border-t px-4 pb-4">
+            <div className="border-t bg-card px-4 pb-4">
               {composer ?? (
                 <PromptInput onSubmit={() => {}}>
                   <PromptInputBody>
-                    <PromptInputTextarea placeholder="Describe next design move..." />
+                    <PromptInputTextarea placeholder="描述下一步设计动作..." />
                   </PromptInputBody>
                   <PromptInputFooter>
                     <PromptInputTools />
@@ -145,62 +150,64 @@ export function ChatShell({
       )}
 
       <Card
-        aria-label="Preview pane"
-        className="flex min-h-[40rem] flex-col overflow-hidden"
+        aria-label="预览面板"
+        className="flex min-h-[40rem] flex-col overflow-hidden border border-border/70 bg-card shadow-sm"
         role="region"
       >
-        <CardHeader className="flex flex-row items-center justify-between gap-3">
+        <CardHeader className="flex flex-row items-center justify-between gap-3 border-b bg-muted/25">
           <Button
             aria-label={
               isConversationCollapsed
-                ? "Expand conversation pane"
-                : "Collapse conversation pane"
+                ? "展开会话面板"
+                : "收起会话面板"
             }
             onClick={() => writeConversationPaneState(!isConversationCollapsed)}
             size="icon-sm"
             type="button"
             variant="outline"
           >
-            <span aria-hidden="true">{isConversationCollapsed ? "◨" : "◧"}</span>
+            {isConversationCollapsed ? (
+              <PanelLeftOpenIcon />
+            ) : (
+              <PanelLeftCloseIcon />
+            )}
           </Button>
-          <div>
-            <CardTitle>{previewTitle ?? "Preview pane"}</CardTitle>
+          <div className="min-w-0 text-right">
+            <CardTitle>{previewTitle ?? "预览面板"}</CardTitle>
             <CardDescription>
               {previewDescription ??
-                "Preview Header and project-scoped output live here."}
+                "预览标题和项目范围输出会显示在这里。"}
             </CardDescription>
           </div>
         </CardHeader>
-
-        <Separator />
 
         <CardContent className="min-h-0 flex-1 p-0">
           <ScrollArea className="h-full">
             {previewBody ?? (
               <div className="flex min-h-[32rem] flex-col gap-4 p-6">
-                <div className="rounded-2xl border border-dashed bg-background p-6">
+                <div className="rounded-lg border border-dashed bg-background p-6">
                   <p className="text-sm font-medium text-foreground">
-                    Project preview placeholder
+                    项目预览占位
                   </p>
                   <p className="mt-2 text-sm text-muted-foreground">
-                    Shared Project Output will render here once preview runtime lands.
+                    预览运行时接入后，共享项目输出会显示在这里。
                   </p>
                 </div>
                 <div className="grid gap-4 md:grid-cols-2">
-                  <div className="rounded-2xl border bg-card p-4">
+                  <div className="rounded-lg border bg-card p-4">
                     <p className="text-sm font-medium text-foreground">
-                      Preview Header
+                      预览标题区
                     </p>
                     <p className="mt-2 text-sm text-muted-foreground">
-                      Leftmost toggle owns conversation pane collapse state.
+                      最左侧按钮负责切换会话面板的收起状态。
                     </p>
                   </div>
-                  <div className="rounded-2xl border bg-card p-4">
+                  <div className="rounded-lg border bg-card p-4">
                     <p className="text-sm font-medium text-foreground">
-                      Project output
+                      项目输出
                     </p>
                     <p className="mt-2 text-sm text-muted-foreground">
-                      All Conversations in one Project share this surface.
+                      同一项目下的所有会话共享这个输出区域。
                     </p>
                   </div>
                 </div>

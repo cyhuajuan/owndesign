@@ -1,3 +1,4 @@
+import { execFile } from "node:child_process";
 import {
   lstat,
   mkdir,
@@ -9,6 +10,8 @@ import {
 } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import process from "node:process";
+import { promisify } from "node:util";
 
 import trash from "trash";
 
@@ -55,7 +58,11 @@ export type WorkspaceSearchMatch = {
 type WorkspaceStoreOptions = {
   workspaceRoot?: string;
   moveToTrash?: (targetPath: string) => Promise<void>;
+  platform?: NodeJS.Platform;
+  runWindowsRecycleCommand?: (targetPath: string) => Promise<void>;
 };
+
+const execFileAsync = promisify(execFile);
 
 export class WorkspaceStore {
   private readonly workspaceRoot: string;
@@ -67,7 +74,11 @@ export class WorkspaceStore {
     this.moveToTrash =
       options.moveToTrash ??
       (async (targetPath: string) => {
-        await trash([targetPath]);
+        await movePathToTrash(targetPath, {
+          platform: options.platform ?? process.platform,
+          runWindowsRecycleCommand:
+            options.runWindowsRecycleCommand ?? runWindowsRecycleCommand,
+        });
       });
   }
 
@@ -608,4 +619,51 @@ function isMissingPathError(error: unknown): error is NodeJS.ErrnoException {
 
 function normalizeWorkspaceRelativePath(relativePath: string) {
   return relativePath.split(path.sep).join("/");
+}
+
+async function movePathToTrash(
+  targetPath: string,
+  options: {
+    platform: NodeJS.Platform;
+    runWindowsRecycleCommand: (targetPath: string) => Promise<void>;
+  },
+) {
+  if (options.platform === "win32") {
+    await options.runWindowsRecycleCommand(targetPath);
+    return;
+  }
+
+  await trash([targetPath], { glob: false });
+}
+
+async function runWindowsRecycleCommand(targetPath: string) {
+  const recycleScript = `
+$targetPath = [Environment]::GetEnvironmentVariable('HJDESIGN_TRASH_TARGET')
+Add-Type -AssemblyName Microsoft.VisualBasic
+$item = Get-Item -LiteralPath $targetPath -Force
+if ($item.PSIsContainer) {
+  [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory($item.FullName, [Microsoft.VisualBasic.FileIO.UIOption]::OnlyErrorDialogs, [Microsoft.VisualBasic.FileIO.RecycleOption]::SendToRecycleBin)
+} else {
+  [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile($item.FullName, [Microsoft.VisualBasic.FileIO.UIOption]::OnlyErrorDialogs, [Microsoft.VisualBasic.FileIO.RecycleOption]::SendToRecycleBin)
+}
+`;
+
+  await execFileAsync(
+    "powershell.exe",
+    [
+      "-NoProfile",
+      "-NonInteractive",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-Command",
+      recycleScript,
+    ],
+    {
+      env: {
+        ...process.env,
+        HJDESIGN_TRASH_TARGET: targetPath,
+      },
+      windowsHide: true,
+    },
+  );
 }

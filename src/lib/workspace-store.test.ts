@@ -304,4 +304,28 @@ describe("WorkspaceStore", () => {
       stat(path.join(recycleBinRoot, project.id, "project.json")),
     ).resolves.toBeDefined();
   });
+
+  it("uses the Windows recycle command instead of the trash package on Windows", async () => {
+    const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".hjdesign");
+    const recycleBinRoot = path.join(await createTempWorkspaceRoot(), "recycle-bin");
+    const recycledPaths: string[] = [];
+    const store = new WorkspaceStore({
+      workspaceRoot,
+      platform: "win32",
+      runWindowsRecycleCommand: async (targetPath) => {
+        recycledPaths.push(targetPath);
+        await mkdir(recycleBinRoot, { recursive: true });
+        await rename(targetPath, path.join(recycleBinRoot, path.basename(targetPath)));
+      },
+    });
+    const project = buildProject({ id: "project-windows-delete" });
+
+    await store.createProject(project);
+    await store.deleteProject(project.id);
+
+    expect(recycledPaths).toEqual([path.join(workspaceRoot, "projects", project.id)]);
+    await expect(
+      stat(path.join(recycleBinRoot, project.id, "project.json")),
+    ).resolves.toBeDefined();
+  });
 });

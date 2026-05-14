@@ -36,9 +36,8 @@ export async function POST(request: Request) {
     body.messages,
   ) as DesignPageUIMessage[];
   const agent = createDesignPageAgent({
-    conversationId,
+    outputType: project.outputType,
     projectId,
-    projectName: project.name,
     workspaceStore,
   });
 

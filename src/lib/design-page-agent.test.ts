@@ -125,6 +125,31 @@ describe("AiSdkDesignPageAgent", () => {
       }),
     );
   });
+
+  it("builds instructions from the core markdown prompt and dynamic Project Output prompt", async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    const agent = new AiSdkDesignPageAgent(workspaceStore);
+    aiMocks.generate.mockResolvedValueOnce({ text: "" });
+
+    await agent.generateProjectOutput(buildInput());
+
+    const config = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
+      instructions: string;
+    };
+    expect(config.instructions).toContain("# Design Page Agent");
+    expect(config.instructions).toContain(
+      "Design real product UI with responsive layout",
+    );
+    expect(config.instructions).toContain("## Project Output");
+    expect(config.instructions).toContain("Project Output Type: html.");
+    expect(config.instructions).not.toContain("Project One");
+    expect(config.instructions).not.toContain("project-1");
+    expect(config.instructions).not.toContain("conversation-1");
+    expect(aiMocks.generate).toHaveBeenCalledWith({
+      prompt: "设计一个 CRM 仪表盘的界面",
+    });
+  });
 });
 
 async function createWorkspaceStore() {
@@ -152,9 +177,7 @@ async function createProject(workspaceStore: WorkspaceStore) {
 function buildInput() {
   return {
     content: "设计一个 CRM 仪表盘的界面",
-    conversationId: "conversation-1",
     outputType: "html" as const,
     projectId: "project-1",
-    projectName: "Project One",
   };
 }

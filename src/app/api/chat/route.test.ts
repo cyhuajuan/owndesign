@@ -71,9 +71,8 @@ describe("/api/chat", () => {
     expect(await response.text()).toBe("stream");
     expect(routeMocks.createDesignPageAgent).toHaveBeenCalledWith(
       expect.objectContaining({
-        conversationId: "conversation-1",
+        outputType: "html",
         projectId: "project-1",
-        projectName: "Project One",
       }),
     );
     expect(routeMocks.createAgentUIStreamResponse).toHaveBeenCalledWith(

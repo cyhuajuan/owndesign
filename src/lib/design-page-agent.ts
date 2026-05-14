@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
+
 import { deepseek } from "@ai-sdk/deepseek";
 import { jsonSchema, stepCountIs, tool, ToolLoopAgent } from "ai";
 
@@ -6,9 +9,7 @@ import { WorkspaceStore } from "./workspace-store";
 
 export type DesignPageAgentInput = {
   content: string;
-  conversationId: string;
   projectId: string;
-  projectName: string;
   outputType: ProjectOutputType;
 };
 
@@ -26,10 +27,9 @@ type WriteHtmlInput = {
 };
 
 type CreateDesignPageAgentInput = {
-  conversationId: string;
   onWriteHtml?: (output: WriteHtmlOutput) => void;
+  outputType: ProjectOutputType;
   projectId: string;
-  projectName: string;
   workspaceStore: WorkspaceStore;
 };
 
@@ -48,21 +48,16 @@ export class AiSdkDesignPageAgent implements DesignPageAgent {
 
     let outputPath: string | undefined;
     const agent = createDesignPageAgent({
-      conversationId: input.conversationId,
       onWriteHtml: (output) => {
         outputPath = output.outputPath;
       },
+      outputType: input.outputType,
       projectId: input.projectId,
-      projectName: input.projectName,
       workspaceStore: this.workspaceStore,
     });
 
     const result = await agent.generate({
-      prompt: [
-        `Project: ${input.projectName}`,
-        `Conversation ID: ${input.conversationId}`,
-        `User request: ${input.content}`,
-      ].join("\n"),
+      prompt: input.content,
     });
 
     return {
@@ -73,26 +68,14 @@ export class AiSdkDesignPageAgent implements DesignPageAgent {
 }
 
 export function createDesignPageAgent({
-  conversationId,
   onWriteHtml,
+  outputType,
   projectId,
-  projectName,
   workspaceStore,
 }: CreateDesignPageAgentInput) {
   return new ToolLoopAgent({
     model: deepseek("deepseek-v4-flash"),
-    instructions: [
-      "You are HJDesign's design page agent.",
-      `Project: ${projectName}`,
-      `Project ID: ${projectId}`,
-      `Conversation ID: ${conversationId}`,
-      "First version Project Output Type is html only.",
-      "If the user's request is specific enough, create one complete, production-quality standalone HTML document and call writeHtmlFile with the full document.",
-      "If key design details are missing, respond with a normal assistant message that asks concise follow-up questions instead of calling writeHtmlFile.",
-      "The HTML must include inline CSS, use minimal inline JavaScript only when needed, and render well inside an iframe preview.",
-      "Do not use external CDNs, remote images, markdown fences, or explanatory wrapper text around the HTML.",
-      "Design real product UI with responsive layout, polished visual hierarchy, useful states, and domain-appropriate components.",
-    ].join("\n"),
+    instructions: buildDesignPageAgentInstructions(outputType),
     stopWhen: stepCountIs(4),
     tools: {
       writeHtmlFile: tool({
@@ -128,6 +111,32 @@ export function createDesignPageAgent({
       }),
     },
   });
+}
+
+export function buildDesignPageAgentInstructions(outputType: ProjectOutputType) {
+  return [
+    loadDesignPageAgentCorePrompt(),
+    buildProjectOutputPrompt(outputType),
+  ].join("\n\n");
+}
+
+export function loadDesignPageAgentCorePrompt() {
+  return readFileSync(
+    path.join(process.cwd(), "src", "lib", "agents", "design-page.agent.md"),
+    "utf8",
+  ).trim();
+}
+
+export function buildProjectOutputPrompt(outputType: ProjectOutputType) {
+  if (outputType !== "html") {
+    throw new Error(`Unsupported Project Output Type: ${outputType}`);
+  }
+
+  return [
+    "## Project Output",
+    "Project Output Type: html.",
+    "Write the generated page by calling writeHtmlFile with one complete standalone HTML document.",
+  ].join("\n");
 }
 
 function normalizeHtmlDocument(html: string) {

@@ -118,10 +118,8 @@ export class ConversationService {
     } satisfies UserMessage;
     const agentResult = await this.generateProjectOutputSafely({
       content,
-      conversationId,
       outputType: project.outputType,
       projectId,
-      projectName: project.name,
     });
     const mockReply = {
       role: "assistant",

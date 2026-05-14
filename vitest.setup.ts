@@ -10,20 +10,6 @@ class ResizeObserverMock {
 
 globalThis.ResizeObserver = ResizeObserverMock as typeof ResizeObserver;
 
-if (!window.matchMedia) {
-  window.matchMedia = (query) =>
-    ({
-      addEventListener: () => {},
-      addListener: () => {},
-      dispatchEvent: () => false,
-      matches: false,
-      media: query,
-      onchange: null,
-      removeEventListener: () => {},
-      removeListener: () => {},
-    }) as MediaQueryList;
-}
-
 if (!Element.prototype.getAnimations) {
   Element.prototype.getAnimations = () => [];
 }

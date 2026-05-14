@@ -103,7 +103,7 @@ export function ChatShell({
 
   return (
     <SidebarProvider
-      className="h-svh min-h-0 bg-background text-foreground"
+      className="h-screen min-h-0 bg-background text-foreground"
       open={isSidebarOpen}
       onOpenChange={(open) => writeConversationPaneState(!open)}
       style={
@@ -113,7 +113,7 @@ export function ChatShell({
         } as CSSProperties
       }
     >
-      <div className="flex h-svh w-full flex-col overflow-hidden bg-background">
+      <div className="flex h-screen w-full flex-col overflow-hidden bg-background">
         <header className="flex h-11 shrink-0 items-center gap-2 border-b border-border bg-card px-3">
           <div className="flex shrink-0 items-center gap-2 font-semibold text-primary">
             <LayersIcon className="size-5" />
@@ -131,7 +131,7 @@ export function ChatShell({
         <div className="flex min-h-0 flex-1 overflow-hidden">
           <Sidebar
             aria-label="会话工作流"
-            className="top-11 h-[calc(100svh-2.75rem)] border-r border-border bg-card"
+            className="top-11 h-[calc(100vh-2.75rem)] border-r border-border bg-card"
             collapsible="offcanvas"
             role="region"
           >

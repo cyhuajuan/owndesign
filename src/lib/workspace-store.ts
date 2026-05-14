@@ -8,9 +8,12 @@ export type ProjectRecord = {
   id: string;
   name: string;
   description?: string;
+  outputType: ProjectOutputType;
   createdAt: string;
   updatedAt: string;
 };
+
+export type ProjectOutputType = "html";
 
 export type ConversationRecord = {
   id: string;
@@ -188,6 +191,27 @@ export class WorkspaceStore {
     return conversation;
   }
 
+  async writeProjectOutput(
+    projectId: string,
+    outputType: ProjectOutputType,
+    content: string,
+  ) {
+    const outputPath = this.getProjectOutputFilePath(projectId, outputType);
+
+    await mkdir(path.dirname(outputPath), { recursive: true });
+    await writeFile(outputPath, content, "utf8");
+
+    return outputPath;
+  }
+
+  async readProjectOutput(projectId: string, outputType: ProjectOutputType) {
+    return readFile(this.getProjectOutputFilePath(projectId, outputType), "utf8");
+  }
+
+  getProjectWorkspaceDirectory(projectId: string) {
+    return path.join(this.getProjectDirectory(projectId), "workspace");
+  }
+
   async deleteConversation(projectId: string, conversationId: string) {
     await this.moveToTrash(
       this.getConversationFilePath(projectId, conversationId),
@@ -234,6 +258,16 @@ export class WorkspaceStore {
 
   private getConversationsDirectory(projectId: string) {
     return path.join(this.getProjectDirectory(projectId), "conversations");
+  }
+
+  private getProjectOutputFilePath(
+    projectId: string,
+    outputType: ProjectOutputType,
+  ) {
+    return path.join(
+      this.getProjectWorkspaceDirectory(projectId),
+      `index.${outputType}`,
+    );
   }
 
   private getConversationFilePath(projectId: string, conversationId: string) {

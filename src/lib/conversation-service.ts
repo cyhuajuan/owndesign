@@ -2,13 +2,16 @@ import {
   ConversationRecord,
   WorkspaceStore,
 } from "./workspace-store";
-import { MockReplyEngine } from "./mock-reply-engine";
+import {
+  AiSdkDesignPageAgent,
+  DesignPageAgent,
+} from "./design-page-agent";
 
 type ConversationServiceOptions = {
   workspaceStore: WorkspaceStore;
   now?: () => string;
   createId?: () => string;
-  mockReplyEngine?: MockReplyEngine;
+  designPageAgent?: DesignPageAgent;
 };
 
 type RenameConversationInput = {
@@ -38,13 +41,14 @@ export class ConversationService {
   private readonly workspaceStore: WorkspaceStore;
   private readonly now: () => string;
   private readonly createId: () => string;
-  private readonly mockReplyEngine: MockReplyEngine;
+  private readonly designPageAgent: DesignPageAgent;
 
   constructor(options: ConversationServiceOptions) {
     this.workspaceStore = options.workspaceStore;
     this.now = options.now ?? (() => new Date().toISOString());
     this.createId = options.createId ?? (() => crypto.randomUUID());
-    this.mockReplyEngine = options.mockReplyEngine ?? new MockReplyEngine();
+    this.designPageAgent =
+      options.designPageAgent ?? new AiSdkDesignPageAgent(this.workspaceStore);
   }
 
   async createConversation(projectId: string) {
@@ -101,19 +105,23 @@ export class ConversationService {
       projectId,
       conversationId,
     );
+    const project = await this.workspaceStore.getProject(projectId);
     const timestamp = this.now();
     const userMessage = {
       role: "user",
       content,
       createdAt: timestamp,
     } satisfies UserMessage;
+    const agentResult = await this.generateProjectOutputSafely({
+      content,
+      conversationId,
+      outputType: project.outputType,
+      projectId,
+      projectName: project.name,
+    });
     const mockReply = {
       role: "assistant",
-      content: this.mockReplyEngine.generateReply({
-        projectId,
-        conversationId,
-        content,
-      }),
+      content: agentResult.content,
       createdAt: timestamp,
     } satisfies AssistantMessage;
     const messages = [
@@ -133,6 +141,13 @@ export class ConversationService {
       updatedAt: timestamp,
       lastMessageAt: timestamp,
     };
+
+    const updatedProject = {
+      ...project,
+      updatedAt: timestamp,
+    };
+
+    await this.workspaceStore.updateProject(projectId, updatedProject);
 
     return this.workspaceStore.updateConversation(
       projectId,
@@ -178,6 +193,21 @@ export class ConversationService {
       activeProjectId: projectId,
       activeConversationId: conversationId,
     });
+  }
+
+  private async generateProjectOutputSafely(
+    input: Parameters<DesignPageAgent["generateProjectOutput"]>[0],
+  ) {
+    try {
+      return await this.designPageAgent.generateProjectOutput(input);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unknown design agent error";
+
+      return {
+        content: `生成失败：${message}`,
+      };
+    }
   }
 }
 

@@ -300,6 +300,27 @@ export default async function Home() {
       }
       previewBody={
         <div className="flex min-h-[32rem] flex-col gap-4 p-6">
+          {activeProject ? (
+            <iframe
+              className="h-[calc(100vh-9rem)] min-h-[32rem] w-full overflow-hidden rounded-md border bg-white"
+              key={`${activeProject.id}-${activeProject.updatedAt}`}
+              sandbox="allow-scripts"
+              src={`/api/projects/${activeProject.id}/preview?updatedAt=${encodeURIComponent(activeProject.updatedAt)}`}
+              title={`${activeProject.name} HTML 预览`}
+            />
+          ) : (
+            <Empty className="min-h-[32rem] rounded-md border border-dashed">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <FolderIcon />
+                </EmptyMedia>
+                <EmptyTitle>暂无 HTML 预览</EmptyTitle>
+                <EmptyDescription>
+                  创建项目后，在左侧输入“设计一个 XXX 的界面”。
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          )}
           <Card className="border-border/70 shadow-none">
             <CardHeader className="has-data-[slot=card-description]:grid-rows-[auto_auto_auto]">
               <div className="flex items-center justify-between gap-3">
@@ -660,7 +681,7 @@ export default async function Home() {
           </section>
         </div>
       }
-      previewDescription="预览标题区保留面板切换；右侧承载当前项目上下文和共享输出。"
+      previewDescription="当前项目的 HTML 输出通过 iframe 实时预览。"
       previewTitle={activeProject?.name || "预览面板"}
     />
   );

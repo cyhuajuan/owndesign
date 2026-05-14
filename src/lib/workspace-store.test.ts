@@ -33,6 +33,7 @@ function buildProject(overrides: Partial<{
     id: overrides.id ?? "project-alpha",
     name: overrides.name ?? "Project Alpha",
     description: overrides.description,
+    outputType: "html" as const,
     createdAt: overrides.createdAt ?? "2026-05-14T10:00:00.000Z",
     updatedAt: overrides.updatedAt ?? "2026-05-14T10:00:00.000Z",
   };
@@ -66,6 +67,21 @@ describe("WorkspaceStore", () => {
     await expect(stat(projectDirectory)).resolves.toBeDefined();
     await expect(stat(path.join(projectDirectory, "workspace"))).resolves.toBeDefined();
     expect(projectJson).toEqual(project);
+  });
+
+  it("writes and reads Project Output from the Project Workspace", async () => {
+    const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".hjdesign");
+    const store = new WorkspaceStore({ workspaceRoot });
+    const project = buildProject({ id: "project-output" });
+    const html = "<!doctype html><html><body>Preview</body></html>";
+
+    await store.createProject(project);
+    const outputPath = await store.writeProjectOutput(project.id, "html", html);
+
+    expect(outputPath).toBe(
+      path.join(workspaceRoot, "projects", project.id, "workspace", "index.html"),
+    );
+    await expect(store.readProjectOutput(project.id, "html")).resolves.toBe(html);
   });
 
   it("discovers persisted Projects after reload and returns them in Project Updated Time descending order", async () => {

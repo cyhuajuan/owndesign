@@ -113,12 +113,14 @@ function ControlBarHarness() {
     {
       id: "project-alpha",
       name: "Alpha Website",
+      outputType: "html" as const,
       createdAt: "2026-05-14T10:00:00.000Z",
       updatedAt: "2026-05-14T10:00:00.000Z",
     },
     {
       id: "project-beta",
       name: "Mobile App Refresh",
+      outputType: "html" as const,
       createdAt: "2026-05-14T11:00:00.000Z",
       updatedAt: "2026-05-14T11:00:00.000Z",
     },
@@ -210,6 +212,7 @@ function ControlBarHarness() {
             id: nextProjectId,
             name,
             description,
+            outputType: "html",
             createdAt: "2026-05-14T12:00:00.000Z",
             updatedAt: "2026-05-14T12:00:00.000Z",
           },

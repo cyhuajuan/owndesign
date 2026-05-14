@@ -76,6 +76,10 @@ _Avoid_: floating global chrome, detached toolbar
 The shared code and rendered result that all Conversations in a Project modify together.
 _Avoid_: conversation-specific branch, per-chat preview
 
+**Project Output Type**:
+The framework/runtime format for a Project Output. First version supports only `html`, with future expansion to formats such as React.
+_Avoid_: file extension only, preview mode
+
 **Project Workspace**:
 The code directory inside a Project that stores the live files used for preview.
 _Avoid_: global code pool, conversation workspace
@@ -102,6 +106,7 @@ _Avoid_: hard delete, purge by default
 - The **Preview Pane** sits beside conversation workflow in the main screen
 - The **Preview Header** sits at the top of the **Preview Pane**
 - The **Preview Pane** reflects **Project Output**
+- A **Project** has exactly one **Project Output Type**
 - All **Conversations** in one **Project** modify same **Project Output**
 - **Project Output** is stored in **Project Workspace**
 - **Deletion** applies to both **Projects** and **Conversations**
@@ -156,6 +161,9 @@ _Avoid_: hard delete, purge by default
 > **Dev:** "Where does the shared project code live on disk?"
 > **Domain expert:** "Store shared project code in a `workspace/` directory inside each Project."
 
+> **Dev:** "What output format should the first design agent write?"
+> **Domain expert:** "Use **Project Output Type** `html` for the first version and write the generated page into the **Project Workspace** for iframe preview."
+
 > **Dev:** "What belongs in first-version Project management?"
 > **Domain expert:** "First version supports creating, renaming, switching, deleting, and viewing basic info for a Project, without grouping, labels, favorites, or advanced filtering."
 
@@ -179,5 +187,5 @@ _Avoid_: hard delete, purge by default
 - "workspace" could mean app storage root or design project; resolved: **Workspace** means only the app storage root, while **Project** is the design work container.
 - Message role taxonomy is intentionally deferred until real model capabilities are designed.
 - Preview ownership was clarified: preview is project-scoped, not conversation-scoped.
-- Preview runtime mechanism is intentionally deferred and should not yet constrain project or conversation management design.
+- Preview runtime for first design-agent MVP is resolved: **Project Output Type** `html` is served from **Project Workspace** and rendered in the **Preview Pane** via iframe.
 - Draft preservation across project or conversation switching is intentionally out of scope for the first version.

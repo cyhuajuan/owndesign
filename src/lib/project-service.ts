@@ -44,6 +44,7 @@ export class ProjectService {
       id: this.createId(),
       name: input.name,
       description: input.description,
+      outputType: "html",
       createdAt: timestamp,
       updatedAt: timestamp,
     };

@@ -38,6 +38,7 @@ describe("ProjectService", () => {
     const state = await projectService.getProjectState();
 
     expect(createdProject.name).toBe("Landing Redesign");
+    expect(createdProject.outputType).toBe("html");
     expect(state.activeProjectId).toBe(createdProject.id);
     expect(state.activeConversationId).toBeDefined();
     expect(state.projects).toHaveLength(1);

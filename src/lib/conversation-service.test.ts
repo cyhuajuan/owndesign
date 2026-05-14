@@ -5,6 +5,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { ConversationService } from "./conversation-service";
+import type { DesignPageAgent } from "./design-page-agent";
 import { ProjectService } from "./project-service";
 import { WorkspaceStore } from "./workspace-store";
 
@@ -108,6 +109,7 @@ describe("ConversationService", () => {
     });
     const project = await projectService.createProject({ name: "Project One" });
     const conversationService = new ConversationService({
+      designPageAgent: buildFakeDesignPageAgent(),
       workspaceStore,
       now: fixedNow("2026-05-14T10:10:00.000Z"),
     });
@@ -130,7 +132,7 @@ describe("ConversationService", () => {
       },
       {
         content:
-          "模拟回复：已收到你在项目 project-1、会话 conversation-1 中的请求。",
+          "已生成测试 HTML：Build a clean dashboard landing page for a design tool",
         createdAt: "2026-05-14T10:10:00.000Z",
         role: "assistant",
       },
@@ -146,6 +148,7 @@ describe("ConversationService", () => {
     });
     const project = await projectService.createProject({ name: "Project One" });
     const conversationService = new ConversationService({
+      designPageAgent: buildFakeDesignPageAgent(),
       workspaceStore,
       now: fixedNow("2026-05-14T10:10:00.000Z"),
     });
@@ -179,6 +182,7 @@ describe("ConversationService", () => {
     await conversationService.createConversation(project.id);
 
     const laterConversationService = new ConversationService({
+      designPageAgent: buildFakeDesignPageAgent(),
       workspaceStore,
       now: fixedNow("2026-05-14T10:15:00.000Z"),
     });
@@ -238,5 +242,15 @@ function sequenceIds(...values: string[]) {
 
     index += 1;
     return value;
+  };
+}
+
+function buildFakeDesignPageAgent(): DesignPageAgent {
+  return {
+    async generateProjectOutput(input) {
+      return {
+        content: `已生成测试 HTML：${input.content}`,
+      };
+    },
   };
 }

@@ -2,24 +2,28 @@ import { revalidatePath } from "next/cache";
 
 import { Message, MessageContent } from "@/components/ai-elements/message";
 import { ChatShell } from "@/components/chat-shell";
+import { ControlBar } from "@/components/control-bar";
 import {
   createConversationService,
   createProjectService,
 } from "@/lib/hjdesign";
 
-async function createProjectAction(formData: FormData) {
+async function createProjectFromControlBar(
+  name: string,
+  description?: string,
+) {
   "use server";
 
-  const name = String(formData.get("name") ?? "").trim();
-  const descriptionValue = String(formData.get("description") ?? "").trim();
+  const trimmedName = name.trim();
+  const trimmedDescription = description?.trim();
 
-  if (!name) {
+  if (!trimmedName) {
     return;
   }
 
   await createProjectService().createProject({
-    name,
-    description: descriptionValue || undefined,
+    name: trimmedName,
+    description: trimmedDescription || undefined,
   });
   revalidatePath("/");
 }
@@ -39,6 +43,17 @@ async function renameProjectAction(formData: FormData) {
     name,
     description: descriptionValue || undefined,
   });
+  revalidatePath("/");
+}
+
+async function switchProjectFromControlBar(projectId: string) {
+  "use server";
+
+  if (!projectId) {
+    return;
+  }
+
+  await createProjectService().switchProject(projectId);
   revalidatePath("/");
 }
 
@@ -68,16 +83,28 @@ async function deleteProjectAction(formData: FormData) {
   revalidatePath("/");
 }
 
-async function createConversationAction(formData: FormData) {
+async function createConversationFromControlBar(projectId: string) {
   "use server";
-
-  const projectId = String(formData.get("projectId") ?? "");
 
   if (!projectId) {
     return;
   }
 
   await createConversationService().createConversation(projectId);
+  revalidatePath("/");
+}
+
+async function switchConversationFromControlBar(
+  projectId: string,
+  conversationId: string,
+) {
+  "use server";
+
+  if (!projectId || !conversationId) {
+    return;
+  }
+
+  await createConversationService().switchConversation(projectId, conversationId);
   revalidatePath("/");
 }
 
@@ -189,93 +216,27 @@ export default async function Home() {
         )
       }
       controlBar={
-        <div className="flex flex-wrap gap-2">
-          <form action={createProjectAction} className="flex flex-wrap gap-2">
-            <input
-              className="rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm"
-              type="text"
-              name="name"
-              placeholder="New Project"
-              required
-            />
-            <input
-              className="rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm"
-              type="text"
-              name="description"
-              placeholder="Description"
-            />
-            <button
-              className="rounded-full bg-stone-900 px-4 py-2 text-sm font-medium text-white"
-              type="submit"
-            >
-              Create Project
-            </button>
-          </form>
+        <ControlBar
+          activeConversationId={conversationState.activeConversationId}
+          activeProjectId={projectState.activeProjectId}
+          conversations={conversationState.conversations}
+          onCreateConversation={async () => {
+            "use server";
 
-          {projectState.projects.map((project) => {
-            const isActive = project.id === projectState.activeProjectId;
+            await createConversationFromControlBar(activeProject?.id ?? "");
+          }}
+          onCreateProject={createProjectFromControlBar}
+          onSelectConversation={async (conversationId) => {
+            "use server";
 
-            return (
-              <form action={switchProjectAction} key={project.id}>
-                <input type="hidden" name="projectId" value={project.id} />
-                <button
-                  className={`rounded-full px-3 py-1.5 text-sm ${
-                    isActive
-                      ? "bg-stone-900 text-white"
-                      : "border border-stone-300 bg-white text-stone-700"
-                  }`}
-                  type="submit"
-                >
-                  {project.name}
-                </button>
-              </form>
+            await switchConversationFromControlBar(
+              activeProject?.id ?? "",
+              conversationId,
             );
-          })}
-
-          {activeProject
-            ? conversationState.conversations.map((conversation) => {
-                const isActive =
-                  conversation.id === conversationState.activeConversationId;
-
-                return (
-                  <form action={switchConversationAction} key={conversation.id}>
-                    <input
-                      type="hidden"
-                      name="projectId"
-                      value={activeProject.id}
-                    />
-                    <input
-                      type="hidden"
-                      name="conversationId"
-                      value={conversation.id}
-                    />
-                    <button
-                      className={`rounded-full px-3 py-1.5 text-sm ${
-                        isActive
-                          ? "bg-amber-100 text-amber-900"
-                          : "border border-stone-300 bg-white text-stone-700"
-                      }`}
-                      type="submit"
-                    >
-                      {conversation.title}
-                    </button>
-                  </form>
-                );
-              })
-            : null}
-
-          {activeProject ? (
-            <form action={createConversationAction}>
-              <input type="hidden" name="projectId" value={activeProject.id} />
-              <button
-                className="rounded-full border border-dashed border-stone-400 px-3 py-1.5 text-sm text-stone-700"
-                type="submit"
-              >
-                New Conversation
-              </button>
-            </form>
-          ) : null}
-        </div>
+          }}
+          onSelectProject={switchProjectFromControlBar}
+          projects={projectState.projects}
+        />
       }
       messageHistory={
         activeConversation ? (

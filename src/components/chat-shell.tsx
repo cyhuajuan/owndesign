@@ -1,7 +1,14 @@
 "use client";
 
-import type { ReactNode } from "react";
-import { useSyncExternalStore } from "react";
+import type { CSSProperties, ReactNode } from "react";
+import { useMemo, useSyncExternalStore } from "react";
+import {
+  ExternalLinkIcon,
+  LayersIcon,
+  PanelLeftCloseIcon,
+  PanelLeftOpenIcon,
+  RefreshCwIcon,
+} from "lucide-react";
 
 import {
   Conversation,
@@ -18,23 +25,20 @@ import {
   PromptInputTools,
 } from "@/components/ai-elements/prompt-input";
 import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { ScrollArea } from "@/components/ui/scroll-area";
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarInset,
+  SidebarProvider,
+} from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
-import {
-  MessageSquareTextIcon,
-  PanelLeftCloseIcon,
-  PanelLeftOpenIcon,
-} from "lucide-react";
 
-const CONVERSATION_PANE_STORAGE_KEY = "hjdesign.app.conversation-pane-collapsed";
+const CONVERSATION_PANE_STORAGE_KEY =
+  "hjdesign.app.conversation-pane-collapsed";
 const CONVERSATION_PANE_EVENT = "hjdesign:conversation-pane";
+const PREVIEW_REFRESH_EVENT = "hjdesign:preview-refresh";
 
 const demoMessages = [
   {
@@ -48,14 +52,24 @@ const demoMessages = [
   },
 ];
 
+type PreviewStatus = "ready" | "loading" | "error";
+
 type ChatShellProps = {
   composer?: ReactNode;
   conversationBody?: ReactNode;
   controlBar?: ReactNode;
   messageHistory?: ReactNode;
+  previewActions?: ReactNode;
   previewBody?: ReactNode;
-  previewDescription?: ReactNode;
-  previewTitle?: ReactNode;
+  previewFilename?: ReactNode;
+  previewHref?: string;
+  previewStatus?: PreviewStatus;
+};
+
+const statusLabels: Record<PreviewStatus, string> = {
+  error: "异常",
+  loading: "加载中...",
+  ready: "就绪",
 };
 
 export function ChatShell({
@@ -63,168 +77,184 @@ export function ChatShell({
   conversationBody,
   controlBar,
   messageHistory,
+  previewActions,
   previewBody,
-  previewDescription,
-  previewTitle,
+  previewFilename = "index.html",
+  previewHref,
+  previewStatus = "ready",
 }: ChatShellProps) {
   const isConversationCollapsed = useSyncExternalStore(
     subscribeToConversationPaneState,
     readConversationPaneState,
     () => false,
   );
+  const isSidebarOpen = !isConversationCollapsed;
+  const statusClassName = useMemo(
+    () =>
+      cn(
+        "size-1.5 rounded-full",
+        previewStatus === "ready" && "bg-[var(--status-ready)]",
+        previewStatus === "loading" &&
+          "animate-pulse bg-[var(--status-warning)]",
+        previewStatus === "error" && "bg-destructive",
+      ),
+    [previewStatus],
+  );
 
   return (
-    <div
-      className={cn(
-        "grid min-h-screen gap-4 bg-background p-4 text-foreground",
-        isConversationCollapsed
-          ? "lg:grid-cols-[minmax(0,1fr)]"
-          : "lg:grid-cols-[minmax(22rem,30rem)_minmax(0,1fr)]",
-      )}
+    <SidebarProvider
+      className="h-svh min-h-0 bg-background text-foreground"
+      open={isSidebarOpen}
+      onOpenChange={(open) => writeConversationPaneState(!open)}
+      style={
+        {
+          "--sidebar-width": "400px",
+          "--sidebar-width-icon": "0px",
+        } as CSSProperties
+      }
     >
-      {isConversationCollapsed ? null : (
-        <Card
-          aria-label="会话工作流"
-          className="flex min-h-[40rem] flex-col overflow-hidden border border-border/70 bg-card shadow-sm"
-          role="region"
-        >
-          <CardHeader className="gap-4 border-b bg-muted/35">
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <CardTitle className="flex items-center gap-2">
-                  <MessageSquareTextIcon data-icon="inline-start" />
-                  会话工作流
-                </CardTitle>
-                <CardDescription>
-                  控制栏、消息历史和输入区。
-                </CardDescription>
-              </div>
+      <div className="flex h-svh w-full flex-col overflow-hidden bg-background">
+        <header className="flex h-11 shrink-0 items-center gap-2 border-b border-border bg-card px-3">
+          <div className="flex shrink-0 items-center gap-2 font-semibold text-primary">
+            <LayersIcon className="size-5" />
+            <span className="text-[15px] tracking-normal">HJDesign</span>
+          </div>
+          <Separator orientation="vertical" className="h-5" />
+          {controlBar ? (
+            <div key="control-bar" className="min-w-0">
+              {controlBar}
             </div>
-            {controlBar ? (
-              <div key="control-bar">{controlBar}</div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <Button size="sm" type="button" variant="secondary">
-                  当前项目
-                </Button>
-                <Button size="sm" type="button" variant="outline">
-                  切换项目
-                </Button>
-                <Button size="sm" type="button" variant="outline">
-                  切换会话
-                </Button>
-                <Button size="sm" type="button" variant="outline">
-                  新建会话
-                </Button>
-              </div>
-            )}
-          </CardHeader>
+          ) : null}
+          <div className="flex-1" />
+        </header>
 
-          <CardContent className="flex min-h-0 flex-1 flex-col gap-4 p-0">
-            {conversationBody ?? (
-              <>
+        <div className="flex min-h-0 flex-1 overflow-hidden">
+          <Sidebar
+            aria-label="会话工作流"
+            className="top-11 h-[calc(100svh-2.75rem)] border-r border-border bg-card"
+            collapsible="offcanvas"
+            role="region"
+          >
+            <SidebarContent className="bg-card">
+              {conversationBody ?? (
                 <Conversation className="min-h-0">
-                  <ConversationContent>
+                  <ConversationContent className="gap-2 p-4">
                     {messageHistory ??
                       (demoMessages.length === 0 ? (
                         <ConversationEmptyState />
                       ) : (
                         demoMessages.map((message, index) => (
-                          <Message from={message.role} key={`${message.role}-${index}`}>
+                          <Message
+                            from={message.role}
+                            key={`${message.role}-${index}`}
+                          >
                             <MessageContent>{message.content}</MessageContent>
                           </Message>
                         ))
                       ))}
                   </ConversationContent>
                 </Conversation>
+              )}
+            </SidebarContent>
+            {conversationBody ? null : (
+              <SidebarFooter className="border-t border-border bg-card p-3">
+                {composer ?? (
+                  <PromptInput onSubmit={() => {}}>
+                    <PromptInputBody>
+                      <PromptInputTextarea placeholder="输入消息..." />
+                    </PromptInputBody>
+                    <PromptInputFooter>
+                      <PromptInputTools />
+                      <PromptInputSubmit />
+                    </PromptInputFooter>
+                  </PromptInput>
+                )}
+              </SidebarFooter>
+            )}
+          </Sidebar>
 
-                <div className="border-t bg-card px-4 pb-4">
-                  {composer ?? (
-                    <PromptInput onSubmit={() => {}}>
-                      <PromptInputBody>
-                        <PromptInputTextarea placeholder="描述下一步设计动作..." />
-                      </PromptInputBody>
-                      <PromptInputFooter>
-                        <PromptInputTools />
-                        <PromptInputSubmit />
-                      </PromptInputFooter>
-                    </PromptInput>
+          <SidebarInset
+            aria-label="预览面板"
+            className="min-w-0 bg-background"
+            role="region"
+          >
+            <div className="flex h-full min-h-0 flex-col">
+              <div className="flex h-[38px] shrink-0 items-center gap-2 border-b border-border bg-card px-3">
+                <Button
+                  aria-label={
+                    isConversationCollapsed
+                      ? "展开会话面板"
+                      : "收起会话面板"
+                  }
+                  onClick={() =>
+                    writeConversationPaneState(!isConversationCollapsed)
+                  }
+                  size="icon-sm"
+                  type="button"
+                  variant="ghost"
+                >
+                  {isConversationCollapsed ? (
+                    <PanelLeftOpenIcon />
+                  ) : (
+                    <PanelLeftCloseIcon />
+                  )}
+                </Button>
+
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <span className={statusClassName} />
+                  <span>{statusLabels[previewStatus]}</span>
+                </div>
+                <div className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">
+                  {previewFilename}
+                </div>
+                <div className="flex items-center gap-1">
+                  {previewActions ?? (
+                    <>
+                      <Button
+                        aria-label="刷新预览"
+                        onClick={() => {
+                          window.dispatchEvent(new Event(PREVIEW_REFRESH_EVENT));
+                        }}
+                        size="icon-sm"
+                        type="button"
+                        variant="ghost"
+                      >
+                        <RefreshCwIcon />
+                      </Button>
+                      <Button
+                        aria-label="新窗口打开预览"
+                        disabled={!previewHref}
+                        onClick={() => {
+                          if (previewHref) {
+                            window.open(previewHref, "_blank", "noopener");
+                          }
+                        }}
+                        size="icon-sm"
+                        type="button"
+                        variant="ghost"
+                      >
+                        <ExternalLinkIcon />
+                      </Button>
+                    </>
                   )}
                 </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      <Card
-        aria-label="预览面板"
-        className="flex min-h-[40rem] flex-col overflow-hidden border border-border/70 bg-card shadow-sm"
-        role="region"
-      >
-        <CardHeader className="flex flex-row items-center justify-between gap-3 border-b bg-muted/25">
-          <Button
-            aria-label={
-              isConversationCollapsed
-                ? "展开会话面板"
-                : "收起会话面板"
-            }
-            onClick={() => writeConversationPaneState(!isConversationCollapsed)}
-            size="icon-sm"
-            type="button"
-            variant="outline"
-          >
-            {isConversationCollapsed ? (
-              <PanelLeftOpenIcon />
-            ) : (
-              <PanelLeftCloseIcon />
-            )}
-          </Button>
-          <div className="min-w-0 text-right">
-            <CardTitle>{previewTitle ?? "预览面板"}</CardTitle>
-            <CardDescription>
-              {previewDescription ??
-                "预览标题和项目范围输出会显示在这里。"}
-            </CardDescription>
-          </div>
-        </CardHeader>
-
-        <CardContent className="min-h-0 flex-1 p-0">
-          <ScrollArea className="h-full">
-            {previewBody ?? (
-              <div className="flex min-h-[32rem] flex-col gap-4 p-6">
-                <div className="rounded-lg border border-dashed bg-background p-6">
-                  <p className="text-sm font-medium text-foreground">
-                    项目预览占位
-                  </p>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    预览运行时接入后，共享项目输出会显示在这里。
-                  </p>
-                </div>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="rounded-lg border bg-card p-4">
-                    <p className="text-sm font-medium text-foreground">
-                      预览标题区
-                    </p>
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      最左侧按钮负责切换会话面板的收起状态。
-                    </p>
-                  </div>
-                  <div className="rounded-lg border bg-card p-4">
-                    <p className="text-sm font-medium text-foreground">
-                      项目输出
-                    </p>
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      同一项目下的所有会话共享这个输出区域。
-                    </p>
-                  </div>
-                </div>
               </div>
-            )}
-          </ScrollArea>
-        </CardContent>
-      </Card>
-    </div>
+
+              <div className="relative min-h-0 flex-1 overflow-hidden">
+                {previewBody ?? (
+                  <div className="flex size-full items-center justify-center p-10">
+                    <ConversationEmptyState
+                      description="在对话中向 AI 描述你的设计需求，生成的页面将在此处实时预览。"
+                      title="尚无预览内容"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          </SidebarInset>
+        </div>
+      </div>
+    </SidebarProvider>
   );
 }
 
@@ -234,10 +264,7 @@ function subscribeToConversationPaneState(onStoreChange: () => void) {
   }
 
   const handleStorage = (event: StorageEvent) => {
-    if (
-      event.key === null ||
-      event.key === CONVERSATION_PANE_STORAGE_KEY
-    ) {
+    if (event.key === null || event.key === CONVERSATION_PANE_STORAGE_KEY) {
       onStoreChange();
     }
   };

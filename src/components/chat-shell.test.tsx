@@ -29,8 +29,8 @@ describe("ChatShell", () => {
     );
 
     expect(
-      screen.queryAllByRole("region", { name: "会话工作流" }),
-    ).toHaveLength(0);
+      within(previewPane).getByRole("button", { name: "展开会话面板" }),
+    ).toBeInTheDocument();
 
     await user.click(
       within(previewPane).getByRole("button", { name: "展开会话面板" }),
@@ -53,15 +53,12 @@ describe("ChatShell", () => {
     );
 
     expect(
-      screen.queryAllByRole("region", { name: "会话工作流" }),
-    ).toHaveLength(0);
+      within(previewPane).getByRole("button", { name: "展开会话面板" }),
+    ).toBeInTheDocument();
 
     firstRender.unmount();
     render(<ChatShell />);
 
-    expect(
-      screen.queryAllByRole("region", { name: "会话工作流" }),
-    ).toHaveLength(0);
     expect(
       screen.getAllByRole("button", { name: "展开会话面板" }),
     ).not.toHaveLength(0);

@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
@@ -105,6 +105,57 @@ describe("ControlBar", () => {
         name: "会话切换器 新建会话 3",
       }),
     ).toBeInTheDocument();
+  });
+
+  it("renames Project from Project switcher item menu", async () => {
+    const user = userEvent.setup();
+
+    render(<ControlBarHarness />);
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "项目切换器 Alpha Website",
+      }),
+    );
+    const alphaOption = screen.getByRole("option", { name: /Alpha Website/ });
+    await user.click(
+      within(alphaOption).getByRole("button", { name: "重命名" }),
+    );
+    await user.clear(screen.getByLabelText("新名称"));
+    await user.type(screen.getByLabelText("新名称"), "Alpha Redesign");
+    await user.click(screen.getByRole("button", { name: "保存" }));
+
+    expect(
+      screen.getByRole("button", {
+        name: "项目切换器 Alpha Redesign",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("deletes Conversation through confirmation dialog", async () => {
+    const user = userEvent.setup();
+
+    render(<ControlBarHarness />);
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "会话切换器 Landing page polish",
+      }),
+    );
+    const heroOption = screen.getByRole("option", { name: /Hero messaging/ });
+    await user.click(
+      within(heroOption).getByRole("button", { name: "删除" }),
+    );
+    await user.click(screen.getByRole("button", { name: "删除" }));
+    await user.click(
+      screen.getByRole("button", {
+        name: "会话切换器 Landing page polish",
+      }),
+    );
+
+    expect(
+      screen.queryByRole("option", { name: /Hero messaging/ }),
+    ).not.toBeInTheDocument();
   });
 });
 
@@ -235,6 +286,44 @@ function ControlBarHarness() {
           [nextProjectId]: nextConversationId,
         }));
         setActiveProjectId(nextProjectId);
+      }}
+      onDeleteConversation={async (conversationId) => {
+        setConversationsByProject((current) => ({
+          ...current,
+          [activeProjectId]: current[activeProjectId].filter(
+            (conversation) => conversation.id !== conversationId,
+          ),
+        }));
+      }}
+      onDeleteProject={async (projectId) => {
+        setProjects((current) =>
+          current.filter((project) => project.id !== projectId),
+        );
+        if (activeProjectId === projectId) {
+          const fallbackProject = projects.find(
+            (project) => project.id !== projectId,
+          );
+          setActiveProjectId(fallbackProject?.id ?? "");
+        }
+      }}
+      onRenameConversation={async (conversationId, title) => {
+        setConversationsByProject((current) => ({
+          ...current,
+          [activeProjectId]: current[activeProjectId].map((conversation) =>
+            conversation.id === conversationId
+              ? { ...conversation, title }
+              : conversation,
+          ),
+        }));
+      }}
+      onRenameProject={async (projectId, name, description) => {
+        setProjects((current) =>
+          current.map((project) =>
+            project.id === projectId
+              ? { ...project, name, description }
+              : project,
+          ),
+        );
       }}
       onSelectConversation={async (conversationId) => {
         setActiveConversationIds((current) => ({

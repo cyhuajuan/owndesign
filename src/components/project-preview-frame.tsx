@@ -17,6 +17,11 @@ export function ProjectPreviewFrame({
 
   useEffect(() => {
     const handleProjectOutputUpdated = (event: Event) => {
+      if (event.type === "hjdesign:preview-refresh") {
+        setRefreshKey(String(Date.now()));
+        return;
+      }
+
       if (
         event instanceof CustomEvent &&
         event.detail?.projectId === projectId
@@ -29,10 +34,15 @@ export function ProjectPreviewFrame({
       "hjdesign:project-output-updated",
       handleProjectOutputUpdated,
     );
+    window.addEventListener("hjdesign:preview-refresh", handleProjectOutputUpdated);
 
     return () => {
       window.removeEventListener(
         "hjdesign:project-output-updated",
+        handleProjectOutputUpdated,
+      );
+      window.removeEventListener(
+        "hjdesign:preview-refresh",
         handleProjectOutputUpdated,
       );
     };
@@ -40,7 +50,7 @@ export function ProjectPreviewFrame({
 
   return (
     <iframe
-      className="h-[calc(100vh-9rem)] min-h-[32rem] w-full overflow-hidden rounded-md border bg-white"
+      className="size-full border-0 bg-white"
       sandbox="allow-scripts"
       src={`/api/projects/${projectId}/preview?updatedAt=${encodeURIComponent(refreshKey)}`}
       title={`${projectName} HTML 预览`}

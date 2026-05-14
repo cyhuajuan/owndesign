@@ -88,15 +88,15 @@ export function StreamingConversationPanel({
   return (
     <>
       <Conversation className="min-h-0">
-        <ConversationContent>
+        <ConversationContent className="gap-2 p-4">
           {messages.length === 0 ? (
             <ConversationEmptyState
               description="发送第一条消息后，会自动生成会话标题。"
               title="暂无消息"
             />
           ) : (
-            messages.map((message) => (
-              <Message from={message.role} key={message.id}>
+            messages.map((message, index) => (
+              <Message from={message.role} key={`${message.id || "message"}-${index}`}>
                 <MessageContent>
                   <MessageParts message={message} />
                 </MessageContent>
@@ -116,9 +116,9 @@ export function StreamingConversationPanel({
         </ConversationContent>
       </Conversation>
 
-      <div className="border-t bg-card px-4 pb-4">
+      <div className="border-t border-border bg-card px-3 pb-3">
         <PromptInput
-          className="pt-4"
+          className="pt-3"
           onSubmit={async ({ text }) => {
             const trimmedText = text.trim();
 
@@ -131,13 +131,18 @@ export function StreamingConversationPanel({
         >
           <PromptInputBody>
             <PromptInputTextarea
+              className="min-h-13 text-[13px]"
               disabled={isGenerating}
-              placeholder="描述你希望这段会话探索的内容..."
+              placeholder="输入消息... (Enter 发送, Shift+Enter 换行)"
             />
           </PromptInputBody>
-          <PromptInputFooter>
+          <PromptInputFooter className="justify-end px-2 pb-1">
             <PromptInputTools />
-            <PromptInputSubmit disabled={isGenerating} status={status} />
+            <PromptInputSubmit
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+              disabled={isGenerating}
+              status={status}
+            />
           </PromptInputFooter>
         </PromptInput>
       </div>
@@ -182,7 +187,7 @@ function ReasoningPart({
   text: string;
 }) {
   return (
-    <details className="rounded-md border bg-muted/25 px-3 py-2 text-sm" open>
+    <details className="rounded-md border border-border bg-background px-3 py-2 text-sm" open>
       <summary className="flex cursor-pointer list-none items-center gap-2 font-medium text-muted-foreground">
         <BrainCircuitIcon className="size-4" />
         思考过程
@@ -208,7 +213,7 @@ function GenericToolPart({ part }: { part: ToolLikePart }) {
   const matches = Array.isArray(output?.matches) ? output.matches.length : undefined;
 
   return (
-    <div className="rounded-md border bg-muted/20 p-3 text-sm">
+    <div className="rounded-md border border-border bg-background p-3 text-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2 font-medium">
           <WrenchIcon className="size-4" />

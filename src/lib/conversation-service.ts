@@ -6,6 +6,10 @@ import {
   AiSdkDesignPageAgent,
   DesignPageAgent,
 } from "./design-page-agent";
+import {
+  getFirstUserMessageText,
+  HJDesignUIMessage,
+} from "./chat-messages";
 
 type ConversationServiceOptions = {
   workspaceStore: WorkspaceStore;
@@ -142,6 +146,45 @@ export class ConversationService {
       lastMessageAt: timestamp,
     };
 
+    const updatedProject = {
+      ...project,
+      updatedAt: timestamp,
+    };
+
+    await this.workspaceStore.updateProject(projectId, updatedProject);
+
+    return this.workspaceStore.updateConversation(
+      projectId,
+      conversationId,
+      updatedConversation,
+    );
+  }
+
+  async saveUIMessageStream(
+    projectId: string,
+    conversationId: string,
+    messages: HJDesignUIMessage[],
+  ) {
+    const existingConversation = await this.workspaceStore.getConversation(
+      projectId,
+      conversationId,
+    );
+    const project = await this.workspaceStore.getProject(projectId);
+    const timestamp = this.now();
+    const firstUserMessageText = getFirstUserMessageText(messages);
+    const updatedConversation: ConversationRecord = {
+      ...existingConversation,
+      title:
+        !existingConversation.titleManuallySet &&
+        existingConversation.title === DEFAULT_CONVERSATION_TITLE &&
+        existingConversation.messages.length === 0 &&
+        firstUserMessageText
+          ? summarizeConversationTitle(firstUserMessageText)
+          : existingConversation.title,
+      messages,
+      updatedAt: timestamp,
+      lastMessageAt: timestamp,
+    };
     const updatedProject = {
       ...project,
       updatedAt: timestamp,

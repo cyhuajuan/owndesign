@@ -230,6 +230,42 @@ describe("ConversationService", () => {
     });
   });
 
+  it("persists streamed UI messages and auto-generates the title from the first user text part", async () => {
+    const workspaceStore = await createWorkspaceStore();
+    const projectService = new ProjectService({
+      workspaceStore,
+      createId: sequenceIds("project-1", "conversation-1"),
+      now: fixedNow("2026-05-14T10:00:00.000Z"),
+    });
+    const project = await projectService.createProject({ name: "Project One" });
+    const conversationService = new ConversationService({
+      workspaceStore,
+      now: fixedNow("2026-05-14T10:25:00.000Z"),
+    });
+    const messages = [
+      {
+        id: "user-1",
+        parts: [{ text: "设计一个 CRM 仪表盘", type: "text" as const }],
+        role: "user" as const,
+      },
+      {
+        id: "assistant-1",
+        parts: [{ text: "已生成。", type: "text" as const }],
+        role: "assistant" as const,
+      },
+    ];
+
+    const updatedConversation = await conversationService.saveUIMessageStream(
+      project.id,
+      "conversation-1",
+      messages,
+    );
+
+    expect(updatedConversation.title).toBe("设计一个 CRM 仪表盘");
+    expect(updatedConversation.messages).toEqual(messages);
+    expect(updatedConversation.lastMessageAt).toBe("2026-05-14T10:25:00.000Z");
+  });
+
   it("deleting the active last Conversation immediately replaces it with a new default Conversation", async () => {
     const workspaceStore = await createWorkspaceStore();
     const projectService = new ProjectService({

@@ -3,10 +3,10 @@ import { revalidatePath } from "next/cache";
 import {
   ConversationEmptyState,
 } from "@/components/ai-elements/conversation";
-import { Message, MessageContent } from "@/components/ai-elements/message";
 import { ChatShell } from "@/components/chat-shell";
 import { ControlBar } from "@/components/control-bar";
-import { MessageComposer } from "@/components/message-composer";
+import { ProjectPreviewFrame } from "@/components/project-preview-frame";
+import { StreamingConversationPanel } from "@/components/streaming-conversation-panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -43,6 +43,7 @@ import {
   createConversationService,
   createProjectService,
 } from "@/lib/hjdesign";
+import { normalizeConversationMessages } from "@/lib/chat-messages";
 import {
   ArrowRightLeftIcon,
   FolderIcon,
@@ -199,25 +200,6 @@ async function deleteConversationAction(formData: FormData) {
   revalidatePath("/");
 }
 
-async function appendMessageAction(formData: FormData) {
-  "use server";
-
-  const projectId = String(formData.get("projectId") ?? "");
-  const conversationId = String(formData.get("conversationId") ?? "");
-  const content = String(formData.get("content") ?? "").trim();
-
-  if (!projectId || !conversationId || !content) {
-    return;
-  }
-
-  await createConversationService().sendUserMessage(
-    projectId,
-    conversationId,
-    content,
-  );
-  revalidatePath("/");
-}
-
 export default async function Home() {
   const projectState = await createProjectService().getProjectState();
   const activeProject = projectState.projects.find(
@@ -234,20 +216,26 @@ export default async function Home() {
   return (
     <ChatShell
       composer={
-        activeProject && activeConversation ? (
-          <MessageComposer
-            action={appendMessageAction}
-            conversationId={activeConversation.id}
-            projectId={activeProject.id}
-          />
-        ) : (
+        !activeProject || !activeConversation ? (
           <ConversationEmptyState
             className="min-h-28 pt-4"
             description="请先创建项目，再开始发送消息。"
             icon={<PlusIcon />}
             title="输入区暂不可用"
           />
-        )
+        ) : undefined
+      }
+      conversationBody={
+        activeProject && activeConversation ? (
+          <StreamingConversationPanel
+            conversationId={activeConversation.id}
+            initialMessages={normalizeConversationMessages(
+              activeConversation.messages,
+            )}
+            key={activeConversation.id}
+            projectId={activeProject.id}
+          />
+        ) : undefined
       }
       controlBar={
         <ControlBar
@@ -273,24 +261,7 @@ export default async function Home() {
         />
       }
       messageHistory={
-        activeConversation ? (
-          activeConversation.messages.length === 0 ? (
-            <ConversationEmptyState
-              description="发送第一条消息后，会自动生成会话标题。"
-              icon={<MessageSquareIcon />}
-              title="暂无消息"
-            />
-          ) : (
-            activeConversation.messages.map((message, index) => (
-              <Message
-                from={getMessageRole(message)}
-                key={`${activeConversation.id}-${index}`}
-              >
-                <MessageContent>{formatMessageContent(message)}</MessageContent>
-              </Message>
-            ))
-          )
-        ) : (
+        activeConversation ? undefined : (
           <ConversationEmptyState
             description="选择或创建一个会话来填充这里。"
             icon={<MessageSquareIcon />}
@@ -301,12 +272,10 @@ export default async function Home() {
       previewBody={
         <div className="flex min-h-[32rem] flex-col gap-4 p-6">
           {activeProject ? (
-            <iframe
-              className="h-[calc(100vh-9rem)] min-h-[32rem] w-full overflow-hidden rounded-md border bg-white"
-              key={`${activeProject.id}-${activeProject.updatedAt}`}
-              sandbox="allow-scripts"
-              src={`/api/projects/${activeProject.id}/preview?updatedAt=${encodeURIComponent(activeProject.updatedAt)}`}
-              title={`${activeProject.name} HTML 预览`}
+            <ProjectPreviewFrame
+              initialUpdatedAt={activeProject.updatedAt}
+              projectId={activeProject.id}
+              projectName={activeProject.name}
             />
           ) : (
             <Empty className="min-h-[32rem] rounded-md border border-dashed">
@@ -685,30 +654,4 @@ export default async function Home() {
       previewTitle={activeProject?.name || "预览面板"}
     />
   );
-}
-
-function formatMessageContent(message: unknown) {
-  if (
-    typeof message === "object" &&
-    message !== null &&
-    "content" in message &&
-    typeof message.content === "string"
-  ) {
-    return message.content;
-  }
-
-  return JSON.stringify(message);
-}
-
-function getMessageRole(message: unknown): "assistant" | "user" {
-  if (
-    typeof message === "object" &&
-    message !== null &&
-    "role" in message &&
-    (message.role === "assistant" || message.role === "user")
-  ) {
-    return message.role;
-  }
-
-  return "assistant";
 }

@@ -50,6 +50,7 @@ const demoMessages = [
 
 type ChatShellProps = {
   composer?: ReactNode;
+  conversationBody?: ReactNode;
   controlBar?: ReactNode;
   messageHistory?: ReactNode;
   previewBody?: ReactNode;
@@ -59,6 +60,7 @@ type ChatShellProps = {
 
 export function ChatShell({
   composer,
+  conversationBody,
   controlBar,
   messageHistory,
   previewBody,
@@ -117,34 +119,38 @@ export function ChatShell({
           </CardHeader>
 
           <CardContent className="flex min-h-0 flex-1 flex-col gap-4 p-0">
-            <Conversation className="min-h-0">
-              <ConversationContent>
-                {messageHistory ??
-                  (demoMessages.length === 0 ? (
-                    <ConversationEmptyState />
-                  ) : (
-                    demoMessages.map((message, index) => (
-                      <Message from={message.role} key={`${message.role}-${index}`}>
-                        <MessageContent>{message.content}</MessageContent>
-                      </Message>
-                    ))
-                  ))}
-              </ConversationContent>
-            </Conversation>
+            {conversationBody ?? (
+              <>
+                <Conversation className="min-h-0">
+                  <ConversationContent>
+                    {messageHistory ??
+                      (demoMessages.length === 0 ? (
+                        <ConversationEmptyState />
+                      ) : (
+                        demoMessages.map((message, index) => (
+                          <Message from={message.role} key={`${message.role}-${index}`}>
+                            <MessageContent>{message.content}</MessageContent>
+                          </Message>
+                        ))
+                      ))}
+                  </ConversationContent>
+                </Conversation>
 
-            <div className="border-t bg-card px-4 pb-4">
-              {composer ?? (
-                <PromptInput onSubmit={() => {}}>
-                  <PromptInputBody>
-                    <PromptInputTextarea placeholder="描述下一步设计动作..." />
-                  </PromptInputBody>
-                  <PromptInputFooter>
-                    <PromptInputTools />
-                    <PromptInputSubmit />
-                  </PromptInputFooter>
-                </PromptInput>
-              )}
-            </div>
+                <div className="border-t bg-card px-4 pb-4">
+                  {composer ?? (
+                    <PromptInput onSubmit={() => {}}>
+                      <PromptInputBody>
+                        <PromptInputTextarea placeholder="描述下一步设计动作..." />
+                      </PromptInputBody>
+                      <PromptInputFooter>
+                        <PromptInputTools />
+                        <PromptInputSubmit />
+                      </PromptInputFooter>
+                    </PromptInput>
+                  )}
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
       )}

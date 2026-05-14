@@ -1,9 +1,4 @@
-import {
-  mkdir,
-  readdir,
-  readFile,
-  writeFile,
-} from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -25,6 +20,7 @@ export type ConversationRecord = {
   updatedAt: string;
   lastMessageAt?: string;
   messages: unknown[];
+  titleManuallySet?: boolean;
 };
 
 export type WorkspaceState = {
@@ -167,6 +163,35 @@ export class WorkspaceStore {
 
       throw error;
     }
+  }
+
+  async getConversation(projectId: string, conversationId: string) {
+    const conversationJson = await readFile(
+      this.getConversationFilePath(projectId, conversationId),
+      "utf8",
+    );
+
+    return JSON.parse(conversationJson) as ConversationRecord;
+  }
+
+  async updateConversation(
+    projectId: string,
+    conversationId: string,
+    conversation: ConversationRecord,
+  ) {
+    await writeFile(
+      this.getConversationFilePath(projectId, conversationId),
+      JSON.stringify(conversation, null, 2),
+      "utf8",
+    );
+
+    return conversation;
+  }
+
+  async deleteConversation(projectId: string, conversationId: string) {
+    await this.moveToTrash(
+      this.getConversationFilePath(projectId, conversationId),
+    );
   }
 
   async writeWorkspaceState(state: WorkspaceState) {

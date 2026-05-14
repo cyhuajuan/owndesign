@@ -2,11 +2,13 @@ import {
   ConversationRecord,
   WorkspaceStore,
 } from "./workspace-store";
+import { MockReplyEngine } from "./mock-reply-engine";
 
 type ConversationServiceOptions = {
   workspaceStore: WorkspaceStore;
   now?: () => string;
   createId?: () => string;
+  mockReplyEngine?: MockReplyEngine;
 };
 
 type RenameConversationInput = {
@@ -19,6 +21,13 @@ type ConversationState = {
 };
 
 type UserMessage = {
+  role: "user";
+  content: string;
+  createdAt: string;
+};
+
+type AssistantMessage = {
+  role: "assistant";
   content: string;
   createdAt: string;
 };
@@ -29,11 +38,13 @@ export class ConversationService {
   private readonly workspaceStore: WorkspaceStore;
   private readonly now: () => string;
   private readonly createId: () => string;
+  private readonly mockReplyEngine: MockReplyEngine;
 
   constructor(options: ConversationServiceOptions) {
     this.workspaceStore = options.workspaceStore;
     this.now = options.now ?? (() => new Date().toISOString());
     this.createId = options.createId ?? (() => crypto.randomUUID());
+    this.mockReplyEngine = options.mockReplyEngine ?? new MockReplyEngine();
   }
 
   async createConversation(projectId: string) {
@@ -81,7 +92,7 @@ export class ConversationService {
     await this.setActiveConversation(projectId, conversationId);
   }
 
-  async appendUserMessage(
+  async sendUserMessage(
     projectId: string,
     conversationId: string,
     content: string,
@@ -91,9 +102,24 @@ export class ConversationService {
       conversationId,
     );
     const timestamp = this.now();
+    const userMessage = {
+      role: "user",
+      content,
+      createdAt: timestamp,
+    } satisfies UserMessage;
+    const mockReply = {
+      role: "assistant",
+      content: this.mockReplyEngine.generateReply({
+        projectId,
+        conversationId,
+        content,
+      }),
+      createdAt: timestamp,
+    } satisfies AssistantMessage;
     const messages = [
       ...existingConversation.messages,
-      { content, createdAt: timestamp } satisfies UserMessage,
+      userMessage,
+      mockReply,
     ];
     const updatedConversation: ConversationRecord = {
       ...existingConversation,

@@ -99,7 +99,7 @@ describe("ConversationService", () => {
     expect(state.activeConversationId).toBe("conversation-1");
   });
 
-  it("auto-generates the title from the first user message when the title is still default", async () => {
+  it("sends a user message, appends a deterministic Mock Agent Reply, and auto-generates the title from the first user message", async () => {
     const workspaceStore = await createWorkspaceStore();
     const projectService = new ProjectService({
       workspaceStore,
@@ -112,7 +112,7 @@ describe("ConversationService", () => {
       now: fixedNow("2026-05-14T10:10:00.000Z"),
     });
 
-    const updatedConversation = await conversationService.appendUserMessage(
+    const updatedConversation = await conversationService.sendUserMessage(
       project.id,
       "conversation-1",
       "Build a clean dashboard landing page for a design tool",
@@ -122,10 +122,22 @@ describe("ConversationService", () => {
       "Build a clean dashboard landing page for a design tool",
     );
     expect(updatedConversation.lastMessageAt).toBe("2026-05-14T10:10:00.000Z");
-    expect(updatedConversation.messages).toHaveLength(1);
+    expect(updatedConversation.messages).toEqual([
+      {
+        content: "Build a clean dashboard landing page for a design tool",
+        createdAt: "2026-05-14T10:10:00.000Z",
+        role: "user",
+      },
+      {
+        content:
+          "Mock reply: captured your request for Project project-1 in Conversation conversation-1.",
+        createdAt: "2026-05-14T10:10:00.000Z",
+        role: "assistant",
+      },
+    ]);
   });
 
-  it("keeps a manually renamed title when appending the first user message", async () => {
+  it("keeps a manually renamed title when sending the first user message", async () => {
     const workspaceStore = await createWorkspaceStore();
     const projectService = new ProjectService({
       workspaceStore,
@@ -141,13 +153,50 @@ describe("ConversationService", () => {
     await conversationService.renameConversation(project.id, "conversation-1", {
       title: "Hero concepts",
     });
-    const updatedConversation = await conversationService.appendUserMessage(
+    const updatedConversation = await conversationService.sendUserMessage(
       project.id,
       "conversation-1",
       "Build a clean dashboard landing page for a design tool",
     );
 
     expect(updatedConversation.title).toBe("Hero concepts");
+  });
+
+  it("keeps Conversation ordering based on the latest message timestamp after sending a message", async () => {
+    const workspaceStore = await createWorkspaceStore();
+    const projectService = new ProjectService({
+      workspaceStore,
+      createId: sequenceIds("project-1", "conversation-1", "conversation-2"),
+      now: fixedNow("2026-05-14T10:00:00.000Z"),
+    });
+    const project = await projectService.createProject({ name: "Project One" });
+    const conversationService = new ConversationService({
+      workspaceStore,
+      createId: sequenceIds("conversation-2"),
+      now: fixedNow("2026-05-14T10:05:00.000Z"),
+    });
+
+    await conversationService.createConversation(project.id);
+
+    const laterConversationService = new ConversationService({
+      workspaceStore,
+      now: fixedNow("2026-05-14T10:15:00.000Z"),
+    });
+    await laterConversationService.sendUserMessage(
+      project.id,
+      "conversation-1",
+      "Refresh the main product marketing page",
+    );
+
+    const state = await laterConversationService.getConversationState(project.id);
+
+    expect(state.conversations.map((conversation) => conversation.id)).toEqual([
+      "conversation-1",
+      "conversation-2",
+    ]);
+    expect(state.conversations[0]?.lastMessageAt).toBe(
+      "2026-05-14T10:15:00.000Z",
+    );
   });
 
   it("deleting the active last Conversation immediately replaces it with a new default Conversation", async () => {

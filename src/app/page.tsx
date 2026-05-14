@@ -135,7 +135,7 @@ async function appendMessageAction(formData: FormData) {
     return;
   }
 
-  await createConversationService().appendUserMessage(
+  await createConversationService().sendUserMessage(
     projectId,
     conversationId,
     content,

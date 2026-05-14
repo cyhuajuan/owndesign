@@ -1,4 +1,12 @@
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import {
+  lstat,
+  mkdir,
+  readdir,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -29,6 +37,19 @@ export type ConversationRecord = {
 export type WorkspaceState = {
   activeProjectId?: string;
   activeConversationId?: string;
+};
+
+export type WorkspaceEntry = {
+  path: string;
+  type: "directory" | "file";
+  size: number;
+  updatedAt: string;
+};
+
+export type WorkspaceSearchMatch = {
+  path: string;
+  line: number;
+  preview: string;
 };
 
 type WorkspaceStoreOptions = {
@@ -212,6 +233,136 @@ export class WorkspaceStore {
     return path.join(this.getProjectDirectory(projectId), "workspace");
   }
 
+  async listProjectWorkspace(projectId: string) {
+    const entries: WorkspaceEntry[] = [];
+
+    await this.walkProjectWorkspace(projectId, "", async (entry) => {
+      entries.push(entry);
+    });
+
+    return entries.sort((left, right) => left.path.localeCompare(right.path));
+  }
+
+  async searchProjectWorkspace(
+    projectId: string,
+    query: string,
+    relativePath = "",
+  ) {
+    if (!query) {
+      throw new Error("Search query must not be empty.");
+    }
+
+    const matches: WorkspaceSearchMatch[] = [];
+    const startPath = relativePath && relativePath !== "."
+      ? await this.resolveProjectWorkspacePath(projectId, relativePath, {
+          checkTargetSymlink: true,
+        })
+      : this.getProjectWorkspaceDirectory(projectId);
+    const startStats = await stat(startPath);
+
+    if (startStats.isFile()) {
+      await this.searchWorkspaceFile(projectId, startPath, query, matches);
+    } else if (startStats.isDirectory()) {
+      await this.walkProjectWorkspace(
+        projectId,
+        relativePath === "." ? "" : relativePath,
+        async (entry, absolutePath) => {
+          if (entry.type === "file") {
+            await this.searchWorkspaceFile(projectId, absolutePath, query, matches);
+          }
+        },
+      );
+    }
+
+    return matches;
+  }
+
+  async readProjectWorkspaceFile(projectId: string, relativePath: string) {
+    const filePath = await this.resolveProjectWorkspacePath(
+      projectId,
+      relativePath,
+      { checkTargetSymlink: true },
+    );
+    const fileStats = await stat(filePath);
+
+    if (!fileStats.isFile()) {
+      throw new Error(`Project Workspace path is not a file: ${relativePath}`);
+    }
+
+    return readFile(filePath, "utf8");
+  }
+
+  async writeProjectWorkspaceFile(
+    projectId: string,
+    relativePath: string,
+    content: string,
+  ) {
+    const filePath = await this.resolveProjectWorkspacePath(
+      projectId,
+      relativePath,
+      { checkTargetSymlink: true, targetMayBeMissing: true },
+    );
+
+    await mkdir(path.dirname(filePath), { recursive: true });
+    await writeFile(filePath, content, "utf8");
+
+    return {
+      bytesWritten: Buffer.byteLength(content, "utf8"),
+      path: normalizeWorkspaceRelativePath(
+        path.relative(this.getProjectWorkspaceDirectory(projectId), filePath),
+      ),
+    };
+  }
+
+  async editProjectWorkspaceFile(
+    projectId: string,
+    relativePath: string,
+    oldText: string,
+    newText: string,
+  ) {
+    if (!oldText) {
+      throw new Error("oldText must not be empty.");
+    }
+
+    const content = await this.readProjectWorkspaceFile(projectId, relativePath);
+    const firstIndex = content.indexOf(oldText);
+
+    if (firstIndex === -1) {
+      throw new Error(`oldText was not found in Project Workspace file: ${relativePath}`);
+    }
+
+    if (content.indexOf(oldText, firstIndex + oldText.length) !== -1) {
+      throw new Error(
+        `oldText appears more than once in Project Workspace file: ${relativePath}`,
+      );
+    }
+
+    const updatedContent =
+      content.slice(0, firstIndex) + newText + content.slice(firstIndex + oldText.length);
+
+    await this.writeProjectWorkspaceFile(projectId, relativePath, updatedContent);
+
+    return {
+      path: normalizeWorkspaceRelativePath(relativePath),
+      replacements: 1,
+    };
+  }
+
+  async deleteProjectWorkspacePath(projectId: string, relativePath: string) {
+    const targetPath = await this.resolveProjectWorkspacePath(
+      projectId,
+      relativePath,
+      { checkTargetSymlink: true },
+    );
+
+    await rm(targetPath, { force: false, recursive: true });
+
+    return {
+      deleted: true,
+      path: normalizeWorkspaceRelativePath(relativePath),
+    };
+  }
+
   async deleteConversation(projectId: string, conversationId: string) {
     await this.moveToTrash(
       this.getConversationFilePath(projectId, conversationId),
@@ -276,6 +427,175 @@ export class WorkspaceStore {
       `${conversationId}.json`,
     );
   }
+
+  private async walkProjectWorkspace(
+    projectId: string,
+    relativePath: string,
+    visit: (entry: WorkspaceEntry, absolutePath: string) => Promise<void>,
+  ) {
+    const rootPath = this.getProjectWorkspaceDirectory(projectId);
+    const startPath = relativePath
+      ? await this.resolveProjectWorkspacePath(projectId, relativePath, {
+          checkTargetSymlink: true,
+        })
+      : rootPath;
+
+    async function walk(absoluteDirectory: string) {
+      const dirEntries = await readdir(absoluteDirectory, { withFileTypes: true });
+
+      for (const dirEntry of dirEntries) {
+        const absolutePath = path.join(absoluteDirectory, dirEntry.name);
+        const entryStats = await lstat(absolutePath);
+
+        if (entryStats.isSymbolicLink()) {
+          continue;
+        }
+
+        const relativeEntryPath = normalizeWorkspaceRelativePath(
+          path.relative(rootPath, absolutePath),
+        );
+
+        if (entryStats.isDirectory()) {
+          await visit(
+            {
+              path: relativeEntryPath,
+              size: entryStats.size,
+              type: "directory",
+              updatedAt: entryStats.mtime.toISOString(),
+            },
+            absolutePath,
+          );
+          await walk(absolutePath);
+        } else if (entryStats.isFile()) {
+          await visit(
+            {
+              path: relativeEntryPath,
+              size: entryStats.size,
+              type: "file",
+              updatedAt: entryStats.mtime.toISOString(),
+            },
+            absolutePath,
+          );
+        }
+      }
+    }
+
+    const startStats = await lstat(startPath);
+
+    if (startStats.isSymbolicLink()) {
+      throw new Error("Project Workspace symlinks are not supported.");
+    }
+
+    if (startStats.isDirectory()) {
+      await walk(startPath);
+    } else if (startStats.isFile()) {
+      await visit(
+        {
+          path: normalizeWorkspaceRelativePath(path.relative(rootPath, startPath)),
+          size: startStats.size,
+          type: "file",
+          updatedAt: startStats.mtime.toISOString(),
+        },
+        startPath,
+      );
+    }
+  }
+
+  private async searchWorkspaceFile(
+    projectId: string,
+    absolutePath: string,
+    query: string,
+    matches: WorkspaceSearchMatch[],
+  ) {
+    const content = await readFile(absolutePath, "utf8");
+    const lines = content.split(/\r?\n/);
+    const relativePath = normalizeWorkspaceRelativePath(
+      path.relative(this.getProjectWorkspaceDirectory(projectId), absolutePath),
+    );
+
+    lines.forEach((lineText, index) => {
+      if (!lineText.includes(query)) {
+        return;
+      }
+
+      matches.push({
+        line: index + 1,
+        path: relativePath,
+        preview: lineText.trim().slice(0, 240),
+      });
+    });
+  }
+
+  private async resolveProjectWorkspacePath(
+    projectId: string,
+    relativePath: string,
+    options: {
+      checkTargetSymlink?: boolean;
+      targetMayBeMissing?: boolean;
+    } = {},
+  ) {
+    if (!relativePath.trim()) {
+      throw new Error("Project Workspace path must not be empty.");
+    }
+
+    if (path.isAbsolute(relativePath)) {
+      throw new Error(`Project Workspace path must be relative: ${relativePath}`);
+    }
+
+    const workspaceDirectory = this.getProjectWorkspaceDirectory(projectId);
+    const targetPath = path.resolve(workspaceDirectory, relativePath);
+    const relativeFromWorkspace = path.relative(workspaceDirectory, targetPath);
+
+    if (
+      !relativeFromWorkspace ||
+      relativeFromWorkspace.startsWith("..") ||
+      path.isAbsolute(relativeFromWorkspace)
+    ) {
+      throw new Error(`Project Workspace path escapes workspace: ${relativePath}`);
+    }
+
+    await this.assertNoWorkspaceSymlinkPath(
+      workspaceDirectory,
+      relativeFromWorkspace,
+      options,
+    );
+
+    return targetPath;
+  }
+
+  private async assertNoWorkspaceSymlinkPath(
+    workspaceDirectory: string,
+    relativeFromWorkspace: string,
+    options: {
+      checkTargetSymlink?: boolean;
+      targetMayBeMissing?: boolean;
+    },
+  ) {
+    const segments = relativeFromWorkspace
+      .split(path.sep)
+      .filter((segment) => segment && segment !== ".");
+    const lastIndex = segments.length - 1;
+    let currentPath = workspaceDirectory;
+
+    for (const [index, segment] of segments.entries()) {
+      currentPath = path.join(currentPath, segment);
+
+      try {
+        const pathStats = await lstat(currentPath);
+        const isTarget = index === lastIndex;
+
+        if (pathStats.isSymbolicLink() && (!isTarget || options.checkTargetSymlink)) {
+          throw new Error("Project Workspace symlinks are not supported.");
+        }
+      } catch (error) {
+        if (isMissingPathError(error) && options.targetMayBeMissing) {
+          return;
+        }
+
+        throw error;
+      }
+    }
+  }
 }
 
 function isMissingPathError(error: unknown): error is NodeJS.ErrnoException {
@@ -284,4 +604,8 @@ function isMissingPathError(error: unknown): error is NodeJS.ErrnoException {
     "code" in error &&
     (error as NodeJS.ErrnoException).code === "ENOENT"
   );
+}
+
+function normalizeWorkspaceRelativePath(relativePath: string) {
+  return relativePath.split(path.sep).join("/");
 }

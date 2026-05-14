@@ -1,4 +1,13 @@
-import { mkdtemp, mkdir, readFile, rename, rm, stat } from "node:fs/promises";
+import {
+  mkdtemp,
+  mkdir,
+  readFile,
+  rename,
+  rm,
+  stat,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -82,6 +91,159 @@ describe("WorkspaceStore", () => {
       path.join(workspaceRoot, "projects", project.id, "workspace", "index.html"),
     );
     await expect(store.readProjectOutput(project.id, "html")).resolves.toBe(html);
+  });
+
+  it("lists nested Project Workspace files and directories recursively", async () => {
+    const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".hjdesign");
+    const store = new WorkspaceStore({ workspaceRoot });
+    const project = buildProject({ id: "project-files" });
+
+    await store.createProject(project);
+    await store.writeProjectWorkspaceFile(project.id, "index.html", "<main>Hello</main>");
+    await store.writeProjectWorkspaceFile(project.id, "assets/app.js", "console.log(1);");
+
+    const entries = await store.listProjectWorkspace(project.id);
+
+    expect(entries.map((entry) => [entry.path, entry.type])).toEqual([
+      ["assets", "directory"],
+      ["assets/app.js", "file"],
+      ["index.html", "file"],
+    ]);
+    expect(entries.every((entry) => typeof entry.size === "number")).toBe(true);
+    expect(entries.every((entry) => typeof entry.updatedAt === "string")).toBe(true);
+  });
+
+  it("searches Project Workspace text files with line previews", async () => {
+    const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".hjdesign");
+    const store = new WorkspaceStore({ workspaceRoot });
+    const project = buildProject({ id: "project-search" });
+
+    await store.createProject(project);
+    await store.writeProjectWorkspaceFile(
+      project.id,
+      "index.html",
+      "<main>\n  <h1>CRM Dashboard</h1>\n</main>",
+    );
+    await store.writeProjectWorkspaceFile(project.id, "notes.md", "No match");
+
+    await expect(
+      store.searchProjectWorkspace(project.id, "Dashboard"),
+    ).resolves.toEqual([
+      {
+        line: 2,
+        path: "index.html",
+        preview: "<h1>CRM Dashboard</h1>",
+      },
+    ]);
+  });
+
+  it("reads, writes, edits, and deletes Project Workspace paths", async () => {
+    const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".hjdesign");
+    const store = new WorkspaceStore({ workspaceRoot });
+    const project = buildProject({ id: "project-edit" });
+
+    await store.createProject(project);
+    await expect(
+      store.writeProjectWorkspaceFile(project.id, "pages/home.html", "Hello world"),
+    ).resolves.toEqual({
+      bytesWritten: 11,
+      path: "pages/home.html",
+    });
+    await expect(
+      store.readProjectWorkspaceFile(project.id, "pages/home.html"),
+    ).resolves.toBe("Hello world");
+    await expect(
+      store.editProjectWorkspaceFile(
+        project.id,
+        "pages/home.html",
+        "Hello",
+        "Design",
+      ),
+    ).resolves.toEqual({
+      path: "pages/home.html",
+      replacements: 1,
+    });
+    await expect(
+      store.readProjectWorkspaceFile(project.id, "pages/home.html"),
+    ).resolves.toBe("Design world");
+    await expect(
+      store.deleteProjectWorkspacePath(project.id, "pages"),
+    ).resolves.toEqual({
+      deleted: true,
+      path: "pages",
+    });
+    await expect(
+      store.readProjectWorkspaceFile(project.id, "pages/home.html"),
+    ).rejects.toThrow();
+  });
+
+  it("rejects missing and non-unique exact edit targets", async () => {
+    const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".hjdesign");
+    const store = new WorkspaceStore({ workspaceRoot });
+    const project = buildProject({ id: "project-edit-errors" });
+
+    await store.createProject(project);
+    await store.writeProjectWorkspaceFile(project.id, "index.html", "button button");
+
+    await expect(
+      store.editProjectWorkspaceFile(project.id, "index.html", "missing", "link"),
+    ).rejects.toThrow("oldText was not found");
+    await expect(
+      store.editProjectWorkspaceFile(project.id, "index.html", "button", "link"),
+    ).rejects.toThrow("oldText appears more than once");
+  });
+
+  it("rejects unsafe Project Workspace paths", async () => {
+    const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".hjdesign");
+    const store = new WorkspaceStore({ workspaceRoot });
+    const project = buildProject({ id: "project-unsafe-path" });
+
+    await store.createProject(project);
+
+    await expect(
+      store.writeProjectWorkspaceFile(project.id, "../escape.html", "bad"),
+    ).rejects.toThrow("escapes workspace");
+    await expect(
+      store.readProjectWorkspaceFile(project.id, path.join(workspaceRoot, "x.html")),
+    ).rejects.toThrow("must be relative");
+    await expect(
+      store.deleteProjectWorkspacePath(project.id, ""),
+    ).rejects.toThrow("must not be empty");
+  });
+
+  it("rejects symlink access in the Project Workspace", async () => {
+    const tempRoot = await createTempWorkspaceRoot();
+    const workspaceRoot = path.join(tempRoot, ".hjdesign");
+    const outsideRoot = path.join(tempRoot, "outside");
+    const store = new WorkspaceStore({ workspaceRoot });
+    const project = buildProject({ id: "project-symlink" });
+
+    await store.createProject(project);
+    await mkdir(outsideRoot, { recursive: true });
+    await writeFile(path.join(outsideRoot, "secret.txt"), "secret", "utf8");
+
+    try {
+      await symlink(
+        path.join(outsideRoot, "secret.txt"),
+        path.join(
+          workspaceRoot,
+          "projects",
+          project.id,
+          "workspace",
+          "secret-link.txt",
+        ),
+      );
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "EPERM") {
+        return;
+      }
+
+      throw error;
+    }
+
+    await expect(
+      store.readProjectWorkspaceFile(project.id, "secret-link.txt"),
+    ).rejects.toThrow("symlinks are not supported");
   });
 
   it("discovers persisted Projects after reload and returns them in Project Updated Time descending order", async () => {

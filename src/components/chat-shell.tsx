@@ -100,7 +100,9 @@ export function ChatShell({
                 </CardDescription>
               </div>
             </div>
-            {controlBar ?? (
+            {controlBar ? (
+              <div key="control-bar">{controlBar}</div>
+            ) : (
               <div className="flex items-center gap-2">
                 <Button size="sm" type="button" variant="secondary">
                   当前项目

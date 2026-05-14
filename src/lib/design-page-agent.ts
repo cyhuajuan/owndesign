@@ -15,27 +15,36 @@ export type DesignPageAgentInput = {
 
 export type DesignPageAgentResult = {
   content: string;
-  outputPath?: string;
 };
 
 export type DesignPageAgent = {
   generateProjectOutput(input: DesignPageAgentInput): Promise<DesignPageAgentResult>;
 };
 
-type WriteHtmlInput = {
-  html: string;
-};
-
 type CreateDesignPageAgentInput = {
-  onWriteHtml?: (output: WriteHtmlOutput) => void;
   outputType: ProjectOutputType;
   projectId: string;
   workspaceStore: WorkspaceStore;
 };
 
-export type WriteHtmlOutput = {
-  outputPath: string;
-  outputType: "html";
+type WorkspacePathInput = {
+  path: string;
+};
+
+type SearchFilesInput = {
+  path?: string;
+  query: string;
+};
+
+type WriteFileInput = {
+  content: string;
+  path: string;
+};
+
+type EditFileInput = {
+  newText: string;
+  oldText: string;
+  path: string;
 };
 
 export class AiSdkDesignPageAgent implements DesignPageAgent {
@@ -46,11 +55,7 @@ export class AiSdkDesignPageAgent implements DesignPageAgent {
       throw new Error(`Unsupported Project Output Type: ${input.outputType}`);
     }
 
-    let outputPath: string | undefined;
     const agent = createDesignPageAgent({
-      onWriteHtml: (output) => {
-        outputPath = output.outputPath;
-      },
       outputType: input.outputType,
       projectId: input.projectId,
       workspaceStore: this.workspaceStore,
@@ -62,13 +67,11 @@ export class AiSdkDesignPageAgent implements DesignPageAgent {
 
     return {
       content: result.text || "已处理请求。",
-      outputPath: outputPath ?? extractWriteHtmlOutputPath(result.steps),
     };
   }
 }
 
 export function createDesignPageAgent({
-  onWriteHtml,
   outputType,
   projectId,
   workspaceStore,
@@ -76,38 +79,133 @@ export function createDesignPageAgent({
   return new ToolLoopAgent({
     model: deepseek("deepseek-v4-flash"),
     instructions: buildDesignPageAgentInstructions(outputType),
-    stopWhen: stepCountIs(4),
+    stopWhen: stepCountIs(12),
     tools: {
-      writeHtmlFile: tool({
+      deletePath: tool({
         description:
-          "Write the full standalone HTML document to the current Project Workspace.",
-        inputSchema: jsonSchema<WriteHtmlInput>({
+          "Recursively delete a file or directory from the current Project Workspace.",
+        inputSchema: jsonSchema<WorkspacePathInput>({
           type: "object",
           properties: {
-            html: {
+            path: {
               type: "string",
-              description: "Complete HTML document, including doctype.",
+              description: "Relative file or directory path inside the Project Workspace.",
             },
           },
-          required: ["html"],
+          required: ["path"],
           additionalProperties: false,
         }),
-        execute: async ({ html }): Promise<WriteHtmlOutput> => {
-          const normalizedHtml = normalizeHtmlDocument(html);
-          const outputPath = await workspaceStore.writeProjectOutput(
+        execute: async ({ path }) =>
+          workspaceStore.deleteProjectWorkspacePath(projectId, path),
+      }),
+      editFile: tool({
+        description:
+          "Edit one UTF-8 text file by replacing exactly one occurrence of oldText with newText.",
+        inputSchema: jsonSchema<EditFileInput>({
+          type: "object",
+          properties: {
+            newText: {
+              type: "string",
+              description: "Replacement text.",
+            },
+            oldText: {
+              type: "string",
+              description:
+                "Exact text to replace. It must occur exactly once in the file.",
+            },
+            path: {
+              type: "string",
+              description: "Relative file path inside the Project Workspace.",
+            },
+          },
+          required: ["path", "oldText", "newText"],
+          additionalProperties: false,
+        }),
+        execute: async ({ newText, oldText, path }) =>
+          workspaceStore.editProjectWorkspaceFile(
             projectId,
-            "html",
-            normalizedHtml,
-          );
-          const output = {
-            outputPath,
-            outputType: "html",
-          } satisfies WriteHtmlOutput;
-
-          onWriteHtml?.(output);
-
-          return output;
-        },
+            path,
+            oldText,
+            newText,
+          ),
+      }),
+      listFiles: tool({
+        description:
+          "Recursively list files and directories in the current Project Workspace.",
+        inputSchema: jsonSchema<Record<string, never>>({
+          type: "object",
+          properties: {},
+          additionalProperties: false,
+        }),
+        execute: async () => ({
+          entries: await workspaceStore.listProjectWorkspace(projectId),
+        }),
+      }),
+      readFile: tool({
+        description: "Read one UTF-8 text file from the current Project Workspace.",
+        inputSchema: jsonSchema<WorkspacePathInput>({
+          type: "object",
+          properties: {
+            path: {
+              type: "string",
+              description: "Relative file path inside the Project Workspace.",
+            },
+          },
+          required: ["path"],
+          additionalProperties: false,
+        }),
+        execute: async ({ path }) => ({
+          content: await workspaceStore.readProjectWorkspaceFile(projectId, path),
+          path,
+        }),
+      }),
+      searchFiles: tool({
+        description:
+          "Search UTF-8 text files in the current Project Workspace by plain substring.",
+        inputSchema: jsonSchema<SearchFilesInput>({
+          type: "object",
+          properties: {
+            path: {
+              type: "string",
+              description:
+                "Optional relative file or directory path to limit the search.",
+            },
+            query: {
+              type: "string",
+              description: "Plain substring to search for. Regex is not supported.",
+            },
+          },
+          required: ["query"],
+          additionalProperties: false,
+        }),
+        execute: async ({ path, query }) => ({
+          matches: await workspaceStore.searchProjectWorkspace(
+            projectId,
+            query,
+            path,
+          ),
+        }),
+      }),
+      writeFile: tool({
+        description:
+          "Create or overwrite one UTF-8 text file in the current Project Workspace.",
+        inputSchema: jsonSchema<WriteFileInput>({
+          type: "object",
+          properties: {
+            content: {
+              type: "string",
+              description: "Complete UTF-8 text file content.",
+            },
+            path: {
+              type: "string",
+              description: "Relative file path inside the Project Workspace.",
+            },
+          },
+          required: ["path", "content"],
+          additionalProperties: false,
+        }),
+        execute: async ({ content, path }) =>
+          workspaceStore.writeProjectWorkspaceFile(projectId, path, content),
       }),
     },
   });
@@ -135,51 +233,7 @@ export function buildProjectOutputPrompt(outputType: ProjectOutputType) {
   return [
     "## Project Output",
     "Project Output Type: html.",
-    "Write the generated page by calling writeHtmlFile with one complete standalone HTML document.",
+    "Use the Project Workspace file tools to inspect, create, edit, search, and delete UTF-8 files.",
+    "When the user expects a previewable page, write or update `index.html` in the Project Workspace.",
   ].join("\n");
-}
-
-function normalizeHtmlDocument(html: string) {
-  const trimmedHtml = html.trim();
-
-  if (/^<!doctype html>/i.test(trimmedHtml)) {
-    return trimmedHtml;
-  }
-
-  return `<!doctype html>\n${trimmedHtml}`;
-}
-
-function extractWriteHtmlOutputPath(steps: unknown) {
-  if (!Array.isArray(steps)) {
-    return undefined;
-  }
-
-  for (const step of steps) {
-    if (
-      typeof step !== "object" ||
-      step === null ||
-      !("content" in step) ||
-      !Array.isArray(step.content)
-    ) {
-      continue;
-    }
-
-    for (const part of step.content) {
-      if (
-        typeof part === "object" &&
-        part !== null &&
-        "type" in part &&
-        part.type === "tool-result" &&
-        "output" in part &&
-        typeof part.output === "object" &&
-        part.output !== null &&
-        "outputPath" in part.output &&
-        typeof part.output.outputPath === "string"
-      ) {
-        return part.output.outputPath;
-      }
-    }
-  }
-
-  return undefined;
 }

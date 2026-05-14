@@ -1,7 +1,19 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { useChat } from "@ai-sdk/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { MessageParts } from "./streaming-conversation-panel";
+import {
+  MessageParts,
+  StreamingConversationPanel,
+} from "./streaming-conversation-panel";
+
+vi.mock("@ai-sdk/react", () => ({
+  useChat: vi.fn(),
+}));
+
+afterEach(() => {
+  vi.mocked(useChat).mockReset();
+});
 
 describe("MessageParts", () => {
   it("renders reasoning parts", () => {
@@ -25,8 +37,8 @@ describe("MessageParts", () => {
     expect(screen.getByText("需要先判断信息架构。")).toBeInTheDocument();
   });
 
-  it("summarizes writeHtmlFile tool calls without rendering full HTML", () => {
-    const html = "<!doctype html><html><body><main>Secret Detail</main></body></html>";
+  it("summarizes file tool calls without rendering full file content", () => {
+    const content = "<!doctype html><html><body><main>Secret Detail</main></body></html>";
 
     render(
       <MessageParts
@@ -34,14 +46,17 @@ describe("MessageParts", () => {
           id: "assistant-1",
           parts: [
             {
-              input: { html },
+              input: {
+                content,
+                path: "index.html",
+              },
               output: {
-                outputPath: "C:/tmp/project/workspace/index.html",
-                outputType: "html",
+                bytesWritten: content.length,
+                path: "index.html",
               },
               state: "output-available",
               toolCallId: "call-1",
-              type: "tool-writeHtmlFile",
+              type: "tool-writeFile",
             },
           ],
           role: "assistant",
@@ -49,10 +64,48 @@ describe("MessageParts", () => {
       />,
     );
 
-    expect(screen.getByText("writeHtmlFile")).toBeInTheDocument();
+    expect(screen.getByText("writeFile")).toBeInTheDocument();
     expect(screen.getByText("已完成")).toBeInTheDocument();
-    expect(screen.getByText(String(html.length))).toBeInTheDocument();
-    expect(screen.getByText("C:/tmp/project/workspace/index.html")).toBeInTheDocument();
+    expect(screen.getByText("index.html")).toBeInTheDocument();
     expect(screen.queryByText("Secret Detail")).not.toBeInTheDocument();
+  });
+
+  it("dispatches preview refresh after mutation tool output completes", () => {
+    const dispatchEventSpy = vi.spyOn(window, "dispatchEvent");
+    vi.mocked(useChat).mockReturnValue({
+      error: undefined,
+      messages: [
+        {
+          id: "assistant-1",
+          parts: [
+            {
+              input: { path: "index.html" },
+              output: { path: "index.html", replacements: 1 },
+              state: "output-available",
+              toolCallId: "call-1",
+              type: "tool-editFile",
+            },
+          ],
+          role: "assistant",
+        },
+      ],
+      sendMessage: vi.fn(),
+      status: "ready",
+    } as unknown as ReturnType<typeof useChat>);
+
+    render(
+      <StreamingConversationPanel
+        conversationId="conversation-1"
+        initialMessages={[]}
+        projectId="project-1"
+      />,
+    );
+
+    expect(dispatchEventSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "hjdesign:project-output-updated",
+      }),
+    );
+    dispatchEventSpy.mockRestore();
   });
 });

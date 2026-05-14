@@ -6,7 +6,6 @@ import { DefaultChatTransport } from "ai";
 import {
   AlertCircleIcon,
   BrainCircuitIcon,
-  FileCode2Icon,
   Loader2Icon,
   WrenchIcon,
 } from "lucide-react";
@@ -65,7 +64,10 @@ export function StreamingConversationPanel({
   useEffect(() => {
     for (const message of messages) {
       for (const part of message.parts) {
-        if (!isWriteHtmlToolPart(part) || part.state !== "output-available") {
+        if (
+          !isProjectWorkspaceMutationToolPart(part) ||
+          part.state !== "output-available"
+        ) {
           continue;
         }
 
@@ -165,10 +167,6 @@ function MessagePart({ part }: { part: UIMessage["parts"][number] }) {
     return <ReasoningPart text={part.text} state={part.state} />;
   }
 
-  if (isWriteHtmlToolPart(part)) {
-    return <WriteHtmlToolPart part={part} />;
-  }
-
   if (isToolPart(part)) {
     return <GenericToolPart part={part} />;
   }
@@ -199,57 +197,15 @@ function ReasoningPart({
   );
 }
 
-function WriteHtmlToolPart({ part }: { part: WriteHtmlToolPart }) {
+function GenericToolPart({ part }: { part: ToolLikePart }) {
+  const toolName = getToolName(part);
   const input = getObject(part.input);
   const output = getObject(part.output);
-  const html = typeof input?.html === "string" ? input.html : "";
-  const outputPath =
-    typeof output?.outputPath === "string" ? output.outputPath : undefined;
-
-  return (
-    <div className="rounded-md border bg-muted/20 p-3 text-sm">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2 font-medium">
-          <FileCode2Icon className="size-4" />
-          writeHtmlFile
-        </div>
-        <Badge variant={part.state === "output-error" ? "destructive" : "outline"}>
-          {getToolStateLabel(part.state)}
-        </Badge>
-      </div>
-      <dl className="mt-3 grid gap-2 text-muted-foreground">
-        <div className="flex items-center justify-between gap-3">
-          <dt>HTML 字符数</dt>
-          <dd className="font-mono text-xs">{html ? html.length : "待生成"}</dd>
-        </div>
-        <div className="flex items-center justify-between gap-3">
-          <dt>文档类型</dt>
-          <dd className="font-mono text-xs">
-            {/^<!doctype html>/i.test(html.trim()) ? "doctype" : "html"}
-          </dd>
-        </div>
-        {outputPath ? (
-          <div className="grid gap-1">
-            <dt>输出路径</dt>
-            <dd className="truncate font-mono text-xs">{outputPath}</dd>
-          </div>
-        ) : null}
-        {part.state === "output-error" && "errorText" in part ? (
-          <div className="grid gap-1 text-destructive">
-            <dt>错误</dt>
-            <dd>{part.errorText}</dd>
-          </div>
-        ) : null}
-      </dl>
-    </div>
-  );
-}
-
-function GenericToolPart({ part }: { part: ToolLikePart }) {
-  const toolName =
-    "toolName" in part && typeof part.toolName === "string"
-      ? part.toolName
-      : part.type.replace(/^tool-/, "");
+  const inputPath = typeof input?.path === "string" ? input.path : undefined;
+  const outputPath = typeof output?.path === "string" ? output.path : undefined;
+  const path = outputPath ?? inputPath;
+  const entries = Array.isArray(output?.entries) ? output.entries.length : undefined;
+  const matches = Array.isArray(output?.matches) ? output.matches.length : undefined;
 
   return (
     <div className="rounded-md border bg-muted/20 p-3 text-sm">
@@ -262,6 +218,32 @@ function GenericToolPart({ part }: { part: ToolLikePart }) {
           {getToolStateLabel(part.state)}
         </Badge>
       </div>
+      <dl className="mt-3 grid gap-2 text-muted-foreground">
+        {path ? (
+          <div className="grid gap-1">
+            <dt>路径</dt>
+            <dd className="truncate font-mono text-xs">{path}</dd>
+          </div>
+        ) : null}
+        {entries !== undefined ? (
+          <div className="flex items-center justify-between gap-3">
+            <dt>条目数</dt>
+            <dd className="font-mono text-xs">{entries}</dd>
+          </div>
+        ) : null}
+        {matches !== undefined ? (
+          <div className="flex items-center justify-between gap-3">
+            <dt>匹配数</dt>
+            <dd className="font-mono text-xs">{matches}</dd>
+          </div>
+        ) : null}
+        {part.state === "output-error" && "errorText" in part ? (
+          <div className="grid gap-1 text-destructive">
+            <dt>错误</dt>
+            <dd>{part.errorText}</dd>
+          </div>
+        ) : null}
+      </dl>
     </div>
   );
 }
@@ -280,11 +262,10 @@ function getToolStateLabel(state: ToolLikePart["state"]) {
   return labels[state] ?? state;
 }
 
-function isWriteHtmlToolPart(part: unknown): part is WriteHtmlToolPart {
+function isProjectWorkspaceMutationToolPart(part: unknown): part is ToolLikePart {
   return (
     isToolPart(part) &&
-    "type" in part &&
-    part.type === "tool-writeHtmlFile"
+    ["deletePath", "editFile", "writeFile"].includes(getToolName(part))
   );
 }
 
@@ -308,6 +289,12 @@ function getObject(value: unknown): Record<string, unknown> | undefined {
     : undefined;
 }
 
+function getToolName(part: ToolLikePart) {
+  return typeof part.toolName === "string"
+    ? part.toolName
+    : part.type.replace(/^tool-/, "");
+}
+
 type ToolLikePart = {
   errorText?: string;
   input?: unknown;
@@ -323,8 +310,4 @@ type ToolLikePart = {
   toolCallId: string;
   toolName?: string;
   type: string;
-};
-
-type WriteHtmlToolPart = ToolLikePart & {
-  type: "tool-writeHtmlFile";
 };

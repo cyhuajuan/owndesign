@@ -52,21 +52,22 @@ afterEach(async () => {
 });
 
 describe("AiSdkDesignPageAgent", () => {
-  it("writes Project Output only when the model calls writeHtmlFile", async () => {
+  it("writes Project Workspace files when the model calls writeFile", async () => {
     const workspaceStore = await createWorkspaceStore();
     await createProject(workspaceStore);
     const agent = new AiSdkDesignPageAgent(workspaceStore);
     aiMocks.generate.mockImplementationOnce(async function (this: {
       config: {
         tools: {
-          writeHtmlFile: {
-            execute: (input: { html: string }) => Promise<unknown>;
+          writeFile: {
+            execute: (input: { content: string; path: string }) => Promise<unknown>;
           };
         };
       };
     }) {
-      await this.config.tools.writeHtmlFile.execute({
-        html: "<html><body><main>CRM Dashboard</main></body></html>",
+      await this.config.tools.writeFile.execute({
+        content: "<!doctype html><html><body><main>CRM Dashboard</main></body></html>",
+        path: "index.html",
       });
 
       return { text: "已生成 HTML 页面。" };
@@ -74,19 +75,19 @@ describe("AiSdkDesignPageAgent", () => {
 
     const result = await agent.generateProjectOutput(buildInput());
 
-    expect(result.content).toBe("已生成 HTML 页面。");
-    expect(result.outputPath).toBe(
-      path.join(
-        workspaceStore.getWorkspaceRoot(),
-        "projects",
-        "project-1",
-        "workspace",
-        "index.html",
-      ),
-    );
+    expect(result).toEqual({ content: "已生成 HTML 页面。" });
     await expect(
-      readFile(result.outputPath!, "utf8"),
-    ).resolves.toMatch(/^<!doctype html>\n<html>/);
+      readFile(
+        path.join(
+          workspaceStore.getWorkspaceRoot(),
+          "projects",
+          "project-1",
+          "workspace",
+          "index.html",
+        ),
+        "utf8",
+      ),
+    ).resolves.toContain("CRM Dashboard");
   });
 
   it("allows normal assistant messages without writing Project Output", async () => {
@@ -101,7 +102,6 @@ describe("AiSdkDesignPageAgent", () => {
 
     expect(result).toEqual({
       content: "需要确认：这是后台管理界面还是营销落地页？",
-      outputPath: undefined,
     });
     await expect(
       workspaceStore.readProjectOutput("project-1", "html"),
@@ -120,10 +120,32 @@ describe("AiSdkDesignPageAgent", () => {
     expect(aiMocks.toolLoopAgent).toHaveBeenCalledWith(
       expect.objectContaining({
         instructions: expect.stringContaining(
-          "respond with a normal assistant message that asks concise follow-up questions",
+          "asks concise follow-up questions instead of modifying files",
         ),
       }),
     );
+  });
+
+  it("registers Project Workspace file tools", async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    const agent = new AiSdkDesignPageAgent(workspaceStore);
+    aiMocks.generate.mockResolvedValueOnce({ text: "" });
+
+    await agent.generateProjectOutput(buildInput());
+
+    const config = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
+      tools: Record<string, unknown>;
+    };
+    expect(Object.keys(config.tools).sort()).toEqual([
+      "deletePath",
+      "editFile",
+      "listFiles",
+      "readFile",
+      "searchFiles",
+      "writeFile",
+    ]);
+    expect(config.tools).not.toHaveProperty("writeHtmlFile");
   });
 
   it("builds instructions from the core markdown prompt and dynamic Project Output prompt", async () => {
@@ -143,6 +165,9 @@ describe("AiSdkDesignPageAgent", () => {
     );
     expect(config.instructions).toContain("## Project Output");
     expect(config.instructions).toContain("Project Output Type: html.");
+    expect(config.instructions).toContain("Project Workspace file tools");
+    expect(config.instructions).toContain("`index.html`");
+    expect(config.instructions).not.toContain("writeHtmlFile");
     expect(config.instructions).not.toContain("Project One");
     expect(config.instructions).not.toContain("project-1");
     expect(config.instructions).not.toContain("conversation-1");

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useChat } from "@ai-sdk/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -62,6 +62,96 @@ describe("MessageParts", () => {
     await user.click(screen.getByRole("button", { name: /思考过程/ }));
 
     expect(screen.getByText("需要先判断信息架构。")).toBeInTheDocument();
+  });
+
+  it("opens the currently streaming reasoning by default", () => {
+    render(
+      <MessageParts
+        isLastMessage
+        isStreaming
+        message={{
+          id: "assistant-1",
+          parts: [
+            {
+              state: "streaming",
+              text: "还在分析布局。",
+              type: "reasoning",
+            },
+          ],
+          role: "assistant",
+        }}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: /思考过程/ })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+  });
+
+  it("auto-closes reasoning after streaming finishes", () => {
+    vi.useFakeTimers();
+
+    const message = {
+      id: "assistant-1",
+      parts: [
+        {
+          state: "streaming",
+          text: "还在分析布局。",
+          type: "reasoning" as const,
+        },
+      ],
+      role: "assistant" as const,
+    };
+
+    const { rerender } = render(
+      <MessageParts isLastMessage isStreaming message={message} />,
+    );
+
+    const trigger = screen.getByRole("button", { name: /思考过程/ });
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+
+    rerender(<MessageParts isLastMessage isStreaming={false} message={message} />);
+
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+
+    vi.useRealTimers();
+  });
+
+  it("keeps earlier reasoning collapsed when a later reasoning part streams", () => {
+    render(
+      <MessageParts
+        isLastMessage
+        isStreaming
+        message={{
+          id: "assistant-1",
+          parts: [
+            {
+              state: "done",
+              text: "第一段思考已完成。",
+              type: "reasoning",
+            },
+            {
+              state: "streaming",
+              text: "第二段思考还在输出。",
+              type: "reasoning",
+            },
+          ],
+          role: "assistant",
+        }}
+      />,
+    );
+
+    const reasoningTriggers = screen.getAllByRole("button", {
+      name: /思考过程/,
+    });
+
+    expect(reasoningTriggers[0]).toHaveAttribute("aria-expanded", "false");
+    expect(reasoningTriggers[1]).toHaveAttribute("aria-expanded", "true");
   });
 
   it("renders multiple reasoning parts as separate blocks", async () => {

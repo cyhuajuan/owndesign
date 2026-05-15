@@ -168,15 +168,17 @@ export function MessageParts({
   message: UIMessage;
 }) {
   const lastPart = message.parts.at(-1);
-  const isReasoningStreaming =
-    isLastMessage && isStreaming && lastPart?.type === "reasoning";
+  const streamingReasoningPartIndex =
+    isLastMessage && isStreaming && lastPart?.type === "reasoning"
+      ? message.parts.length - 1
+      : -1;
 
   return (
     <>
       {message.parts.map((part, index) => (
         <MessagePart
           key={`${message.id}-${index}-${part.type}`}
-          isReasoningStreaming={isReasoningStreaming}
+          isReasoningStreaming={index === streamingReasoningPartIndex}
           part={part}
         />
       ))}

@@ -37,6 +37,33 @@ describe("MessageParts", () => {
     expect(screen.getByText("需要先判断信息架构。")).toBeInTheDocument();
   });
 
+  it("consolidates multiple reasoning parts into one block", () => {
+    render(
+      <MessageParts
+        message={{
+          id: "assistant-1",
+          parts: [
+            {
+              state: "done",
+              text: "第一步：判断信息架构。",
+              type: "reasoning",
+            },
+            {
+              state: "done",
+              text: "第二步：组织首屏层级。",
+              type: "reasoning",
+            },
+          ],
+          role: "assistant",
+        }}
+      />,
+    );
+
+    expect(screen.getAllByText("思考过程")).toHaveLength(1);
+    expect(screen.getByText("第一步：判断信息架构。")).toBeInTheDocument();
+    expect(screen.getByText("第二步：组织首屏层级。")).toBeInTheDocument();
+  });
+
   it("summarizes file tool calls without rendering full file content", () => {
     const content = "<!doctype html><html><body><main>Secret Detail</main></body></html>";
 

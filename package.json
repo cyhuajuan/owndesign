@@ -14,6 +14,7 @@
     "@ai-sdk/deepseek": "^2.0.35",
     "@ai-sdk/react": "^3.0.182",
     "@base-ui/react": "^1.4.1",
+    "@radix-ui/react-use-controllable-state": "^1.2.2",
     "@streamdown/cjk": "^1.0.3",
     "@streamdown/code": "^1.1.1",
     "@streamdown/math": "^1.0.2",

@@ -5,10 +5,9 @@ import type { UIMessage } from "ai";
 import { DefaultChatTransport } from "ai";
 import {
   AlertCircleIcon,
-  BrainCircuitIcon,
-  Loader2Icon,
   WrenchIcon,
 } from "lucide-react";
+import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef } from "react";
 
 import {
@@ -29,6 +28,11 @@ import {
   PromptInputTextarea,
   PromptInputTools,
 } from "@/components/ai-elements/prompt-input";
+import {
+  Reasoning,
+  ReasoningContent,
+  ReasoningTrigger,
+} from "@/components/ai-elements/reasoning";
 import { Badge } from "@/components/ui/badge";
 
 type StreamingConversationPanelProps = {
@@ -98,7 +102,11 @@ export function StreamingConversationPanel({
             messages.map((message, index) => (
               <Message from={message.role} key={`${message.id || "message"}-${index}`}>
                 <MessageContent>
-                  <MessageParts message={message} />
+                  <MessageParts
+                    isLastMessage={index === messages.length - 1}
+                    isStreaming={status === "streaming"}
+                    message={message}
+                  />
                 </MessageContent>
               </Message>
             ))
@@ -150,12 +158,34 @@ export function StreamingConversationPanel({
   );
 }
 
-export function MessageParts({ message }: { message: UIMessage }) {
+export function MessageParts({
+  isLastMessage = false,
+  isStreaming = false,
+  message,
+}: {
+  isLastMessage?: boolean;
+  isStreaming?: boolean;
+  message: UIMessage;
+}) {
+  const reasoningParts = message.parts.filter(
+    (part) => part.type === "reasoning",
+  );
+  const firstReasoningPartIndex = message.parts.findIndex(
+    (part) => part.type === "reasoning",
+  );
+  const reasoningText = reasoningParts.map((part) => part.text).join("\n\n");
+  const lastPart = message.parts.at(-1);
+  const isReasoningStreaming =
+    isLastMessage && isStreaming && lastPart?.type === "reasoning";
+
   return (
     <>
       {message.parts.map((part, index) => (
         <MessagePart
           key={`${message.id}-${index}-${part.type}`}
+          isReasoningStreaming={isReasoningStreaming}
+          reasoningText={reasoningText}
+          shouldRenderReasoning={index === firstReasoningPartIndex}
           part={part}
         />
       ))}
@@ -163,13 +193,39 @@ export function MessageParts({ message }: { message: UIMessage }) {
   );
 }
 
-function MessagePart({ part }: { part: UIMessage["parts"][number] }) {
+function MessagePart({
+  isReasoningStreaming,
+  part,
+  reasoningText,
+  shouldRenderReasoning,
+}: {
+  isReasoningStreaming: boolean;
+  part: UIMessage["parts"][number];
+  reasoningText: string;
+  shouldRenderReasoning: boolean;
+}) {
   if (part.type === "text") {
     return <MessageResponse>{part.text}</MessageResponse>;
   }
 
   if (part.type === "reasoning") {
-    return <ReasoningPart text={part.text} state={part.state} />;
+    if (!shouldRenderReasoning) {
+      return null;
+    }
+
+    return (
+      <Reasoning
+        className="w-full rounded-md border border-border bg-background px-3 py-2"
+        defaultOpen
+        isStreaming={isReasoningStreaming}
+      >
+        <ReasoningTrigger
+          className="font-medium"
+          getThinkingMessage={getReasoningLabel}
+        />
+        <ReasoningContent className="mt-2">{reasoningText}</ReasoningContent>
+      </Reasoning>
+    );
   }
 
   if (isToolPart(part)) {
@@ -179,27 +235,8 @@ function MessagePart({ part }: { part: UIMessage["parts"][number] }) {
   return null;
 }
 
-function ReasoningPart({
-  state,
-  text,
-}: {
-  state?: "done" | "streaming";
-  text: string;
-}) {
-  return (
-    <details className="rounded-md border border-border bg-background px-3 py-2 text-sm" open>
-      <summary className="flex cursor-pointer list-none items-center gap-2 font-medium text-muted-foreground">
-        <BrainCircuitIcon className="size-4" />
-        思考过程
-        {state === "streaming" ? (
-          <Loader2Icon className="size-3 animate-spin" />
-        ) : null}
-      </summary>
-      <div className="mt-2 text-muted-foreground">
-        <MessageResponse>{text}</MessageResponse>
-      </div>
-    </details>
-  );
+function getReasoningLabel(): ReactNode {
+  return <span>思考过程</span>;
 }
 
 function GenericToolPart({ part }: { part: ToolLikePart }) {

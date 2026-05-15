@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { LoaderCircleIcon } from "lucide-react";
+
+import { PreviewEmptyState } from "@/components/preview-empty-state";
 
 type ProjectPreviewFrameProps = {
   initialUpdatedAt: string;
@@ -138,9 +141,12 @@ export function ProjectPreviewFrame({
 
   if (!previewUrl) {
     return (
-      <div className="grid size-full place-items-center bg-white text-sm text-muted-foreground">
-        预览服务启动中...
-      </div>
+      <PreviewEmptyState
+        badge="Loading"
+        description="正在为当前项目启动预览环境。准备完成后，这里会自动显示最新页面。"
+        icon={<LoaderCircleIcon className="animate-spin" />}
+        title="预览服务启动中"
+      />
     );
   }
 

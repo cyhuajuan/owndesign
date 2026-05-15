@@ -6,14 +6,8 @@ import {
 } from "@/components/ai-elements/conversation";
 import { ChatShell } from "@/components/chat-shell";
 import { ControlBar } from "@/components/control-bar";
+import { PreviewEmptyState } from "@/components/preview-empty-state";
 import { ProjectPreviewFrame } from "@/components/project-preview-frame";
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@/components/ui/empty";
 import {
   createConversationService,
   createProjectService,
@@ -288,17 +282,12 @@ export default async function Home({ searchParams }: HomeProps) {
             projectName={activeProject.name}
           />
         ) : (
-          <Empty className="size-full">
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <FolderIcon />
-              </EmptyMedia>
-              <EmptyTitle>尚无预览内容</EmptyTitle>
-              <EmptyDescription>
-                在对话中向 AI 描述你的设计需求，生成的页面将在此处实时预览。
-              </EmptyDescription>
-            </EmptyHeader>
-          </Empty>
+          <PreviewEmptyState
+            badge="Preview"
+            description="在对话中向 AI 描述你的设计需求，生成的页面将在此处实时预览。"
+            icon={<FolderIcon />}
+            title="尚无预览内容"
+          />
         )
       }
       previewFilename="index.html"

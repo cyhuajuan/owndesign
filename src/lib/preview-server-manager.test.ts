@@ -105,6 +105,20 @@ describe("PreviewServerManager", () => {
 
     await expect(response.text()).resolves.toContain("Preview works");
   });
+
+  it("serves styled empty preview HTML when index.html is missing", async () => {
+    const { manager, workspaceStore } = await createPreviewManager();
+    await createProject(workspaceStore);
+
+    const session = await manager.ensure("project-1", "client-1");
+    const response = await fetch(session.url);
+    const html = await response.text();
+
+    expect(html).toContain("<!doctype html>");
+    expect(html).toContain("等待生成 HTML");
+    expect(html).toContain("class=\"badge\">Preview");
+    expect(html).toContain("--bg-base: #0a0a0b");
+  });
 });
 
 async function createPreviewManager(options: {

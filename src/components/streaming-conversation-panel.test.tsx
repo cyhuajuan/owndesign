@@ -8,6 +8,10 @@ import {
   StreamingConversationPanel,
 } from "./streaming-conversation-panel";
 
+function hasTextContent(text: string) {
+  return (_: string, node: Element | null) => node?.textContent?.includes(text) ?? false;
+}
+
 vi.mock("@ai-sdk/react", () => ({
   useChat: vi.fn(),
 }));
@@ -186,8 +190,9 @@ describe("MessageParts", () => {
     expect(screen.getByText("第二步：组织首屏层级。")).toBeInTheDocument();
   });
 
-  it("summarizes file tool calls without rendering full file content", () => {
+  it("renders completed tool calls collapsed by default and expands on click", async () => {
     const content = "<!doctype html><html><body><main>Secret Detail</main></body></html>";
+    const user = userEvent.setup();
 
     render(
       <MessageParts
@@ -213,10 +218,101 @@ describe("MessageParts", () => {
       />,
     );
 
-    expect(screen.getByText("writeFile")).toBeInTheDocument();
+    const trigger = screen.getByRole("button", { name: /writeFile/ });
+    expect(trigger).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
     expect(screen.getByText("已完成")).toBeInTheDocument();
-    expect(screen.getByText("index.html")).toBeInTheDocument();
-    expect(screen.queryByText("Secret Detail")).not.toBeInTheDocument();
+    expect(screen.queryByText("参数")).not.toBeInTheDocument();
+
+    await user.click(trigger);
+
+    expect(trigger).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    expect(screen.getByText("参数")).toBeInTheDocument();
+    expect(screen.getByText("结果")).toBeInTheDocument();
+    expect(
+      screen.queryAllByText(hasTextContent('"path": "index.html"')).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.queryAllByText(hasTextContent("Secret Detail")).length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("renders tool errors collapsed by default and expands on click", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <MessageParts
+        message={{
+          id: "assistant-1",
+          parts: [
+            {
+              errorText: "权限不足",
+              input: { path: "index.html" },
+              output: undefined,
+              state: "output-error",
+              toolCallId: "call-1",
+              type: "tool-writeFile",
+            },
+          ],
+          role: "assistant",
+        }}
+      />,
+    );
+
+    const trigger = screen.getByRole("button", { name: /writeFile/ });
+    expect(trigger).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    expect(screen.getByText("失败")).toBeInTheDocument();
+    expect(screen.queryByText("错误")).not.toBeInTheDocument();
+
+    await user.click(trigger);
+
+    expect(trigger).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    expect(screen.getByText("错误")).toBeInTheDocument();
+    expect(screen.getByText("权限不足")).toBeInTheDocument();
+  });
+
+  it("renders input-only tool calls without crashing", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <MessageParts
+        message={{
+          id: "assistant-1",
+          parts: [
+            {
+              input: { path: "index.html", query: "hero" },
+              state: "input-available",
+              toolCallId: "call-1",
+              type: "tool-searchFiles",
+            },
+          ],
+          role: "assistant",
+        }}
+      />,
+    );
+
+    const trigger = screen.getByRole("button", { name: /searchFiles/ });
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByText("准备调用")).toBeInTheDocument();
+
+    await user.click(trigger);
+
+    expect(screen.getByText("参数")).toBeInTheDocument();
+    expect(
+      screen.queryAllByText(hasTextContent('"path": "index.html"')).length,
+    ).toBeGreaterThan(0);
+    expect(screen.queryByText("结果")).not.toBeInTheDocument();
   });
 
   it("dispatches preview refresh after mutation tool output completes", () => {

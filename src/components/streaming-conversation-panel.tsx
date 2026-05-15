@@ -2,11 +2,14 @@
 
 import { useChat } from "@ai-sdk/react";
 import type { UIMessage } from "ai";
-import { DefaultChatTransport } from "ai";
 import {
-  AlertCircleIcon,
-  WrenchIcon,
-} from "lucide-react";
+  DefaultChatTransport,
+  getToolName as getAIMessageToolName,
+  isToolUIPart,
+  type DynamicToolUIPart,
+  type ToolUIPart,
+} from "ai";
+import { AlertCircleIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef } from "react";
 
@@ -21,6 +24,13 @@ import {
   MessageResponse,
 } from "@/components/ai-elements/message";
 import {
+  Tool,
+  ToolContent,
+  ToolHeader,
+  ToolInput,
+  ToolOutput,
+} from "@/components/ai-elements/tool";
+import {
   PromptInput,
   PromptInputBody,
   PromptInputFooter,
@@ -33,7 +43,6 @@ import {
   ReasoningContent,
   ReasoningTrigger,
 } from "@/components/ai-elements/reasoning";
-import { Badge } from "@/components/ui/badge";
 
 type StreamingConversationPanelProps = {
   conversationId: string;
@@ -213,7 +222,7 @@ function MessagePart({
   }
 
   if (isToolPart(part)) {
-    return <GenericToolPart part={part} />;
+    return <ToolPartView part={part} />;
   }
 
   return null;
@@ -223,117 +232,38 @@ function getReasoningLabel(): ReactNode {
   return <span>思考过程</span>;
 }
 
-function GenericToolPart({ part }: { part: ToolLikePart }) {
-  const toolName = getToolName(part);
-  const input = getObject(part.input);
-  const output = getObject(part.output);
-  const inputPath = typeof input?.path === "string" ? input.path : undefined;
-  const outputPath = typeof output?.path === "string" ? output.path : undefined;
-  const path = outputPath ?? inputPath;
-  const entries = Array.isArray(output?.entries) ? output.entries.length : undefined;
-  const matches = Array.isArray(output?.matches) ? output.matches.length : undefined;
-
+function ToolPartView({ part }: { part: ToolLikePart }) {
   return (
-    <div className="rounded-md border border-border bg-background p-3 text-sm">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2 font-medium">
-          <WrenchIcon className="size-4" />
-          {toolName}
-        </div>
-        <Badge variant={part.state === "output-error" ? "destructive" : "outline"}>
-          {getToolStateLabel(part.state)}
-        </Badge>
-      </div>
-      <dl className="mt-3 grid gap-2 text-muted-foreground">
-        {path ? (
-          <div className="grid gap-1">
-            <dt>路径</dt>
-            <dd className="truncate font-mono text-xs">{path}</dd>
-          </div>
+    <Tool className="mb-0 bg-background text-sm" defaultOpen={false}>
+      {part.type === "dynamic-tool" ? (
+        <ToolHeader
+          state={part.state}
+          toolName={part.toolName}
+          type={part.type}
+        />
+      ) : (
+        <ToolHeader state={part.state} type={part.type} />
+      )}
+      <ToolContent>
+        <ToolInput input={part.input} />
+        {part.output !== undefined || part.errorText ? (
+          <ToolOutput errorText={part.errorText} output={part.output} />
         ) : null}
-        {entries !== undefined ? (
-          <div className="flex items-center justify-between gap-3">
-            <dt>条目数</dt>
-            <dd className="font-mono text-xs">{entries}</dd>
-          </div>
-        ) : null}
-        {matches !== undefined ? (
-          <div className="flex items-center justify-between gap-3">
-            <dt>匹配数</dt>
-            <dd className="font-mono text-xs">{matches}</dd>
-          </div>
-        ) : null}
-        {part.state === "output-error" && "errorText" in part ? (
-          <div className="grid gap-1 text-destructive">
-            <dt>错误</dt>
-            <dd>{part.errorText}</dd>
-          </div>
-        ) : null}
-      </dl>
-    </div>
+      </ToolContent>
+    </Tool>
   );
-}
-
-function getToolStateLabel(state: ToolLikePart["state"]) {
-  const labels: Record<ToolLikePart["state"], string> = {
-    "approval-requested": "等待批准",
-    "approval-responded": "已批准",
-    "input-available": "准备调用",
-    "input-streaming": "生成参数中",
-    "output-available": "已完成",
-    "output-denied": "已拒绝",
-    "output-error": "失败",
-  };
-
-  return labels[state] ?? state;
 }
 
 function isProjectWorkspaceMutationToolPart(part: unknown): part is ToolLikePart {
-  return (
-    isToolPart(part) &&
-    ["deletePath", "editFile", "writeFile"].includes(getToolName(part))
-  );
+  return isToolPart(part) && ["deletePath", "editFile", "writeFile"].includes(getToolName(part));
 }
 
 function isToolPart(part: unknown): part is ToolLikePart {
-  return (
-    typeof part === "object" &&
-    part !== null &&
-    "type" in part &&
-    typeof part.type === "string" &&
-    (part.type.startsWith("tool-") || part.type === "dynamic-tool") &&
-    "state" in part &&
-    typeof part.state === "string" &&
-    "toolCallId" in part &&
-    typeof part.toolCallId === "string"
-  );
-}
-
-function getObject(value: unknown): Record<string, unknown> | undefined {
-  return typeof value === "object" && value !== null
-    ? (value as Record<string, unknown>)
-    : undefined;
+  return isToolUIPart(part as UIMessage["parts"][number]);
 }
 
 function getToolName(part: ToolLikePart) {
-  return typeof part.toolName === "string"
-    ? part.toolName
-    : part.type.replace(/^tool-/, "");
+  return getAIMessageToolName(part);
 }
 
-type ToolLikePart = {
-  errorText?: string;
-  input?: unknown;
-  output?: unknown;
-  state:
-    | "approval-requested"
-    | "approval-responded"
-    | "input-available"
-    | "input-streaming"
-    | "output-available"
-    | "output-denied"
-    | "output-error";
-  toolCallId: string;
-  toolName?: string;
-  type: string;
-};
+type ToolLikePart = ToolUIPart | DynamicToolUIPart;

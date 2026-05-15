@@ -154,7 +154,7 @@ export function ProjectPreviewFrame({
     <iframe
       className="size-full border-0 bg-white"
       key={refreshKey}
-      sandbox="allow-scripts"
+      sandbox="allow-scripts allow-same-origin"
       src={previewUrl}
       title={`${projectName} HTML 预览`}
     />

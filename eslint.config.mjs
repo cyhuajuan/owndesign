@@ -12,6 +12,7 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     ".agents/**",
+    "src/components/ai-elements/**",
     "next-env.d.ts",
   ]),
 ]);

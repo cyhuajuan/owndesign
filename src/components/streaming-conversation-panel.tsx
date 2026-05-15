@@ -6,13 +6,23 @@ import {
   DefaultChatTransport,
   getToolName as getAIMessageToolName,
   isToolUIPart,
+  lastAssistantMessageIsCompleteWithApprovalResponses,
   type DynamicToolUIPart,
   type ToolUIPart,
 } from "ai";
-import { AlertCircleIcon } from "lucide-react";
+import { AlertCircleIcon, CheckIcon, XIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef } from "react";
 
+import {
+  Confirmation,
+  ConfirmationAccepted,
+  ConfirmationAction,
+  ConfirmationActions,
+  ConfirmationRejected,
+  ConfirmationRequest,
+  ConfirmationTitle,
+} from "@/components/ai-elements/confirmation";
 import {
   Conversation,
   ConversationContent,
@@ -66,9 +76,16 @@ export function StreamingConversationPanel({
       }),
     [conversationId, projectId],
   );
-  const { error, messages, sendMessage, status } = useChat({
+  const {
+    addToolApprovalResponse,
+    error,
+    messages,
+    sendMessage,
+    status,
+  } = useChat({
     id: conversationId,
     messages: initialMessages,
+    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
     transport,
   });
   const announcedToolOutputs = useRef(new Set<string>());
@@ -114,6 +131,7 @@ export function StreamingConversationPanel({
                   <MessageParts
                     isLastMessage={index === messages.length - 1}
                     isStreaming={status === "streaming"}
+                    onToolApprovalResponse={addToolApprovalResponse}
                     message={message}
                   />
                 </MessageContent>
@@ -171,10 +189,12 @@ export function MessageParts({
   isLastMessage = false,
   isStreaming = false,
   message,
+  onToolApprovalResponse,
 }: {
   isLastMessage?: boolean;
   isStreaming?: boolean;
   message: UIMessage;
+  onToolApprovalResponse?: ToolApprovalResponseHandler;
 }) {
   const lastPart = message.parts.at(-1);
   const streamingReasoningPartIndex =
@@ -188,6 +208,7 @@ export function MessageParts({
         <MessagePart
           key={`${message.id}-${index}-${part.type}`}
           isReasoningStreaming={index === streamingReasoningPartIndex}
+          onToolApprovalResponse={onToolApprovalResponse}
           part={part}
         />
       ))}
@@ -197,9 +218,11 @@ export function MessageParts({
 
 function MessagePart({
   isReasoningStreaming,
+  onToolApprovalResponse,
   part,
 }: {
   isReasoningStreaming: boolean;
+  onToolApprovalResponse?: ToolApprovalResponseHandler;
   part: UIMessage["parts"][number];
 }) {
   if (part.type === "text") {
@@ -222,7 +245,12 @@ function MessagePart({
   }
 
   if (isToolPart(part)) {
-    return <ToolPartView part={part} />;
+    return (
+      <ToolPartView
+        onToolApprovalResponse={onToolApprovalResponse}
+        part={part}
+      />
+    );
   }
 
   return null;
@@ -232,30 +260,113 @@ function getReasoningLabel(): ReactNode {
   return <span>思考过程</span>;
 }
 
-function ToolPartView({ part }: { part: ToolLikePart }) {
+function ToolPartView({
+  onToolApprovalResponse,
+  part,
+}: {
+  onToolApprovalResponse?: ToolApprovalResponseHandler;
+  part: ToolLikePart;
+}) {
+  const approval = getToolApproval(part);
+
   return (
-    <Tool className="mb-0 bg-background text-sm" defaultOpen={false}>
-      {part.type === "dynamic-tool" ? (
-        <ToolHeader
-          state={part.state}
-          toolName={part.toolName}
-          type={part.type}
+    <div className="space-y-2">
+      {approval ? (
+        <CdnApprovalConfirmation
+          onToolApprovalResponse={onToolApprovalResponse}
+          part={part}
         />
-      ) : (
-        <ToolHeader state={part.state} type={part.type} />
-      )}
-      <ToolContent>
-        <ToolInput input={part.input} />
-        {part.output !== undefined || part.errorText ? (
-          <ToolOutput errorText={part.errorText} output={part.output} />
-        ) : null}
-      </ToolContent>
-    </Tool>
+      ) : null}
+      <Tool className="mb-0 bg-background text-sm" defaultOpen={false}>
+        {part.type === "dynamic-tool" ? (
+          <ToolHeader
+            state={part.state}
+            toolName={part.toolName}
+            type={part.type}
+          />
+        ) : (
+          <ToolHeader state={part.state} type={part.type} />
+        )}
+        <ToolContent>
+          <ToolInput input={part.input} />
+          {part.output !== undefined || part.errorText ? (
+            <ToolOutput errorText={part.errorText} output={part.output} />
+          ) : null}
+        </ToolContent>
+      </Tool>
+    </div>
+  );
+}
+
+function CdnApprovalConfirmation({
+  onToolApprovalResponse,
+  part,
+}: {
+  onToolApprovalResponse?: ToolApprovalResponseHandler;
+  part: ToolLikePart;
+}) {
+  const approval = getToolApproval(part);
+
+  if (!approval || getToolName(part) !== "addCdnResource") {
+    return null;
+  }
+
+  const input = getCdnResourceInput(part.input);
+
+  return (
+    <Confirmation approval={approval} state={part.state}>
+      <ConfirmationTitle>需要批准 CDN 资源</ConfirmationTitle>
+      <ConfirmationRequest>
+        <span>Agent 想向 index.html 添加外部 CDN。</span>
+        <span className="break-all">
+          {input.resourceType ?? "resource"}: {input.url ?? "未知 URL"}
+        </span>
+      </ConfirmationRequest>
+      <ConfirmationAccepted className="flex-row items-center text-foreground">
+        <CheckIcon className="size-4 text-green-600" />
+        <span>已批准 CDN 添加。</span>
+      </ConfirmationAccepted>
+      <ConfirmationRejected className="flex-row items-center text-foreground">
+        <XIcon className="size-4 text-orange-600" />
+        <span>已拒绝 CDN 添加。</span>
+      </ConfirmationRejected>
+      <ConfirmationActions>
+        <ConfirmationAction
+          disabled={!onToolApprovalResponse}
+          onClick={() =>
+            onToolApprovalResponse?.({
+              approved: false,
+              id: approval.id,
+              reason: "User denied CDN resource",
+            })
+          }
+          variant="outline"
+        >
+          拒绝
+        </ConfirmationAction>
+        <ConfirmationAction
+          disabled={!onToolApprovalResponse}
+          onClick={() =>
+            onToolApprovalResponse?.({
+              approved: true,
+              id: approval.id,
+            })
+          }
+        >
+          批准
+        </ConfirmationAction>
+      </ConfirmationActions>
+    </Confirmation>
   );
 }
 
 function isProjectWorkspaceMutationToolPart(part: unknown): part is ToolLikePart {
-  return isToolPart(part) && ["deletePath", "editFile", "writeFile"].includes(getToolName(part));
+  return (
+    isToolPart(part) &&
+    ["addCdnResource", "deletePath", "editFile", "writeFile"].includes(
+      getToolName(part),
+    )
+  );
 }
 
 function isToolPart(part: unknown): part is ToolLikePart {
@@ -266,4 +377,25 @@ function getToolName(part: ToolLikePart) {
   return getAIMessageToolName(part);
 }
 
+function getToolApproval(part: ToolLikePart) {
+  return "approval" in part ? part.approval : undefined;
+}
+
+function getCdnResourceInput(input: ToolLikePart["input"]) {
+  if (!input || typeof input !== "object") {
+    return {};
+  }
+
+  return input as {
+    resourceType?: string;
+    url?: string;
+  };
+}
+
 type ToolLikePart = ToolUIPart | DynamicToolUIPart;
+
+type ToolApprovalResponseHandler = (response: {
+  approved: boolean;
+  id: string;
+  reason?: string;
+}) => void | PromiseLike<void>;

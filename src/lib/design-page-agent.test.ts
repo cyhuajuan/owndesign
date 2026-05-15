@@ -120,7 +120,7 @@ describe("AiSdkDesignPageAgent", () => {
     expect(aiMocks.toolLoopAgent).toHaveBeenCalledWith(
       expect.objectContaining({
         instructions: expect.stringContaining(
-          "asks concise follow-up questions instead of modifying files",
+          "ask concise follow-up questions instead of modifying files",
         ),
       }),
     );
@@ -138,6 +138,7 @@ describe("AiSdkDesignPageAgent", () => {
       tools: Record<string, unknown>;
     };
     expect(Object.keys(config.tools).sort()).toEqual([
+      "addCdnResource",
       "deletePath",
       "editFile",
       "listFiles",
@@ -146,6 +147,161 @@ describe("AiSdkDesignPageAgent", () => {
       "writeFile",
     ]);
     expect(config.tools).not.toHaveProperty("writeHtmlFile");
+  });
+
+  it("requires approval before adding CDN resources", async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    const agent = new AiSdkDesignPageAgent(workspaceStore);
+    aiMocks.generate.mockResolvedValueOnce({ text: "" });
+
+    await agent.generateProjectOutput(buildInput());
+
+    const config = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
+      tools: {
+        addCdnResource: {
+          needsApproval: boolean;
+        };
+      };
+    };
+    expect(config.tools.addCdnResource.needsApproval).toBe(true);
+  });
+
+  it("adds approved CDN stylesheets and scripts to index.html", async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    await workspaceStore.writeProjectWorkspaceFile(
+      "project-1",
+      "index.html",
+      "<!doctype html><html><head><title>Demo</title></head><body><main></main></body></html>",
+    );
+    const agent = new AiSdkDesignPageAgent(workspaceStore);
+    aiMocks.generate.mockResolvedValueOnce({ text: "" });
+
+    await agent.generateProjectOutput(buildInput());
+
+    const config = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
+      tools: {
+        addCdnResource: {
+          execute: (input: {
+            crossorigin?: string;
+            integrity?: string;
+            resourceType: "script" | "stylesheet";
+            url: string;
+          }) => Promise<unknown>;
+        };
+      };
+    };
+    await expect(
+      config.tools.addCdnResource.execute({
+        integrity: "sha384-demo",
+        resourceType: "stylesheet",
+        url: "https://cdn.example.com/app.css",
+      }),
+    ).resolves.toMatchObject({
+      added: true,
+      path: "index.html",
+      resourceType: "stylesheet",
+    });
+    await expect(
+      config.tools.addCdnResource.execute({
+        crossorigin: "anonymous",
+        resourceType: "script",
+        url: "https://cdn.example.com/app.js",
+      }),
+    ).resolves.toMatchObject({
+      added: true,
+      path: "index.html",
+      resourceType: "script",
+    });
+
+    const html = await workspaceStore.readProjectWorkspaceFile(
+      "project-1",
+      "index.html",
+    );
+    expect(html).toContain(
+      '<link rel="stylesheet" href="https://cdn.example.com/app.css" integrity="sha384-demo">',
+    );
+    expect(html.indexOf("https://cdn.example.com/app.css")).toBeLessThan(
+      html.indexOf("</head>"),
+    );
+    expect(html).toContain(
+      '<script src="https://cdn.example.com/app.js" crossorigin="anonymous"></script>',
+    );
+    expect(html.indexOf("https://cdn.example.com/app.js")).toBeLessThan(
+      html.indexOf("</body>"),
+    );
+  });
+
+  it("does not add the same CDN URL twice", async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    await workspaceStore.writeProjectWorkspaceFile(
+      "project-1",
+      "index.html",
+      '<!doctype html><html><head><link rel="stylesheet" href="https://cdn.example.com/app.css"></head><body></body></html>',
+    );
+    const agent = new AiSdkDesignPageAgent(workspaceStore);
+    aiMocks.generate.mockResolvedValueOnce({ text: "" });
+
+    await agent.generateProjectOutput(buildInput());
+
+    const config = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
+      tools: {
+        addCdnResource: {
+          execute: (input: {
+            resourceType: "script" | "stylesheet";
+            url: string;
+          }) => Promise<unknown>;
+        };
+      };
+    };
+    await expect(
+      config.tools.addCdnResource.execute({
+        resourceType: "stylesheet",
+        url: "https://cdn.example.com/app.css",
+      }),
+    ).resolves.toMatchObject({
+      added: false,
+      reason: "already-exists",
+    });
+
+    const html = await workspaceStore.readProjectWorkspaceFile(
+      "project-1",
+      "index.html",
+    );
+    expect(html.match(/cdn\.example\.com\/app\.css/g)).toHaveLength(1);
+  });
+
+  it("rejects non-HTTPS CDN URLs", async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    await workspaceStore.writeProjectWorkspaceFile(
+      "project-1",
+      "index.html",
+      "<!doctype html><html><head></head><body></body></html>",
+    );
+    const agent = new AiSdkDesignPageAgent(workspaceStore);
+    aiMocks.generate.mockResolvedValueOnce({ text: "" });
+
+    await agent.generateProjectOutput(buildInput());
+
+    const config = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
+      tools: {
+        addCdnResource: {
+          execute: (input: {
+            resourceType: "script" | "stylesheet";
+            url: string;
+          }) => Promise<unknown>;
+        };
+      };
+    };
+    await expect(
+      config.tools.addCdnResource.execute({
+        resourceType: "script",
+        url: "http://cdn.example.com/app.js",
+      }),
+    ).rejects.toThrow("CDN URL must use HTTPS");
   });
 
   it("builds instructions from the core markdown prompt and dynamic Project Output prompt", async () => {
@@ -161,12 +317,14 @@ describe("AiSdkDesignPageAgent", () => {
     };
     expect(config.instructions).toContain("# Design Page Agent");
     expect(config.instructions).toContain(
-      "Design real product UI with responsive layout",
+      "You design and build previewable product pages",
     );
     expect(config.instructions).toContain("## Project Output");
     expect(config.instructions).toContain("Project Output Type: html.");
     expect(config.instructions).toContain("Project Workspace file tools");
+    expect(config.instructions).toContain("Only add external CDNs through");
     expect(config.instructions).toContain("`index.html`");
+    expect(config.instructions).not.toContain("Do not:\n- use external CDNs");
     expect(config.instructions).not.toContain("writeHtmlFile");
     expect(config.instructions).not.toContain("Project One");
     expect(config.instructions).not.toContain("project-1");

@@ -39,7 +39,7 @@ Frontend quality bar:
 - Make the design feel like real product work, not a demo block collection
 
 Do not:
-- use external CDNs
+- add external CDNs through raw file edits; use `addCdnResource` so the user can approve first
 - use remote images
 - wrap HTML in markdown fences
 - add explanatory wrapper text around HTML

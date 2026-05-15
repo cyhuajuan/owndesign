@@ -315,6 +315,74 @@ describe("MessageParts", () => {
     expect(screen.queryByText("结果")).not.toBeInTheDocument();
   });
 
+  it("renders CDN approval requests and responds to approval decisions", async () => {
+    const user = userEvent.setup();
+    const onToolApprovalResponse = vi.fn();
+
+    render(
+      <MessageParts
+        message={{
+          id: "assistant-1",
+          parts: [
+            {
+              approval: { id: "approval-1" },
+              input: {
+                resourceType: "script",
+                url: "https://cdn.example.com/app.js",
+              },
+              state: "approval-requested",
+              toolCallId: "call-1",
+              type: "tool-addCdnResource",
+            },
+          ],
+          role: "assistant",
+        }}
+        onToolApprovalResponse={onToolApprovalResponse}
+      />,
+    );
+
+    expect(screen.getByText("需要批准 CDN 资源")).toBeInTheDocument();
+    expect(screen.getByText(/https:\/\/cdn\.example\.com\/app\.js/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "批准" }));
+    expect(onToolApprovalResponse).toHaveBeenCalledWith({
+      approved: true,
+      id: "approval-1",
+    });
+
+    await user.click(screen.getByRole("button", { name: "拒绝" }));
+    expect(onToolApprovalResponse).toHaveBeenCalledWith({
+      approved: false,
+      id: "approval-1",
+      reason: "User denied CDN resource",
+    });
+  });
+
+  it("renders CDN approval outcomes", () => {
+    render(
+      <MessageParts
+        message={{
+          id: "assistant-1",
+          parts: [
+            {
+              approval: { approved: false, id: "approval-1" },
+              input: {
+                resourceType: "stylesheet",
+                url: "https://cdn.example.com/app.css",
+              },
+              state: "output-denied",
+              toolCallId: "call-1",
+              type: "tool-addCdnResource",
+            },
+          ],
+          role: "assistant",
+        }}
+      />,
+    );
+
+    expect(screen.getByText("已拒绝 CDN 添加。")).toBeInTheDocument();
+  });
+
   it("dispatches preview refresh after mutation tool output completes", () => {
     const dispatchEventSpy = vi.spyOn(window, "dispatchEvent");
     vi.mocked(useChat).mockReturnValue({
@@ -329,6 +397,56 @@ describe("MessageParts", () => {
               state: "output-available",
               toolCallId: "call-1",
               type: "tool-editFile",
+            },
+          ],
+          role: "assistant",
+        },
+      ],
+      addToolApprovalResponse: vi.fn(),
+      sendMessage: vi.fn(),
+      status: "ready",
+    } as unknown as ReturnType<typeof useChat>);
+
+    render(
+      <StreamingConversationPanel
+        conversationId="conversation-1"
+        initialMessages={[]}
+        projectId="project-1"
+      />,
+    );
+
+    expect(dispatchEventSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "hjdesign:project-output-updated",
+      }),
+    );
+    dispatchEventSpy.mockRestore();
+  });
+
+  it("dispatches preview refresh after CDN resource output completes", () => {
+    const dispatchEventSpy = vi.spyOn(window, "dispatchEvent");
+    vi.mocked(useChat).mockReturnValue({
+      addToolApprovalResponse: vi.fn(),
+      error: undefined,
+      messages: [
+        {
+          id: "assistant-1",
+          parts: [
+            {
+              approval: { approved: true, id: "approval-1" },
+              input: {
+                resourceType: "stylesheet",
+                url: "https://cdn.example.com/app.css",
+              },
+              output: {
+                added: true,
+                path: "index.html",
+                resourceType: "stylesheet",
+                url: "https://cdn.example.com/app.css",
+              },
+              state: "output-available",
+              toolCallId: "call-1",
+              type: "tool-addCdnResource",
             },
           ],
           role: "assistant",
@@ -352,5 +470,29 @@ describe("MessageParts", () => {
       }),
     );
     dispatchEventSpy.mockRestore();
+  });
+
+  it("configures chat to continue after tool approval responses", () => {
+    vi.mocked(useChat).mockReturnValue({
+      addToolApprovalResponse: vi.fn(),
+      error: undefined,
+      messages: [],
+      sendMessage: vi.fn(),
+      status: "ready",
+    } as unknown as ReturnType<typeof useChat>);
+
+    render(
+      <StreamingConversationPanel
+        conversationId="conversation-1"
+        initialMessages={[]}
+        projectId="project-1"
+      />,
+    );
+
+    expect(useChat).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sendAutomaticallyWhen: expect.any(Function),
+      }),
+    );
   });
 });

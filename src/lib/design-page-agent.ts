@@ -165,7 +165,8 @@ export function createDesignPageAgent({
           additionalProperties: false,
         }),
         execute: async ({ newText, oldText, path }) =>
-          workspaceStore.editProjectWorkspaceFile(
+          editProjectWorkspaceFileWithCdnGuard(
+            workspaceStore,
             projectId,
             path,
             oldText,
@@ -253,7 +254,12 @@ export function createDesignPageAgent({
           additionalProperties: false,
         }),
         execute: async ({ content, path }) =>
-          workspaceStore.writeProjectWorkspaceFile(projectId, path, content),
+          writeProjectWorkspaceFileWithCdnGuard(
+            workspaceStore,
+            projectId,
+            path,
+            content,
+          ),
       }),
     },
   });
@@ -285,6 +291,8 @@ export function buildProjectOutputPrompt(outputType: ProjectOutputType) {
     "Project Output Type: html.",
     "Use the Project Workspace file tools to inspect, create, edit, search, and delete UTF-8 files.",
     "Only add external CDNs through `addCdnResource`, and never by raw file edits.",
+    "`writeFile` and `editFile` reject unapproved external CDN tags in `index.html`; request CDN approval through `addCdnResource` first.",
+    "When writing `index.html`, preserve any existing `data-hjdesign-approved-cdn=\"true\"` CDN tags.",
     "If the user denies a CDN approval request, do not retry the same CDN. Use a local or inline fallback, or explain the limitation.",
     "When the user expects a previewable page, write or update `index.html` in the Project Workspace.",
   ].join("\n");
@@ -296,14 +304,18 @@ async function addCdnResourceToIndexHtml(
   input: AddCdnResourceInput,
 ) {
   const url = parseHttpsCdnUrl(input.url);
-  const html = await workspaceStore.readProjectWorkspaceFile(
+  const existingHtml = await readProjectWorkspaceFileIfExists(
+    workspaceStore,
     projectId,
     "index.html",
   );
+  const createdIndexHtml = existingHtml === undefined;
+  const html = existingHtml ?? buildEmptyIndexHtml();
 
   if (html.includes(input.url) || html.includes(url.href)) {
     return {
       added: false,
+      createdIndexHtml: false,
       path: "index.html",
       reason: "already-exists",
       url: url.href,
@@ -324,6 +336,7 @@ async function addCdnResourceToIndexHtml(
 
   return {
     added: true,
+    createdIndexHtml,
     path: "index.html",
     resourceType: input.resourceType,
     url: url.href,
@@ -348,6 +361,7 @@ function parseHttpsCdnUrl(rawUrl: string) {
 
 function buildCdnTag(input: AddCdnResourceInput) {
   const attributes = [
+    'data-hjdesign-approved-cdn="true"',
     input.integrity ? `integrity="${escapeHtmlAttribute(input.integrity)}"` : "",
     input.crossorigin
       ? `crossorigin="${escapeHtmlAttribute(input.crossorigin)}"`
@@ -361,6 +375,265 @@ function buildCdnTag(input: AddCdnResourceInput) {
   }
 
   return `<script src="${url}"${suffix}></script>`;
+}
+
+async function writeProjectWorkspaceFileWithCdnGuard(
+  workspaceStore: WorkspaceStore,
+  projectId: string,
+  relativePath: string,
+  content: string,
+) {
+  const guardedContent = await guardIndexHtmlCdnChanges(
+    workspaceStore,
+    projectId,
+    relativePath,
+    content,
+  );
+
+  return workspaceStore.writeProjectWorkspaceFile(
+    projectId,
+    relativePath,
+    guardedContent,
+  );
+}
+
+async function editProjectWorkspaceFileWithCdnGuard(
+  workspaceStore: WorkspaceStore,
+  projectId: string,
+  relativePath: string,
+  oldText: string,
+  newText: string,
+) {
+  if (!isIndexHtmlPath(relativePath)) {
+    return workspaceStore.editProjectWorkspaceFile(
+      projectId,
+      relativePath,
+      oldText,
+      newText,
+    );
+  }
+
+  if (!oldText) {
+    throw new Error("oldText must not be empty.");
+  }
+
+  const content = await workspaceStore.readProjectWorkspaceFile(
+    projectId,
+    relativePath,
+  );
+  const firstIndex = content.indexOf(oldText);
+
+  if (firstIndex === -1) {
+    throw new Error(`oldText was not found in Project Workspace file: ${relativePath}`);
+  }
+
+  if (content.indexOf(oldText, firstIndex + oldText.length) !== -1) {
+    throw new Error(
+      `oldText appears more than once in Project Workspace file: ${relativePath}`,
+    );
+  }
+
+  const updatedContent =
+    content.slice(0, firstIndex) + newText + content.slice(firstIndex + oldText.length);
+
+  await writeProjectWorkspaceFileWithCdnGuard(
+    workspaceStore,
+    projectId,
+    relativePath,
+    updatedContent,
+  );
+
+  return {
+    path: normalizeToolPath(relativePath),
+    replacements: 1,
+  };
+}
+
+async function guardIndexHtmlCdnChanges(
+  workspaceStore: WorkspaceStore,
+  projectId: string,
+  relativePath: string,
+  content: string,
+) {
+  if (!isIndexHtmlPath(relativePath)) {
+    return content;
+  }
+
+  const existingHtml =
+    (await readProjectWorkspaceFileIfExists(
+      workspaceStore,
+      projectId,
+      relativePath,
+    )) ?? "";
+  const approvedCdnTags = extractApprovedCdnTags(existingHtml);
+  const approvedUrls = new Set(approvedCdnTags.map(({ url }) => url));
+  const unapprovedRefs = extractExternalCdnRefs(content).filter(
+    ({ url }) => !approvedUrls.has(url),
+  );
+
+  if (unapprovedRefs.length > 0) {
+    throw new Error(
+      `External CDN resources in index.html must be approved with addCdnResource first: ${unapprovedRefs
+        .map(({ url }) => url)
+        .join(", ")}`,
+    );
+  }
+
+  return mergeMissingApprovedCdnTags(content, approvedCdnTags);
+}
+
+async function readProjectWorkspaceFileIfExists(
+  workspaceStore: WorkspaceStore,
+  projectId: string,
+  relativePath: string,
+) {
+  try {
+    return await workspaceStore.readProjectWorkspaceFile(projectId, relativePath);
+  } catch (error) {
+    if (isMissingPathError(error)) {
+      return undefined;
+    }
+
+    throw error;
+  }
+}
+
+function extractApprovedCdnTags(html: string) {
+  return extractCdnTags(html).filter(({ tag }) =>
+    /data-hjdesign-approved-cdn\s*=\s*["']?true["']?/i.test(tag),
+  );
+}
+
+function extractExternalCdnRefs(html: string) {
+  return extractCdnTags(html).map(({ resourceType, url }) => ({
+    resourceType,
+    url,
+  }));
+}
+
+function extractCdnTags(html: string) {
+  const refs: Array<{
+    resourceType: AddCdnResourceInput["resourceType"];
+    tag: string;
+    url: string;
+  }> = [];
+
+  for (const match of html.matchAll(/<script\b[^>]*>[\s\S]*?<\/script>/gi)) {
+    const tag = match[0];
+    const src = getHtmlAttribute(tag, "src");
+
+    if (src && isHttpsUrl(src)) {
+      refs.push({ resourceType: "script", tag, url: normalizeUrl(src) });
+    }
+  }
+
+  for (const match of html.matchAll(/<link\b[^>]*>/gi)) {
+    const tag = match[0];
+    const href = getHtmlAttribute(tag, "href");
+    const rel = getHtmlAttribute(tag, "rel");
+
+    if (href && isHttpsUrl(href) && rel?.toLowerCase().split(/\s+/).includes("stylesheet")) {
+      refs.push({ resourceType: "stylesheet", tag, url: normalizeUrl(href) });
+    }
+  }
+
+  return refs;
+}
+
+function mergeMissingApprovedCdnTags(
+  html: string,
+  approvedCdnTags: Array<{
+    resourceType: AddCdnResourceInput["resourceType"];
+    tag: string;
+    url: string;
+  }>,
+) {
+  let updatedHtml = html;
+
+  for (const approvedCdnTag of approvedCdnTags) {
+    const existingTag = extractCdnTags(updatedHtml).find(
+      ({ url }) => url === approvedCdnTag.url,
+    );
+
+    if (existingTag?.tag.includes('data-hjdesign-approved-cdn="true"')) {
+      continue;
+    }
+
+    if (existingTag) {
+      updatedHtml = updatedHtml.replace(existingTag.tag, approvedCdnTag.tag);
+      continue;
+    }
+
+    updatedHtml = approvedCdnTag.resourceType === "stylesheet"
+      ? insertBeforeClosingTag(
+          updatedHtml,
+          "</head>",
+          approvedCdnTag.tag,
+          "prepend",
+        )
+      : insertBeforeClosingTag(
+          updatedHtml,
+          "</body>",
+          approvedCdnTag.tag,
+          "append",
+        );
+  }
+
+  return updatedHtml;
+}
+
+function getHtmlAttribute(tag: string, name: string) {
+  const pattern = new RegExp(
+    `\\s${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`,
+    "i",
+  );
+  const match = tag.match(pattern);
+
+  return match?.[1] ?? match?.[2] ?? match?.[3];
+}
+
+function buildEmptyIndexHtml() {
+  return [
+    "<!doctype html>",
+    "<html>",
+    "<head>",
+    '  <meta charset="utf-8">',
+    '  <meta name="viewport" content="width=device-width, initial-scale=1">',
+    "  <title>HJDesign Preview</title>",
+    "</head>",
+    "<body>",
+    "</body>",
+    "</html>",
+    "",
+  ].join("\n");
+}
+
+function isHttpsUrl(value: string) {
+  try {
+    return new URL(value).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function normalizeUrl(value: string) {
+  return new URL(value).href;
+}
+
+function isIndexHtmlPath(relativePath: string) {
+  return normalizeToolPath(relativePath) === "index.html";
+}
+
+function normalizeToolPath(relativePath: string) {
+  return path.posix.normalize(relativePath.replaceAll("\\", "/"));
+}
+
+function isMissingPathError(error: unknown): error is NodeJS.ErrnoException {
+  return (
+    error instanceof Error &&
+    "code" in error &&
+    (error as NodeJS.ErrnoException).code === "ENOENT"
+  );
 }
 
 function insertBeforeClosingTag(

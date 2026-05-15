@@ -220,17 +220,185 @@ describe("AiSdkDesignPageAgent", () => {
       "index.html",
     );
     expect(html).toContain(
-      '<link rel="stylesheet" href="https://cdn.example.com/app.css" integrity="sha384-demo">',
+      '<link rel="stylesheet" href="https://cdn.example.com/app.css" data-hjdesign-approved-cdn="true" integrity="sha384-demo">',
     );
     expect(html.indexOf("https://cdn.example.com/app.css")).toBeLessThan(
       html.indexOf("</head>"),
     );
     expect(html).toContain(
-      '<script src="https://cdn.example.com/app.js" crossorigin="anonymous"></script>',
+      '<script src="https://cdn.example.com/app.js" data-hjdesign-approved-cdn="true" crossorigin="anonymous"></script>',
     );
     expect(html.indexOf("https://cdn.example.com/app.js")).toBeLessThan(
       html.indexOf("</body>"),
     );
+  });
+
+  it("creates index.html when an approved CDN is added before the page exists", async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    const agent = new AiSdkDesignPageAgent(workspaceStore);
+    aiMocks.generate.mockResolvedValueOnce({ text: "" });
+
+    await agent.generateProjectOutput(buildInput());
+
+    const config = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
+      tools: {
+        addCdnResource: {
+          execute: (input: {
+            resourceType: "script" | "stylesheet";
+            url: string;
+          }) => Promise<unknown>;
+        };
+      };
+    };
+    await expect(
+      config.tools.addCdnResource.execute({
+        resourceType: "stylesheet",
+        url: "https://cdn.example.com/early.css",
+      }),
+    ).resolves.toMatchObject({
+      added: true,
+      createdIndexHtml: true,
+      path: "index.html",
+    });
+
+    const html = await workspaceStore.readProjectWorkspaceFile(
+      "project-1",
+      "index.html",
+    );
+    expect(html).toContain("<!doctype html>");
+    expect(html).toContain(
+      '<link rel="stylesheet" href="https://cdn.example.com/early.css" data-hjdesign-approved-cdn="true">',
+    );
+  });
+
+  it("preserves approved CDN tags when index.html is overwritten", async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    await workspaceStore.writeProjectWorkspaceFile(
+      "project-1",
+      "index.html",
+      "<!doctype html><html><head></head><body></body></html>",
+    );
+    const agent = new AiSdkDesignPageAgent(workspaceStore);
+    aiMocks.generate.mockResolvedValueOnce({ text: "" });
+
+    await agent.generateProjectOutput(buildInput());
+
+    const config = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
+      tools: {
+        addCdnResource: {
+          execute: (input: {
+            resourceType: "script" | "stylesheet";
+            url: string;
+          }) => Promise<unknown>;
+        };
+        writeFile: {
+          execute: (input: { content: string; path: string }) => Promise<unknown>;
+        };
+      };
+    };
+    await config.tools.addCdnResource.execute({
+      resourceType: "script",
+      url: "https://cdn.example.com/approved.js",
+    });
+    await config.tools.writeFile.execute({
+      content:
+        "<!doctype html><html><head><title>Next</title></head><body><main>Updated</main></body></html>",
+      path: "index.html",
+    });
+
+    const html = await workspaceStore.readProjectWorkspaceFile(
+      "project-1",
+      "index.html",
+    );
+    expect(html).toContain("<main>Updated</main>");
+    expect(html).toContain(
+      '<script src="https://cdn.example.com/approved.js" data-hjdesign-approved-cdn="true"></script>',
+    );
+  });
+
+  it("rejects direct unapproved CDN additions through writeFile", async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    const agent = new AiSdkDesignPageAgent(workspaceStore);
+    aiMocks.generate.mockResolvedValueOnce({ text: "" });
+
+    await agent.generateProjectOutput(buildInput());
+
+    const config = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
+      tools: {
+        writeFile: {
+          execute: (input: { content: string; path: string }) => Promise<unknown>;
+        };
+      };
+    };
+    await expect(
+      config.tools.writeFile.execute({
+        content:
+          '<!doctype html><html><head><link rel="stylesheet" href="https://cdn.example.com/raw.css"></head><body></body></html>',
+        path: "index.html",
+      }),
+    ).rejects.toThrow("must be approved with addCdnResource");
+  });
+
+  it("rejects direct unapproved CDN additions through editFile", async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    await workspaceStore.writeProjectWorkspaceFile(
+      "project-1",
+      "index.html",
+      "<!doctype html><html><head></head><body></body></html>",
+    );
+    const agent = new AiSdkDesignPageAgent(workspaceStore);
+    aiMocks.generate.mockResolvedValueOnce({ text: "" });
+
+    await agent.generateProjectOutput(buildInput());
+
+    const config = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
+      tools: {
+        editFile: {
+          execute: (input: {
+            newText: string;
+            oldText: string;
+            path: string;
+          }) => Promise<unknown>;
+        };
+      };
+    };
+    await expect(
+      config.tools.editFile.execute({
+        newText:
+          '<script src="https://cdn.example.com/raw.js"></script></body>',
+        oldText: "</body>",
+        path: "index.html",
+      }),
+    ).rejects.toThrow("must be approved with addCdnResource");
+  });
+
+  it("does not apply CDN guards to non-index files", async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    const agent = new AiSdkDesignPageAgent(workspaceStore);
+    aiMocks.generate.mockResolvedValueOnce({ text: "" });
+
+    await agent.generateProjectOutput(buildInput());
+
+    const config = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
+      tools: {
+        writeFile: {
+          execute: (input: { content: string; path: string }) => Promise<unknown>;
+        };
+      };
+    };
+    await expect(
+      config.tools.writeFile.execute({
+        content: '<script src="https://cdn.example.com/raw.js"></script>',
+        path: "notes.html",
+      }),
+    ).resolves.toMatchObject({
+      path: "notes.html",
+    });
   });
 
   it("does not add the same CDN URL twice", async () => {
@@ -323,6 +491,7 @@ describe("AiSdkDesignPageAgent", () => {
     expect(config.instructions).toContain("Project Output Type: html.");
     expect(config.instructions).toContain("Project Workspace file tools");
     expect(config.instructions).toContain("Only add external CDNs through");
+    expect(config.instructions).toContain("preserve any existing");
     expect(config.instructions).toContain("`index.html`");
     expect(config.instructions).not.toContain("Do not:\n- use external CDNs");
     expect(config.instructions).not.toContain("writeHtmlFile");

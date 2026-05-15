@@ -40,6 +40,7 @@ Frontend quality bar:
 
 Do not:
 - add external CDNs through raw file edits; use `addCdnResource` so the user can approve first
+- remove existing `data-hjdesign-approved-cdn="true"` CDN tags when rewriting `index.html`
 - use remote images
 - wrap HTML in markdown fences
 - add explanatory wrapper text around HTML

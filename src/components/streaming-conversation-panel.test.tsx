@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { useChat } from "@ai-sdk/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -33,11 +34,39 @@ describe("MessageParts", () => {
       />,
     );
 
-    expect(screen.getByText("思考过程")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /思考过程/ })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+  });
+
+  it("shows reasoning content after expanding", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <MessageParts
+        message={{
+          id: "assistant-1",
+          parts: [
+            {
+              state: "done",
+              text: "需要先判断信息架构。",
+              type: "reasoning",
+            },
+          ],
+          role: "assistant",
+        }}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /思考过程/ }));
+
     expect(screen.getByText("需要先判断信息架构。")).toBeInTheDocument();
   });
 
-  it("consolidates multiple reasoning parts into one block", () => {
+  it("renders multiple reasoning parts as separate blocks", async () => {
+    const user = userEvent.setup();
+
     render(
       <MessageParts
         message={{
@@ -59,7 +88,10 @@ describe("MessageParts", () => {
       />,
     );
 
-    expect(screen.getAllByText("思考过程")).toHaveLength(1);
+    expect(screen.getAllByText("思考过程")).toHaveLength(2);
+    await user.click(screen.getAllByRole("button", { name: /思考过程/ })[0]);
+    await user.click(screen.getAllByRole("button", { name: /思考过程/ })[1]);
+
     expect(screen.getByText("第一步：判断信息架构。")).toBeInTheDocument();
     expect(screen.getByText("第二步：组织首屏层级。")).toBeInTheDocument();
   });

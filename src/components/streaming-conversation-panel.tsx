@@ -167,13 +167,6 @@ export function MessageParts({
   isStreaming?: boolean;
   message: UIMessage;
 }) {
-  const reasoningParts = message.parts.filter(
-    (part) => part.type === "reasoning",
-  );
-  const firstReasoningPartIndex = message.parts.findIndex(
-    (part) => part.type === "reasoning",
-  );
-  const reasoningText = reasoningParts.map((part) => part.text).join("\n\n");
   const lastPart = message.parts.at(-1);
   const isReasoningStreaming =
     isLastMessage && isStreaming && lastPart?.type === "reasoning";
@@ -184,8 +177,6 @@ export function MessageParts({
         <MessagePart
           key={`${message.id}-${index}-${part.type}`}
           isReasoningStreaming={isReasoningStreaming}
-          reasoningText={reasoningText}
-          shouldRenderReasoning={index === firstReasoningPartIndex}
           part={part}
         />
       ))}
@@ -196,34 +187,25 @@ export function MessageParts({
 function MessagePart({
   isReasoningStreaming,
   part,
-  reasoningText,
-  shouldRenderReasoning,
 }: {
   isReasoningStreaming: boolean;
   part: UIMessage["parts"][number];
-  reasoningText: string;
-  shouldRenderReasoning: boolean;
 }) {
   if (part.type === "text") {
     return <MessageResponse>{part.text}</MessageResponse>;
   }
 
   if (part.type === "reasoning") {
-    if (!shouldRenderReasoning) {
-      return null;
-    }
-
     return (
       <Reasoning
         className="w-full rounded-md border border-border bg-background px-3 py-2"
-        defaultOpen
         isStreaming={isReasoningStreaming}
       >
         <ReasoningTrigger
           className="font-medium"
           getThinkingMessage={getReasoningLabel}
         />
-        <ReasoningContent className="mt-2">{reasoningText}</ReasoningContent>
+        <ReasoningContent className="mt-2">{part.text}</ReasoningContent>
       </Reasoning>
     );
   }

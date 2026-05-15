@@ -37,11 +37,6 @@ export type ConversationRecord = {
   titleManuallySet?: boolean;
 };
 
-export type WorkspaceState = {
-  activeProjectId?: string;
-  activeConversationId?: string;
-};
-
 export type WorkspaceEntry = {
   path: string;
   type: "directory" | "file";
@@ -378,32 +373,6 @@ export class WorkspaceStore {
     await this.moveToTrash(
       this.getConversationFilePath(projectId, conversationId),
     );
-  }
-
-  async writeWorkspaceState(state: WorkspaceState) {
-    await mkdir(this.workspaceRoot, { recursive: true });
-    await writeFile(
-      path.join(this.workspaceRoot, "state.json"),
-      JSON.stringify(state, null, 2),
-      "utf8",
-    );
-  }
-
-  async readWorkspaceState() {
-    try {
-      const stateJson = await readFile(
-        path.join(this.workspaceRoot, "state.json"),
-        "utf8",
-      );
-
-      return JSON.parse(stateJson) as WorkspaceState;
-    } catch (error) {
-      if (isMissingPathError(error)) {
-        return {};
-      }
-
-      throw error;
-    }
   }
 
   async deleteProject(projectId: string) {

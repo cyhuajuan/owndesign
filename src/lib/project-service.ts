@@ -1,7 +1,6 @@
 import {
   ConversationRecord,
   ProjectRecord,
-  WorkspaceState,
   WorkspaceStore,
 } from "./workspace-store";
 
@@ -19,11 +18,12 @@ type ProjectServiceOptions = {
   workspaceStore: WorkspaceStore;
   now?: () => string;
   createId?: () => string;
+  previewServerManager?: {
+    stop: (projectId: string) => Promise<void>;
+  };
 };
 
 type ProjectState = {
-  activeProjectId?: string;
-  activeConversationId?: string;
   projects: ProjectRecord[];
 };
 
@@ -31,11 +31,15 @@ export class ProjectService {
   private readonly workspaceStore: WorkspaceStore;
   private readonly now: () => string;
   private readonly createId: () => string;
+  private readonly previewServerManager:
+    | { stop: (projectId: string) => Promise<void> }
+    | undefined;
 
   constructor(options: ProjectServiceOptions) {
     this.workspaceStore = options.workspaceStore;
     this.now = options.now ?? (() => new Date().toISOString());
     this.createId = options.createId ?? (() => crypto.randomUUID());
+    this.previewServerManager = options.previewServerManager;
   }
 
   async createProject(input: CreateProjectInput) {
@@ -59,12 +63,8 @@ export class ProjectService {
 
     await this.workspaceStore.createProject(project);
     await this.workspaceStore.createConversation(conversation);
-    await this.workspaceStore.writeWorkspaceState({
-      activeProjectId: project.id,
-      activeConversationId: conversation.id,
-    });
 
-    return project;
+    return { conversation, project };
   }
 
   async renameProject(projectId: string, input: RenameProjectInput) {
@@ -79,54 +79,16 @@ export class ProjectService {
     return this.workspaceStore.updateProject(projectId, renamedProject);
   }
 
-  async switchProject(projectId: string) {
-    const conversations = await this.workspaceStore.listConversations(projectId);
-    const activeConversationId = conversations[0]?.id;
-
-    await this.workspaceStore.writeWorkspaceState({
-      activeProjectId: projectId,
-      activeConversationId,
-    });
-  }
-
   async deleteProject(projectId: string) {
-    const currentState = await this.workspaceStore.readWorkspaceState();
-
+    await this.previewServerManager?.stop(projectId);
     await this.workspaceStore.deleteProject(projectId);
-
-    const remainingProjects = await this.workspaceStore.listProjects();
-    const fallbackProject = remainingProjects[0];
-
-    if (currentState.activeProjectId === projectId) {
-      await this.workspaceStore.writeWorkspaceState(
-        await this.buildStateForProject(fallbackProject?.id),
-      );
-    }
   }
 
   async getProjectState(): Promise<ProjectState> {
     const projects = await this.workspaceStore.listProjects();
-    const storedState = await this.workspaceStore.readWorkspaceState();
 
     return {
-      activeProjectId: storedState.activeProjectId,
-      activeConversationId: storedState.activeConversationId,
       projects,
-    };
-  }
-
-  private async buildStateForProject(
-    projectId: string | undefined,
-  ): Promise<WorkspaceState> {
-    if (!projectId) {
-      return {};
-    }
-
-    const conversations = await this.workspaceStore.listConversations(projectId);
-
-    return {
-      activeProjectId: projectId,
-      activeConversationId: conversations[0]?.id,
     };
   }
 }

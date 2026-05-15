@@ -1,4 +1,5 @@
 import { ConversationService } from "./conversation-service";
+import { getPreviewServerManager } from "./preview-server-manager";
 import { ProjectService } from "./project-service";
 import { WorkspaceStore } from "./workspace-store";
 
@@ -7,8 +8,11 @@ export function createWorkspaceStore() {
 }
 
 export function createProjectService() {
+  const workspaceStore = createWorkspaceStore();
+
   return new ProjectService({
-    workspaceStore: createWorkspaceStore(),
+    previewServerManager: getPreviewServerManager(workspaceStore),
+    workspaceStore,
   });
 }
 

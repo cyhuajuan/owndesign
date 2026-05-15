@@ -34,14 +34,16 @@ async function createWorkspaceStore() {
 }
 
 describe("ConversationService", () => {
-  it("creates a Conversation file and activates it", async () => {
+  it("creates a Conversation file and lists it", async () => {
     const workspaceStore = await createWorkspaceStore();
     const projectService = new ProjectService({
       workspaceStore,
       createId: sequenceIds("project-1", "conversation-1", "conversation-2"),
       now: fixedNow("2026-05-14T10:00:00.000Z"),
     });
-    const project = await projectService.createProject({ name: "Project One" });
+    const { project } = await projectService.createProject({
+      name: "Project One",
+    });
     const conversationService = new ConversationService({
       workspaceStore,
       createId: sequenceIds("conversation-2"),
@@ -54,7 +56,6 @@ describe("ConversationService", () => {
     const state = await conversationService.getConversationState(project.id);
 
     expect(createdConversation.id).toBe("conversation-2");
-    expect(state.activeConversationId).toBe("conversation-2");
     expect(state.conversations.map((conversation) => conversation.id)).toEqual([
       "conversation-2",
       "conversation-1",
@@ -77,27 +78,38 @@ describe("ConversationService", () => {
     expect(storedConversation.messages).toEqual([]);
   });
 
-  it("switches the active Conversation and restores it after reload", async () => {
+  it("loads a requested Conversation without persisting active state", async () => {
     const workspaceStore = await createWorkspaceStore();
     const projectService = new ProjectService({
       workspaceStore,
       createId: sequenceIds("project-1", "conversation-1"),
       now: fixedNow("2026-05-14T10:00:00.000Z"),
     });
-    const project = await projectService.createProject({ name: "Project One" });
+    const { project } = await projectService.createProject({
+      name: "Project One",
+    });
     const conversationService = new ConversationService({
       workspaceStore,
       createId: sequenceIds("conversation-2"),
       now: fixedNow("2026-05-14T10:05:00.000Z"),
     });
 
-    await conversationService.createConversation(project.id);
-    await conversationService.switchConversation(project.id, "conversation-1");
+    const createdConversation =
+      await conversationService.createConversation(project.id);
+    const switchedConversation = await conversationService.switchConversation(
+      project.id,
+      "conversation-1",
+    );
 
     const reloadedService = new ConversationService({ workspaceStore });
     const state = await reloadedService.getConversationState(project.id);
 
-    expect(state.activeConversationId).toBe("conversation-1");
+    expect(createdConversation.id).toBe("conversation-2");
+    expect(switchedConversation.id).toBe("conversation-1");
+    expect(state.conversations.map((conversation) => conversation.id)).toEqual([
+      "conversation-2",
+      "conversation-1",
+    ]);
   });
 
   it("sends a user message, appends the agent reply, and auto-generates the title from the first user message", async () => {
@@ -107,7 +119,9 @@ describe("ConversationService", () => {
       createId: sequenceIds("project-1", "conversation-1"),
       now: fixedNow("2026-05-14T10:00:00.000Z"),
     });
-    const project = await projectService.createProject({ name: "Project One" });
+    const { project } = await projectService.createProject({
+      name: "Project One",
+    });
     const conversationService = new ConversationService({
       designPageAgent: buildFakeDesignPageAgent(),
       workspaceStore,
@@ -146,7 +160,9 @@ describe("ConversationService", () => {
       createId: sequenceIds("project-1", "conversation-1"),
       now: fixedNow("2026-05-14T10:00:00.000Z"),
     });
-    const project = await projectService.createProject({ name: "Project One" });
+    const { project } = await projectService.createProject({
+      name: "Project One",
+    });
     const conversationService = new ConversationService({
       designPageAgent: buildFakeDesignPageAgent(),
       workspaceStore,
@@ -172,7 +188,9 @@ describe("ConversationService", () => {
       createId: sequenceIds("project-1", "conversation-1", "conversation-2"),
       now: fixedNow("2026-05-14T10:00:00.000Z"),
     });
-    const project = await projectService.createProject({ name: "Project One" });
+    const { project } = await projectService.createProject({
+      name: "Project One",
+    });
     const conversationService = new ConversationService({
       workspaceStore,
       createId: sequenceIds("conversation-2"),
@@ -210,7 +228,9 @@ describe("ConversationService", () => {
       createId: sequenceIds("project-1", "conversation-1"),
       now: fixedNow("2026-05-14T10:00:00.000Z"),
     });
-    const project = await projectService.createProject({ name: "Project One" });
+    const { project } = await projectService.createProject({
+      name: "Project One",
+    });
     const conversationService = new ConversationService({
       designPageAgent: buildThrowingDesignPageAgent(),
       workspaceStore,
@@ -237,7 +257,9 @@ describe("ConversationService", () => {
       createId: sequenceIds("project-1", "conversation-1"),
       now: fixedNow("2026-05-14T10:00:00.000Z"),
     });
-    const project = await projectService.createProject({ name: "Project One" });
+    const { project } = await projectService.createProject({
+      name: "Project One",
+    });
     const conversationService = new ConversationService({
       workspaceStore,
       now: fixedNow("2026-05-14T10:25:00.000Z"),
@@ -266,14 +288,16 @@ describe("ConversationService", () => {
     expect(updatedConversation.lastMessageAt).toBe("2026-05-14T10:25:00.000Z");
   });
 
-  it("deleting the active last Conversation immediately replaces it with a new default Conversation", async () => {
+  it("deleting the last Conversation immediately replaces it with a new default Conversation", async () => {
     const workspaceStore = await createWorkspaceStore();
     const projectService = new ProjectService({
       workspaceStore,
       createId: sequenceIds("project-1", "conversation-1"),
       now: fixedNow("2026-05-14T10:00:00.000Z"),
     });
-    const project = await projectService.createProject({ name: "Project One" });
+    const { project } = await projectService.createProject({
+      name: "Project One",
+    });
     const conversationService = new ConversationService({
       workspaceStore,
       createId: sequenceIds("conversation-2"),
@@ -283,7 +307,6 @@ describe("ConversationService", () => {
     await conversationService.deleteConversation(project.id, "conversation-1");
     const state = await conversationService.getConversationState(project.id);
 
-    expect(state.activeConversationId).toBe("conversation-2");
     expect(state.conversations).toHaveLength(1);
     expect(state.conversations[0]?.title).toBe("新建会话");
   });

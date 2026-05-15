@@ -23,7 +23,6 @@ type RenameConversationInput = {
 };
 
 type ConversationState = {
-  activeConversationId?: string;
   conversations: ConversationRecord[];
 };
 
@@ -67,7 +66,6 @@ export class ConversationService {
     };
 
     await this.workspaceStore.createConversation(conversation);
-    await this.setActiveConversation(projectId, conversation.id);
 
     return conversation;
   }
@@ -96,8 +94,7 @@ export class ConversationService {
   }
 
   async switchConversation(projectId: string, conversationId: string) {
-    await this.workspaceStore.getConversation(projectId, conversationId);
-    await this.setActiveConversation(projectId, conversationId);
+    return this.workspaceStore.getConversation(projectId, conversationId);
   }
 
   async sendUserMessage(
@@ -198,8 +195,6 @@ export class ConversationService {
   }
 
   async deleteConversation(projectId: string, conversationId: string) {
-    const currentState = await this.workspaceStore.readWorkspaceState();
-
     await this.workspaceStore.deleteConversation(projectId, conversationId);
 
     let remainingConversations = await this.workspaceStore.listConversations(
@@ -209,8 +204,6 @@ export class ConversationService {
     if (remainingConversations.length === 0) {
       const replacementConversation = await this.createConversation(projectId);
       remainingConversations = [replacementConversation];
-    } else if (currentState.activeConversationId === conversationId) {
-      await this.setActiveConversation(projectId, remainingConversations[0]!.id);
     }
 
     return remainingConversations;
@@ -218,22 +211,10 @@ export class ConversationService {
 
   async getConversationState(projectId: string): Promise<ConversationState> {
     const conversations = await this.workspaceStore.listConversations(projectId);
-    const workspaceState = await this.workspaceStore.readWorkspaceState();
 
     return {
-      activeConversationId: workspaceState.activeConversationId,
       conversations,
     };
-  }
-
-  private async setActiveConversation(projectId: string, conversationId: string) {
-    const workspaceState = await this.workspaceStore.readWorkspaceState();
-
-    await this.workspaceStore.writeWorkspaceState({
-      ...workspaceState,
-      activeProjectId: projectId,
-      activeConversationId: conversationId,
-    });
   }
 
   private async generateProjectOutputSafely(

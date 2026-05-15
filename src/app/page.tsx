@@ -34,11 +34,15 @@ async function createProjectFromControlBar(
     return;
   }
 
-  await createProjectService().createProject({
+  const result = await createProjectService().createProject({
     name: trimmedName,
     description: trimmedDescription || undefined,
   });
   revalidatePath("/");
+
+  return {
+    href: buildWorkspaceHref(result.project.id, result.conversation.id),
+  };
 }
 
 async function renameProjectFromControlBar(
@@ -70,7 +74,18 @@ async function deleteProjectFromControlBar(projectId: string) {
   }
 
   await createProjectService().deleteProject(projectId);
+  const projectState = await createProjectService().getProjectState();
+  const fallbackProject = projectState.projects[0];
+  const fallbackConversation = fallbackProject
+    ? (await createConversationService().getConversationState(fallbackProject.id))
+        .conversations[0]
+    : undefined;
+
   revalidatePath("/");
+
+  return {
+    href: buildWorkspaceHref(fallbackProject?.id, fallbackConversation?.id),
+  };
 }
 
 async function switchProjectFromControlBar(projectId: string) {
@@ -80,8 +95,15 @@ async function switchProjectFromControlBar(projectId: string) {
     return;
   }
 
-  await createProjectService().switchProject(projectId);
+  const conversationState =
+    await createConversationService().getConversationState(projectId);
+  const activeConversation = conversationState.conversations[0];
+
   revalidatePath("/");
+
+  return {
+    href: buildWorkspaceHref(projectId, activeConversation?.id),
+  };
 }
 
 async function createConversationFromControlBar(projectId: string) {
@@ -91,8 +113,13 @@ async function createConversationFromControlBar(projectId: string) {
     return;
   }
 
-  await createConversationService().createConversation(projectId);
+  const conversation =
+    await createConversationService().createConversation(projectId);
   revalidatePath("/");
+
+  return {
+    href: buildWorkspaceHref(projectId, conversation.id),
+  };
 }
 
 async function switchConversationFromControlBar(
@@ -107,6 +134,10 @@ async function switchConversationFromControlBar(
 
   await createConversationService().switchConversation(projectId, conversationId);
   revalidatePath("/");
+
+  return {
+    href: buildWorkspaceHref(projectId, conversationId),
+  };
 }
 
 async function renameConversationFromControlBar(
@@ -131,6 +162,7 @@ async function renameConversationFromControlBar(
 async function deleteConversationFromControlBar(
   projectId: string,
   conversationId: string,
+  currentConversationId?: string,
 ) {
   "use server";
 
@@ -138,27 +170,38 @@ async function deleteConversationFromControlBar(
     return;
   }
 
-  await createConversationService().deleteConversation(projectId, conversationId);
+  const remainingConversations =
+    await createConversationService().deleteConversation(projectId, conversationId);
+  const nextConversationId =
+    currentConversationId === conversationId
+      ? remainingConversations[0]?.id
+      : currentConversationId;
+
   revalidatePath("/");
+
+  return {
+    href: buildWorkspaceHref(projectId, nextConversationId),
+  };
 }
 
-export default async function Home() {
+type HomeProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function Home({ searchParams }: HomeProps) {
+  const params = (await searchParams) ?? {};
+  const requestedProjectId = getSearchParam(params.projectId);
+  const requestedConversationId = getSearchParam(params.conversationId);
   const projectState = await createProjectService().getProjectState();
   const activeProject = projectState.projects.find(
-    (project) => project.id === projectState.activeProjectId,
-  );
+    (project) => project.id === requestedProjectId,
+  ) ?? projectState.projects[0];
   const conversationState = activeProject
     ? await createConversationService().getConversationState(activeProject.id)
-    : { activeConversationId: undefined, conversations: [] };
+    : { conversations: [] };
   const activeConversation = conversationState.conversations.find(
-    (conversation) =>
-      conversation.id === conversationState.activeConversationId,
-  );
-  const previewHref = activeProject
-    ? `/api/projects/${activeProject.id}/preview?updatedAt=${encodeURIComponent(
-        activeProject.updatedAt,
-      )}`
-    : undefined;
+    (conversation) => conversation.id === requestedConversationId,
+  ) ?? conversationState.conversations[0];
 
   return (
     <ChatShell
@@ -186,21 +229,22 @@ export default async function Home() {
       }
       controlBar={
         <ControlBar
-          activeConversationId={conversationState.activeConversationId}
-          activeProjectId={projectState.activeProjectId}
+          activeConversationId={activeConversation?.id}
+          activeProjectId={activeProject?.id}
           conversations={conversationState.conversations}
           onCreateConversation={async () => {
             "use server";
 
-            await createConversationFromControlBar(activeProject?.id ?? "");
+            return createConversationFromControlBar(activeProject?.id ?? "");
           }}
           onCreateProject={createProjectFromControlBar}
           onDeleteConversation={async (conversationId) => {
             "use server";
 
-            await deleteConversationFromControlBar(
+            return deleteConversationFromControlBar(
               activeProject?.id ?? "",
               conversationId,
+              activeConversation?.id,
             );
           }}
           onDeleteProject={deleteProjectFromControlBar}
@@ -217,7 +261,7 @@ export default async function Home() {
           onSelectConversation={async (conversationId) => {
             "use server";
 
-            await switchConversationFromControlBar(
+            return switchConversationFromControlBar(
               activeProject?.id ?? "",
               conversationId,
             );
@@ -239,6 +283,7 @@ export default async function Home() {
         activeProject ? (
           <ProjectPreviewFrame
             initialUpdatedAt={activeProject.updatedAt}
+            key={activeProject.id}
             projectId={activeProject.id}
             projectName={activeProject.name}
           />
@@ -257,7 +302,24 @@ export default async function Home() {
         )
       }
       previewFilename="index.html"
-      previewHref={previewHref}
     />
   );
+}
+
+function buildWorkspaceHref(projectId?: string, conversationId?: string) {
+  if (!projectId) {
+    return "/";
+  }
+
+  const params = new URLSearchParams({ projectId });
+
+  if (conversationId) {
+    params.set("conversationId", conversationId);
+  }
+
+  return `/?${params.toString()}`;
+}
+
+function getSearchParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
 }

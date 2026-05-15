@@ -8,6 +8,7 @@ import {
   useState,
   type FormEvent,
 } from "react";
+import { useRouter } from "next/navigation";
 import {
   ChevronDownIcon,
   MessageSquareIcon,
@@ -67,26 +68,36 @@ type ControlBarProps = {
   activeConversationId?: string;
   activeProjectId?: string;
   conversations: ConversationRecord[];
-  onCreateConversation: () => Promise<void> | void;
+  onCreateConversation: () => Promise<ControlBarActionResult> | ControlBarActionResult;
   onCreateProject: (
     name: string,
     description?: string,
-  ) => Promise<void> | void;
-  onDeleteConversation: (conversationId: string) => Promise<void> | void;
-  onDeleteProject: (projectId: string) => Promise<void> | void;
+  ) => Promise<ControlBarActionResult> | ControlBarActionResult;
+  onDeleteConversation: (
+    conversationId: string,
+  ) => Promise<ControlBarActionResult> | ControlBarActionResult;
+  onDeleteProject: (
+    projectId: string,
+  ) => Promise<ControlBarActionResult> | ControlBarActionResult;
   onRenameConversation: (
     conversationId: string,
     title: string,
-  ) => Promise<void> | void;
+  ) => Promise<ControlBarActionResult> | ControlBarActionResult;
   onRenameProject: (
     projectId: string,
     name: string,
     description?: string,
-  ) => Promise<void> | void;
-  onSelectConversation: (conversationId: string) => Promise<void> | void;
-  onSelectProject: (projectId: string) => Promise<void> | void;
+  ) => Promise<ControlBarActionResult> | ControlBarActionResult;
+  onSelectConversation: (
+    conversationId: string,
+  ) => Promise<ControlBarActionResult> | ControlBarActionResult;
+  onSelectProject: (
+    projectId: string,
+  ) => Promise<ControlBarActionResult> | ControlBarActionResult;
   projects: ProjectRecord[];
 };
+
+type ControlBarActionResult = { href?: string } | undefined | void;
 
 type RenameTarget =
   | { type: "conversation"; conversation: ConversationRecord }
@@ -112,6 +123,7 @@ export function ControlBar({
   onSelectProject,
   projects,
 }: ControlBarProps) {
+  const router = useRouter();
   const [openMenu, setOpenMenu] = useState<"project" | "conversation" | null>(
     null,
   );
@@ -207,7 +219,7 @@ export function ControlBar({
                     onSelect={() => {
                       setOpenMenu(null);
                       startTransition(() => {
-                        void onSelectProject(project.id);
+                        void runAction(onSelectProject(project.id));
                       });
                     }}
                     value={project.name}
@@ -306,7 +318,7 @@ export function ControlBar({
                     onSelect={() => {
                       setOpenMenu(null);
                       startTransition(() => {
-                        void onSelectConversation(conversation.id);
+                        void runAction(onSelectConversation(conversation.id));
                       });
                     }}
                     value={conversation.title}
@@ -337,7 +349,7 @@ export function ControlBar({
                   onSelect={() => {
                     setOpenMenu(null);
                     startTransition(() => {
-                      void onCreateConversation();
+                      void runAction(onCreateConversation());
                     });
                   }}
                   value="新建会话"
@@ -480,9 +492,9 @@ export function ControlBar({
                 setDeleteTarget(null);
                 startTransition(() => {
                   if (target.type === "project") {
-                    void onDeleteProject(target.project.id);
+                    void runAction(onDeleteProject(target.project.id));
                   } else {
-                    void onDeleteConversation(target.conversation.id);
+                    void runAction(onDeleteConversation(target.conversation.id));
                   }
                 });
               }}
@@ -509,7 +521,9 @@ export function ControlBar({
     setProjectName("");
     setProjectDescription("");
     startTransition(() => {
-      void onCreateProject(trimmedName, trimmedDescription || undefined);
+      void runAction(
+        onCreateProject(trimmedName, trimmedDescription || undefined),
+      );
     });
   }
 
@@ -533,15 +547,33 @@ export function ControlBar({
     setRenameDescription("");
     startTransition(() => {
       if (target.type === "project") {
-        void onRenameProject(
-          target.project.id,
-          trimmedName,
-          trimmedDescription || undefined,
+        void runAction(
+          onRenameProject(
+            target.project.id,
+            trimmedName,
+            trimmedDescription || undefined,
+          ),
         );
       } else {
-        void onRenameConversation(target.conversation.id, trimmedName);
+        void runAction(
+          onRenameConversation(target.conversation.id, trimmedName),
+        );
       }
     });
+  }
+
+  async function runAction(
+    actionResult: Promise<ControlBarActionResult> | ControlBarActionResult,
+  ) {
+    const result = await actionResult;
+
+    if (result?.href) {
+      router.push(result.href);
+      router.refresh();
+      return;
+    }
+
+    router.refresh();
   }
 }
 

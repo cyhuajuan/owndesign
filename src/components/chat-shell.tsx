@@ -1,7 +1,7 @@
 "use client";
 
 import type { CSSProperties, ReactNode } from "react";
-import { useMemo, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import {
   ExternalLinkIcon,
   LayersIcon,
@@ -39,6 +39,7 @@ const CONVERSATION_PANE_STORAGE_KEY =
   "hjdesign.app.conversation-pane-collapsed";
 const CONVERSATION_PANE_EVENT = "hjdesign:conversation-pane";
 const PREVIEW_REFRESH_EVENT = "hjdesign:preview-refresh";
+const PREVIEW_HREF_EVENT = "hjdesign:preview-href-updated";
 
 const demoMessages = [
   {
@@ -83,12 +84,14 @@ export function ChatShell({
   previewHref,
   previewStatus = "ready",
 }: ChatShellProps) {
+  const [sessionPreviewHref, setSessionPreviewHref] = useState<string>();
   const isConversationCollapsed = useSyncExternalStore(
     subscribeToConversationPaneState,
     readConversationPaneState,
     () => false,
   );
   const isSidebarOpen = !isConversationCollapsed;
+  const effectivePreviewHref = previewHref ?? sessionPreviewHref;
   const statusClassName = useMemo(
     () =>
       cn(
@@ -100,6 +103,24 @@ export function ChatShell({
       ),
     [previewStatus],
   );
+
+  useEffect(() => {
+    const handlePreviewHrefUpdated = (event: Event) => {
+      if (!(event instanceof CustomEvent)) {
+        return;
+      }
+
+      setSessionPreviewHref(
+        typeof event.detail?.href === "string" ? event.detail.href : undefined,
+      );
+    };
+
+    window.addEventListener(PREVIEW_HREF_EVENT, handlePreviewHrefUpdated);
+
+    return () => {
+      window.removeEventListener(PREVIEW_HREF_EVENT, handlePreviewHrefUpdated);
+    };
+  }, []);
 
   return (
     <SidebarProvider
@@ -223,10 +244,14 @@ export function ChatShell({
                       </Button>
                       <Button
                         aria-label="新窗口打开预览"
-                        disabled={!previewHref}
+                        disabled={!effectivePreviewHref}
                         onClick={() => {
-                          if (previewHref) {
-                            window.open(previewHref, "_blank", "noopener");
+                          if (effectivePreviewHref) {
+                            window.open(
+                              effectivePreviewHref,
+                              "_blank",
+                              "noopener",
+                            );
                           }
                         }}
                         size="icon-sm"

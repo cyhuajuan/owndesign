@@ -14,7 +14,6 @@ import {
   MessageSquareIcon,
   PencilIcon,
   PlusIcon,
-  SearchIcon,
   Trash2Icon,
 } from "lucide-react";
 
@@ -194,14 +193,14 @@ export function ControlBar({
           sideOffset={8}
         >
           <Command shouldFilter={false}>
-            <div className="flex items-center gap-2 border-b border-border px-3">
-              <SearchIcon className="size-3.5 text-muted-foreground" />
+            <div className="px-3 pt-3 pb-2">
               <CommandInput
                 aria-label="搜索项目"
                 className="border-0 bg-transparent px-0"
                 onValueChange={setProjectQuery}
                 placeholder="搜索项目..."
                 value={projectQuery}
+                wrapperClassName="w-full p-0"
               />
             </div>
             <CommandList>
@@ -211,7 +210,7 @@ export function ControlBar({
                   <CommandItem
                     aria-label={project.name}
                     className={cn(
-                      "group/item gap-2",
+                      "group/item mb-1 gap-2 last:mb-0",
                       project.id === activeProjectId &&
                         "bg-primary/15 text-primary",
                     )}
@@ -222,6 +221,7 @@ export function ControlBar({
                         void runAction(onSelectProject(project.id));
                       });
                     }}
+                    showIndicator={false}
                     value={project.name}
                   >
                     <span className="min-w-0 flex-1 truncate">{project.name}</span>
@@ -246,10 +246,12 @@ export function ControlBar({
               <CommandSeparator />
               <CommandGroup>
                 <CommandItem
+                  className="mb-1 last:mb-0"
                   onSelect={() => {
                     setOpenMenu(null);
                     setIsProjectCreateOpen(true);
                   }}
+                  showIndicator={false}
                   value="新建项目"
                 >
                   <PlusIcon data-icon="inline-start" />
@@ -293,14 +295,14 @@ export function ControlBar({
           sideOffset={8}
         >
           <Command shouldFilter={false}>
-            <div className="flex items-center gap-2 border-b border-border px-3">
-              <SearchIcon className="size-3.5 text-muted-foreground" />
+            <div className="px-3 pt-3 pb-2">
               <CommandInput
                 aria-label="搜索会话"
                 className="border-0 bg-transparent px-0"
                 onValueChange={setConversationQuery}
                 placeholder="搜索会话..."
                 value={conversationQuery}
+                wrapperClassName="w-full p-0"
               />
             </div>
             <CommandList>
@@ -310,7 +312,7 @@ export function ControlBar({
                   <CommandItem
                     aria-label={conversation.title}
                     className={cn(
-                      "group/item gap-2",
+                      "group/item mb-1 gap-2 last:mb-0",
                       conversation.id === activeConversationId &&
                         "bg-primary/15 text-primary",
                     )}
@@ -321,6 +323,7 @@ export function ControlBar({
                         void runAction(onSelectConversation(conversation.id));
                       });
                     }}
+                    showIndicator={false}
                     value={conversation.title}
                   >
                     <MessageSquareIcon data-icon="inline-start" />
@@ -345,6 +348,7 @@ export function ControlBar({
               <CommandSeparator />
               <CommandGroup>
                 <CommandItem
+                  className="mb-1 last:mb-0"
                   disabled={!activeProject}
                   onSelect={() => {
                     setOpenMenu(null);
@@ -352,6 +356,7 @@ export function ControlBar({
                       void runAction(onCreateConversation());
                     });
                   }}
+                  showIndicator={false}
                   value="新建会话"
                 >
                   <PlusIcon data-icon="inline-start" />

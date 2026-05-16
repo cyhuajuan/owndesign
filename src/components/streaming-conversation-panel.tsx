@@ -316,7 +316,7 @@ function ModelSelect({
             type="button"
           >
             <span className="whitespace-nowrap">
-              {selectedModel?.model ?? "未配置模型"}
+              {getSelectedModelLabel(selectedModel)}
             </span>
             <ChevronDownIcon className="chev !size-2.5 opacity-50 transition-transform duration-150" />
           </button>
@@ -439,6 +439,20 @@ function getDeepSeekThinkingMode(configuration: {
   providerOptions?: ModelProviderOptions;
 }) {
   return configuration.providerOptions?.deepseek?.thinkingMode ?? "high";
+}
+
+function getSelectedModelLabel(
+  configuration: PublicSettings["modelConfigurations"][number] | undefined,
+) {
+  if (!configuration) {
+    return "未配置模型";
+  }
+
+  if (configuration.provider !== "deepseek") {
+    return configuration.model;
+  }
+
+  return `${configuration.model} · ${getDeepSeekThinkingMode(configuration)}`;
 }
 
 function updateDefaultModel(

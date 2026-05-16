@@ -1,3 +1,0 @@
-# Local-first project-shaped storage
-
-HJDesign stores application data locally under `~/.hjdesign` instead of relying on a remote backend or database. Data is organized around Projects: each Project has its own directory, each Conversation is stored as its own file inside that Project, and all Conversations in a Project modify the same shared Project Output in the Project's `workspace/` directory. We chose this because it keeps the first version simple, makes project deletion and portability straightforward, and matches the product model where multiple conversation threads collaborate on one design codebase rather than branching per chat.

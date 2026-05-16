@@ -1,0 +1,67 @@
+import type { WorkspaceStore } from "@/lib/workspace-store";
+
+export type ProjectWorkspaceToolContext = {
+  projectId: string;
+  workspaceStore: WorkspaceStore;
+};
+
+export type AddCdnResourceInput = {
+  crossorigin?: string;
+  integrity?: string;
+  resourceType: "script" | "stylesheet";
+  url: string;
+};
+
+export type DeleteInput = {
+  path: string;
+};
+
+export type EditInput = {
+  newString: string;
+  oldString: string;
+  path: string;
+  replaceAll?: boolean;
+};
+
+export type GlobInput = {
+  path?: string;
+  pattern: string;
+};
+
+export type GrepInput = {
+  include?: string;
+  path?: string;
+  pattern: string;
+};
+
+export type PatchInput = {
+  changes: Array<
+    | {
+        content: string;
+        operation: "add" | "write";
+        path: string;
+      }
+    | {
+        newString: string;
+        oldString: string;
+        operation: "edit";
+        path: string;
+        replaceAll?: boolean;
+      }
+    | {
+        operation: "delete";
+        path: string;
+      }
+  >;
+};
+
+export type ReadInput = {
+  limit?: number;
+  offset?: number;
+  path: string;
+};
+
+export type WriteInput = {
+  content: string;
+  path: string;
+};

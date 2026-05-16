@@ -99,11 +99,11 @@ describe("MessageParts", () => {
     const message = {
       id: "assistant-1",
       parts: [
-        {
-          state: "streaming",
-          text: "还在分析布局。",
-          type: "reasoning" as const,
-        },
+            {
+              state: "streaming" as const,
+              text: "还在分析布局。",
+              type: "reasoning" as const,
+            },
       ],
       role: "assistant" as const,
     };
@@ -210,7 +210,7 @@ describe("MessageParts", () => {
               },
               state: "output-available",
               toolCallId: "call-1",
-              type: "tool-writeFile",
+              type: "tool-write",
             },
           ],
           role: "assistant",
@@ -218,7 +218,7 @@ describe("MessageParts", () => {
       />,
     );
 
-    const trigger = screen.getByRole("button", { name: /writeFile/ });
+    const trigger = screen.getByRole("button", { name: /write/ });
     expect(trigger).toHaveAttribute(
       "aria-expanded",
       "false",
@@ -256,7 +256,7 @@ describe("MessageParts", () => {
               output: undefined,
               state: "output-error",
               toolCallId: "call-1",
-              type: "tool-writeFile",
+              type: "tool-write",
             },
           ],
           role: "assistant",
@@ -264,7 +264,7 @@ describe("MessageParts", () => {
       />,
     );
 
-    const trigger = screen.getByRole("button", { name: /writeFile/ });
+    const trigger = screen.getByRole("button", { name: /write/ });
     expect(trigger).toHaveAttribute(
       "aria-expanded",
       "false",
@@ -291,10 +291,10 @@ describe("MessageParts", () => {
           id: "assistant-1",
           parts: [
             {
-              input: { path: "index.html", query: "hero" },
+              input: { path: "index.html", pattern: "hero" },
               state: "input-available",
               toolCallId: "call-1",
-              type: "tool-searchFiles",
+              type: "tool-grep",
             },
           ],
           role: "assistant",
@@ -302,7 +302,7 @@ describe("MessageParts", () => {
       />,
     );
 
-    const trigger = screen.getByRole("button", { name: /searchFiles/ });
+    const trigger = screen.getByRole("button", { name: /grep/ });
     expect(trigger).toHaveAttribute("aria-expanded", "false");
     expect(screen.getByText("准备调用")).toBeInTheDocument();
 
@@ -396,7 +396,7 @@ describe("MessageParts", () => {
               output: { path: "index.html", replacements: 1 },
               state: "output-available",
               toolCallId: "call-1",
-              type: "tool-editFile",
+              type: "tool-edit",
             },
           ],
           role: "assistant",

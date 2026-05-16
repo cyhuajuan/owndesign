@@ -15,6 +15,11 @@ import { promisify } from "node:util";
 
 import trash from "trash";
 
+const DEFAULT_READ_LIMIT = 2000;
+const MAX_READ_BYTES = 50 * 1024;
+const MAX_LINE_LENGTH = 2000;
+const MAX_TOOL_RESULTS = 100;
+
 export type ProjectRecord = {
   id: string;
   name: string;
@@ -49,6 +54,57 @@ export type WorkspaceSearchMatch = {
   line: number;
   preview: string;
 };
+
+export type WorkspaceGrepMatch = {
+  path: string;
+  line: number;
+  preview: string;
+};
+
+export type WorkspaceGlobMatch = {
+  path: string;
+  type: "directory" | "file";
+  updatedAt: string;
+};
+
+export type WorkspaceReadEntryResult =
+  | {
+      content: string;
+      endLine: number;
+      lineCount: number;
+      path: string;
+      startLine: number;
+      truncated: boolean;
+      type: "file";
+    }
+  | {
+      entries: Array<{
+        path: string;
+        type: "directory" | "file";
+      }>;
+      path: string;
+      totalEntries: number;
+      truncated: boolean;
+      type: "directory";
+    };
+
+export type WorkspacePatchChange =
+  | {
+      content: string;
+      operation: "add" | "write";
+      path: string;
+    }
+  | {
+      newString: string;
+      oldString: string;
+      operation: "edit";
+      path: string;
+      replaceAll?: boolean;
+    }
+  | {
+      operation: "delete";
+      path: string;
+    };
 
 type WorkspaceStoreOptions = {
   workspaceRoot?: string;
@@ -249,6 +305,299 @@ export class WorkspaceStore {
     return entries.sort((left, right) => left.path.localeCompare(right.path));
   }
 
+  async readProjectWorkspaceEntry(
+    projectId: string,
+    relativePath: string,
+    options: {
+      limit?: number;
+      offset?: number;
+    } = {},
+  ): Promise<WorkspaceReadEntryResult> {
+    const offset = normalizePositiveInteger(options.offset, 1, "offset");
+    const limit = normalizePositiveInteger(
+      options.limit,
+      DEFAULT_READ_LIMIT,
+      "limit",
+    );
+    const targetPath = relativePath === "."
+      ? this.getProjectWorkspaceDirectory(projectId)
+      : await this.resolveProjectWorkspacePath(
+          projectId,
+          relativePath,
+          { checkTargetSymlink: true },
+        );
+    const targetStats = await lstat(targetPath);
+    const normalizedPath = normalizeWorkspaceRelativePath(relativePath);
+
+    if (targetStats.isSymbolicLink()) {
+      throw new Error("Project Workspace symlinks are not supported.");
+    }
+
+    if (targetStats.isDirectory()) {
+      const rootPath = this.getProjectWorkspaceDirectory(projectId);
+      const entries = await readdir(targetPath, { withFileTypes: true });
+      const visibleEntries = (
+        await Promise.all(
+          entries.map(async (entry) => {
+            const absolutePath = path.join(targetPath, entry.name);
+            const entryStats = await lstat(absolutePath);
+
+            if (entryStats.isSymbolicLink()) {
+              return undefined;
+            }
+
+            if (!entryStats.isDirectory() && !entryStats.isFile()) {
+              return undefined;
+            }
+
+            return {
+              path: normalizeWorkspaceRelativePath(
+                path.relative(rootPath, absolutePath),
+              ),
+              type: entryStats.isDirectory() ? "directory" as const : "file" as const,
+            };
+          }),
+        )
+      )
+        .filter((entry): entry is { path: string; type: "directory" | "file" } =>
+          Boolean(entry),
+        )
+        .sort((left, right) => left.path.localeCompare(right.path));
+      const start = offset - 1;
+      const sliced = visibleEntries.slice(start, start + limit);
+
+      return {
+        entries: sliced,
+        path: normalizedPath,
+        totalEntries: visibleEntries.length,
+        truncated: start + sliced.length < visibleEntries.length,
+        type: "directory",
+      };
+    }
+
+    if (!targetStats.isFile()) {
+      throw new Error(`Project Workspace path is not a file or directory: ${relativePath}`);
+    }
+
+    const content = await readFile(targetPath, "utf8");
+    const lines = content.split(/\r?\n/);
+    const start = offset - 1;
+
+    if (start >= lines.length && !(lines.length === 1 && lines[0] === "" && start === 0)) {
+      throw new Error(`Offset ${offset} is out of range for this file (${lines.length} lines)`);
+    }
+
+    const selectedLines: string[] = [];
+    let usedBytes = 0;
+    let truncated = false;
+
+    for (let index = start; index < lines.length; index += 1) {
+      if (selectedLines.length >= limit) {
+        truncated = true;
+        break;
+      }
+
+      const originalLine = lines[index];
+      const line =
+        originalLine.length > MAX_LINE_LENGTH
+          ? `${originalLine.slice(0, MAX_LINE_LENGTH)}...`
+          : originalLine;
+      const numberedLine = `${index + 1}: ${line}`;
+      const lineBytes = Buffer.byteLength(numberedLine, "utf8") + 1;
+
+      if (usedBytes + lineBytes > MAX_READ_BYTES) {
+        truncated = true;
+        break;
+      }
+
+      selectedLines.push(numberedLine);
+      usedBytes += lineBytes;
+    }
+
+    return {
+      content: selectedLines.join("\n"),
+      endLine: offset + selectedLines.length - 1,
+      lineCount: lines.length,
+      path: normalizedPath,
+      startLine: offset,
+      truncated,
+      type: "file",
+    };
+  }
+
+  async globProjectWorkspace(
+    projectId: string,
+    pattern: string,
+    relativePath = "",
+  ) {
+    if (!pattern.trim()) {
+      throw new Error("Glob pattern must not be empty.");
+    }
+
+    const startPath = relativePath && relativePath !== "."
+      ? relativePath
+      : "";
+    const matcher = globToRegExp(pattern);
+    const matches: WorkspaceGlobMatch[] = [];
+
+    await this.walkProjectWorkspace(
+      projectId,
+      startPath,
+      async (entry) => {
+        const pathFromStart = startPath
+          ? normalizeWorkspaceRelativePath(path.relative(startPath, entry.path))
+          : entry.path;
+
+        if (matcher.test(pathFromStart) || matcher.test(path.basename(entry.path))) {
+          matches.push({
+            path: entry.path,
+            type: entry.type,
+            updatedAt: entry.updatedAt,
+          });
+        }
+      },
+    );
+
+    return matches
+      .sort(
+        (left, right) =>
+          new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime(),
+      )
+      .slice(0, MAX_TOOL_RESULTS);
+  }
+
+  async grepProjectWorkspace(
+    projectId: string,
+    pattern: string,
+    options: {
+      include?: string;
+      path?: string;
+    } = {},
+  ) {
+    if (!pattern) {
+      throw new Error("Grep pattern must not be empty.");
+    }
+
+    let regex: RegExp;
+
+    try {
+      regex = new RegExp(pattern);
+    } catch (error) {
+      throw new Error(
+        `Grep pattern must be a valid JavaScript regular expression: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+
+    const includeMatcher = options.include ? globToRegExp(options.include) : undefined;
+    const matches: Array<WorkspaceGrepMatch & { updatedAtTime: number }> = [];
+    const startPath = options.path && options.path !== "." ? options.path : "";
+    const absoluteStartPath = startPath
+      ? await this.resolveProjectWorkspacePath(projectId, startPath, {
+          checkTargetSymlink: true,
+        })
+      : this.getProjectWorkspaceDirectory(projectId);
+    const startStats = await stat(absoluteStartPath);
+
+    const visitFile = async (absolutePath: string) => {
+      const relativeFilePath = normalizeWorkspaceRelativePath(
+        path.relative(this.getProjectWorkspaceDirectory(projectId), absolutePath),
+      );
+
+      if (
+        includeMatcher &&
+        !includeMatcher.test(relativeFilePath) &&
+        !includeMatcher.test(path.basename(relativeFilePath))
+      ) {
+        return;
+      }
+
+      const fileStats = await stat(absolutePath);
+      const content = await readFile(absolutePath, "utf8");
+      const lines = content.split(/\r?\n/);
+
+      lines.forEach((lineText, index) => {
+        regex.lastIndex = 0;
+
+        if (!regex.test(lineText)) {
+          return;
+        }
+
+        matches.push({
+          line: index + 1,
+          path: relativeFilePath,
+          preview: lineText.trim().slice(0, 240),
+          updatedAtTime: fileStats.mtime.getTime(),
+        });
+      });
+    };
+
+    if (startStats.isFile()) {
+      await visitFile(absoluteStartPath);
+    } else if (startStats.isDirectory()) {
+      await this.walkProjectWorkspace(projectId, startPath, async (entry, absolutePath) => {
+        if (entry.type === "file") {
+          await visitFile(absolutePath);
+        }
+      });
+    }
+
+    return matches
+      .sort((left, right) => right.updatedAtTime - left.updatedAtTime)
+      .slice(0, MAX_TOOL_RESULTS)
+      .map((match) => ({
+        line: match.line,
+        path: match.path,
+        preview: match.preview,
+      }));
+  }
+
+  async applyProjectWorkspacePatch(
+    projectId: string,
+    changes: WorkspacePatchChange[],
+  ) {
+    const results = [];
+
+    for (const change of changes) {
+      if (change.operation === "delete") {
+        results.push({
+          operation: change.operation,
+          result: await this.deleteProjectWorkspacePath(projectId, change.path),
+        });
+        continue;
+      }
+
+      if (change.operation === "edit") {
+        results.push({
+          operation: change.operation,
+          result: await this.editProjectWorkspaceFile(
+            projectId,
+            change.path,
+            change.oldString,
+            change.newString,
+            change.replaceAll,
+          ),
+        });
+        continue;
+      }
+
+      results.push({
+        operation: change.operation,
+        result: await this.writeProjectWorkspaceFile(
+          projectId,
+          change.path,
+          change.content,
+        ),
+      });
+    }
+
+    return {
+      changed: results.length,
+      results,
+    };
+  }
+
   async searchProjectWorkspace(
     projectId: string,
     query: string,
@@ -325,9 +674,14 @@ export class WorkspaceStore {
     relativePath: string,
     oldText: string,
     newText: string,
+    replaceAll = false,
   ) {
     if (!oldText) {
       throw new Error("oldText must not be empty.");
+    }
+
+    if (oldText === newText) {
+      throw new Error("No changes to apply: oldText and newText are identical.");
     }
 
     const content = await this.readProjectWorkspaceFile(projectId, relativePath);
@@ -337,20 +691,25 @@ export class WorkspaceStore {
       throw new Error(`oldText was not found in Project Workspace file: ${relativePath}`);
     }
 
-    if (content.indexOf(oldText, firstIndex + oldText.length) !== -1) {
+    const replacements = countOccurrences(content, oldText);
+
+    if (!replaceAll && replacements > 1) {
       throw new Error(
         `oldText appears more than once in Project Workspace file: ${relativePath}`,
       );
     }
 
-    const updatedContent =
-      content.slice(0, firstIndex) + newText + content.slice(firstIndex + oldText.length);
+    const updatedContent = replaceAll
+      ? content.split(oldText).join(newText)
+      : content.slice(0, firstIndex) +
+        newText +
+        content.slice(firstIndex + oldText.length);
 
     await this.writeProjectWorkspaceFile(projectId, relativePath, updatedContent);
 
     return {
       path: normalizeWorkspaceRelativePath(relativePath),
-      replacements: 1,
+      replacements: replaceAll ? replacements : 1,
     };
   }
 
@@ -588,6 +947,88 @@ function isMissingPathError(error: unknown): error is NodeJS.ErrnoException {
 
 function normalizeWorkspaceRelativePath(relativePath: string) {
   return relativePath.split(path.sep).join("/");
+}
+
+function normalizePositiveInteger(
+  value: number | undefined,
+  fallback: number,
+  name: string,
+) {
+  if (value === undefined) {
+    return fallback;
+  }
+
+  if (!Number.isInteger(value) || value < 1) {
+    throw new Error(`${name} must be a positive integer.`);
+  }
+
+  return value;
+}
+
+function countOccurrences(content: string, needle: string) {
+  if (!needle) {
+    return 0;
+  }
+
+  return content.split(needle).length - 1;
+}
+
+function globToRegExp(glob: string) {
+  const normalized = glob.replaceAll("\\", "/");
+  let source = "^";
+
+  for (let index = 0; index < normalized.length; index += 1) {
+    const char = normalized[index];
+    const next = normalized[index + 1];
+
+    if (char === "*") {
+      if (next === "*") {
+        const afterGlobstar = normalized[index + 2];
+        index += 1;
+
+        if (afterGlobstar === "/") {
+          source += "(?:.*\\/)?";
+          index += 1;
+        } else {
+          source += ".*";
+        }
+      } else {
+        source += "[^/]*";
+      }
+
+      continue;
+    }
+
+    if (char === "?") {
+      source += "[^/]";
+      continue;
+    }
+
+    if (char === "{") {
+      const closeIndex = normalized.indexOf("}", index + 1);
+
+      if (closeIndex !== -1) {
+        const alternatives = normalized
+          .slice(index + 1, closeIndex)
+          .split(",")
+          .map(escapeRegExp)
+          .join("|");
+        source += `(?:${alternatives})`;
+        index = closeIndex;
+        continue;
+      }
+    }
+
+    source += escapeRegExp(char);
+  }
+
+  source += "$";
+
+  return new RegExp(source);
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[|\\{}()[\]^$+*?.]/g, "\\$&");
 }
 
 async function movePathToTrash(

@@ -52,20 +52,20 @@ afterEach(async () => {
 });
 
 describe("AiSdkDesignPageAgent", () => {
-  it("writes Project Workspace files when the model calls writeFile", async () => {
+  it("writes Project Workspace files when the model calls write", async () => {
     const workspaceStore = await createWorkspaceStore();
     await createProject(workspaceStore);
     const agent = new AiSdkDesignPageAgent(workspaceStore);
     aiMocks.generate.mockImplementationOnce(async function (this: {
       config: {
         tools: {
-          writeFile: {
+          write: {
             execute: (input: { content: string; path: string }) => Promise<unknown>;
           };
         };
       };
     }) {
-      await this.config.tools.writeFile.execute({
+      await this.config.tools.write.execute({
         content: "<!doctype html><html><body><main>CRM Dashboard</main></body></html>",
         path: "index.html",
       });
@@ -139,14 +139,15 @@ describe("AiSdkDesignPageAgent", () => {
     };
     expect(Object.keys(config.tools).sort()).toEqual([
       "addCdnResource",
-      "deletePath",
-      "editFile",
-      "listFiles",
-      "readFile",
-      "searchFiles",
-      "writeFile",
+      "delete",
+      "edit",
+      "glob",
+      "grep",
+      "patch",
+      "read",
+      "write",
     ]);
-    expect(config.tools).not.toHaveProperty("writeHtmlFile");
+    expect(config.tools).not.toHaveProperty("writeFile");
   });
 
   it("requires approval before adding CDN resources", async () => {
@@ -165,6 +166,231 @@ describe("AiSdkDesignPageAgent", () => {
       };
     };
     expect(config.tools.addCdnResource.needsApproval).toBe(true);
+  });
+
+  it("reads files with line windows and finds workspace files with glob and grep", async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    await workspaceStore.writeProjectWorkspaceFile(
+      "project-1",
+      "index.html",
+      "<main>\n  <h1>CRM Dashboard</h1>\n</main>",
+    );
+    await workspaceStore.writeProjectWorkspaceFile(
+      "project-1",
+      "assets/app.css",
+      ".hero { color: red; }",
+    );
+    const agent = new AiSdkDesignPageAgent(workspaceStore);
+    aiMocks.generate.mockResolvedValueOnce({ text: "" });
+
+    await agent.generateProjectOutput(buildInput());
+
+    const config = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
+      tools: {
+        glob: {
+          execute: (input: { pattern: string }) => Promise<unknown>;
+        };
+        grep: {
+          execute: (input: { include?: string; pattern: string }) => Promise<unknown>;
+        };
+        read: {
+          execute: (input: {
+            limit?: number;
+            offset?: number;
+            path: string;
+          }) => Promise<unknown>;
+        };
+      };
+    };
+    await expect(
+      config.tools.read.execute({ limit: 1, offset: 2, path: "index.html" }),
+    ).resolves.toMatchObject({
+      content: "2:   <h1>CRM Dashboard</h1>",
+      path: "index.html",
+      startLine: 2,
+      type: "file",
+    });
+    await expect(
+      config.tools.glob.execute({ pattern: "**/*.css" }),
+    ).resolves.toMatchObject({
+      matches: [
+        expect.objectContaining({
+          path: "assets/app.css",
+          type: "file",
+        }),
+      ],
+    });
+    await expect(
+      config.tools.grep.execute({ include: "*.html", pattern: "CRM\\s+Dashboard" }),
+    ).resolves.toMatchObject({
+      matches: [
+        {
+          line: 2,
+          path: "index.html",
+          preview: "<h1>CRM Dashboard</h1>",
+        },
+      ],
+    });
+  });
+
+  it("edits files with replaceAll support", async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    await workspaceStore.writeProjectWorkspaceFile(
+      "project-1",
+      "index.html",
+      "<button>Save</button><button>Save</button>",
+    );
+    const agent = new AiSdkDesignPageAgent(workspaceStore);
+    aiMocks.generate.mockResolvedValueOnce({ text: "" });
+
+    await agent.generateProjectOutput(buildInput());
+
+    const config = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
+      tools: {
+        edit: {
+          execute: (input: {
+            newString: string;
+            oldString: string;
+            path: string;
+            replaceAll?: boolean;
+          }) => Promise<unknown>;
+        };
+      };
+    };
+    await expect(
+      config.tools.edit.execute({
+        newString: "Submit",
+        oldString: "Save",
+        path: "index.html",
+      }),
+    ).rejects.toThrow("oldString appears more than once");
+    await expect(
+      config.tools.edit.execute({
+        newString: "Submit",
+        oldString: "Save",
+        path: "index.html",
+        replaceAll: true,
+      }),
+    ).resolves.toMatchObject({
+      path: "index.html",
+      replacements: 2,
+    });
+    await expect(
+      workspaceStore.readProjectWorkspaceFile("project-1", "index.html"),
+    ).resolves.toBe("<button>Submit</button><button>Submit</button>");
+  });
+
+  it("applies coordinated patch changes inside the Project Workspace", async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    await workspaceStore.writeProjectWorkspaceFile(
+      "project-1",
+      "index.html",
+      "<main>Old</main>",
+    );
+    await workspaceStore.writeProjectWorkspaceFile(
+      "project-1",
+      "stale.txt",
+      "delete me",
+    );
+    const agent = new AiSdkDesignPageAgent(workspaceStore);
+    aiMocks.generate.mockResolvedValueOnce({ text: "" });
+
+    await agent.generateProjectOutput(buildInput());
+
+    const config = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
+      tools: {
+        patch: {
+          execute: (input: {
+            changes: Array<
+              | {
+                  content: string;
+                  operation: "add" | "write";
+                  path: string;
+                }
+              | {
+                  newString: string;
+                  oldString: string;
+                  operation: "edit";
+                  path: string;
+                }
+              | {
+                  operation: "delete";
+                  path: string;
+                }
+            >;
+          }) => Promise<unknown>;
+        };
+      };
+    };
+    await expect(
+      config.tools.patch.execute({
+        changes: [
+          {
+            newString: "New",
+            oldString: "Old",
+            operation: "edit",
+            path: "index.html",
+          },
+          {
+            content: ".hero { color: red; }",
+            operation: "add",
+            path: "assets/app.css",
+          },
+          {
+            operation: "delete",
+            path: "stale.txt",
+          },
+        ],
+      }),
+    ).resolves.toMatchObject({
+      changed: 3,
+    });
+    await expect(
+      workspaceStore.readProjectWorkspaceFile("project-1", "index.html"),
+    ).resolves.toBe("<main>New</main>");
+    await expect(
+      workspaceStore.readProjectWorkspaceFile("project-1", "assets/app.css"),
+    ).resolves.toBe(".hero { color: red; }");
+    await expect(
+      workspaceStore.readProjectWorkspaceFile("project-1", "stale.txt"),
+    ).rejects.toThrow();
+  });
+
+  it("rejects patch changes that escape the Project Workspace", async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    const agent = new AiSdkDesignPageAgent(workspaceStore);
+    aiMocks.generate.mockResolvedValueOnce({ text: "" });
+
+    await agent.generateProjectOutput(buildInput());
+
+    const config = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
+      tools: {
+        patch: {
+          execute: (input: {
+            changes: Array<{
+              content: string;
+              operation: "write";
+              path: string;
+            }>;
+          }) => Promise<unknown>;
+        };
+      };
+    };
+    await expect(
+      config.tools.patch.execute({
+        changes: [
+          {
+            content: "bad",
+            operation: "write",
+            path: "../escape.html",
+          },
+        ],
+      }),
+    ).rejects.toThrow("escapes workspace");
   });
 
   it("adds approved CDN stylesheets and scripts to index.html", async () => {
@@ -293,7 +519,7 @@ describe("AiSdkDesignPageAgent", () => {
             url: string;
           }) => Promise<unknown>;
         };
-        writeFile: {
+        write: {
           execute: (input: { content: string; path: string }) => Promise<unknown>;
         };
       };
@@ -302,7 +528,7 @@ describe("AiSdkDesignPageAgent", () => {
       resourceType: "script",
       url: "https://cdn.example.com/approved.js",
     });
-    await config.tools.writeFile.execute({
+    await config.tools.write.execute({
       content:
         "<!doctype html><html><head><title>Next</title></head><body><main>Updated</main></body></html>",
       path: "index.html",
@@ -318,7 +544,7 @@ describe("AiSdkDesignPageAgent", () => {
     );
   });
 
-  it("rejects direct unapproved CDN additions through writeFile", async () => {
+  it("rejects direct unapproved CDN additions through write", async () => {
     const workspaceStore = await createWorkspaceStore();
     await createProject(workspaceStore);
     const agent = new AiSdkDesignPageAgent(workspaceStore);
@@ -328,13 +554,13 @@ describe("AiSdkDesignPageAgent", () => {
 
     const config = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
       tools: {
-        writeFile: {
+        write: {
           execute: (input: { content: string; path: string }) => Promise<unknown>;
         };
       };
     };
     await expect(
-      config.tools.writeFile.execute({
+      config.tools.write.execute({
         content:
           '<!doctype html><html><head><link rel="stylesheet" href="https://cdn.example.com/raw.css"></head><body></body></html>',
         path: "index.html",
@@ -342,7 +568,7 @@ describe("AiSdkDesignPageAgent", () => {
     ).rejects.toThrow("must be approved with addCdnResource");
   });
 
-  it("rejects direct unapproved CDN additions through editFile", async () => {
+  it("rejects direct unapproved CDN additions through edit", async () => {
     const workspaceStore = await createWorkspaceStore();
     await createProject(workspaceStore);
     await workspaceStore.writeProjectWorkspaceFile(
@@ -357,20 +583,20 @@ describe("AiSdkDesignPageAgent", () => {
 
     const config = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
       tools: {
-        editFile: {
+        edit: {
           execute: (input: {
-            newText: string;
-            oldText: string;
+            newString: string;
+            oldString: string;
             path: string;
           }) => Promise<unknown>;
         };
       };
     };
     await expect(
-      config.tools.editFile.execute({
-        newText:
+      config.tools.edit.execute({
+        newString:
           '<script src="https://cdn.example.com/raw.js"></script></body>',
-        oldText: "</body>",
+        oldString: "</body>",
         path: "index.html",
       }),
     ).rejects.toThrow("must be approved with addCdnResource");
@@ -386,13 +612,13 @@ describe("AiSdkDesignPageAgent", () => {
 
     const config = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
       tools: {
-        writeFile: {
+        write: {
           execute: (input: { content: string; path: string }) => Promise<unknown>;
         };
       };
     };
     await expect(
-      config.tools.writeFile.execute({
+      config.tools.write.execute({
         content: '<script src="https://cdn.example.com/raw.js"></script>',
         path: "notes.html",
       }),
@@ -489,7 +715,7 @@ describe("AiSdkDesignPageAgent", () => {
     );
     expect(config.instructions).toContain("## Project Output");
     expect(config.instructions).toContain("Project Output Type: html.");
-    expect(config.instructions).toContain("Project Workspace file tools");
+    expect(config.instructions).toContain("Project Workspace tools");
     expect(config.instructions).toContain("Only add external CDNs through");
     expect(config.instructions).toContain("preserve any existing");
     expect(config.instructions).toContain("`index.html`");

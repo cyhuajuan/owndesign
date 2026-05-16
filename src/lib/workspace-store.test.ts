@@ -137,6 +137,93 @@ describe("WorkspaceStore", () => {
     ]);
   });
 
+  it("reads Project Workspace files with line windows and directories with entry windows", async () => {
+    const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".hjdesign");
+    const store = new WorkspaceStore({ workspaceRoot });
+    const project = buildProject({ id: "project-read-entry" });
+
+    await store.createProject(project);
+    await store.writeProjectWorkspaceFile(
+      project.id,
+      "index.html",
+      "<main>\n  <h1>CRM Dashboard</h1>\n</main>",
+    );
+    await store.writeProjectWorkspaceFile(project.id, "assets/app.css", "body {}");
+
+    await expect(
+      store.readProjectWorkspaceEntry(project.id, "index.html", {
+        limit: 1,
+        offset: 2,
+      }),
+    ).resolves.toMatchObject({
+      content: "2:   <h1>CRM Dashboard</h1>",
+      path: "index.html",
+      startLine: 2,
+      type: "file",
+    });
+    await expect(
+      store.readProjectWorkspaceEntry(project.id, ".", {
+        limit: 1,
+      }),
+    ).resolves.toMatchObject({
+      entries: [
+        {
+          path: "assets",
+          type: "directory",
+        },
+      ],
+      totalEntries: 2,
+      truncated: true,
+      type: "directory",
+    });
+  });
+
+  it("matches Project Workspace paths with glob patterns", async () => {
+    const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".hjdesign");
+    const store = new WorkspaceStore({ workspaceRoot });
+    const project = buildProject({ id: "project-glob" });
+
+    await store.createProject(project);
+    await store.writeProjectWorkspaceFile(project.id, "index.html", "<main></main>");
+    await store.writeProjectWorkspaceFile(project.id, "assets/app.css", "body {}");
+    await store.writeProjectWorkspaceFile(project.id, "assets/app.js", "console.log(1);");
+
+    await expect(
+      store.globProjectWorkspace(project.id, "**/*.{css,js}"),
+    ).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ path: "assets/app.css", type: "file" }),
+        expect.objectContaining({ path: "assets/app.js", type: "file" }),
+      ]),
+    );
+  });
+
+  it("greps Project Workspace text files with regex and include filters", async () => {
+    const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".hjdesign");
+    const store = new WorkspaceStore({ workspaceRoot });
+    const project = buildProject({ id: "project-grep" });
+
+    await store.createProject(project);
+    await store.writeProjectWorkspaceFile(
+      project.id,
+      "index.html",
+      "<main>\n  <h1>CRM Dashboard</h1>\n</main>",
+    );
+    await store.writeProjectWorkspaceFile(project.id, "notes.md", "CRM Dashboard");
+
+    await expect(
+      store.grepProjectWorkspace(project.id, "CRM\\s+Dashboard", {
+        include: "*.html",
+      }),
+    ).resolves.toEqual([
+      {
+        line: 2,
+        path: "index.html",
+        preview: "<h1>CRM Dashboard</h1>",
+      },
+    ]);
+  });
+
   it("reads, writes, edits, and deletes Project Workspace paths", async () => {
     const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".hjdesign");
     const store = new WorkspaceStore({ workspaceRoot });
@@ -174,6 +261,45 @@ describe("WorkspaceStore", () => {
     });
     await expect(
       store.readProjectWorkspaceFile(project.id, "pages/home.html"),
+    ).rejects.toThrow();
+  });
+
+  it("applies Project Workspace patch changes", async () => {
+    const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".hjdesign");
+    const store = new WorkspaceStore({ workspaceRoot });
+    const project = buildProject({ id: "project-patch" });
+
+    await store.createProject(project);
+    await store.writeProjectWorkspaceFile(project.id, "index.html", "<main>Old</main>");
+    await store.writeProjectWorkspaceFile(project.id, "remove.txt", "bye");
+
+    await expect(
+      store.applyProjectWorkspacePatch(project.id, [
+        {
+          newString: "New",
+          oldString: "Old",
+          operation: "edit",
+          path: "index.html",
+        },
+        {
+          content: "body {}",
+          operation: "add",
+          path: "assets/app.css",
+        },
+        {
+          operation: "delete",
+          path: "remove.txt",
+        },
+      ]),
+    ).resolves.toMatchObject({ changed: 3 });
+    await expect(
+      store.readProjectWorkspaceFile(project.id, "index.html"),
+    ).resolves.toBe("<main>New</main>");
+    await expect(
+      store.readProjectWorkspaceFile(project.id, "assets/app.css"),
+    ).resolves.toBe("body {}");
+    await expect(
+      store.readProjectWorkspaceFile(project.id, "remove.txt"),
     ).rejects.toThrow();
   });
 

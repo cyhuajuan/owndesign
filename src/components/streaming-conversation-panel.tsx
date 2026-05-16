@@ -363,7 +363,7 @@ function CdnApprovalConfirmation({
 function isProjectWorkspaceMutationToolPart(part: unknown): part is ToolLikePart {
   return (
     isToolPart(part) &&
-    ["addCdnResource", "deletePath", "editFile", "writeFile"].includes(
+    ["addCdnResource", "delete", "edit", "patch", "write"].includes(
       getToolName(part),
     )
   );

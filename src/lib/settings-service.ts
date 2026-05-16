@@ -209,6 +209,7 @@ function parseInputModelConfiguration(
   const previousApiKey =
     previous.modelConfigurations.find((configuration) => configuration.id === id)
       ?.apiKey ?? "";
+  const apiKey = incomingApiKey || previousApiKey;
 
   if (!provider) {
     throw new Error("Provider is required.");
@@ -222,12 +223,16 @@ function parseInputModelConfiguration(
     throw new Error("Base URL is required.");
   }
 
+  if (!apiKey) {
+    throw new Error("API Key is required.");
+  }
+
   return {
     id,
     provider,
     model,
     baseUrl,
-    apiKey: incomingApiKey || previousApiKey,
+    apiKey,
   };
 }
 

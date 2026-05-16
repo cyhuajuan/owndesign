@@ -148,6 +148,26 @@ describe("SettingsService", () => {
       }),
     ).rejects.toThrow("Base URL is required.");
   });
+
+  it("requires apiKey for new model configurations", async () => {
+    const service = await createService();
+
+    await expect(
+      service.updateSettings({
+        defaultModelId: null,
+        interfaceLanguage: "zh-CN",
+        modelConfigurations: [
+          {
+            apiKey: "",
+            baseUrl: "",
+            id: "deepseek-1",
+            model: "deepseek-chat",
+            provider: "deepseek",
+          },
+        ],
+      }),
+    ).rejects.toThrow("API Key is required.");
+  });
 });
 
 async function createService() {

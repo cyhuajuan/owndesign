@@ -282,7 +282,7 @@ function ModelConfigCard({
       </div>
       {configuration.collapsed ? null : (
         <div className="grid grid-cols-2 gap-3 p-3.5">
-          <ModelField label="Provider">
+          <ModelField label="Provider" required>
             <select
               className="w-full cursor-pointer appearance-none rounded-[6px] border border-[#2a2a2e] bg-[#1c1c1f] px-2.5 py-[7px] pr-7 text-[13px] text-[#f0f0f2] outline-none transition-colors duration-150 hover:border-[#38383d] focus:border-[#6c5ce7]"
               onChange={(event) =>
@@ -298,7 +298,7 @@ function ModelConfigCard({
               <option value="openai-compatible">OpenAI Compatible</option>
             </select>
           </ModelField>
-          <ModelField label="Model">
+          <ModelField label="Model" required>
             <input
               className={modelInputClass}
               onChange={(event) =>
@@ -309,18 +309,21 @@ function ModelConfigCard({
               value={configuration.model}
             />
           </ModelField>
-          <ModelField label="Base URL">
+          <ModelField
+            label="Base URL"
+            required={configuration.provider === "openai-compatible"}
+          >
             <input
               className={modelInputClass}
               onChange={(event) =>
                 onChange({ ...configuration, baseUrl: event.target.value })
               }
-              placeholder="https://api.openai.com/v1"
+              placeholder={getBaseUrlPlaceholder(configuration.provider)}
               type="text"
               value={configuration.baseUrl}
             />
           </ModelField>
-          <ModelField label="API Key">
+          <ModelField label="API Key" required>
             <input
               className={modelInputClass}
               onChange={(event) =>
@@ -340,14 +343,17 @@ function ModelConfigCard({
 function ModelField({
   children,
   label,
+  required = false,
 }: {
   children: ReactNode;
   label: string;
+  required?: boolean;
 }) {
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-[11px] font-medium uppercase tracking-[0.4px] text-[#6b6b76]">
+      <label className="flex items-center gap-1 text-[11px] font-medium uppercase tracking-[0.4px] text-[#6b6b76]">
         {label}
+        {required ? <span className="text-[#e74c3c]">*</span> : null}
       </label>
       {children}
     </div>
@@ -413,6 +419,14 @@ function getProviderLabel(provider: ModelProvider) {
 
   if (provider === "openai-compatible") {
     return "OpenAI Compatible";
+  }
+
+  return "";
+}
+
+function getBaseUrlPlaceholder(provider: ModelProvider) {
+  if (provider === "deepseek") {
+    return "https://api.deepseek.com";
   }
 
   return "";

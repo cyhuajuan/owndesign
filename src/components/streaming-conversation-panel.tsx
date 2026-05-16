@@ -13,7 +13,6 @@ import {
 import {
   AlertCircleIcon,
   CheckIcon,
-  CheckIcon as CheckModelIcon,
   ChevronDownIcon,
   XIcon,
 } from "lucide-react";
@@ -54,6 +53,13 @@ import {
   PromptInputTextarea,
   PromptInputTools,
 } from "@/components/ai-elements/prompt-input";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Reasoning,
   ReasoningContent,
@@ -259,66 +265,70 @@ function ModelSelect({
   selectedModelId: string | null;
   settings?: PublicSettings;
 }) {
-  const [open, setOpen] = useState(false);
   const selectedModel = settings?.modelConfigurations.find(
     (configuration) => configuration.id === selectedModelId,
   );
+  const disabled = !settings || settings.modelConfigurations.length === 0;
 
   return (
-    <div className="relative">
-      <button
-        className={cn(
-          "flex h-7 cursor-pointer items-center gap-[5px] rounded-[6px] bg-transparent px-2 text-xs text-[#a0a0ab] transition-all duration-150 hover:bg-[#252528] hover:text-[#f0f0f2] disabled:cursor-not-allowed disabled:opacity-50 [&_svg]:size-[13px]",
-          open && "[&_.chev]:rotate-180",
-        )}
-        disabled={!settings || settings.modelConfigurations.length === 0}
-        onClick={() => setOpen((value) => !value)}
-        type="button"
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        disabled={disabled}
+        render={
+          <button
+            className="flex h-7 cursor-pointer items-center gap-[5px] rounded-[6px] bg-transparent px-2 text-xs text-[#a0a0ab] transition-all duration-150 hover:bg-[#252528] hover:text-[#f0f0f2] disabled:cursor-not-allowed disabled:opacity-50 aria-expanded:[&_.chev]:rotate-180 [&_svg]:size-[13px]"
+            type="button"
+          >
+            <span className="whitespace-nowrap">
+              {selectedModel?.model ?? "未配置模型"}
+            </span>
+            <ChevronDownIcon className="chev !size-2.5 opacity-50 transition-transform duration-150" />
+          </button>
+        }
+      />
+      <DropdownMenuContent
+        align="end"
+        className="min-w-[200px] max-w-[320px] rounded-[8px] border border-[#2a2a2e] bg-[#1c1c1f] p-1 text-[#a0a0ab] shadow-[0_8px_24px_rgba(0,0,0,0.5)]"
+        side="top"
+        sideOffset={6}
       >
-        <span className="whitespace-nowrap">
-          {selectedModel?.model ?? "未配置模型"}
-        </span>
-        <ChevronDownIcon className="chev !size-2.5 opacity-50 transition-transform duration-150" />
-      </button>
-      {open ? (
-        <div className="absolute right-0 bottom-[34px] z-[999] min-w-[200px] max-w-[320px] animate-in rounded-[8px] border border-[#2a2a2e] bg-[#1c1c1f] p-1 shadow-[0_8px_24px_rgba(0,0,0,0.5)] duration-150 fade-in-0 slide-in-from-bottom-1">
-          <div className="max-h-[calc(60vh-8px)] overflow-y-auto overflow-x-hidden">
-            {settings?.modelConfigurations.length ? (
-              settings.modelConfigurations.map((configuration) => (
-                <button
+        <DropdownMenuGroup className="max-h-[calc(60vh-8px)] overflow-y-auto overflow-x-hidden">
+          {settings?.modelConfigurations.length ? (
+            settings.modelConfigurations.map((configuration) => (
+              <DropdownMenuItem
+                className={cn(
+                  "relative flex cursor-pointer items-center gap-2 rounded-[6px] px-2.5 py-[7px] text-[13px] text-[#a0a0ab] transition-colors duration-100 focus:bg-[#252528] focus:text-[#f0f0f2]",
+                  configuration.id === selectedModelId &&
+                    "bg-[rgba(108,92,231,0.15)] text-[#6c5ce7] focus:bg-[rgba(108,92,231,0.15)] focus:text-[#6c5ce7]",
+                )}
+                key={configuration.id}
+                onSelect={() => {
+                  void onSelect(configuration.id);
+                }}
+              >
+                <CheckIcon
                   className={cn(
-                    "relative flex w-full cursor-pointer items-center gap-2 rounded-[6px] px-2.5 py-[7px] text-left text-[13px] text-[#a0a0ab] transition-colors duration-100 hover:bg-[#252528] hover:text-[#f0f0f2]",
+                    "size-3.5 shrink-0 opacity-0",
                     configuration.id === selectedModelId &&
-                      "bg-[rgba(108,92,231,0.15)] text-[#6c5ce7]",
+                      "text-[#6c5ce7] opacity-100",
                   )}
-                  key={configuration.id}
-                  onClick={() => {
-                    setOpen(false);
-                    void onSelect(configuration.id);
-                  }}
-                  type="button"
-                >
-                  <CheckModelIcon
-                    className={cn(
-                      "size-3.5 shrink-0 opacity-0",
-                      configuration.id === selectedModelId &&
-                        "text-[#6c5ce7] opacity-100",
-                    )}
-                  />
-                  <span className="min-w-0 flex-1 truncate">
-                    {configuration.model}
-                  </span>
-                </button>
-              ))
-            ) : (
-              <div className="px-4 py-6 text-center text-xs text-[#6b6b76]">
-                暂无模型配置
-              </div>
-            )}
-          </div>
-        </div>
-      ) : null}
-    </div>
+                />
+                <span className="min-w-0 flex-1 truncate">
+                  {configuration.model}
+                </span>
+              </DropdownMenuItem>
+            ))
+          ) : (
+            <DropdownMenuItem
+              className="justify-center px-4 py-6 text-center text-xs text-[#6b6b76] focus:bg-transparent focus:text-[#6b6b76]"
+              disabled
+            >
+              暂无模型配置
+            </DropdownMenuItem>
+          )}
+        </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

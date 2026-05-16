@@ -58,6 +58,7 @@ import {
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
@@ -354,6 +355,9 @@ function ModelSelect({
                     sideOffset={6}
                   >
                     <DropdownMenuGroup>
+                      <DropdownMenuLabel className="px-2.5 py-1.5 text-[11px] text-[#6b6b76]">
+                        思考模式
+                      </DropdownMenuLabel>
                       {deepSeekThinkingModes.map((thinkingMode) => (
                         <DropdownMenuItem
                           className={modelMenuItemClass(

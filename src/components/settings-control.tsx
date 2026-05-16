@@ -264,7 +264,10 @@ function ModelConfigCard({
   return (
     <div className="overflow-hidden rounded-[8px] border border-[#2a2a2e] bg-[#0a0a0b] transition-colors duration-150 hover:border-[#38383d]">
       <div
-        className="flex cursor-pointer select-none items-center gap-1.5 border-b border-[#2a2a2e] bg-[#141416] px-3.5 py-2.5"
+        className={cn(
+          "flex cursor-pointer select-none items-center gap-1.5 bg-[#141416] px-3.5 py-2.5",
+          !configuration.collapsed && "border-b border-[#2a2a2e]",
+        )}
         onClick={() =>
           onChange({ ...configuration, collapsed: !configuration.collapsed })
         }

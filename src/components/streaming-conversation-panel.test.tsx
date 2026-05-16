@@ -12,6 +12,12 @@ function hasTextContent(text: string) {
   return (_: string, node: Element | null) => node?.textContent?.includes(text) ?? false;
 }
 
+const TOOL_DISPLAY_STRING_LIMIT = 100;
+
+function buildLongString(prefix: string, tail = "-hidden-tail") {
+  return prefix.repeat(TOOL_DISPLAY_STRING_LIMIT) + tail;
+}
+
 vi.mock("@ai-sdk/react", () => ({
   useChat: vi.fn(),
 }));
@@ -336,6 +342,161 @@ describe("MessageParts", () => {
       screen.queryAllByText(hasTextContent('"path": "index.html"')).length,
     ).toBeGreaterThan(0);
     expect(screen.queryByText("结果")).not.toBeInTheDocument();
+  });
+
+  it("truncates tool input strings before rendering JSON", async () => {
+    const longContent = buildLongString("a");
+    const nestedContent = buildLongString("b", "-nested-tail");
+    const listContent = buildLongString("c", "-list-tail");
+    const user = userEvent.setup();
+
+    render(
+      <MessageParts
+        message={{
+          id: "assistant-1",
+          parts: [
+            {
+              input: {
+                content: longContent,
+                nested: {
+                  body: nestedContent,
+                  enabled: true,
+                  none: null,
+                  revisions: 2,
+                },
+                path: "index.html",
+                snippets: [listContent, 7],
+              },
+              state: "input-available",
+              toolCallId: "call-1",
+              type: "tool-write",
+            },
+          ],
+          role: "assistant",
+        }}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /write/ }));
+
+    expect(
+      screen.queryAllByText(hasTextContent(`"content": "${"a".repeat(100)}`))
+        .length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.queryAllByText(hasTextContent(`"body": "${"b".repeat(100)}`))
+        .length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.queryAllByText(hasTextContent(`"${"c".repeat(100)}`)).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.queryAllByText(hasTextContent("-hidden-tail")),
+    ).toHaveLength(0);
+    expect(
+      screen.queryAllByText(hasTextContent("-nested-tail")),
+    ).toHaveLength(0);
+    expect(screen.queryAllByText(hasTextContent("-list-tail"))).toHaveLength(0);
+    expect(
+      screen.queryAllByText(hasTextContent('"path": "index.html"')).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.queryAllByText(hasTextContent('"enabled": true')).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.queryAllByText(hasTextContent('"none": null')).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.queryAllByText(hasTextContent('"revisions": 2')).length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("truncates tool output strings before rendering", async () => {
+    const longObjectOutput = buildLongString("o", "-object-output-tail");
+    const longStringOutput = buildLongString("s", "-string-output-tail");
+    const user = userEvent.setup();
+
+    render(
+      <MessageParts
+        message={{
+          id: "assistant-1",
+          parts: [
+            {
+              input: { path: "object-output.html" },
+              output: {
+                content: longObjectOutput,
+                ok: true,
+              },
+              state: "output-available",
+              toolCallId: "call-1",
+              type: "tool-read",
+            },
+            {
+              input: { path: "string-output.html" },
+              output: longStringOutput,
+              state: "output-available",
+              toolCallId: "call-2",
+              type: "tool-read",
+            },
+          ],
+          role: "assistant",
+        }}
+      />,
+    );
+
+    const triggers = screen.getAllByRole("button", { name: /read/ });
+    await user.click(triggers[0]);
+    await user.click(triggers[1]);
+
+    expect(
+      screen.queryAllByText(hasTextContent(`"content": "${"o".repeat(100)}`))
+        .length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.queryAllByText(hasTextContent("s".repeat(100))).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.queryAllByText(hasTextContent("-object-output-tail")),
+    ).toHaveLength(0);
+    expect(
+      screen.queryAllByText(hasTextContent("-string-output-tail")),
+    ).toHaveLength(0);
+    expect(
+      screen.queryAllByText(hasTextContent('"ok": true')).length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("truncates long tool error text", async () => {
+    const longError = buildLongString("e", "-error-tail");
+    const user = userEvent.setup();
+
+    render(
+      <MessageParts
+        message={{
+          id: "assistant-1",
+          parts: [
+            {
+              errorText: longError,
+              input: { path: "index.html" },
+              output: undefined,
+              state: "output-error",
+              toolCallId: "call-1",
+              type: "tool-write",
+            },
+          ],
+          role: "assistant",
+        }}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /write/ }));
+
+    expect(
+      screen.queryAllByText(hasTextContent("e".repeat(100))).length,
+    ).toBeGreaterThan(0);
+    expect(screen.queryAllByText(hasTextContent("-error-tail"))).toHaveLength(
+      0,
+    );
   });
 
   it("renders CDN approval requests and responds to approval decisions", async () => {

@@ -21,6 +21,29 @@ import { isValidElement } from "react";
 
 import { CodeBlock } from "./code-block";
 
+const TOOL_DISPLAY_STRING_LIMIT = 100;
+
+function truncateToolDisplayValue(value: unknown): unknown {
+  if (typeof value === "string") {
+    return value.slice(0, TOOL_DISPLAY_STRING_LIMIT);
+  }
+
+  if (!value || typeof value !== "object" || isValidElement(value)) {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => truncateToolDisplayValue(item));
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).map(([key, item]) => [
+      key,
+      truncateToolDisplayValue(item),
+    ])
+  );
+}
+
 export type ToolProps = ComponentProps<typeof Collapsible>;
 
 export const Tool = ({ className, ...props }: ToolProps) => (
@@ -122,7 +145,10 @@ export const ToolInput = ({ className, input, ...props }: ToolInputProps) => (
       参数
     </h4>
     <div className="rounded-md bg-muted/50">
-      <CodeBlock code={JSON.stringify(input, null, 2)} language="json" />
+      <CodeBlock
+        code={JSON.stringify(truncateToolDisplayValue(input), null, 2)}
+        language="json"
+      />
     </div>
   </div>
 );
@@ -146,10 +172,18 @@ export const ToolOutput = ({
 
   if (typeof output === "object" && !isValidElement(output)) {
     Output = (
-      <CodeBlock code={JSON.stringify(output, null, 2)} language="json" />
+      <CodeBlock
+        code={JSON.stringify(truncateToolDisplayValue(output), null, 2)}
+        language="json"
+      />
     );
   } else if (typeof output === "string") {
-    Output = <CodeBlock code={output} language="json" />;
+    Output = (
+      <CodeBlock
+        code={truncateToolDisplayValue(output) as string}
+        language="json"
+      />
+    );
   }
 
   return (
@@ -165,7 +199,7 @@ export const ToolOutput = ({
             : "bg-muted/50 text-foreground"
         )}
       >
-        {errorText && <div>{errorText}</div>}
+        {errorText && <div>{errorText.slice(0, TOOL_DISPLAY_STRING_LIMIT)}</div>}
         {Output}
       </div>
     </div>

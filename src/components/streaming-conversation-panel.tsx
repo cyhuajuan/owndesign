@@ -351,7 +351,7 @@ function ModelSelect({
                   <DropdownMenuSubContent
                     align="end"
                     className="min-w-[120px] rounded-[8px] border border-[#2a2a2e] bg-[#1c1c1f] p-1 text-[#a0a0ab] shadow-[0_8px_24px_rgba(0,0,0,0.5)]"
-                    side="left"
+                    side="right"
                     sideOffset={6}
                   >
                     <DropdownMenuGroup>

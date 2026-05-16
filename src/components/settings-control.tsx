@@ -17,6 +17,12 @@ export const SETTINGS_UPDATED_EVENT = "hjdesign:settings-updated";
 
 type InterfaceLanguage = "zh-CN" | "en-US";
 type ModelProvider = "" | "deepseek" | "openai-compatible";
+type DeepSeekThinkingMode = "disabled" | "high" | "max";
+type ModelProviderOptions = {
+  deepseek?: {
+    thinkingMode: DeepSeekThinkingMode;
+  };
+};
 
 type ModelConfigurationForm = {
   id: string;
@@ -24,6 +30,7 @@ type ModelConfigurationForm = {
   model: string;
   baseUrl: string;
   apiKey: string;
+  providerOptions?: ModelProviderOptions;
   collapsed: boolean;
 };
 
@@ -37,6 +44,7 @@ type PublicSettings = {
     baseUrl: string;
     apiKey: "";
     hasApiKey: boolean;
+    providerOptions?: ModelProviderOptions;
   }>;
 };
 
@@ -88,6 +96,7 @@ function SettingsPanel({ onClose }: { onClose: () => void }) {
             model: configuration.model,
             baseUrl: configuration.baseUrl,
             apiKey: "",
+            providerOptions: configuration.providerOptions,
             collapsed: false,
           })),
         );
@@ -196,6 +205,7 @@ function SettingsPanel({ onClose }: { onClose: () => void }) {
                       model: "",
                       baseUrl: "",
                       apiKey: "",
+                      providerOptions: undefined,
                       collapsed: false,
                     },
                   ]);
@@ -381,6 +391,7 @@ async function saveSettings(settings: {
         baseUrl: configuration.baseUrl,
         id: configuration.id,
         model: configuration.model,
+        providerOptions: configuration.providerOptions,
         provider: configuration.provider,
       })),
     }),

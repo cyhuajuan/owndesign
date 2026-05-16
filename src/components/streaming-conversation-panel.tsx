@@ -17,7 +17,7 @@ import {
   XIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   Confirmation,
@@ -58,6 +58,9 @@ import {
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -84,7 +87,16 @@ type PublicSettings = {
     baseUrl: string;
     apiKey: "";
     hasApiKey: boolean;
+    providerOptions?: ModelProviderOptions;
   }>;
+};
+
+type DeepSeekThinkingMode = "disabled" | "high" | "max";
+
+type ModelProviderOptions = {
+  deepseek?: {
+    thinkingMode: DeepSeekThinkingMode;
+  };
 };
 
 export function StreamingConversationPanel({
@@ -94,6 +106,13 @@ export function StreamingConversationPanel({
 }: StreamingConversationPanelProps) {
   const [settings, setSettings] = useState<PublicSettings>();
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
+  const selectedModel = settings?.modelConfigurations.find(
+    (configuration) => configuration.id === selectedModelId,
+  );
+  const selectedDeepSeekThinkingMode =
+    selectedModel?.provider === "deepseek"
+      ? getDeepSeekThinkingMode(selectedModel)
+      : undefined;
   const transport = useMemo(
     () =>
       new DefaultChatTransport({
@@ -102,9 +121,16 @@ export function StreamingConversationPanel({
           conversationId,
           modelConfigurationId: selectedModelId,
           projectId,
+          ...(selectedDeepSeekThinkingMode
+            ? {
+                providerOptionsSelection: {
+                  deepseek: selectedDeepSeekThinkingMode,
+                },
+              }
+            : {}),
         },
       }),
-    [conversationId, projectId, selectedModelId],
+    [conversationId, projectId, selectedDeepSeekThinkingMode, selectedModelId],
   );
   const {
     addToolApprovalResponse,
@@ -120,10 +146,21 @@ export function StreamingConversationPanel({
   });
   const announcedToolOutputs = useRef(new Set<string>());
   const isGenerating = status === "submitted" || status === "streaming";
-  const selectedModel = settings?.modelConfigurations.find(
-    (configuration) => configuration.id === selectedModelId,
-  );
   const canSend = Boolean(selectedModel) && !isGenerating;
+  const handleModelSelect = useCallback(
+    async (modelId: string, thinkingMode?: DeepSeekThinkingMode) => {
+      if (!settings) {
+        return;
+      }
+
+      const nextSettings = updateDefaultModel(settings, modelId, thinkingMode);
+
+      setSelectedModelId(modelId);
+      setSettings(nextSettings);
+      await saveSettings(nextSettings);
+    },
+    [settings],
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -234,12 +271,7 @@ export function StreamingConversationPanel({
           </PromptInputBody>
           <PromptInputFooter className="justify-end px-2 pb-1">
             <ModelSelect
-              onSelect={async (modelId) => {
-                setSelectedModelId(modelId);
-                if (settings) {
-                  await saveDefaultModel(settings, modelId);
-                }
-              }}
+              onSelect={handleModelSelect}
               selectedModelId={selectedModelId}
               settings={settings}
             />
@@ -261,7 +293,10 @@ function ModelSelect({
   selectedModelId,
   settings,
 }: {
-  onSelect: (modelId: string) => void | Promise<void>;
+  onSelect: (
+    modelId: string,
+    thinkingMode?: DeepSeekThinkingMode,
+  ) => void | Promise<void>;
   selectedModelId: string | null;
   settings?: PublicSettings;
 }) {
@@ -294,30 +329,73 @@ function ModelSelect({
       >
         <DropdownMenuGroup className="max-h-[calc(60vh-8px)] overflow-y-auto overflow-x-hidden">
           {settings?.modelConfigurations.length ? (
-            settings.modelConfigurations.map((configuration) => (
-              <DropdownMenuItem
-                className={cn(
-                  "relative flex cursor-pointer items-center gap-2 rounded-[6px] px-2.5 py-[7px] text-[13px] text-[#a0a0ab] transition-colors duration-100 focus:bg-[#252528] focus:text-[#f0f0f2]",
-                  configuration.id === selectedModelId &&
-                    "bg-[rgba(108,92,231,0.15)] text-[#6c5ce7] focus:bg-[rgba(108,92,231,0.15)] focus:text-[#6c5ce7]",
-                )}
+            settings.modelConfigurations.map((configuration) =>
+              configuration.provider === "deepseek" ? (
+                <DropdownMenuSub key={configuration.id}>
+                  <DropdownMenuSubTrigger
+                    className={modelMenuItemClass(
+                      configuration.id === selectedModelId,
+                    )}
+                    onClick={() => {
+                      void onSelect(configuration.id);
+                    }}
+                  >
+                    <ModelSelectCheck
+                      active={configuration.id === selectedModelId}
+                    />
+                    <span className="min-w-0 flex-1 truncate">
+                      {configuration.model}
+                    </span>
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent
+                    align="end"
+                    className="min-w-[120px] rounded-[8px] border border-[#2a2a2e] bg-[#1c1c1f] p-1 text-[#a0a0ab] shadow-[0_8px_24px_rgba(0,0,0,0.5)]"
+                    side="left"
+                    sideOffset={6}
+                  >
+                    <DropdownMenuGroup>
+                      {deepSeekThinkingModes.map((thinkingMode) => (
+                        <DropdownMenuItem
+                          className={modelMenuItemClass(
+                            configuration.id === selectedModelId &&
+                              getDeepSeekThinkingMode(configuration) ===
+                                thinkingMode,
+                          )}
+                          key={thinkingMode}
+                          onClick={() => {
+                            void onSelect(configuration.id, thinkingMode);
+                          }}
+                        >
+                          <ModelSelectCheck
+                            active={
+                              configuration.id === selectedModelId &&
+                              getDeepSeekThinkingMode(configuration) ===
+                                thinkingMode
+                            }
+                          />
+                          <span>{thinkingMode}</span>
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuGroup>
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+              ) : (
+                <DropdownMenuItem
+                  className={modelMenuItemClass(
+                    configuration.id === selectedModelId,
+                  )}
                 key={configuration.id}
-                onSelect={() => {
+                onClick={() => {
                   void onSelect(configuration.id);
                 }}
               >
-                <CheckIcon
-                  className={cn(
-                    "size-3.5 shrink-0 opacity-0",
-                    configuration.id === selectedModelId &&
-                      "text-[#6c5ce7] opacity-100",
-                  )}
-                />
+                <ModelSelectCheck active={configuration.id === selectedModelId} />
                 <span className="min-w-0 flex-1 truncate">
                   {configuration.model}
                 </span>
               </DropdownMenuItem>
-            ))
+              ),
+            )
           ) : (
             <DropdownMenuItem
               className="justify-center px-4 py-6 text-center text-xs text-[#6b6b76] focus:bg-transparent focus:text-[#6b6b76]"
@@ -332,16 +410,66 @@ function ModelSelect({
   );
 }
 
-async function saveDefaultModel(settings: PublicSettings, defaultModelId: string) {
+function ModelSelectCheck({ active }: { active: boolean }) {
+  return (
+    <CheckIcon
+      className={cn(
+        "size-3.5 shrink-0 opacity-0",
+        active && "text-[#6c5ce7] opacity-100",
+      )}
+    />
+  );
+}
+
+function modelMenuItemClass(active: boolean) {
+  return cn(
+    "relative flex cursor-pointer items-center gap-2 rounded-[6px] px-2.5 py-[7px] text-[13px] text-[#a0a0ab] transition-colors duration-100 focus:bg-[#252528] focus:text-[#f0f0f2]",
+    active &&
+      "bg-[rgba(108,92,231,0.15)] text-[#6c5ce7] focus:bg-[rgba(108,92,231,0.15)] focus:text-[#6c5ce7]",
+  );
+}
+
+const deepSeekThinkingModes = ["disabled", "high", "max"] as const;
+
+function getDeepSeekThinkingMode(configuration: {
+  providerOptions?: ModelProviderOptions;
+}) {
+  return configuration.providerOptions?.deepseek?.thinkingMode ?? "high";
+}
+
+function updateDefaultModel(
+  settings: PublicSettings,
+  defaultModelId: string,
+  thinkingMode?: DeepSeekThinkingMode,
+): PublicSettings {
+  return {
+    ...settings,
+    defaultModelId,
+    modelConfigurations: settings.modelConfigurations.map((configuration) =>
+      configuration.id === defaultModelId &&
+      configuration.provider === "deepseek" &&
+      thinkingMode
+        ? {
+            ...configuration,
+            providerOptions: {
+              deepseek: { thinkingMode },
+            },
+          }
+        : configuration,
+    ),
+  };
+}
+
+async function saveSettings(settings: PublicSettings) {
   await fetch("/api/settings", {
     body: JSON.stringify({
       ...settings,
-      defaultModelId,
       modelConfigurations: settings.modelConfigurations.map((configuration) => ({
         id: configuration.id,
         provider: configuration.provider,
         model: configuration.model,
         baseUrl: configuration.baseUrl,
+        providerOptions: configuration.providerOptions,
         apiKey: "",
       })),
     }),

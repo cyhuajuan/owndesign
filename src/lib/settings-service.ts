@@ -7,6 +7,13 @@ export const SETTINGS_UPDATED_EVENT = "hjdesign:settings-updated";
 
 export type InterfaceLanguage = "zh-CN" | "en-US";
 export type ModelProvider = "deepseek" | "openai-compatible";
+export type DeepSeekThinkingMode = "disabled" | "high" | "max";
+
+export type ModelProviderOptions = {
+  deepseek?: {
+    thinkingMode: DeepSeekThinkingMode;
+  };
+};
 
 export type ModelConfiguration = {
   id: string;
@@ -14,6 +21,7 @@ export type ModelConfiguration = {
   model: string;
   baseUrl: string;
   apiKey: string;
+  providerOptions?: ModelProviderOptions;
 };
 
 export type PublicModelConfiguration = Omit<ModelConfiguration, "apiKey"> & {
@@ -128,6 +136,7 @@ export function toPublicSettings(settings: AppSettings): PublicAppSettings {
       provider: configuration.provider,
       model: configuration.model,
       baseUrl: configuration.baseUrl,
+      providerOptions: configuration.providerOptions,
       apiKey: "",
       hasApiKey: Boolean(configuration.apiKey),
     })),
@@ -172,7 +181,9 @@ function parseSettingsInput(value: unknown, previous: AppSettings): AppSettings 
   };
 }
 
-function parseStoredModelConfiguration(value: unknown) {
+function parseStoredModelConfiguration(
+  value: unknown,
+): ModelConfiguration | undefined {
   if (!isRecord(value)) {
     return undefined;
   }
@@ -184,12 +195,15 @@ function parseStoredModelConfiguration(value: unknown) {
     return undefined;
   }
 
+  const providerOptions = parseProviderOptions(value.providerOptions, provider);
+
   return {
     id: asTrimmedString(value.id) || randomUUID(),
     provider,
     model,
     baseUrl: asTrimmedString(value.baseUrl),
     apiKey: asTrimmedString(value.apiKey),
+    ...(providerOptions ? { providerOptions } : {}),
   };
 }
 
@@ -227,22 +241,34 @@ function parseInputModelConfiguration(
     throw new Error("API Key is required.");
   }
 
+  const providerOptions = parseProviderOptions(value.providerOptions, provider);
+
   return {
     id,
     provider,
     model,
     baseUrl,
     apiKey,
+    ...(providerOptions ? { providerOptions } : {}),
   };
 }
 
 function normalizeSettings(settings: AppSettings): AppSettings {
-  const modelConfigurations = settings.modelConfigurations.map((configuration) => ({
-    ...configuration,
-    baseUrl: configuration.baseUrl.trim(),
-    model: configuration.model.trim(),
-    apiKey: configuration.apiKey.trim(),
-  }));
+  const modelConfigurations = settings.modelConfigurations.map((configuration) => {
+    const providerOptions = normalizeProviderOptions(
+      configuration.providerOptions,
+      configuration.provider,
+    );
+
+    return {
+      id: configuration.id,
+      provider: configuration.provider,
+      baseUrl: configuration.baseUrl.trim(),
+      model: configuration.model.trim(),
+      apiKey: configuration.apiKey.trim(),
+      ...(providerOptions ? { providerOptions } : {}),
+    };
+  });
   const defaultModelId = modelConfigurations.some(
     (configuration) => configuration.id === settings.defaultModelId,
   )
@@ -274,6 +300,50 @@ function parseModelProvider(value: unknown): ModelProvider | undefined {
   }
 
   return undefined;
+}
+
+function parseProviderOptions(
+  value: unknown,
+  provider: ModelProvider,
+): ModelProviderOptions | undefined {
+  if (provider !== "deepseek") {
+    return undefined;
+  }
+
+  if (!isRecord(value) || !isRecord(value.deepseek)) {
+    return { deepseek: { thinkingMode: "high" } };
+  }
+
+  const thinkingMode = parseDeepSeekThinkingMode(value.deepseek.thinkingMode);
+
+  if (!thinkingMode) {
+    throw new Error("Invalid DeepSeek thinking mode.");
+  }
+
+  return { deepseek: { thinkingMode } };
+}
+
+function normalizeProviderOptions(
+  value: ModelProviderOptions | undefined,
+  provider: ModelProvider,
+): ModelProviderOptions | undefined {
+  if (provider !== "deepseek") {
+    return undefined;
+  }
+
+  return {
+    deepseek: {
+      thinkingMode: value?.deepseek?.thinkingMode ?? "high",
+    },
+  };
+}
+
+export function parseDeepSeekThinkingMode(
+  value: unknown,
+): DeepSeekThinkingMode | undefined {
+  return value === "disabled" || value === "high" || value === "max"
+    ? value
+    : undefined;
 }
 
 function asTrimmedString(value: unknown) {

@@ -3,16 +3,21 @@ import { createAgentUIStreamResponse, type InferAgentUIMessage } from "ai";
 import { normalizeConversationMessages } from "@/lib/chat-messages";
 import { createConversationService, createWorkspaceStore } from "@/lib/hjdesign";
 import {
+  buildProviderOptions,
   buildLanguageModel,
   createDesignPageAgent,
 } from "@/lib/design-page-agent";
-import { createSettingsService } from "@/lib/settings-service";
+import {
+  createSettingsService,
+  parseDeepSeekThinkingMode,
+} from "@/lib/settings-service";
 
 type ChatRequestBody = {
   conversationId?: unknown;
   messages?: unknown;
   modelConfigurationId?: unknown;
   projectId?: unknown;
+  providerOptionsSelection?: unknown;
 };
 
 type DesignPageUIMessage = InferAgentUIMessage<
@@ -55,6 +60,10 @@ export async function POST(request: Request) {
   const agent = createDesignPageAgent({
     model: buildLanguageModel(modelConfiguration),
     outputType: project.outputType,
+    providerOptions: buildProviderOptions(
+      modelConfiguration,
+      parseDeepSeekProviderOptionsSelection(body.providerOptionsSelection),
+    ),
     projectId,
     workspaceStore,
   });
@@ -78,4 +87,12 @@ export async function POST(request: Request) {
 
 function asNonEmptyString(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function parseDeepSeekProviderOptionsSelection(value: unknown) {
+  if (!value || typeof value !== "object" || !("deepseek" in value)) {
+    return undefined;
+  }
+
+  return parseDeepSeekThinkingMode(value.deepseek);
 }

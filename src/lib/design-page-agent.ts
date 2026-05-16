@@ -3,10 +3,16 @@ import path from "node:path";
 
 import { createDeepSeek } from "@ai-sdk/deepseek";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
-import { stepCountIs, ToolLoopAgent, type LanguageModel } from "ai";
+import {
+  stepCountIs,
+  ToolLoopAgent,
+  type LanguageModel,
+  type ToolLoopAgentSettings,
+} from "ai";
 
 import {
   createSettingsService,
+  type DeepSeekThinkingMode,
   type ModelConfiguration,
 } from "./settings-service";
 import type { ProjectOutputType } from "./workspace-store";
@@ -32,6 +38,7 @@ export type DesignPageAgent = {
 type CreateDesignPageAgentInput = {
   model: LanguageModel;
   outputType: ProjectOutputType;
+  providerOptions?: ToolLoopAgentSettings["providerOptions"];
   projectId: string;
   workspaceStore: WorkspaceStore;
 };
@@ -44,11 +51,14 @@ export class AiSdkDesignPageAgent implements DesignPageAgent {
       throw new Error(`Unsupported Project Output Type: ${input.outputType}`);
     }
 
+    const modelConfiguration =
+      await createSettingsService().resolveModelConfiguration();
     const agent = createDesignPageAgent({
       model: buildLanguageModel(
-        await createSettingsService().resolveModelConfiguration(),
+        modelConfiguration,
       ),
       outputType: input.outputType,
+      providerOptions: buildProviderOptions(modelConfiguration),
       projectId: input.projectId,
       workspaceStore: this.workspaceStore,
     });
@@ -66,12 +76,14 @@ export class AiSdkDesignPageAgent implements DesignPageAgent {
 export function createDesignPageAgent({
   model,
   outputType,
+  providerOptions,
   projectId,
   workspaceStore,
 }: CreateDesignPageAgentInput) {
   return new ToolLoopAgent({
     model,
     instructions: buildDesignPageAgentInstructions(outputType),
+    providerOptions,
     stopWhen: stepCountIs(50),
     tools: createProjectWorkspaceTools({ projectId, workspaceStore }),
   });
@@ -90,6 +102,35 @@ export function buildLanguageModel(configuration: ModelConfiguration) {
     apiKey: configuration.apiKey || undefined,
     baseURL: configuration.baseUrl,
   })(configuration.model);
+}
+
+export function buildProviderOptions(
+  configuration: ModelConfiguration,
+  thinkingModeOverride?: DeepSeekThinkingMode,
+): ToolLoopAgentSettings["providerOptions"] {
+  if (configuration.provider !== "deepseek") {
+    return undefined;
+  }
+
+  const thinkingMode =
+    thinkingModeOverride ??
+    configuration.providerOptions?.deepseek?.thinkingMode ??
+    "high";
+
+  if (thinkingMode === "disabled") {
+    return {
+      deepseek: {
+        thinking: { type: "disabled" },
+      },
+    };
+  }
+
+  return {
+    deepseek: {
+      thinking: { type: "enabled" },
+      reasoningEffort: thinkingMode,
+    },
+  };
 }
 
 export function buildDesignPageAgentInstructions(

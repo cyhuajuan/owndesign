@@ -13,6 +13,10 @@ const routeMocks = vi.hoisted(() => {
       configuration,
       provider: "test",
     })),
+    buildProviderOptions: vi.fn((configuration: unknown, thinkingMode: unknown) => ({
+      configuration,
+      thinkingMode,
+    })),
     createSettingsService: vi.fn(),
     createWorkspaceStore: vi.fn(),
     resolveModelConfiguration: vi.fn(),
@@ -26,11 +30,16 @@ vi.mock("ai", () => ({
 
 vi.mock("@/lib/design-page-agent", () => ({
   buildLanguageModel: routeMocks.buildLanguageModel,
+  buildProviderOptions: routeMocks.buildProviderOptions,
   createDesignPageAgent: routeMocks.createDesignPageAgent,
 }));
 
 vi.mock("@/lib/settings-service", () => ({
   createSettingsService: routeMocks.createSettingsService,
+  parseDeepSeekThinkingMode: (value: unknown) =>
+    value === "disabled" || value === "high" || value === "max"
+      ? value
+      : undefined,
 }));
 
 vi.mock("@/lib/hjdesign", () => ({
@@ -44,6 +53,7 @@ describe("/api/chat", () => {
   beforeEach(() => {
     routeMocks.createAgentUIStreamResponse.mockClear();
     routeMocks.buildLanguageModel.mockClear();
+    routeMocks.buildProviderOptions.mockClear();
     routeMocks.createConversationService.mockReset();
     routeMocks.createDesignPageAgent.mockClear();
     routeMocks.createSettingsService.mockReset();
@@ -88,6 +98,7 @@ describe("/api/chat", () => {
           messages,
           modelConfigurationId: "model-1",
           projectId: "project-1",
+          providerOptionsSelection: { deepseek: "max" },
         }),
         method: "POST",
       }),
@@ -98,8 +109,13 @@ describe("/api/chat", () => {
       expect.objectContaining({
         outputType: "html",
         model: expect.objectContaining({ provider: "test" }),
+        providerOptions: expect.objectContaining({ thinkingMode: "max" }),
         projectId: "project-1",
       }),
+    );
+    expect(routeMocks.buildProviderOptions).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "model-1" }),
+      "max",
     );
     expect(routeMocks.resolveModelConfiguration).toHaveBeenCalledWith("model-1");
     expect(routeMocks.createAgentUIStreamResponse).toHaveBeenCalledWith(

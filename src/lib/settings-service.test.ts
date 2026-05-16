@@ -51,6 +51,9 @@ describe("SettingsService", () => {
     });
 
     expect(settings.defaultModelId).toBe("deepseek-1");
+    expect(settings.modelConfigurations[0]).toMatchObject({
+      providerOptions: { deepseek: { thinkingMode: "high" } },
+    });
     await expect(service.getSettings()).resolves.toMatchObject({
       defaultModelId: "deepseek-1",
       interfaceLanguage: "en-US",
@@ -167,6 +170,83 @@ describe("SettingsService", () => {
         ],
       }),
     ).rejects.toThrow("API Key is required.");
+  });
+
+  it("saves DeepSeek thinking mode provider options", async () => {
+    const service = await createService();
+
+    await service.updateSettings({
+      defaultModelId: "deepseek-1",
+      interfaceLanguage: "zh-CN",
+      modelConfigurations: [
+        {
+          apiKey: "key",
+          baseUrl: "",
+          id: "deepseek-1",
+          model: "deepseek-chat",
+          provider: "deepseek",
+          providerOptions: {
+            deepseek: { thinkingMode: "max" },
+          },
+        },
+      ],
+    });
+
+    await expect(service.getPublicSettings()).resolves.toMatchObject({
+      modelConfigurations: [
+        {
+          providerOptions: {
+            deepseek: { thinkingMode: "max" },
+          },
+        },
+      ],
+    });
+  });
+
+  it("drops DeepSeek provider options for OpenAI Compatible models", async () => {
+    const service = await createService();
+
+    const settings = await service.updateSettings({
+      defaultModelId: "compatible-1",
+      interfaceLanguage: "zh-CN",
+      modelConfigurations: [
+        {
+          apiKey: "key",
+          baseUrl: "https://api.example.com/v1",
+          id: "compatible-1",
+          model: "gpt-4o",
+          provider: "openai-compatible",
+          providerOptions: {
+            deepseek: { thinkingMode: "max" },
+          },
+        },
+      ],
+    });
+
+    expect(settings.modelConfigurations[0]?.providerOptions).toBeUndefined();
+  });
+
+  it("rejects invalid DeepSeek thinking mode provider options", async () => {
+    const service = await createService();
+
+    await expect(
+      service.updateSettings({
+        defaultModelId: null,
+        interfaceLanguage: "zh-CN",
+        modelConfigurations: [
+          {
+            apiKey: "key",
+            baseUrl: "",
+            id: "deepseek-1",
+            model: "deepseek-chat",
+            provider: "deepseek",
+            providerOptions: {
+              deepseek: { thinkingMode: "medium" },
+            },
+          },
+        ],
+      }),
+    ).rejects.toThrow("Invalid DeepSeek thinking mode.");
   });
 });
 

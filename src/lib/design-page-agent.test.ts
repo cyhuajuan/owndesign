@@ -4,7 +4,10 @@ import path from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AiSdkDesignPageAgent } from "./design-page-agent";
+import {
+  AiSdkDesignPageAgent,
+  buildProviderOptions,
+} from "./design-page-agent";
 import { WorkspaceStore } from "./workspace-store";
 
 const aiMocks = vi.hoisted(() => {
@@ -153,8 +156,36 @@ describe("AiSdkDesignPageAgent", () => {
         instructions: expect.stringContaining(
           "ask concise follow-up questions instead of modifying files",
         ),
+        providerOptions: {
+          deepseek: {
+            thinking: { type: "enabled" },
+            reasoningEffort: "high",
+          },
+        },
       }),
     );
+  });
+
+  it("maps DeepSeek thinking modes to provider options", () => {
+    const configuration = {
+      apiKey: "secret",
+      baseUrl: "",
+      id: "model-1",
+      model: "deepseek-chat",
+      provider: "deepseek" as const,
+    };
+
+    expect(buildProviderOptions(configuration, "disabled")).toEqual({
+      deepseek: {
+        thinking: { type: "disabled" },
+      },
+    });
+    expect(buildProviderOptions(configuration, "max")).toEqual({
+      deepseek: {
+        thinking: { type: "enabled" },
+        reasoningEffort: "max",
+      },
+    });
   });
 
   it("registers Project Workspace file tools", async () => {

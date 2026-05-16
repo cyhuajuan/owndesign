@@ -25,6 +25,7 @@ import {
   PromptInputTools,
 } from "@/components/ai-elements/prompt-input";
 import { Button } from "@/components/ui/button";
+import { SettingsControl } from "@/components/settings-control";
 import { Separator } from "@/components/ui/separator";
 import {
   Sidebar,
@@ -147,6 +148,7 @@ export function ChatShell({
             </div>
           ) : null}
           <div className="flex-1" />
+          <SettingsControl />
         </header>
 
         <div className="flex min-h-0 flex-1 overflow-hidden">

@@ -10,9 +10,15 @@ import {
   type DynamicToolUIPart,
   type ToolUIPart,
 } from "ai";
-import { AlertCircleIcon, CheckIcon, XIcon } from "lucide-react";
+import {
+  AlertCircleIcon,
+  CheckIcon,
+  CheckIcon as CheckModelIcon,
+  ChevronDownIcon,
+  XIcon,
+} from "lucide-react";
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   Confirmation,
@@ -53,6 +59,8 @@ import {
   ReasoningContent,
   ReasoningTrigger,
 } from "@/components/ai-elements/reasoning";
+import { SETTINGS_UPDATED_EVENT } from "@/components/settings-control";
+import { cn } from "@/lib/utils";
 
 type StreamingConversationPanelProps = {
   conversationId: string;
@@ -60,21 +68,37 @@ type StreamingConversationPanelProps = {
   projectId: string;
 };
 
+type PublicSettings = {
+  defaultModelId: string | null;
+  interfaceLanguage: "zh-CN" | "en-US";
+  modelConfigurations: Array<{
+    id: string;
+    provider: "deepseek" | "openai-compatible";
+    model: string;
+    baseUrl: string;
+    apiKey: "";
+    hasApiKey: boolean;
+  }>;
+};
+
 export function StreamingConversationPanel({
   conversationId,
   initialMessages,
   projectId,
 }: StreamingConversationPanelProps) {
+  const [settings, setSettings] = useState<PublicSettings>();
+  const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const transport = useMemo(
     () =>
       new DefaultChatTransport({
         api: "/api/chat",
         body: {
           conversationId,
+          modelConfigurationId: selectedModelId,
           projectId,
         },
       }),
-    [conversationId, projectId],
+    [conversationId, projectId, selectedModelId],
   );
   const {
     addToolApprovalResponse,
@@ -90,6 +114,37 @@ export function StreamingConversationPanel({
   });
   const announcedToolOutputs = useRef(new Set<string>());
   const isGenerating = status === "submitted" || status === "streaming";
+  const selectedModel = settings?.modelConfigurations.find(
+    (configuration) => configuration.id === selectedModelId,
+  );
+  const canSend = Boolean(selectedModel) && !isGenerating;
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadSettings = async () => {
+      const response = await fetch("/api/settings");
+      const nextSettings = (await response.json()) as PublicSettings;
+
+      if (!isMounted) {
+        return;
+      }
+
+      setSettings(nextSettings);
+      setSelectedModelId(
+        nextSettings.defaultModelId ??
+          nextSettings.modelConfigurations[0]?.id ??
+          null,
+      );
+    };
+
+    void loadSettings();
+    window.addEventListener(SETTINGS_UPDATED_EVENT, loadSettings);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener(SETTINGS_UPDATED_EVENT, loadSettings);
+    };
+  }, []);
 
   useEffect(() => {
     for (const message of messages) {
@@ -157,7 +212,7 @@ export function StreamingConversationPanel({
           onSubmit={async ({ text }) => {
             const trimmedText = text.trim();
 
-            if (!trimmedText || isGenerating) {
+            if (!trimmedText || !canSend) {
               return;
             }
 
@@ -172,10 +227,20 @@ export function StreamingConversationPanel({
             />
           </PromptInputBody>
           <PromptInputFooter className="justify-end px-2 pb-1">
+            <ModelSelect
+              onSelect={async (modelId) => {
+                setSelectedModelId(modelId);
+                if (settings) {
+                  await saveDefaultModel(settings, modelId);
+                }
+              }}
+              selectedModelId={selectedModelId}
+              settings={settings}
+            />
             <PromptInputTools />
             <PromptInputSubmit
               className="bg-primary text-primary-foreground hover:bg-primary/90"
-              disabled={isGenerating}
+              disabled={!canSend}
               status={status}
             />
           </PromptInputFooter>
@@ -183,6 +248,96 @@ export function StreamingConversationPanel({
       </div>
     </>
   );
+}
+
+function ModelSelect({
+  onSelect,
+  selectedModelId,
+  settings,
+}: {
+  onSelect: (modelId: string) => void | Promise<void>;
+  selectedModelId: string | null;
+  settings?: PublicSettings;
+}) {
+  const [open, setOpen] = useState(false);
+  const selectedModel = settings?.modelConfigurations.find(
+    (configuration) => configuration.id === selectedModelId,
+  );
+
+  return (
+    <div className="relative">
+      <button
+        className={cn(
+          "flex h-7 cursor-pointer items-center gap-[5px] rounded-[6px] bg-transparent px-2 text-xs text-[#a0a0ab] transition-all duration-150 hover:bg-[#252528] hover:text-[#f0f0f2] disabled:cursor-not-allowed disabled:opacity-50 [&_svg]:size-[13px]",
+          open && "[&_.chev]:rotate-180",
+        )}
+        disabled={!settings || settings.modelConfigurations.length === 0}
+        onClick={() => setOpen((value) => !value)}
+        type="button"
+      >
+        <span className="whitespace-nowrap">
+          {selectedModel?.model ?? "未配置模型"}
+        </span>
+        <ChevronDownIcon className="chev !size-2.5 opacity-50 transition-transform duration-150" />
+      </button>
+      {open ? (
+        <div className="absolute right-0 bottom-[34px] z-[999] min-w-[200px] max-w-[320px] animate-in rounded-[8px] border border-[#2a2a2e] bg-[#1c1c1f] p-1 shadow-[0_8px_24px_rgba(0,0,0,0.5)] duration-150 fade-in-0 slide-in-from-bottom-1">
+          <div className="max-h-[calc(60vh-8px)] overflow-y-auto overflow-x-hidden">
+            {settings?.modelConfigurations.length ? (
+              settings.modelConfigurations.map((configuration) => (
+                <button
+                  className={cn(
+                    "relative flex w-full cursor-pointer items-center gap-2 rounded-[6px] px-2.5 py-[7px] text-left text-[13px] text-[#a0a0ab] transition-colors duration-100 hover:bg-[#252528] hover:text-[#f0f0f2]",
+                    configuration.id === selectedModelId &&
+                      "bg-[rgba(108,92,231,0.15)] text-[#6c5ce7]",
+                  )}
+                  key={configuration.id}
+                  onClick={() => {
+                    setOpen(false);
+                    void onSelect(configuration.id);
+                  }}
+                  type="button"
+                >
+                  <CheckModelIcon
+                    className={cn(
+                      "size-3.5 shrink-0 opacity-0",
+                      configuration.id === selectedModelId &&
+                        "text-[#6c5ce7] opacity-100",
+                    )}
+                  />
+                  <span className="min-w-0 flex-1 truncate">
+                    {configuration.model}
+                  </span>
+                </button>
+              ))
+            ) : (
+              <div className="px-4 py-6 text-center text-xs text-[#6b6b76]">
+                暂无模型配置
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+async function saveDefaultModel(settings: PublicSettings, defaultModelId: string) {
+  await fetch("/api/settings", {
+    body: JSON.stringify({
+      ...settings,
+      defaultModelId,
+      modelConfigurations: settings.modelConfigurations.map((configuration) => ({
+        id: configuration.id,
+        provider: configuration.provider,
+        model: configuration.model,
+        baseUrl: configuration.baseUrl,
+        apiKey: "",
+      })),
+    }),
+    headers: { "Content-Type": "application/json" },
+    method: "PUT",
+  });
 }
 
 export function MessageParts({

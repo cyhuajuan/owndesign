@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@ai-sdk/deepseek": "^2.0.35",
+    "@ai-sdk/openai-compatible": "^2.0.47",
     "@ai-sdk/react": "^3.0.182",
     "@base-ui/react": "^1.4.1",
     "@fastify/static": "^9.1.3",

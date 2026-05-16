@@ -2,11 +2,16 @@ import { createAgentUIStreamResponse, type InferAgentUIMessage } from "ai";
 
 import { normalizeConversationMessages } from "@/lib/chat-messages";
 import { createConversationService, createWorkspaceStore } from "@/lib/hjdesign";
-import { createDesignPageAgent } from "@/lib/design-page-agent";
+import {
+  buildLanguageModel,
+  createDesignPageAgent,
+} from "@/lib/design-page-agent";
+import { createSettingsService } from "@/lib/settings-service";
 
 type ChatRequestBody = {
   conversationId?: unknown;
   messages?: unknown;
+  modelConfigurationId?: unknown;
   projectId?: unknown;
 };
 
@@ -35,7 +40,20 @@ export async function POST(request: Request) {
   const messages = normalizeConversationMessages(
     body.messages,
   ) as DesignPageUIMessage[];
+  let modelConfiguration;
+
+  try {
+    modelConfiguration = await createSettingsService().resolveModelConfiguration(
+      asNonEmptyString(body.modelConfigurationId),
+    );
+  } catch (error) {
+    return new Response(
+      error instanceof Error ? error.message : "Invalid model configuration.",
+      { status: 400 },
+    );
+  }
   const agent = createDesignPageAgent({
+    model: buildLanguageModel(modelConfiguration),
     outputType: project.outputType,
     projectId,
     workspaceStore,

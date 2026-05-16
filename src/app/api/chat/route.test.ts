@@ -9,7 +9,13 @@ const routeMocks = vi.hoisted(() => {
     createAgentUIStreamResponse,
     createConversationService: vi.fn(),
     createDesignPageAgent: vi.fn(() => ({ name: "agent" })),
+    buildLanguageModel: vi.fn((configuration: unknown) => ({
+      configuration,
+      provider: "test",
+    })),
+    createSettingsService: vi.fn(),
     createWorkspaceStore: vi.fn(),
+    resolveModelConfiguration: vi.fn(),
     saveUIMessageStream: vi.fn(),
   };
 });
@@ -19,7 +25,12 @@ vi.mock("ai", () => ({
 }));
 
 vi.mock("@/lib/design-page-agent", () => ({
+  buildLanguageModel: routeMocks.buildLanguageModel,
   createDesignPageAgent: routeMocks.createDesignPageAgent,
+}));
+
+vi.mock("@/lib/settings-service", () => ({
+  createSettingsService: routeMocks.createSettingsService,
 }));
 
 vi.mock("@/lib/hjdesign", () => ({
@@ -32,9 +43,12 @@ import { POST } from "./route";
 describe("/api/chat", () => {
   beforeEach(() => {
     routeMocks.createAgentUIStreamResponse.mockClear();
+    routeMocks.buildLanguageModel.mockClear();
     routeMocks.createConversationService.mockReset();
     routeMocks.createDesignPageAgent.mockClear();
+    routeMocks.createSettingsService.mockReset();
     routeMocks.createWorkspaceStore.mockReset();
+    routeMocks.resolveModelConfiguration.mockReset();
     routeMocks.saveUIMessageStream.mockReset();
     routeMocks.createWorkspaceStore.mockReturnValue({
       getProject: vi.fn(async () => ({
@@ -45,6 +59,16 @@ describe("/api/chat", () => {
     });
     routeMocks.createConversationService.mockReturnValue({
       saveUIMessageStream: routeMocks.saveUIMessageStream,
+    });
+    routeMocks.resolveModelConfiguration.mockResolvedValue({
+      apiKey: "secret",
+      baseUrl: "https://api.deepseek.com",
+      id: "model-1",
+      model: "deepseek-chat",
+      provider: "deepseek",
+    });
+    routeMocks.createSettingsService.mockReturnValue({
+      resolveModelConfiguration: routeMocks.resolveModelConfiguration,
     });
   });
 
@@ -62,6 +86,7 @@ describe("/api/chat", () => {
         body: JSON.stringify({
           conversationId: "conversation-1",
           messages,
+          modelConfigurationId: "model-1",
           projectId: "project-1",
         }),
         method: "POST",
@@ -72,9 +97,11 @@ describe("/api/chat", () => {
     expect(routeMocks.createDesignPageAgent).toHaveBeenCalledWith(
       expect.objectContaining({
         outputType: "html",
+        model: expect.objectContaining({ provider: "test" }),
         projectId: "project-1",
       }),
     );
+    expect(routeMocks.resolveModelConfiguration).toHaveBeenCalledWith("model-1");
     expect(routeMocks.createAgentUIStreamResponse).toHaveBeenCalledWith(
       expect.objectContaining({
         sendReasoning: true,

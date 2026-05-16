@@ -1,7 +1,7 @@
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useChat } from "@ai-sdk/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   MessageParts,
@@ -16,8 +16,31 @@ vi.mock("@ai-sdk/react", () => ({
   useChat: vi.fn(),
 }));
 
+beforeEach(() => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () =>
+      Response.json({
+        defaultModelId: "model-1",
+        interfaceLanguage: "zh-CN",
+        modelConfigurations: [
+          {
+            apiKey: "",
+            baseUrl: "",
+            hasApiKey: true,
+            id: "model-1",
+            model: "deepseek-chat",
+            provider: "deepseek",
+          },
+        ],
+      }),
+    ),
+  );
+});
+
 afterEach(() => {
   vi.mocked(useChat).mockReset();
+  vi.unstubAllGlobals();
 });
 
 describe("MessageParts", () => {

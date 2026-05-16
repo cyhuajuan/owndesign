@@ -18,14 +18,33 @@ const aiMocks = vi.hoisted(() => {
   });
 
   return {
-    deepseek: vi.fn((modelId: string) => ({ modelId, provider: "deepseek" })),
+    createDeepSeek: vi.fn(() =>
+      vi.fn((modelId: string) => ({ modelId, provider: "deepseek" })),
+    ),
+    createOpenAICompatible: vi.fn(() =>
+      vi.fn((modelId: string) => ({
+        modelId,
+        provider: "openai-compatible",
+      })),
+    ),
     generate,
+    resolveModelConfiguration: vi.fn(),
     toolLoopAgent,
   };
 });
 
 vi.mock("@ai-sdk/deepseek", () => ({
-  deepseek: aiMocks.deepseek,
+  createDeepSeek: aiMocks.createDeepSeek,
+}));
+
+vi.mock("@ai-sdk/openai-compatible", () => ({
+  createOpenAICompatible: aiMocks.createOpenAICompatible,
+}));
+
+vi.mock("./settings-service", () => ({
+  createSettingsService: () => ({
+    resolveModelConfiguration: aiMocks.resolveModelConfiguration,
+  }),
 }));
 
 vi.mock("ai", () => ({
@@ -38,8 +57,17 @@ vi.mock("ai", () => ({
 const tempRoots: string[] = [];
 
 beforeEach(() => {
-  aiMocks.deepseek.mockClear();
+  aiMocks.createDeepSeek.mockClear();
+  aiMocks.createOpenAICompatible.mockClear();
   aiMocks.generate.mockReset();
+  aiMocks.resolveModelConfiguration.mockReset();
+  aiMocks.resolveModelConfiguration.mockResolvedValue({
+    apiKey: "secret",
+    baseUrl: "https://api.deepseek.com",
+    id: "model-1",
+    model: "deepseek-v4-flash",
+    provider: "deepseek",
+  });
   aiMocks.toolLoopAgent.mockClear();
 });
 
@@ -116,7 +144,10 @@ describe("AiSdkDesignPageAgent", () => {
 
     await agent.generateProjectOutput(buildInput());
 
-    expect(aiMocks.deepseek).toHaveBeenCalledWith("deepseek-v4-flash");
+    expect(aiMocks.createDeepSeek).toHaveBeenCalledWith({
+      apiKey: "secret",
+      baseURL: "https://api.deepseek.com",
+    });
     expect(aiMocks.toolLoopAgent).toHaveBeenCalledWith(
       expect.objectContaining({
         instructions: expect.stringContaining(

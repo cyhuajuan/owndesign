@@ -1,9 +1,14 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
-import { deepseek } from "@ai-sdk/deepseek";
-import { stepCountIs, ToolLoopAgent } from "ai";
+import { createDeepSeek } from "@ai-sdk/deepseek";
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
+import { stepCountIs, ToolLoopAgent, type LanguageModel } from "ai";
 
+import {
+  createSettingsService,
+  type ModelConfiguration,
+} from "./settings-service";
 import type { ProjectOutputType } from "./workspace-store";
 import { WorkspaceStore } from "./workspace-store";
 import { createProjectWorkspaceTools } from "./agent-tools/project-workspace-tools";
@@ -25,6 +30,7 @@ export type DesignPageAgent = {
 };
 
 type CreateDesignPageAgentInput = {
+  model: LanguageModel;
   outputType: ProjectOutputType;
   projectId: string;
   workspaceStore: WorkspaceStore;
@@ -39,6 +45,9 @@ export class AiSdkDesignPageAgent implements DesignPageAgent {
     }
 
     const agent = createDesignPageAgent({
+      model: buildLanguageModel(
+        await createSettingsService().resolveModelConfiguration(),
+      ),
       outputType: input.outputType,
       projectId: input.projectId,
       workspaceStore: this.workspaceStore,
@@ -55,16 +64,32 @@ export class AiSdkDesignPageAgent implements DesignPageAgent {
 }
 
 export function createDesignPageAgent({
+  model,
   outputType,
   projectId,
   workspaceStore,
 }: CreateDesignPageAgentInput) {
   return new ToolLoopAgent({
-    model: deepseek("deepseek-v4-flash"),
+    model,
     instructions: buildDesignPageAgentInstructions(outputType),
     stopWhen: stepCountIs(50),
     tools: createProjectWorkspaceTools({ projectId, workspaceStore }),
   });
+}
+
+export function buildLanguageModel(configuration: ModelConfiguration) {
+  if (configuration.provider === "deepseek") {
+    return createDeepSeek({
+      apiKey: configuration.apiKey || undefined,
+      baseURL: configuration.baseUrl || undefined,
+    })(configuration.model);
+  }
+
+  return createOpenAICompatible({
+    name: "openaiCompatible",
+    apiKey: configuration.apiKey || undefined,
+    baseURL: configuration.baseUrl,
+  })(configuration.model);
 }
 
 export function buildDesignPageAgentInstructions(

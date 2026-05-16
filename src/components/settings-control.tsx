@@ -97,7 +97,7 @@ function SettingsPanel({ onClose }: { onClose: () => void }) {
             baseUrl: configuration.baseUrl,
             apiKey: "",
             providerOptions: configuration.providerOptions,
-            collapsed: false,
+            collapsed: true,
           })),
         );
       });

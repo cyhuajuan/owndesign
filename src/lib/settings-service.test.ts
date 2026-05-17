@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -24,6 +24,51 @@ describe("SettingsService", () => {
       defaultModelId: null,
       interfaceLanguage: "zh-CN",
       modelConfigurations: [],
+      resources: expect.objectContaining({
+        fontLibraries: [
+          expect.objectContaining({ isDefault: true, name: "Google Fonts" }),
+          expect.objectContaining({ isDefault: false, name: "Noto Sans SC" }),
+        ],
+        iconLibraries: [
+          expect.objectContaining({ isDefault: true, name: "Lucide Icons" }),
+          expect.objectContaining({ isDefault: false, name: "Font Awesome" }),
+        ],
+        tailwind: {
+          cdnUrl: "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
+          enabled: false,
+        },
+      }),
+    });
+  });
+
+  it("backfills resources for stored settings that do not have them", async () => {
+    const { service, settingsPath } = await createServiceWithPath();
+    await mkdir(path.dirname(settingsPath), { recursive: true });
+    await writeFile(
+      settingsPath,
+      JSON.stringify({
+        defaultModelId: null,
+        interfaceLanguage: "zh-CN",
+        modelConfigurations: [],
+      }),
+      "utf8",
+    );
+
+    await expect(service.getSettings()).resolves.toMatchObject({
+      resources: {
+        fontLibraries: [
+          expect.objectContaining({ isDefault: true, name: "Google Fonts" }),
+          expect.objectContaining({ name: "Noto Sans SC" }),
+        ],
+        iconLibraries: [
+          expect.objectContaining({ isDefault: true, name: "Lucide Icons" }),
+          expect.objectContaining({ name: "Font Awesome" }),
+        ],
+        tailwind: {
+          cdnUrl: "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
+          enabled: false,
+        },
+      },
     });
   });
 
@@ -248,13 +293,157 @@ describe("SettingsService", () => {
       }),
     ).rejects.toThrow("Invalid DeepSeek thinking mode.");
   });
+
+  it("saves resource settings and exposes them publicly", async () => {
+    const service = await createService();
+
+    await service.updateSettings({
+      defaultModelId: null,
+      interfaceLanguage: "zh-CN",
+      modelConfigurations: [],
+      resources: {
+        fontLibraries: [
+          {
+            cdn: "",
+            id: "font-custom",
+            isDefault: true,
+            name: "Custom Font",
+          },
+        ],
+        iconLibraries: [
+          {
+            cdn: "https://cdn.example.com/icons.js",
+            id: "icon-custom",
+            isDefault: true,
+            name: "Custom Icons",
+          },
+        ],
+        tailwind: {
+          cdnUrl: "https://cdn.example.com/tailwind.js",
+          enabled: true,
+        },
+      },
+    });
+
+    await expect(service.getSettings()).resolves.toMatchObject({
+      resources: {
+        fontLibraries: [
+          {
+            cdn: "",
+            id: "font-custom",
+            isDefault: true,
+            name: "Custom Font",
+          },
+        ],
+        iconLibraries: [
+          {
+            cdn: "https://cdn.example.com/icons.js",
+            id: "icon-custom",
+            isDefault: true,
+            name: "Custom Icons",
+          },
+        ],
+        tailwind: {
+          cdnUrl: "https://cdn.example.com/tailwind.js",
+          enabled: true,
+        },
+      },
+    });
+    await expect(service.getPublicSettings()).resolves.toMatchObject({
+      resources: {
+        tailwind: {
+          cdnUrl: "https://cdn.example.com/tailwind.js",
+          enabled: true,
+        },
+      },
+    });
+  });
+
+  it("keeps only the first default resource and falls back to the first item", async () => {
+    const service = await createService();
+    const settings = await service.updateSettings({
+      defaultModelId: null,
+      interfaceLanguage: "zh-CN",
+      modelConfigurations: [],
+      resources: {
+        fontLibraries: [
+          {
+            cdn: "https://cdn.example.com/a.css",
+            id: "font-a",
+            isDefault: true,
+            name: "Font A",
+          },
+          {
+            cdn: "https://cdn.example.com/b.css",
+            id: "font-b",
+            isDefault: true,
+            name: "Font B",
+          },
+        ],
+        iconLibraries: [
+          {
+            cdn: "https://cdn.example.com/icons-a.js",
+            id: "icon-a",
+            isDefault: false,
+            name: "Icon A",
+          },
+          {
+            cdn: "https://cdn.example.com/icons-b.js",
+            id: "icon-b",
+            isDefault: false,
+            name: "Icon B",
+          },
+        ],
+        tailwind: {
+          cdnUrl: "",
+          enabled: false,
+        },
+      },
+    });
+
+    expect(settings.resources.fontLibraries.map((library) => library.isDefault))
+      .toEqual([true, false]);
+    expect(settings.resources.iconLibraries.map((library) => library.isDefault))
+      .toEqual([true, false]);
+    expect(settings.resources.tailwind.cdnUrl).toBe(
+      "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
+    );
+  });
+
+  it("rejects input resource libraries without names", async () => {
+    const service = await createService();
+
+    await expect(
+      service.updateSettings({
+        defaultModelId: null,
+        interfaceLanguage: "zh-CN",
+        modelConfigurations: [],
+        resources: {
+          fontLibraries: [{ cdn: "https://cdn.example.com/font.css", name: " " }],
+          iconLibraries: [],
+          tailwind: {
+            cdnUrl: "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
+            enabled: false,
+          },
+        },
+      }),
+    ).rejects.toThrow("Resource name is required.");
+  });
 });
 
 async function createService() {
+  const { service } = await createServiceWithPath();
+
+  return service;
+}
+
+async function createServiceWithPath() {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), "hjdesign-settings-"));
   tempRoots.push(tempRoot);
+  const settingsPath = path.join(tempRoot, ".hjdesign", "settings.json");
 
-  return new SettingsService({
-    settingsPath: path.join(tempRoot, ".hjdesign", "settings.json"),
-  });
+  return {
+    service: new SettingsService({ settingsPath }),
+    settingsPath,
+  };
 }

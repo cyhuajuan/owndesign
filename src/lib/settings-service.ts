@@ -29,10 +29,27 @@ export type PublicModelConfiguration = Omit<ModelConfiguration, "apiKey"> & {
   hasApiKey: boolean;
 };
 
+export type ResourceLibrary = {
+  id: string;
+  name: string;
+  cdn: string;
+  isDefault: boolean;
+};
+
+export type ResourceSettings = {
+  fontLibraries: ResourceLibrary[];
+  iconLibraries: ResourceLibrary[];
+  tailwind: {
+    enabled: boolean;
+    cdnUrl: string;
+  };
+};
+
 export type AppSettings = {
   defaultModelId: string | null;
   interfaceLanguage: InterfaceLanguage;
   modelConfigurations: ModelConfiguration[];
+  resources: ResourceSettings;
 };
 
 export type PublicAppSettings = Omit<AppSettings, "modelConfigurations"> & {
@@ -47,6 +64,40 @@ const DEFAULT_SETTINGS: AppSettings = {
   defaultModelId: null,
   interfaceLanguage: "zh-CN",
   modelConfigurations: [],
+  resources: {
+    fontLibraries: [
+      {
+        id: "font-1",
+        name: "Google Fonts",
+        cdn: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap",
+        isDefault: true,
+      },
+      {
+        id: "font-2",
+        name: "Noto Sans SC",
+        cdn: "https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap",
+        isDefault: false,
+      },
+    ],
+    iconLibraries: [
+      {
+        id: "icon-1",
+        name: "Lucide Icons",
+        cdn: "https://unpkg.com/lucide@latest/dist/umd/lucide.js",
+        isDefault: true,
+      },
+      {
+        id: "icon-2",
+        name: "Font Awesome",
+        cdn: "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css",
+        isDefault: false,
+      },
+    ],
+    tailwind: {
+      enabled: false,
+      cdnUrl: "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
+    },
+  },
 };
 
 export class SettingsService {
@@ -140,6 +191,7 @@ export function toPublicSettings(settings: AppSettings): PublicAppSettings {
       apiKey: "",
       hasApiKey: Boolean(configuration.apiKey),
     })),
+    resources: settings.resources,
   };
 }
 
@@ -159,6 +211,7 @@ function parseStoredSettings(value: unknown): AppSettings {
             Boolean(configuration),
           )
       : [],
+    resources: parseStoredResourceSettings(value.resources),
   };
 }
 
@@ -178,6 +231,7 @@ function parseSettingsInput(value: unknown, previous: AppSettings): AppSettings 
       typeof value.defaultModelId === "string" ? value.defaultModelId : null,
     interfaceLanguage: parseInterfaceLanguage(value.interfaceLanguage),
     modelConfigurations,
+    resources: parseInputResourceSettings(value.resources, previous.resources),
   };
 }
 
@@ -279,7 +333,124 @@ function normalizeSettings(settings: AppSettings): AppSettings {
     defaultModelId,
     interfaceLanguage: settings.interfaceLanguage,
     modelConfigurations,
+    resources: normalizeResourceSettings(settings.resources),
   };
+}
+
+function parseStoredResourceSettings(value: unknown): ResourceSettings {
+  if (!isRecord(value)) {
+    return DEFAULT_SETTINGS.resources;
+  }
+
+  return {
+    fontLibraries: Array.isArray(value.fontLibraries)
+      ? value.fontLibraries
+          .map(parseResourceLibrary)
+          .filter((library): library is ResourceLibrary => Boolean(library))
+      : DEFAULT_SETTINGS.resources.fontLibraries,
+    iconLibraries: Array.isArray(value.iconLibraries)
+      ? value.iconLibraries
+          .map(parseResourceLibrary)
+          .filter((library): library is ResourceLibrary => Boolean(library))
+      : DEFAULT_SETTINGS.resources.iconLibraries,
+    tailwind: parseTailwindSettings(value.tailwind),
+  };
+}
+
+function parseInputResourceSettings(
+  value: unknown,
+  previous: ResourceSettings,
+): ResourceSettings {
+  if (!isRecord(value)) {
+    return previous;
+  }
+
+  return {
+    fontLibraries: Array.isArray(value.fontLibraries)
+      ? value.fontLibraries.map(parseInputResourceLibrary)
+      : previous.fontLibraries,
+    iconLibraries: Array.isArray(value.iconLibraries)
+      ? value.iconLibraries.map(parseInputResourceLibrary)
+      : previous.iconLibraries,
+    tailwind: parseTailwindSettings(value.tailwind, previous.tailwind),
+  };
+}
+
+function parseResourceLibrary(value: unknown): ResourceLibrary | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const name = asTrimmedString(value.name);
+
+  if (!name) {
+    return undefined;
+  }
+
+  return {
+    id: asTrimmedString(value.id) || randomUUID(),
+    name,
+    cdn: asTrimmedString(value.cdn),
+    isDefault: value.isDefault === true,
+  };
+}
+
+function parseInputResourceLibrary(value: unknown): ResourceLibrary {
+  const library = parseResourceLibrary(value);
+
+  if (!library) {
+    throw new Error("Resource name is required.");
+  }
+
+  return library;
+}
+
+function parseTailwindSettings(
+  value: unknown,
+  fallback = DEFAULT_SETTINGS.resources.tailwind,
+): ResourceSettings["tailwind"] {
+  if (!isRecord(value)) {
+    return fallback;
+  }
+
+  return {
+    enabled: value.enabled === true,
+    cdnUrl:
+      asTrimmedString(value.cdnUrl) ||
+      "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
+  };
+}
+
+function normalizeResourceSettings(settings: ResourceSettings): ResourceSettings {
+  return {
+    fontLibraries: normalizeResourceLibraries(settings.fontLibraries),
+    iconLibraries: normalizeResourceLibraries(settings.iconLibraries),
+    tailwind: {
+      enabled: settings.tailwind.enabled,
+      cdnUrl:
+        settings.tailwind.cdnUrl.trim() ||
+        "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
+    },
+  };
+}
+
+function normalizeResourceLibraries(libraries: ResourceLibrary[]) {
+  const normalized = libraries
+    .map((library) => ({
+      id: library.id || randomUUID(),
+      name: library.name.trim(),
+      cdn: library.cdn.trim(),
+      isDefault: library.isDefault,
+    }))
+    .filter((library) => library.name);
+
+  const firstDefaultIndex = normalized.findIndex((library) => library.isDefault);
+
+  return normalized.map((library, index) => ({
+    ...library,
+    isDefault:
+      firstDefaultIndex >= 0 ? index === firstDefaultIndex : index === 0,
+  }));
 }
 
 function parseInterfaceLanguage(value: unknown): InterfaceLanguage {

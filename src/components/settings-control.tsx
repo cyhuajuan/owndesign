@@ -3,11 +3,15 @@
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import {
+  BookOpenIcon,
+  CheckIcon,
   ChevronDownIcon,
   CpuIcon,
+  ImageIcon,
   PlusIcon,
   SettingsIcon,
   SlidersIcon,
+  TypeIcon,
   XIcon,
 } from "lucide-react";
 
@@ -21,6 +25,22 @@ type DeepSeekThinkingMode = "disabled" | "high" | "max";
 type ModelProviderOptions = {
   deepseek?: {
     thinkingMode: DeepSeekThinkingMode;
+  };
+};
+
+type ResourceLibrary = {
+  id: string;
+  name: string;
+  cdn: string;
+  isDefault: boolean;
+};
+
+type ResourceSettings = {
+  fontLibraries: ResourceLibrary[];
+  iconLibraries: ResourceLibrary[];
+  tailwind: {
+    enabled: boolean;
+    cdnUrl: string;
   };
 };
 
@@ -46,6 +66,42 @@ type PublicSettings = {
     hasApiKey: boolean;
     providerOptions?: ModelProviderOptions;
   }>;
+  resources: ResourceSettings;
+};
+
+const DEFAULT_RESOURCES: ResourceSettings = {
+  fontLibraries: [
+    {
+      id: "font-1",
+      name: "Google Fonts",
+      cdn: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap",
+      isDefault: true,
+    },
+    {
+      id: "font-2",
+      name: "Noto Sans SC",
+      cdn: "https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap",
+      isDefault: false,
+    },
+  ],
+  iconLibraries: [
+    {
+      id: "icon-1",
+      name: "Lucide Icons",
+      cdn: "https://unpkg.com/lucide@latest/dist/umd/lucide.js",
+      isDefault: true,
+    },
+    {
+      id: "icon-2",
+      name: "Font Awesome",
+      cdn: "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css",
+      isDefault: false,
+    },
+  ],
+  tailwind: {
+    enabled: false,
+    cdnUrl: "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
+  },
 };
 
 export function SettingsControl() {
@@ -67,15 +123,17 @@ export function SettingsControl() {
 }
 
 function SettingsPanel({ onClose }: { onClose: () => void }) {
-  const [activeSection, setActiveSection] = useState<"general" | "ai">(
-    "general",
-  );
+  const [activeSection, setActiveSection] = useState<
+    "general" | "resources" | "ai"
+  >("general");
   const [interfaceLanguage, setInterfaceLanguage] =
     useState<InterfaceLanguage>("zh-CN");
   const [defaultModelId, setDefaultModelId] = useState<string | null>(null);
   const [modelConfigurations, setModelConfigurations] = useState<
     ModelConfigurationForm[]
   >([]);
+  const [resources, setResources] =
+    useState<ResourceSettings>(DEFAULT_RESOURCES);
 
   useEffect(() => {
     let isMounted = true;
@@ -89,6 +147,7 @@ function SettingsPanel({ onClose }: { onClose: () => void }) {
 
         setInterfaceLanguage(settings.interfaceLanguage);
         setDefaultModelId(settings.defaultModelId);
+        setResources(settings.resources ?? DEFAULT_RESOURCES);
         setModelConfigurations(
           settings.modelConfigurations.map((configuration) => ({
             id: configuration.id,
@@ -109,7 +168,7 @@ function SettingsPanel({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="fixed inset-0 z-[1000] flex animate-in fade-in-0 items-center justify-center bg-black/60 duration-150">
-      <div className="flex h-[80vh] max-h-[620px] w-full max-w-[760px] animate-in flex-row overflow-hidden rounded-[12px] border border-[#2a2a2e] bg-[#1c1c1f] p-0 text-[#f0f0f2] shadow-[0_8px_24px_rgba(0,0,0,0.5)] duration-150 zoom-in-95 slide-in-from-bottom-2">
+      <div className="flex h-[80vh] max-h-[620px] w-full max-w-[820px] animate-in flex-row overflow-hidden rounded-[12px] border border-[#2a2a2e] bg-[#1c1c1f] p-0 text-[#f0f0f2] shadow-[0_8px_24px_rgba(0,0,0,0.5)] duration-150 zoom-in-95 slide-in-from-bottom-2">
         <div className="flex w-[200px] min-w-[200px] shrink-0 flex-col overflow-y-auto border-r border-[#2a2a2e] bg-[#141416] py-5">
           <button
             className={navItemClass(activeSection === "general")}
@@ -119,6 +178,15 @@ function SettingsPanel({ onClose }: { onClose: () => void }) {
           >
             <SlidersIcon className="size-4 shrink-0" />
             通用设置
+          </button>
+          <button
+            className={navItemClass(activeSection === "resources")}
+            data-section="resources"
+            onClick={() => setActiveSection("resources")}
+            type="button"
+          >
+            <BookOpenIcon className="size-4 shrink-0" />
+            资源管理
           </button>
           <button
             className={navItemClass(activeSection === "ai")}
@@ -132,90 +200,17 @@ function SettingsPanel({ onClose }: { onClose: () => void }) {
         </div>
         <div className="flex min-w-0 flex-1 flex-col overflow-y-auto px-8 pt-7 pb-6">
           {activeSection === "general" ? (
-            <div>
-              <div className="mb-1 text-base font-semibold">通用设置</div>
-              <div className="mb-6 text-[13px] leading-normal text-[#6b6b76]">
-                管理界面语言等基础偏好。
-              </div>
-              <div className="mb-5">
-                <label className="mb-1.5 block text-xs font-medium text-[#a0a0ab]">
-                  界面语言
-                </label>
-                <div className="flex gap-2">
-                  <button
-                    className={settingsOptClass(interfaceLanguage === "zh-CN")}
-                    data-lang="zh"
-                    onClick={() => setInterfaceLanguage("zh-CN")}
-                    type="button"
-                  >
-                    简体中文
-                  </button>
-                  <button
-                    className={settingsOptClass(interfaceLanguage === "en-US")}
-                    data-lang="en"
-                    onClick={() => setInterfaceLanguage("en-US")}
-                    type="button"
-                  >
-                    English
-                  </button>
-                </div>
-              </div>
-            </div>
+            <GeneralSettingsSection
+              interfaceLanguage={interfaceLanguage}
+              onInterfaceLanguageChange={setInterfaceLanguage}
+            />
+          ) : activeSection === "resources" ? (
+            <ResourceSettingsSection resources={resources} onChange={setResources} />
           ) : (
-            <div>
-              <div className="mb-1 text-base font-semibold">AI 模型</div>
-              <div className="mb-6 text-[13px] leading-normal text-[#6b6b76]">
-                添加和管理多个 AI 模型配置，每个配置包含 Provider、Model、Base
-                URL 和 API Key。
-              </div>
-              <div className="mb-4 flex flex-col gap-3">
-                {modelConfigurations.length === 0 ? (
-                  <div className="px-4 py-8 text-center text-[13px] text-[#6b6b76]">
-                    暂无模型配置，点击下方按钮添加。
-                  </div>
-                ) : (
-                  modelConfigurations.map((configuration, index) => (
-                    <ModelConfigCard
-                      configuration={configuration}
-                      key={configuration.id}
-                      onChange={(nextConfiguration) => {
-                        setModelConfigurations((current) =>
-                          current.map((item, itemIndex) =>
-                            itemIndex === index ? nextConfiguration : item,
-                          ),
-                        );
-                      }}
-                      onRemove={() => {
-                        setModelConfigurations((current) =>
-                          current.filter((_, itemIndex) => itemIndex !== index),
-                        );
-                      }}
-                    />
-                  ))
-                )}
-              </div>
-              <button
-                className="flex w-full items-center justify-center gap-1.5 rounded-[8px] border border-dashed border-[#2a2a2e] bg-[#0a0a0b] p-2.5 text-[13px] text-[#a0a0ab] transition-all duration-150 hover:border-[#6c5ce7] hover:bg-[rgba(108,92,231,0.15)] hover:text-[#6c5ce7] [&_svg]:size-4"
-                onClick={() => {
-                  setModelConfigurations((current) => [
-                    ...current,
-                    {
-                      id: crypto.randomUUID(),
-                      provider: "",
-                      model: "",
-                      baseUrl: "",
-                      apiKey: "",
-                      providerOptions: undefined,
-                      collapsed: false,
-                    },
-                  ]);
-                }}
-                type="button"
-              >
-                <PlusIcon />
-                添加模型
-              </button>
-            </div>
+            <AiSettingsSection
+              modelConfigurations={modelConfigurations}
+              onChange={setModelConfigurations}
+            />
           )}
           <div className="mt-auto flex justify-end gap-2 border-t border-[#2a2a2e] pt-5">
             <button
@@ -232,6 +227,7 @@ function SettingsPanel({ onClose }: { onClose: () => void }) {
                   defaultModelId,
                   interfaceLanguage,
                   modelConfigurations,
+                  resources,
                 });
                 if (!saved) {
                   return;
@@ -250,6 +246,425 @@ function SettingsPanel({ onClose }: { onClose: () => void }) {
   );
 }
 
+function GeneralSettingsSection({
+  interfaceLanguage,
+  onInterfaceLanguageChange,
+}: {
+  interfaceLanguage: InterfaceLanguage;
+  onInterfaceLanguageChange: (language: InterfaceLanguage) => void;
+}) {
+  return (
+    <div>
+      <div className="mb-1 text-base font-semibold">通用设置</div>
+      <div className="mb-6 text-[13px] leading-normal text-[#6b6b76]">
+        管理界面语言等基础偏好。
+      </div>
+      <div className="mb-5">
+        <label className="mb-1.5 block text-xs font-medium text-[#a0a0ab]">
+          界面语言
+        </label>
+        <div className="flex gap-2">
+          <button
+            className={settingsOptClass(interfaceLanguage === "zh-CN")}
+            data-lang="zh"
+            onClick={() => onInterfaceLanguageChange("zh-CN")}
+            type="button"
+          >
+            简体中文
+          </button>
+          <button
+            className={settingsOptClass(interfaceLanguage === "en-US")}
+            data-lang="en"
+            onClick={() => onInterfaceLanguageChange("en-US")}
+            type="button"
+          >
+            English
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ResourceSettingsSection({
+  resources,
+  onChange,
+}: {
+  resources: ResourceSettings;
+  onChange: (resources: ResourceSettings) => void;
+}) {
+  return (
+    <div>
+      <div className="mb-1 text-base font-semibold">资源管理</div>
+      <div className="mb-6 max-w-[560px] text-[13px] leading-normal text-[#6b6b76]">
+        管理字体库、图标库和 CSS 框架。
+      </div>
+
+      <ResourceGroup
+        addLabel="添加字体库"
+        emptyIcon={<TypeIcon />}
+        emptyText="暂无字体库，点击上方&quot;添加字体库&quot;按钮添加。"
+        icon={<TypeIcon />}
+        libraries={resources.fontLibraries}
+        onChange={(fontLibraries) => onChange({ ...resources, fontLibraries })}
+        title="字体库"
+      />
+      <div className="my-7 h-px bg-[#2a2a2e]" />
+      <ResourceGroup
+        addLabel="添加图标库"
+        emptyIcon={<ImageIcon />}
+        emptyText="暂无图标库，点击上方&quot;添加图标库&quot;按钮添加。"
+        icon={<ImageIcon />}
+        libraries={resources.iconLibraries}
+        onChange={(iconLibraries) => onChange({ ...resources, iconLibraries })}
+        title="图标库"
+      />
+      <div className="my-7 h-px bg-[#2a2a2e]" />
+      <div className="mb-8">
+        <div className="mb-3.5 flex items-center justify-between">
+          <div className="flex items-center gap-2 text-sm font-semibold text-[#f0f0f2]">
+            CSS 框架
+          </div>
+        </div>
+        <div
+          className={cn(
+            "flex max-w-[480px] items-center justify-between rounded-[8px] border border-[#2a2a2e] bg-[#0a0a0b] px-4 py-3 transition-colors duration-150 hover:border-[#38383d]",
+            resources.tailwind.enabled && "rounded-b-none",
+          )}
+        >
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[13px] font-medium text-[#f0f0f2]">
+              启用 Tailwind CSS
+            </span>
+            <span className="max-w-[320px] text-[11px] text-[#6b6b76]">
+              开启后，设计页面将使用 Tailwind CSS 替代原生 CSS 编写样式。
+            </span>
+          </div>
+          <button
+            aria-label="启用 Tailwind CSS"
+            aria-pressed={resources.tailwind.enabled}
+            className={cn(
+              "relative h-[22px] w-10 shrink-0 rounded-full bg-[#2a2a2e] transition-colors duration-200",
+              resources.tailwind.enabled && "bg-[#6c5ce7]",
+            )}
+            onClick={() =>
+              onChange({
+                ...resources,
+                tailwind: {
+                  ...resources.tailwind,
+                  enabled: !resources.tailwind.enabled,
+                },
+              })
+            }
+            type="button"
+          >
+            <span
+              className={cn(
+                "absolute top-0.5 left-0.5 size-[18px] rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.2)] transition-transform duration-200",
+                resources.tailwind.enabled && "translate-x-[18px]",
+              )}
+            />
+          </button>
+        </div>
+        {resources.tailwind.enabled ? (
+          <div className="flex max-w-[480px] items-center gap-2 rounded-b-[8px] border border-t-0 border-[#2a2a2e] bg-[#0a0a0b] px-4 pt-3 pb-3.5">
+            <label className="w-[70px] shrink-0 text-[11px] font-medium text-[#6b6b76]">
+              CDN 地址
+            </label>
+            <input
+              className={resourceCdnInputClass}
+              onChange={(event) =>
+                onChange({
+                  ...resources,
+                  tailwind: {
+                    ...resources.tailwind,
+                    cdnUrl: event.target.value,
+                  },
+                })
+              }
+              placeholder="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"
+              type="text"
+              value={resources.tailwind.cdnUrl}
+            />
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function ResourceGroup({
+  addLabel,
+  emptyIcon,
+  emptyText,
+  icon,
+  libraries,
+  onChange,
+  title,
+}: {
+  addLabel: string;
+  emptyIcon: ReactNode;
+  emptyText: string;
+  icon: ReactNode;
+  libraries: ResourceLibrary[];
+  onChange: (libraries: ResourceLibrary[]) => void;
+  title: string;
+}) {
+  const [isAdding, setIsAdding] = useState(false);
+  const [draftName, setDraftName] = useState("");
+  const [draftCdn, setDraftCdn] = useState("");
+
+  const addLibrary = () => {
+    const name = draftName.trim();
+
+    if (!name) {
+      return;
+    }
+
+    onChange(
+      normalizeResourceDefaults([
+        ...libraries,
+        {
+          id: crypto.randomUUID(),
+          name,
+          cdn: draftCdn.trim(),
+          isDefault: libraries.length === 0,
+        },
+      ]),
+    );
+    setDraftName("");
+    setDraftCdn("");
+    setIsAdding(false);
+  };
+
+  return (
+    <div className="mb-8 last:mb-0">
+      <div className="mb-3.5 flex items-center justify-between">
+        <div className="flex items-center gap-2 text-sm font-semibold text-[#f0f0f2] [&_svg]:size-[15px] [&_svg]:text-[#6c5ce7]">
+          {icon}
+          {title}
+          <span className="rounded-full bg-[#252528] px-2.5 py-px text-[11px] font-medium text-[#6b6b76]">
+            {libraries.length}
+          </span>
+        </div>
+        <button
+          className="flex items-center gap-1 rounded-[6px] bg-[rgba(108,92,231,0.15)] px-3 py-1.5 text-xs font-medium text-[#6c5ce7] transition-colors duration-150 hover:bg-[rgba(108,92,231,0.25)] [&_svg]:size-[13px]"
+          onClick={() => setIsAdding((current) => !current)}
+          type="button"
+        >
+          <PlusIcon />
+          {addLabel}
+        </button>
+      </div>
+      <div className="flex flex-col gap-2">
+        {libraries.length === 0 ? (
+          <div className="rounded-[8px] border border-dashed border-[#2a2a2e] px-4 py-8 text-center text-[13px] text-[#6b6b76] [&_svg]:mx-auto [&_svg]:mb-2 [&_svg]:size-6 [&_svg]:opacity-35">
+            {emptyIcon}
+            <div>{emptyText.replaceAll("&quot;", '"')}</div>
+          </div>
+        ) : (
+          libraries.map((library) => (
+            <ResourceCard
+              key={library.id}
+              library={library}
+              onChange={(nextLibrary) =>
+                onChange(
+                  libraries.map((current) =>
+                    current.id === library.id ? nextLibrary : current,
+                  ),
+                )
+              }
+              onRemove={() =>
+                onChange(
+                  normalizeResourceDefaults(
+                    libraries.filter((current) => current.id !== library.id),
+                  ),
+                )
+              }
+              onSetDefault={() =>
+                onChange(
+                  libraries.map((current) => ({
+                    ...current,
+                    isDefault: current.id === library.id,
+                  })),
+                )
+              }
+            />
+          ))
+        )}
+      </div>
+      {isAdding ? (
+        <div className="flex items-center gap-2 px-0 pt-2.5 pb-1">
+          <input
+            className="min-w-0 flex-1 rounded-[6px] border border-[#2a2a2e] bg-[#1c1c1f] px-2.5 py-1.5 text-xs text-[#f0f0f2] outline-none transition-colors duration-150 placeholder:text-[#6b6b76] focus:border-[#6c5ce7]"
+            onChange={(event) => setDraftName(event.target.value)}
+            placeholder={title === "字体库" ? "字体库名称" : "图标库名称"}
+            type="text"
+            value={draftName}
+          />
+          <input
+            className="min-w-0 flex-[1.5] rounded-[6px] border border-[#2a2a2e] bg-[#1c1c1f] px-2.5 py-1.5 text-xs text-[#f0f0f2] outline-none transition-colors duration-150 placeholder:text-[#6b6b76] focus:border-[#6c5ce7]"
+            onChange={(event) => setDraftCdn(event.target.value)}
+            placeholder="CDN URL (https://...)"
+            type="text"
+            value={draftCdn}
+          />
+          <button
+            className="flex size-7 items-center justify-center rounded-[6px] bg-[#6c5ce7] text-white transition-colors duration-150 hover:bg-[#7d6ff0] disabled:cursor-not-allowed disabled:opacity-50 [&_svg]:size-3.5"
+            disabled={!draftName.trim()}
+            onClick={addLibrary}
+            title="确认添加"
+            type="button"
+          >
+            <CheckIcon />
+          </button>
+          <button
+            className="flex size-7 items-center justify-center rounded-[6px] bg-[#252528] text-[#6b6b76] transition-colors duration-150 hover:bg-[#2e2e32] hover:text-[#a0a0ab] [&_svg]:size-3.5"
+            onClick={() => {
+              setDraftName("");
+              setDraftCdn("");
+              setIsAdding(false);
+            }}
+            title="取消"
+            type="button"
+          >
+            <XIcon />
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function ResourceCard({
+  library,
+  onChange,
+  onRemove,
+  onSetDefault,
+}: {
+  library: ResourceLibrary;
+  onChange: (library: ResourceLibrary) => void;
+  onRemove: () => void;
+  onSetDefault: () => void;
+}) {
+  return (
+    <div
+      className={cn(
+        "rounded-[8px] border border-[#2a2a2e] bg-[#0a0a0b] px-3.5 py-3 transition-[border-color,box-shadow] duration-150 hover:border-[#38383d]",
+        library.isDefault && "border-[#6c5ce7] shadow-[0_0_0_1px_rgba(108,92,231,0.15)]",
+      )}
+    >
+      <div className="flex items-center gap-2">
+        <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-[#f0f0f2]">
+          {library.name}
+        </span>
+        {library.isDefault ? (
+          <span className="shrink-0 rounded-full bg-[rgba(108,92,231,0.15)] px-2 py-0.5 text-[10px] font-semibold tracking-[0.3px] text-[#6c5ce7]">
+            默认
+          </span>
+        ) : (
+          <button
+            className="shrink-0 rounded-[6px] border border-[#2a2a2e] bg-[#1c1c1f] px-2 py-0.5 text-[11px] text-[#6b6b76] transition-all duration-150 hover:border-[#6c5ce7] hover:bg-[rgba(108,92,231,0.15)] hover:text-[#6c5ce7]"
+            onClick={onSetDefault}
+            type="button"
+          >
+            设为默认
+          </button>
+        )}
+        <button
+          className="flex size-6 shrink-0 items-center justify-center rounded-[6px] text-[#6b6b76] transition-all duration-150 hover:bg-[rgba(231,76,60,0.1)] hover:text-[#e74c3c] [&_svg]:size-3.5"
+          onClick={onRemove}
+          title="移除"
+          type="button"
+        >
+          <XIcon />
+        </button>
+      </div>
+      <div className="mt-2 flex items-center gap-2">
+        <span className="w-9 shrink-0 text-[11px] font-medium text-[#6b6b76]">
+          CDN
+        </span>
+        <input
+          className={resourceCdnInputClass}
+          onChange={(event) => onChange({ ...library, cdn: event.target.value })}
+          placeholder="https://..."
+          spellCheck={false}
+          type="text"
+          value={library.cdn}
+        />
+        {library.cdn ? (
+          <CheckIcon className="size-3 shrink-0 text-[#2ecc71]" />
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function AiSettingsSection({
+  modelConfigurations,
+  onChange,
+}: {
+  modelConfigurations: ModelConfigurationForm[];
+  onChange: (configurations: ModelConfigurationForm[]) => void;
+}) {
+  return (
+    <div>
+      <div className="mb-1 text-base font-semibold">AI 模型</div>
+      <div className="mb-6 text-[13px] leading-normal text-[#6b6b76]">
+        添加和管理多个 AI 模型配置，每个配置包含 Provider、Model、Base URL 和
+        API Key。
+      </div>
+      <div className="mb-4 flex flex-col gap-3">
+        {modelConfigurations.length === 0 ? (
+          <div className="px-4 py-8 text-center text-[13px] text-[#6b6b76]">
+            暂无模型配置，点击下方按钮添加。
+          </div>
+        ) : (
+          modelConfigurations.map((configuration, index) => (
+            <ModelConfigCard
+              configuration={configuration}
+              key={configuration.id}
+              onChange={(nextConfiguration) => {
+                onChange(
+                  modelConfigurations.map((item, itemIndex) =>
+                    itemIndex === index ? nextConfiguration : item,
+                  ),
+                );
+              }}
+              onRemove={() => {
+                onChange(
+                  modelConfigurations.filter((_, itemIndex) => itemIndex !== index),
+                );
+              }}
+            />
+          ))
+        )}
+      </div>
+      <button
+        className="flex w-full items-center justify-center gap-1.5 rounded-[8px] border border-dashed border-[#2a2a2e] bg-[#0a0a0b] p-2.5 text-[13px] text-[#a0a0ab] transition-all duration-150 hover:border-[#6c5ce7] hover:bg-[rgba(108,92,231,0.15)] hover:text-[#6c5ce7] [&_svg]:size-4"
+        onClick={() => {
+          onChange([
+            ...modelConfigurations,
+            {
+              id: crypto.randomUUID(),
+              provider: "",
+              model: "",
+              baseUrl: "",
+              apiKey: "",
+              providerOptions: undefined,
+              collapsed: false,
+            },
+          ]);
+        }}
+        type="button"
+      >
+        <PlusIcon />
+        添加模型
+      </button>
+    </div>
+  );
+}
+
 function ModelConfigCard({
   configuration,
   onChange,
@@ -259,7 +674,8 @@ function ModelConfigCard({
   onChange: (configuration: ModelConfigurationForm) => void;
   onRemove: () => void;
 }) {
-  const label = configuration.model || getProviderLabel(configuration.provider) || "未命名";
+  const label =
+    configuration.model || getProviderLabel(configuration.provider) || "未命名";
 
   return (
     <div className="overflow-hidden rounded-[8px] border border-[#2a2a2e] bg-[#0a0a0b] transition-colors duration-150 hover:border-[#38383d]">
@@ -377,6 +793,7 @@ async function saveSettings(settings: {
   defaultModelId: string | null;
   interfaceLanguage: InterfaceLanguage;
   modelConfigurations: ModelConfigurationForm[];
+  resources: ResourceSettings;
 }) {
   const defaultModelId =
     settings.defaultModelId &&
@@ -397,6 +814,7 @@ async function saveSettings(settings: {
         providerOptions: configuration.providerOptions,
         provider: configuration.provider,
       })),
+      resources: settings.resources,
     }),
     headers: { "Content-Type": "application/json" },
     method: "PUT",
@@ -408,6 +826,15 @@ async function saveSettings(settings: {
   }
 
   return true;
+}
+
+function normalizeResourceDefaults(libraries: ResourceLibrary[]) {
+  const defaultIndex = libraries.findIndex((library) => library.isDefault);
+
+  return libraries.map((library, index) => ({
+    ...library,
+    isDefault: defaultIndex >= 0 ? index === defaultIndex : index === 0,
+  }));
 }
 
 function navItemClass(active: boolean) {
@@ -448,3 +875,6 @@ function getBaseUrlPlaceholder(provider: ModelProvider) {
 
 const modelInputClass =
   "w-full rounded-[6px] border border-[#2a2a2e] bg-[#1c1c1f] px-2.5 py-[7px] text-[13px] text-[#f0f0f2] outline-none transition-colors duration-150 placeholder:text-[#6b6b76] focus:border-[#6c5ce7]";
+
+const resourceCdnInputClass =
+  "min-w-0 flex-1 rounded-[6px] border border-[#2a2a2e] bg-[#1c1c1f] px-2 py-1.5 font-mono text-xs text-[#a0a0ab] outline-none transition-colors duration-150 placeholder:text-[#6b6b76] focus:border-[#6c5ce7]";

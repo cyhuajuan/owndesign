@@ -34,7 +34,6 @@ describe("SettingsService", () => {
         ],
         iconLibraries: [
           expect.objectContaining({ isDefault: true, name: "Lucide Icons" }),
-          expect.objectContaining({ isDefault: false, name: "Font Awesome" }),
         ],
         tailwind: {
           cdnUrl: "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
@@ -68,7 +67,6 @@ describe("SettingsService", () => {
         ],
         iconLibraries: [
           expect.objectContaining({ isDefault: true, name: "Lucide Icons" }),
-          expect.objectContaining({ name: "Font Awesome" }),
         ],
         tailwind: {
           cdnUrl: "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",

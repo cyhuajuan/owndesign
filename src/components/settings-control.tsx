@@ -85,12 +85,6 @@ const DEFAULT_RESOURCES: ResourceSettings = {
       cdn: "https://unpkg.com/lucide@latest/dist/umd/lucide.js",
       isDefault: true,
     },
-    {
-      id: "icon-2",
-      name: "Font Awesome",
-      cdn: "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css",
-      isDefault: false,
-    },
   ],
   tailwind: {
     enabled: false,

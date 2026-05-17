@@ -24,12 +24,6 @@ const defaultSettings = {
         isDefault: true,
         name: "Lucide Icons",
       },
-      {
-        cdn: "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css",
-        id: "icon-2",
-        isDefault: false,
-        name: "Font Awesome",
-      },
     ],
     tailwind: {
       cdnUrl: "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",

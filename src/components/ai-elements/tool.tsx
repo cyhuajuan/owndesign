@@ -199,7 +199,7 @@ export const ToolOutput = ({
             : "bg-muted/50 text-foreground"
         )}
       >
-        {errorText && <div>{errorText.slice(0, TOOL_DISPLAY_STRING_LIMIT)}</div>}
+        {errorText && <div>{errorText}</div>}
         {Output}
       </div>
     </div>

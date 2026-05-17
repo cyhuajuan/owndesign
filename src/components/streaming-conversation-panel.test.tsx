@@ -466,7 +466,7 @@ describe("MessageParts", () => {
     ).toBeGreaterThan(0);
   });
 
-  it("truncates long tool error text", async () => {
+  it("renders long tool error text without truncation", async () => {
     const longError = buildLongString("e", "-error-tail");
     const user = userEvent.setup();
 
@@ -494,9 +494,9 @@ describe("MessageParts", () => {
     expect(
       screen.queryAllByText(hasTextContent("e".repeat(100))).length,
     ).toBeGreaterThan(0);
-    expect(screen.queryAllByText(hasTextContent("-error-tail"))).toHaveLength(
-      0,
-    );
+    expect(
+      screen.queryAllByText(hasTextContent("-error-tail")).length,
+    ).toBeGreaterThan(0);
   });
 
   it("renders CDN approval requests and responds to approval decisions", async () => {

@@ -161,11 +161,14 @@ export function buildProjectOutputPrompt(outputType: ProjectOutputType) {
     "Use inline JavaScript only for local UI state interactions; do not implement clipboard, network, storage, or real submit behavior.",
     "Use Project Workspace tools to inspect, create, edit, search, patch, and delete UTF-8 files.",
     "Inspect with `glob`, `grep`, and `read` before coordinated edits when existing files may matter.",
+    "All previewable HTML files must stay inside the Project Workspace; use relative paths ending in `.html`.",
+    "Choose the HTML target from the user's intent: edit `index.html` for home/main/landing page requests; create or edit a semantic `.html` file such as `login.html`, `settings.html`, or `pages/detail.html` for a new or named page.",
+    "If no page is specified and no multi-page structure is evident, default to `index.html`; if multiple HTML files exist and the target is unclear, inspect first and ask a concise follow-up question if needed.",
+    "When creating a new HTML page, do not overwrite `index.html` unless the user intent points to the home or main page.",
     "Prefer `edit` for existing files, `write` for new files or deliberate full overwrites, and `patch` for coordinated multi-file changes.",
-    "Only add external CDNs through `addCdnResource`, and never by raw file edits.",
+    "Only add external CDNs through `addCdnResource`, and never by raw file edits. `addCdnResource` currently manages `index.html`; for other HTML pages, prefer inline or local fallbacks instead of adding unapproved CDN tags.",
     "`write`, `edit`, and `patch` reject unapproved external CDN tags in `index.html`; request CDN approval through `addCdnResource` first.",
     "When writing `index.html`, preserve any existing `data-hjdesign-approved-cdn=\"true\"` CDN tags.",
     "If the user denies a CDN approval request, do not retry the same CDN. Use a local or inline fallback, or explain the limitation.",
-    "When the user expects a previewable page, write or update `index.html` in the Project Workspace.",
   ].join("\n");
 }

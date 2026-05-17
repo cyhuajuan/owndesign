@@ -785,9 +785,20 @@ describe("AiSdkDesignPageAgent", () => {
     expect(config.instructions).toContain("real submit");
     expect(config.instructions).toContain("never use emoji as icons");
     expect(config.instructions).toContain("Project Workspace tools");
+    expect(config.instructions).toContain("first decide whether the user wants");
+    expect(config.instructions).toContain("relative paths ending in `.html`");
+    expect(config.instructions).toContain("default to `index.html`");
+    expect(config.instructions).toContain("semantic `.html` file");
+    expect(config.instructions).toContain("do not overwrite `index.html`");
     expect(config.instructions).toContain("Only add external CDNs through");
+    expect(config.instructions).toContain(
+      "addCdnResource` currently manages `index.html`",
+    );
     expect(config.instructions).toContain("preserve any existing");
     expect(config.instructions).toContain("`index.html`");
+    expect(config.instructions).not.toContain(
+      "When the user expects a previewable page, write or update `index.html`",
+    );
     expect(config.instructions).not.toContain("Do not:\n- use external CDNs");
     expect(config.instructions).not.toContain("writeHtmlFile");
     expect(config.instructions).not.toContain("Project One");

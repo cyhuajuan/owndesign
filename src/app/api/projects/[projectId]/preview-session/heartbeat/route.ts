@@ -11,6 +11,7 @@ type PreviewHeartbeatRouteContext = {
 
 type PreviewHeartbeatBody = {
   clientId?: unknown;
+  previewPath?: unknown;
 };
 
 export async function POST(
@@ -18,7 +19,8 @@ export async function POST(
   context: PreviewHeartbeatRouteContext,
 ) {
   const { projectId } = await context.params;
-  const clientId = await readClientId(request);
+  const body = await readPreviewHeartbeatBody(request);
+  const clientId = asNonEmptyString(body?.clientId);
 
   if (!clientId) {
     return new Response("Invalid preview heartbeat request.", { status: 400 });
@@ -26,16 +28,18 @@ export async function POST(
 
   const workspaceStore = createWorkspaceStore();
   const manager = getPreviewServerManager(workspaceStore);
-  const session = await manager.heartbeat(projectId, clientId);
+  const session = await manager.heartbeat(
+    projectId,
+    clientId,
+    asNonEmptyString(body?.previewPath),
+  );
 
   return NextResponse.json(session);
 }
 
-async function readClientId(request: Request) {
+async function readPreviewHeartbeatBody(request: Request) {
   try {
-    const body = (await request.json()) as PreviewHeartbeatBody;
-
-    return asNonEmptyString(body.clientId);
+    return (await request.json()) as PreviewHeartbeatBody;
   } catch {
     return undefined;
   }

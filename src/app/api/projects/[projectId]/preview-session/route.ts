@@ -11,11 +11,13 @@ type PreviewSessionRouteContext = {
 
 type PreviewSessionBody = {
   clientId?: unknown;
+  previewPath?: unknown;
 };
 
 export async function POST(request: Request, context: PreviewSessionRouteContext) {
   const { projectId } = await context.params;
-  const clientId = await readClientId(request);
+  const body = await readPreviewSessionBody(request);
+  const clientId = asNonEmptyString(body?.clientId);
 
   if (!clientId) {
     return new Response("Invalid preview session request.", { status: 400 });
@@ -23,7 +25,11 @@ export async function POST(request: Request, context: PreviewSessionRouteContext
 
   const workspaceStore = createWorkspaceStore();
   const manager = getPreviewServerManager(workspaceStore);
-  const session = await manager.ensure(projectId, clientId);
+  const session = await manager.ensure(
+    projectId,
+    clientId,
+    asNonEmptyString(body?.previewPath),
+  );
 
   return NextResponse.json(session);
 }
@@ -33,7 +39,8 @@ export async function DELETE(
   context: PreviewSessionRouteContext,
 ) {
   const { projectId } = await context.params;
-  const clientId = await readClientId(request);
+  const body = await readPreviewSessionBody(request);
+  const clientId = asNonEmptyString(body?.clientId);
 
   if (!clientId) {
     return new Response("Invalid preview session request.", { status: 400 });
@@ -47,11 +54,9 @@ export async function DELETE(
   return new Response(null, { status: 204 });
 }
 
-async function readClientId(request: Request) {
+async function readPreviewSessionBody(request: Request) {
   try {
-    const body = (await request.json()) as PreviewSessionBody;
-
-    return asNonEmptyString(body.clientId);
+    return (await request.json()) as PreviewSessionBody;
   } catch {
     return undefined;
   }

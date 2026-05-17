@@ -305,6 +305,30 @@ export class WorkspaceStore {
     return entries.sort((left, right) => left.path.localeCompare(right.path));
   }
 
+  async listProjectHtmlFiles(projectId: string) {
+    const entries: WorkspaceEntry[] = [];
+
+    await this.walkProjectWorkspace(projectId, "", async (entry) => {
+      if (entry.type === "file" && entry.path.toLowerCase().endsWith(".html")) {
+        entries.push(entry);
+      }
+    });
+
+    return entries
+      .map((entry) => entry.path)
+      .sort((left, right) => {
+        if (left === "index.html") {
+          return -1;
+        }
+
+        if (right === "index.html") {
+          return 1;
+        }
+
+        return left.localeCompare(right);
+      });
+  }
+
   async readProjectWorkspaceEntry(
     projectId: string,
     relativePath: string,

@@ -290,7 +290,6 @@ export default async function Home({ searchParams }: HomeProps) {
           />
         )
       }
-      previewFilename="index.html"
     />
   );
 }

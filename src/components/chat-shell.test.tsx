@@ -1,12 +1,23 @@
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ChatShell } from "./chat-shell";
+
+const replaceMock = vi.fn();
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/",
+  useRouter: () => ({
+    replace: replaceMock,
+  }),
+  useSearchParams: () => new URLSearchParams(),
+}));
 
 describe("ChatShell", () => {
   beforeEach(() => {
     window.localStorage.clear();
+    replaceMock.mockClear();
   });
 
   it("renders conversation workflow and preview regions", () => {
@@ -62,5 +73,28 @@ describe("ChatShell", () => {
     expect(
       screen.getAllByRole("button", { name: "展开会话面板" }),
     ).not.toHaveLength(0);
+  });
+
+  it("renders preview HTML selector from preview file events", async () => {
+    const user = userEvent.setup();
+
+    render(<ChatShell />);
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent("hjdesign:preview-files-updated", {
+          detail: {
+            activePath: "index.html",
+            files: ["index.html", "dashboard.html", "pages/detail.html"],
+          },
+        }),
+      );
+    });
+
+    await user.click(screen.getByRole("combobox", { name: "切换预览 HTML" }));
+    await user.click(screen.getByRole("option", { name: "dashboard.html" }));
+
+    expect(replaceMock).toHaveBeenCalledWith("/?previewPath=dashboard.html", {
+      scroll: false,
+    });
   });
 });

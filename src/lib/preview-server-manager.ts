@@ -15,9 +15,9 @@ type PreviewServerManagerOptions = {
 
 type PreviewServerEntry = {
   app: FastifyInstance;
+  baseUrl: string;
   leases: Map<string, number>;
   projectId: string;
-  url: string;
 };
 
 const DEFAULT_CLEANUP_INTERVAL_MS = 30_000;
@@ -45,17 +45,23 @@ export class PreviewServerManager {
     this.workspaceStore = options.workspaceStore;
   }
 
-  async ensure(projectId: string, clientId: string) {
+  async ensure(projectId: string, clientId: string, previewPath?: string) {
     const entry = await this.getOrStartEntry(projectId);
+    const files = await this.workspaceStore.listProjectHtmlFiles(projectId);
+    const activePath = resolveActivePreviewPath(files, previewPath);
 
     this.touchLease(entry, clientId);
     this.ensureCleanupTimer();
 
-    return { url: entry.url };
+    return {
+      activePath,
+      files,
+      url: buildPreviewUrl(entry.baseUrl, activePath),
+    };
   }
 
-  async heartbeat(projectId: string, clientId: string) {
-    return this.ensure(projectId, clientId);
+  async heartbeat(projectId: string, clientId: string, previewPath?: string) {
+    return this.ensure(projectId, clientId, previewPath);
   }
 
   async release(projectId: string, clientId: string) {
@@ -168,9 +174,9 @@ export class PreviewServerManager {
     const address = await app.listen({ host: PREVIEW_HOST, port: 0 });
     const entry: PreviewServerEntry = {
       app,
+      baseUrl: address.replace(/\/$/, ""),
       leases: new Map(),
       projectId,
-      url: `${address.replace(/\/$/, "")}/index.html`,
     };
 
     this.entries.set(projectId, entry);
@@ -331,4 +337,20 @@ function buildEmptyPreviewHtml() {
   </main>
 </body>
 </html>`;
+}
+
+function resolveActivePreviewPath(files: string[], previewPath?: string) {
+  if (previewPath && files.includes(previewPath)) {
+    return previewPath;
+  }
+
+  if (files.includes("index.html")) {
+    return "index.html";
+  }
+
+  return files[0] ?? "index.html";
+}
+
+function buildPreviewUrl(baseUrl: string, previewPath: string) {
+  return `${baseUrl}/${previewPath.split("/").map(encodeURIComponent).join("/")}`;
 }

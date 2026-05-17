@@ -113,6 +113,24 @@ describe("WorkspaceStore", () => {
     expect(entries.every((entry) => typeof entry.updatedAt === "string")).toBe(true);
   });
 
+  it("lists HTML files recursively with index first", async () => {
+    const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".hjdesign");
+    const store = new WorkspaceStore({ workspaceRoot });
+    const project = buildProject({ id: "project-html-files" });
+
+    await store.createProject(project);
+    await store.writeProjectWorkspaceFile(project.id, "dashboard.html", "<main />");
+    await store.writeProjectWorkspaceFile(project.id, "index.html", "<main />");
+    await store.writeProjectWorkspaceFile(project.id, "pages/detail.HTML", "<main />");
+    await store.writeProjectWorkspaceFile(project.id, "assets/app.js", "");
+
+    await expect(store.listProjectHtmlFiles(project.id)).resolves.toEqual([
+      "index.html",
+      "dashboard.html",
+      "pages/detail.HTML",
+    ]);
+  });
+
   it("searches Project Workspace text files with line previews", async () => {
     const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".hjdesign");
     const store = new WorkspaceStore({ workspaceRoot });

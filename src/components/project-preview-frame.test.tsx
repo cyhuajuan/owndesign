@@ -3,6 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ProjectPreviewFrame } from "./project-preview-frame";
 
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => new URLSearchParams(),
+}));
+
 describe("ProjectPreviewFrame", () => {
   beforeEach(() => {
     vi.clearAllMocks();

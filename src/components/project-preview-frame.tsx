@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { LoaderCircleIcon } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 
 import { PreviewEmptyState } from "@/components/preview-empty-state";
 
@@ -12,10 +13,13 @@ type ProjectPreviewFrameProps = {
 };
 
 type PreviewSessionResponse = {
+  activePath: string;
+  files: string[];
   url: string;
 };
 
 const PREVIEW_HREF_EVENT = "hjdesign:preview-href-updated";
+const PREVIEW_FILES_EVENT = "hjdesign:preview-files-updated";
 const HEARTBEAT_INTERVAL_MS = 30_000;
 
 export function ProjectPreviewFrame({
@@ -24,16 +28,23 @@ export function ProjectPreviewFrame({
   projectName,
 }: ProjectPreviewFrameProps) {
   const clientId = useRef(createClientId());
+  const searchParams = useSearchParams();
+  const selectedPreviewPath = searchParams.get("previewPath") ?? undefined;
   const [previewUrl, setPreviewUrl] = useState<string>();
+  const [activePath, setActivePath] = useState<string>("index.html");
   const [refreshKey, setRefreshKey] = useState(initialUpdatedAt);
 
   useEffect(() => {
     let isActive = true;
-    const sessionBody = JSON.stringify({ clientId: clientId.current });
+    const buildSessionBody = () =>
+      JSON.stringify({
+        clientId: clientId.current,
+        previewPath: selectedPreviewPath,
+      });
 
     async function requestPreviewSession(endpoint: string) {
       const response = await fetch(endpoint, {
-        body: sessionBody,
+        body: buildSessionBody(),
         headers: { "Content-Type": "application/json" },
         method: "POST",
       });
@@ -59,11 +70,15 @@ export function ProjectPreviewFrame({
         }
 
         setPreviewUrl(session.url);
+        setActivePath(session.activePath);
         publishPreviewHref(session.url);
+        publishPreviewFiles(session.files, session.activePath);
       } catch {
         if (isActive) {
           setPreviewUrl(undefined);
+          setActivePath("index.html");
           publishPreviewHref(undefined);
+          publishPreviewFiles([], "index.html");
         }
       }
     }
@@ -80,12 +95,16 @@ export function ProjectPreviewFrame({
           }
 
           setPreviewUrl(session.url);
+          setActivePath(session.activePath);
           publishPreviewHref(session.url);
+          publishPreviewFiles(session.files, session.activePath);
         })
         .catch(() => {
           if (isActive) {
             setPreviewUrl(undefined);
+            setActivePath("index.html");
             publishPreviewHref(undefined);
+            publishPreviewFiles([], "index.html");
           }
         });
     }, HEARTBEAT_INTERVAL_MS);
@@ -94,17 +113,18 @@ export function ProjectPreviewFrame({
       isActive = false;
       window.clearInterval(heartbeatTimer);
       publishPreviewHref(undefined);
+      publishPreviewFiles([], "index.html");
       void fetch(
         `/api/projects/${encodeURIComponent(projectId)}/preview-session`,
         {
-          body: sessionBody,
+          body: buildSessionBody(),
           headers: { "Content-Type": "application/json" },
           keepalive: true,
           method: "DELETE",
         },
       );
     };
-  }, [projectId]);
+  }, [projectId, selectedPreviewPath]);
 
   useEffect(() => {
     const handleProjectOutputUpdated = (event: Event) => {
@@ -153,7 +173,7 @@ export function ProjectPreviewFrame({
   return (
     <iframe
       className="size-full border-0 bg-white"
-      key={refreshKey}
+      key={`${activePath}:${refreshKey}`}
       sandbox="allow-scripts allow-same-origin"
       src={previewUrl}
       title={`${projectName} HTML 预览`}
@@ -171,6 +191,14 @@ function publishPreviewHref(href: string | undefined) {
   window.dispatchEvent(
     new CustomEvent(PREVIEW_HREF_EVENT, {
       detail: { href },
+    }),
+  );
+}
+
+function publishPreviewFiles(files: string[], activePath: string) {
+  window.dispatchEvent(
+    new CustomEvent(PREVIEW_FILES_EVENT, {
+      detail: { activePath, files },
     }),
   );
 }

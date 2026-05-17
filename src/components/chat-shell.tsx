@@ -2,6 +2,7 @@
 
 import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   ExternalLinkIcon,
   LayersIcon,
@@ -28,6 +29,14 @@ import { Button } from "@/components/ui/button";
 import { SettingsControl } from "@/components/settings-control";
 import { Separator } from "@/components/ui/separator";
 import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
@@ -41,6 +50,7 @@ const CONVERSATION_PANE_STORAGE_KEY =
 const CONVERSATION_PANE_EVENT = "hjdesign:conversation-pane";
 const PREVIEW_REFRESH_EVENT = "hjdesign:preview-refresh";
 const PREVIEW_HREF_EVENT = "hjdesign:preview-href-updated";
+const PREVIEW_FILES_EVENT = "hjdesign:preview-files-updated";
 
 const demoMessages = [
   {
@@ -81,11 +91,16 @@ export function ChatShell({
   messageHistory,
   previewActions,
   previewBody,
-  previewFilename = "index.html",
+  previewFilename,
   previewHref,
   previewStatus = "ready",
 }: ChatShellProps) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [sessionPreviewHref, setSessionPreviewHref] = useState<string>();
+  const [previewFiles, setPreviewFiles] = useState<string[]>([]);
+  const [activePreviewPath, setActivePreviewPath] = useState("index.html");
   const isConversationCollapsed = useSyncExternalStore(
     subscribeToConversationPaneState,
     readConversationPaneState,
@@ -122,6 +137,46 @@ export function ChatShell({
       window.removeEventListener(PREVIEW_HREF_EVENT, handlePreviewHrefUpdated);
     };
   }, []);
+
+  useEffect(() => {
+    const handlePreviewFilesUpdated = (event: Event) => {
+      if (!(event instanceof CustomEvent)) {
+        return;
+      }
+
+      const files = Array.isArray(event.detail?.files)
+        ? event.detail.files.filter((file: unknown): file is string =>
+            typeof file === "string",
+          )
+        : [];
+      const activePath =
+        typeof event.detail?.activePath === "string"
+          ? event.detail.activePath
+          : "index.html";
+
+      setPreviewFiles(files);
+      setActivePreviewPath(activePath);
+    };
+
+    window.addEventListener(PREVIEW_FILES_EVENT, handlePreviewFilesUpdated);
+
+    return () => {
+      window.removeEventListener(PREVIEW_FILES_EVENT, handlePreviewFilesUpdated);
+    };
+  }, []);
+
+  const selectPreviewPath = (nextPath: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("previewPath", nextPath);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  };
+  const previewFilenameNode = previewFilename ?? (
+    <PreviewFileSelect
+      activePath={activePreviewPath}
+      files={previewFiles}
+      onChange={selectPreviewPath}
+    />
+  );
 
   return (
     <SidebarProvider
@@ -228,7 +283,7 @@ export function ChatShell({
                   <span>{statusLabels[previewStatus]}</span>
                 </div>
                 <div className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">
-                  {previewFilename}
+                  {previewFilenameNode}
                 </div>
                 <div className="flex items-center gap-1">
                   {previewActions ?? (
@@ -325,4 +380,53 @@ function writeConversationPaneState(value: boolean) {
     String(value),
   );
   window.dispatchEvent(new Event(CONVERSATION_PANE_EVENT));
+}
+
+function PreviewFileSelect({
+  activePath,
+  files,
+  onChange,
+}: {
+  activePath: string;
+  files: string[];
+  onChange: (path: string) => void;
+}) {
+  if (files.length === 0) {
+    return (
+      <span className="font-mono text-xs text-muted-foreground">
+        未找到 HTML
+      </span>
+    );
+  }
+
+  return (
+    <Select
+      onValueChange={(value) => {
+        if (value) {
+          onChange(value);
+        }
+      }}
+      value={activePath}
+    >
+      <SelectTrigger
+        aria-label="切换预览 HTML"
+        className="h-7 max-w-full border-0 bg-transparent px-1.5 font-mono text-xs text-muted-foreground shadow-none"
+        size="sm"
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent
+        align="start"
+        className="max-w-[min(420px,calc(100vw-2rem))]"
+      >
+        <SelectGroup>
+          {files.map((file) => (
+            <SelectItem key={file} value={file}>
+              <span className="font-mono text-xs">{file}</span>
+            </SelectItem>
+          ))}
+        </SelectGroup>
+      </SelectContent>
+    </Select>
+  );
 }

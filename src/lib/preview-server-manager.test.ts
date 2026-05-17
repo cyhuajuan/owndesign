@@ -103,7 +103,76 @@ describe("PreviewServerManager", () => {
     const session = await manager.ensure("project-1", "client-1");
     const response = await fetch(session.url);
 
+    expect(session.activePath).toBe("index.html");
+    expect(session.files).toEqual(["index.html"]);
     await expect(response.text()).resolves.toContain("Preview works");
+  });
+
+  it("serves a requested nested HTML file from the Project Workspace", async () => {
+    const { manager, workspaceStore } = await createPreviewManager();
+    await createProject(workspaceStore);
+    await workspaceStore.writeProjectWorkspaceFile(
+      "project-1",
+      "index.html",
+      "<main>Index</main>",
+    );
+    await workspaceStore.writeProjectWorkspaceFile(
+      "project-1",
+      "pages/about.html",
+      "<main>About works</main>",
+    );
+
+    const session = await manager.ensure(
+      "project-1",
+      "client-1",
+      "pages/about.html",
+    );
+    const response = await fetch(session.url);
+
+    expect(session.activePath).toBe("pages/about.html");
+    expect(session.files).toEqual(["index.html", "pages/about.html"]);
+    expect(session.url).toMatch(/\/pages\/about\.html$/);
+    await expect(response.text()).resolves.toContain("About works");
+  });
+
+  it("falls back to index.html when the requested HTML file is missing", async () => {
+    const { manager, workspaceStore } = await createPreviewManager();
+    await createProject(workspaceStore);
+    await workspaceStore.writeProjectWorkspaceFile(
+      "project-1",
+      "index.html",
+      "<main>Fallback</main>",
+    );
+
+    const session = await manager.ensure(
+      "project-1",
+      "client-1",
+      "missing.html",
+    );
+    const response = await fetch(session.url);
+
+    expect(session.activePath).toBe("index.html");
+    await expect(response.text()).resolves.toContain("Fallback");
+  });
+
+  it("falls back to the first HTML file when index.html is missing", async () => {
+    const { manager, workspaceStore } = await createPreviewManager();
+    await createProject(workspaceStore);
+    await workspaceStore.writeProjectWorkspaceFile(
+      "project-1",
+      "landing.html",
+      "<main>Landing</main>",
+    );
+
+    const session = await manager.ensure(
+      "project-1",
+      "client-1",
+      "missing.html",
+    );
+    const response = await fetch(session.url);
+
+    expect(session.activePath).toBe("landing.html");
+    await expect(response.text()).resolves.toContain("Landing");
   });
 
   it("serves styled empty preview HTML when index.html is missing", async () => {
@@ -115,6 +184,8 @@ describe("PreviewServerManager", () => {
     const html = await response.text();
 
     expect(html).toContain("<!doctype html>");
+    expect(session.activePath).toBe("index.html");
+    expect(session.files).toEqual([]);
     expect(html).toContain("等待生成 HTML");
     expect(html).toContain("class=\"badge\">Preview");
     expect(html).toContain("--bg-base: #0a0a0b");

@@ -656,6 +656,99 @@ describe("MessageParts", () => {
     dispatchEventSpy.mockRestore();
   });
 
+  it("stops streaming generation from the composer submit button", async () => {
+    const user = userEvent.setup();
+    const sendMessage = vi.fn();
+    const stop = vi.fn();
+
+    vi.mocked(useChat).mockReturnValue({
+      addToolApprovalResponse: vi.fn(),
+      error: undefined,
+      messages: [],
+      sendMessage,
+      status: "streaming",
+      stop,
+    } as unknown as ReturnType<typeof useChat>);
+
+    render(
+      <StreamingConversationPanel
+        conversationId="conversation-1"
+        initialMessages={[]}
+        projectId="project-1"
+      />,
+    );
+
+    const stopButton = await screen.findByRole("button", { name: "停止" });
+
+    expect(stopButton).not.toBeDisabled();
+
+    await user.click(stopButton);
+
+    expect(stop).toHaveBeenCalledTimes(1);
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("stops submitted generation from the composer submit button", async () => {
+    const user = userEvent.setup();
+    const stop = vi.fn();
+
+    vi.mocked(useChat).mockReturnValue({
+      addToolApprovalResponse: vi.fn(),
+      error: undefined,
+      messages: [],
+      sendMessage: vi.fn(),
+      status: "submitted",
+      stop,
+    } as unknown as ReturnType<typeof useChat>);
+
+    render(
+      <StreamingConversationPanel
+        conversationId="conversation-1"
+        initialMessages={[]}
+        projectId="project-1"
+      />,
+    );
+
+    const stopButton = await screen.findByRole("button", { name: "停止" });
+
+    expect(stopButton).not.toBeDisabled();
+
+    await user.click(stopButton);
+
+    expect(stop).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the ready submit button disabled when no model is configured", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          defaultModelId: null,
+          interfaceLanguage: "zh-CN",
+          modelConfigurations: [],
+        }),
+      ),
+    );
+    vi.mocked(useChat).mockReturnValue({
+      addToolApprovalResponse: vi.fn(),
+      error: undefined,
+      messages: [],
+      sendMessage: vi.fn(),
+      status: "ready",
+      stop: vi.fn(),
+    } as unknown as ReturnType<typeof useChat>);
+
+    render(
+      <StreamingConversationPanel
+        conversationId="conversation-1"
+        initialMessages={[]}
+        projectId="project-1"
+      />,
+    );
+
+    expect(await screen.findByRole("button", { name: "提交" })).toBeDisabled();
+  });
+
   it("configures chat to continue after tool approval responses", () => {
     vi.mocked(useChat).mockReturnValue({
       addToolApprovalResponse: vi.fn(),

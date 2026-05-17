@@ -139,6 +139,7 @@ export function StreamingConversationPanel({
     messages,
     sendMessage,
     status,
+    stop,
   } = useChat({
     id: conversationId,
     messages: initialMessages,
@@ -281,7 +282,8 @@ export function StreamingConversationPanel({
             <PromptInputTools />
             <PromptInputSubmit
               className="bg-primary text-primary-foreground hover:bg-primary/90"
-              disabled={!canSend}
+              disabled={!selectedModel}
+              onStop={stop}
               status={status}
             />
           </PromptInputFooter>

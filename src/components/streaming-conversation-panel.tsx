@@ -226,7 +226,9 @@ export function StreamingConversationPanel({
           ) : (
             messages.map((message, index) => (
               <Message from={message.role} key={`${message.id || "message"}-${index}`}>
-                <MessageContent>
+                <MessageContent
+                  className={message.role === "assistant" ? "w-full" : undefined}
+                >
                   <MessageParts
                     isLastMessage={index === messages.length - 1}
                     isStreaming={status === "streaming"}
@@ -239,7 +241,7 @@ export function StreamingConversationPanel({
           )}
           {error ? (
             <Message from="assistant">
-              <MessageContent>
+              <MessageContent className="w-full">
                 <div className="flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-destructive text-sm">
                   <AlertCircleIcon className="size-4 shrink-0" />
                   <span>生成失败：{error.message}</span>
@@ -581,14 +583,14 @@ function ToolPartView({
   const approval = getToolApproval(part);
 
   return (
-    <div className="space-y-2">
+    <div className="w-full space-y-2">
       {approval ? (
         <CdnApprovalConfirmation
           onToolApprovalResponse={onToolApprovalResponse}
           part={part}
         />
       ) : null}
-      <Tool className="mb-0 bg-background text-sm" defaultOpen={false}>
+      <Tool className="mb-0 w-full bg-background text-sm" defaultOpen={false}>
         {part.type === "dynamic-tool" ? (
           <ToolHeader
             state={part.state}

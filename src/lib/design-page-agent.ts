@@ -157,6 +157,8 @@ export function buildProjectOutputPrompt(outputType: ProjectOutputType) {
   return [
     "## Project Output",
     "Project Output Type: html.",
+    "Project Output is a previewable UI prototype, not a production app implementation.",
+    "Use inline JavaScript only for local UI state interactions; do not implement clipboard, network, storage, or real submit behavior.",
     "Use Project Workspace tools to inspect, create, edit, search, patch, and delete UTF-8 files.",
     "Inspect with `glob`, `grep`, and `read` before coordinated edits when existing files may matter.",
     "Prefer `edit` for existing files, `write` for new files or deliberate full overwrites, and `patch` for coordinated multi-file changes.",

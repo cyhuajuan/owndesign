@@ -777,6 +777,13 @@ describe("AiSdkDesignPageAgent", () => {
     );
     expect(config.instructions).toContain("## Project Output");
     expect(config.instructions).toContain("Project Output Type: html.");
+    expect(config.instructions).toContain("previewable UI prototype");
+    expect(config.instructions).toContain("local UI state");
+    expect(config.instructions).toContain("clipboard");
+    expect(config.instructions).toContain("network");
+    expect(config.instructions).toContain("storage");
+    expect(config.instructions).toContain("real submit");
+    expect(config.instructions).toContain("never use emoji as icons");
     expect(config.instructions).toContain("Project Workspace tools");
     expect(config.instructions).toContain("Only add external CDNs through");
     expect(config.instructions).toContain("preserve any existing");

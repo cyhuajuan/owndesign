@@ -112,19 +112,28 @@ export function ProjectPreviewFrame({
     return () => {
       isActive = false;
       window.clearInterval(heartbeatTimer);
+    };
+  }, [projectId, selectedPreviewPath]);
+
+  useEffect(() => {
+    const currentClientId = clientId.current;
+
+    return () => {
       publishPreviewHref(undefined);
       publishPreviewFiles([], "index.html");
       void fetch(
         `/api/projects/${encodeURIComponent(projectId)}/preview-session`,
         {
-          body: buildSessionBody(),
+          body: JSON.stringify({
+            clientId: currentClientId,
+          }),
           headers: { "Content-Type": "application/json" },
           keepalive: true,
           method: "DELETE",
         },
       );
     };
-  }, [projectId, selectedPreviewPath]);
+  }, [projectId]);
 
   useEffect(() => {
     const handleProjectOutputUpdated = (event: Event) => {

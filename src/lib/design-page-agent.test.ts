@@ -31,6 +31,7 @@ const aiMocks = vi.hoisted(() => {
       })),
     ),
     generate,
+    getSettings: vi.fn(),
     resolveModelConfiguration: vi.fn(),
     toolLoopAgent,
   };
@@ -46,6 +47,7 @@ vi.mock("@ai-sdk/openai-compatible", () => ({
 
 vi.mock("./settings-service", () => ({
   createSettingsService: () => ({
+    getSettings: aiMocks.getSettings,
     resolveModelConfiguration: aiMocks.resolveModelConfiguration,
   }),
 }));
@@ -59,10 +61,43 @@ vi.mock("ai", () => ({
 
 const tempRoots: string[] = [];
 
+const defaultResources = {
+  fontLibraries: [
+    {
+      id: "font-1",
+      name: "Configured Font",
+      cdn: "https://cdn.example.com/font.css",
+      isDefault: true,
+    },
+    {
+      id: "font-2",
+      name: "Alt Font",
+      cdn: "",
+      isDefault: false,
+    },
+  ],
+  iconLibraries: [
+    {
+      id: "icon-1",
+      name: "Configured Icons",
+      cdn: "https://cdn.example.com/icons.js",
+      isDefault: true,
+    },
+  ],
+  tailwind: {
+    enabled: false,
+    cdnUrl: "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
+  },
+};
+
 beforeEach(() => {
   aiMocks.createDeepSeek.mockClear();
   aiMocks.createOpenAICompatible.mockClear();
   aiMocks.generate.mockReset();
+  aiMocks.getSettings.mockReset();
+  aiMocks.getSettings.mockResolvedValue({
+    resources: defaultResources,
+  });
   aiMocks.resolveModelConfiguration.mockReset();
   aiMocks.resolveModelConfiguration.mockResolvedValue({
     apiKey: "secret",
@@ -212,7 +247,7 @@ describe("AiSdkDesignPageAgent", () => {
     expect(config.tools).not.toHaveProperty("writeFile");
   });
 
-  it("requires approval before adding CDN resources", async () => {
+  it("does not require approval for configured CDN resources", async () => {
     const workspaceStore = await createWorkspaceStore();
     await createProject(workspaceStore);
     const agent = new AiSdkDesignPageAgent(workspaceStore);
@@ -223,11 +258,20 @@ describe("AiSdkDesignPageAgent", () => {
     const config = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
       tools: {
         addCdnResource: {
-          needsApproval: boolean;
+          needsApproval: (input: { url: string }) => boolean;
         };
       };
     };
-    expect(config.tools.addCdnResource.needsApproval).toBe(true);
+    expect(
+      config.tools.addCdnResource.needsApproval({
+        url: "https://cdn.example.com/font.css",
+      }),
+    ).toBe(false);
+    expect(
+      config.tools.addCdnResource.needsApproval({
+        url: "https://cdn.example.com/other.css",
+      }),
+    ).toBe(true);
   });
 
   it("reads files with line windows and finds workspace files with glob and grep", async () => {
@@ -474,7 +518,7 @@ describe("AiSdkDesignPageAgent", () => {
           execute: (input: {
             crossorigin?: string;
             integrity?: string;
-            resourceType: "script" | "stylesheet";
+            resourceType: "script" | "style-import" | "stylesheet";
             url: string;
           }) => Promise<unknown>;
         };
@@ -533,7 +577,7 @@ describe("AiSdkDesignPageAgent", () => {
       tools: {
         addCdnResource: {
           execute: (input: {
-            resourceType: "script" | "stylesheet";
+            resourceType: "script" | "style-import" | "stylesheet";
             url: string;
           }) => Promise<unknown>;
         };
@@ -560,6 +604,48 @@ describe("AiSdkDesignPageAgent", () => {
     );
   });
 
+  it("adds approved CDN resources to a named HTML page", async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    await workspaceStore.writeProjectWorkspaceFile(
+      "project-1",
+      "settings.html",
+      "<!doctype html><html><head></head><body></body></html>",
+    );
+    const agent = new AiSdkDesignPageAgent(workspaceStore);
+    aiMocks.generate.mockResolvedValueOnce({ text: "" });
+
+    await agent.generateProjectOutput(buildInput());
+
+    const config = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
+      tools: {
+        addCdnResource: {
+          execute: (input: {
+            path?: string;
+            resourceType: "script" | "style-import" | "stylesheet";
+            url: string;
+          }) => Promise<unknown>;
+        };
+      };
+    };
+    await expect(
+      config.tools.addCdnResource.execute({
+        path: "settings.html",
+        resourceType: "style-import",
+        url: "https://cdn.example.com/font.css",
+      }),
+    ).resolves.toMatchObject({
+      added: true,
+      path: "settings.html",
+    });
+
+    await expect(
+      workspaceStore.readProjectWorkspaceFile("project-1", "settings.html"),
+    ).resolves.toContain(
+      "<style data-hjdesign-approved-cdn=\"true\">\n@import url('https://cdn.example.com/font.css');\n</style>",
+    );
+  });
+
   it("preserves approved CDN tags when index.html is overwritten", async () => {
     const workspaceStore = await createWorkspaceStore();
     await createProject(workspaceStore);
@@ -577,7 +663,7 @@ describe("AiSdkDesignPageAgent", () => {
       tools: {
         addCdnResource: {
           execute: (input: {
-            resourceType: "script" | "stylesheet";
+            resourceType: "script" | "style-import" | "stylesheet";
             url: string;
           }) => Promise<unknown>;
         };
@@ -664,7 +750,113 @@ describe("AiSdkDesignPageAgent", () => {
     ).rejects.toThrow("must be approved with addCdnResource");
   });
 
-  it("does not apply CDN guards to non-index files", async () => {
+  it("rejects direct unapproved CSS imports through write", async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    const agent = new AiSdkDesignPageAgent(workspaceStore);
+    aiMocks.generate.mockResolvedValueOnce({ text: "" });
+
+    await agent.generateProjectOutput(buildInput());
+
+    const config = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
+      tools: {
+        write: {
+          execute: (input: { content: string; path: string }) => Promise<unknown>;
+        };
+      };
+    };
+    await expect(
+      config.tools.write.execute({
+        content:
+          "<!doctype html><html><head><style>@import url('https://cdn.example.com/raw-font.css');</style></head><body></body></html>",
+        path: "index.html",
+      }),
+    ).rejects.toThrow("must be approved with addCdnResource");
+  });
+
+  it("allows configured CDN additions through write", async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    const agent = new AiSdkDesignPageAgent(workspaceStore);
+    aiMocks.generate.mockResolvedValueOnce({ text: "" });
+
+    await agent.generateProjectOutput(buildInput());
+
+    const config = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
+      tools: {
+        write: {
+          execute: (input: { content: string; path: string }) => Promise<unknown>;
+        };
+      };
+    };
+    await expect(
+      config.tools.write.execute({
+        content:
+          "<!doctype html><html><head><style>@import url('https://cdn.example.com/font.css');</style></head><body></body></html>",
+        path: "index.html",
+      }),
+    ).resolves.toMatchObject({
+      path: "index.html",
+    });
+  });
+
+  it("normalizes model-chosen font and Tailwind CDNs to configured CDNs through write", async () => {
+    const configuredFontCdn =
+      "https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Noto+Sans+SC:wght@100..900&display=swap";
+    const configuredTailwindCdn =
+      "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4";
+    aiMocks.getSettings.mockResolvedValueOnce({
+      resources: {
+        ...defaultResources,
+        fontLibraries: [
+          {
+            id: "font-1",
+            name: "Google Fonts",
+            cdn: configuredFontCdn,
+            isDefault: true,
+          },
+        ],
+        tailwind: {
+          enabled: true,
+          cdnUrl: configuredTailwindCdn,
+        },
+      },
+    });
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    const agent = new AiSdkDesignPageAgent(workspaceStore);
+    aiMocks.generate.mockResolvedValueOnce({ text: "" });
+
+    await agent.generateProjectOutput(buildInput());
+
+    const config = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
+      tools: {
+        write: {
+          execute: (input: { content: string; path: string }) => Promise<unknown>;
+        };
+      };
+    };
+    await expect(
+      config.tools.write.execute({
+        content:
+          "<!doctype html><html><head><script src=\"https://cdn.tailwindcss.com/\"></script><style>@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Noto+Sans+SC:wght@100..900&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap');</style></head><body></body></html>",
+        path: "index.html",
+      }),
+    ).resolves.toMatchObject({
+      path: "index.html",
+    });
+
+    const html = await workspaceStore.readProjectWorkspaceFile(
+      "project-1",
+      "index.html",
+    );
+    expect(html).toContain(configuredTailwindCdn);
+    expect(html).toContain(configuredFontCdn);
+    expect(html).not.toContain("https://cdn.tailwindcss.com/");
+    expect(html).not.toContain("Playfair+Display");
+  });
+
+  it("does not apply CDN guards to non-html files", async () => {
     const workspaceStore = await createWorkspaceStore();
     await createProject(workspaceStore);
     const agent = new AiSdkDesignPageAgent(workspaceStore);
@@ -682,10 +874,10 @@ describe("AiSdkDesignPageAgent", () => {
     await expect(
       config.tools.write.execute({
         content: '<script src="https://cdn.example.com/raw.js"></script>',
-        path: "notes.html",
+        path: "notes.txt",
       }),
     ).resolves.toMatchObject({
-      path: "notes.html",
+      path: "notes.txt",
     });
   });
 
@@ -706,7 +898,7 @@ describe("AiSdkDesignPageAgent", () => {
       tools: {
         addCdnResource: {
           execute: (input: {
-            resourceType: "script" | "stylesheet";
+            resourceType: "script" | "style-import" | "stylesheet";
             url: string;
           }) => Promise<unknown>;
         };
@@ -746,7 +938,7 @@ describe("AiSdkDesignPageAgent", () => {
       tools: {
         addCdnResource: {
           execute: (input: {
-            resourceType: "script" | "stylesheet";
+            resourceType: "script" | "style-import" | "stylesheet";
             url: string;
           }) => Promise<unknown>;
         };
@@ -791,8 +983,14 @@ describe("AiSdkDesignPageAgent", () => {
     expect(config.instructions).toContain("semantic `.html` file");
     expect(config.instructions).toContain("do not overwrite `index.html`");
     expect(config.instructions).toContain("Only add external CDNs through");
+    expect(config.instructions).toContain("Configured Font");
+    expect(config.instructions).toContain("Configured Icons");
+    expect(config.instructions).toContain("https://cdn.example.com/font.css");
     expect(config.instructions).toContain(
-      "addCdnResource` currently manages `index.html`",
+      "Tailwind CSS: disabled; CDN=https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
+    );
+    expect(config.instructions).toContain(
+      "Use regular inline CSS as the primary styling method",
     );
     expect(config.instructions).toContain("preserve any existing");
     expect(config.instructions).toContain("`index.html`");
@@ -807,6 +1005,34 @@ describe("AiSdkDesignPageAgent", () => {
     expect(aiMocks.generate).toHaveBeenCalledWith({
       prompt: "设计一个 CRM 仪表盘的界面",
     });
+  });
+
+  it("instructs the agent to use Tailwind when enabled", async () => {
+    aiMocks.getSettings.mockResolvedValueOnce({
+      resources: {
+        ...defaultResources,
+        tailwind: {
+          enabled: true,
+          cdnUrl: "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
+        },
+      },
+    });
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    const agent = new AiSdkDesignPageAgent(workspaceStore);
+    aiMocks.generate.mockResolvedValueOnce({ text: "" });
+
+    await agent.generateProjectOutput(buildInput());
+
+    const config = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
+      instructions: string;
+    };
+    expect(config.instructions).toContain(
+      "Tailwind CSS: enabled; CDN=https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
+    );
+    expect(config.instructions).toContain(
+      "Use Tailwind utility classes as the primary styling method",
+    );
   });
 });
 

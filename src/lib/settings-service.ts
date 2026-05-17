@@ -69,14 +69,8 @@ const DEFAULT_SETTINGS: AppSettings = {
       {
         id: "font-1",
         name: "Google Fonts",
-        cdn: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap",
+        cdn: "https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Noto+Sans+SC:wght@100..900&display=swap",
         isDefault: true,
-      },
-      {
-        id: "font-2",
-        name: "Noto Sans SC",
-        cdn: "https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap",
-        isDefault: false,
       },
     ],
     iconLibraries: [

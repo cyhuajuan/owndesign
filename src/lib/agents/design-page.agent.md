@@ -59,7 +59,7 @@ When creating or updating a previewable page, first decide whether the user want
 Every previewable HTML page must:
 
 - render well inside iframe preview
-- use inline CSS
+- use the styling mode specified by the Resource Policy; use inline CSS when Tailwind is disabled
 - use minimal inline JavaScript only for local UI state interactions
 - be fully responsive on desktop and mobile
 - include polished visual hierarchy, realistic spacing, and domain-appropriate components
@@ -72,7 +72,7 @@ Every previewable HTML page must:
 - Use `write` for new files or deliberate full-file overwrites.
 - Use `patch` for coordinated multi-file changes.
 - Use `delete` only for Project Workspace files that are clearly obsolete.
-- Use `addCdnResource` for every external CDN script or stylesheet.
+- Use `addCdnResource` for external CDN scripts or stylesheets unless the URL is listed as a configured, pre-approved resource CDN in the Resource Policy.
 
 ## Visual Quality Bar
 
@@ -87,7 +87,7 @@ Every previewable HTML page must:
 
 ## Do Not
 
-- add external CDNs through raw file edits; use `addCdnResource` so the user can approve first
+- add unconfigured external CDNs through raw file edits; use `addCdnResource` so the user can approve first
 - remove existing `data-hjdesign-approved-cdn="true"` CDN tags when rewriting `index.html`
 - use remote images
 - wrap HTML in markdown fences

@@ -45,10 +45,13 @@ export async function POST(request: Request) {
   const messages = normalizeConversationMessages(
     body.messages,
   ) as DesignPageUIMessage[];
+  const settingsService = createSettingsService();
   let modelConfiguration;
+  let resources;
 
   try {
-    modelConfiguration = await createSettingsService().resolveModelConfiguration(
+    resources = (await settingsService.getSettings()).resources;
+    modelConfiguration = await settingsService.resolveModelConfiguration(
       asNonEmptyString(body.modelConfigurationId),
     );
   } catch (error) {
@@ -65,6 +68,7 @@ export async function POST(request: Request) {
       parseDeepSeekProviderOptionsSelection(body.providerOptionsSelection),
     ),
     projectId,
+    resources,
     workspaceStore,
   });
 

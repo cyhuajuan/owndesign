@@ -9,12 +9,14 @@ export async function writeProjectWorkspaceFileWithCdnGuard(
   projectId: string,
   relativePath: string,
   content: string,
+  approvedCdnUrls: string[] = [],
 ) {
   const guardedContent = await guardIndexHtmlCdnChanges(
     workspaceStore,
     projectId,
     relativePath,
     content,
+    approvedCdnUrls,
   );
 
   return workspaceStore.writeProjectWorkspaceFile(
@@ -31,6 +33,7 @@ export async function editProjectWorkspaceFileWithCdnGuard(
   oldString: string,
   newString: string,
   replaceAll = false,
+  approvedCdnUrls: string[] = [],
 ) {
   const content = await workspaceStore.readProjectWorkspaceFile(
     projectId,
@@ -49,6 +52,7 @@ export async function editProjectWorkspaceFileWithCdnGuard(
     projectId,
     relativePath,
     updatedContent,
+    approvedCdnUrls,
   );
 
   return {
@@ -88,6 +92,10 @@ export function buildCdnTag(input: AddCdnResourceInput) {
 
   if (input.resourceType === "stylesheet") {
     return `<link rel="stylesheet" href="${url}"${suffix}>`;
+  }
+
+  if (input.resourceType === "style-import") {
+    return `<style${suffix}>\n@import url('${url}');\n</style>`;
   }
 
   return `<script src="${url}"${suffix}></script>`;
@@ -148,8 +156,9 @@ async function guardIndexHtmlCdnChanges(
   projectId: string,
   relativePath: string,
   content: string,
+  approvedCdnUrls: string[],
 ) {
-  if (!isIndexHtmlPath(relativePath)) {
+  if (!isHtmlPath(relativePath)) {
     return content;
   }
 
@@ -159,21 +168,28 @@ async function guardIndexHtmlCdnChanges(
       projectId,
       relativePath,
     )) ?? "";
+  const normalizedContent = normalizeConfiguredResourceCdnRefs(
+    content,
+    approvedCdnUrls,
+  );
   const approvedCdnTags = extractApprovedCdnTags(existingHtml);
-  const approvedUrls = new Set(approvedCdnTags.map(({ url }) => url));
-  const unapprovedRefs = extractExternalCdnRefs(content).filter(
+  const approvedUrls = new Set([
+    ...approvedCdnTags.map(({ url }) => url),
+    ...approvedCdnUrls.map(normalizeHttpsUrl).filter(Boolean),
+  ]);
+  const unapprovedRefs = extractExternalCdnRefs(normalizedContent).filter(
     ({ url }) => !approvedUrls.has(url),
   );
 
   if (unapprovedRefs.length > 0) {
     throw new Error(
-      `External CDN resources in index.html must be approved with addCdnResource first: ${unapprovedRefs
+      `External CDN resources in HTML files must be approved with addCdnResource first: ${unapprovedRefs
         .map(({ url }) => url)
         .join(", ")}`,
     );
   }
 
-  return mergeMissingApprovedCdnTags(content, approvedCdnTags);
+  return mergeMissingApprovedCdnTags(normalizedContent, approvedCdnTags);
 }
 
 function replaceInContent(
@@ -253,6 +269,7 @@ function extractExternalCdnRefs(html: string) {
 
 function extractCdnTags(html: string) {
   const refs: Array<{
+    rawUrl: string;
     resourceType: AddCdnResourceInput["resourceType"];
     tag: string;
     url: string;
@@ -263,7 +280,12 @@ function extractCdnTags(html: string) {
     const src = getHtmlAttribute(tag, "src");
 
     if (src && isHttpsUrl(src)) {
-      refs.push({ resourceType: "script", tag, url: normalizeUrl(src) });
+      refs.push({
+        rawUrl: src,
+        resourceType: "script",
+        tag,
+        url: normalizeUrl(src),
+      });
     }
   }
 
@@ -273,11 +295,114 @@ function extractCdnTags(html: string) {
     const rel = getHtmlAttribute(tag, "rel");
 
     if (href && isHttpsUrl(href) && rel?.toLowerCase().split(/\s+/).includes("stylesheet")) {
-      refs.push({ resourceType: "stylesheet", tag, url: normalizeUrl(href) });
+      refs.push({
+        rawUrl: href,
+        resourceType: "stylesheet",
+        tag,
+        url: normalizeUrl(href),
+      });
+    }
+  }
+
+  for (const match of html.matchAll(/<style\b[^>]*>[\s\S]*?<\/style>/gi)) {
+    const tag = match[0];
+
+    for (const importMatch of tag.matchAll(
+      /@import\s+(?:url\(\s*)?(?:"([^"]+)"|'([^']+)'|([^"')\s;]+))\s*\)?/gi,
+    )) {
+      const url = importMatch[1] ?? importMatch[2] ?? importMatch[3];
+
+      if (url && isHttpsUrl(url)) {
+        refs.push({
+          rawUrl: url,
+          resourceType: "style-import",
+          tag,
+          url: normalizeUrl(url),
+        });
+      }
     }
   }
 
   return refs;
+}
+
+function normalizeConfiguredResourceCdnRefs(
+  html: string,
+  approvedCdnUrls: string[],
+) {
+  const approvedUrls = approvedCdnUrls.map(normalizeHttpsUrl).filter(Boolean);
+  const configuredFontCdn = approvedUrls.find(isGoogleFontsCss2Url);
+  const configuredTailwindCdn = approvedUrls.find(isTailwindCdnUrl);
+  let updatedHtml = html;
+
+  for (const ref of extractCdnTags(html)) {
+    const replacementUrl = getConfiguredReplacementUrl(ref.url, {
+      configuredFontCdn,
+      configuredTailwindCdn,
+    });
+
+    if (!replacementUrl || ref.url === replacementUrl) {
+      continue;
+    }
+
+    if (
+      ref.resourceType === "stylesheet" &&
+      configuredFontCdn &&
+      ref.url !== configuredFontCdn &&
+      isGoogleFontsCss2Url(ref.url)
+    ) {
+      updatedHtml = updatedHtml.replace(
+        ref.tag,
+        buildCdnTag({ resourceType: "style-import", url: configuredFontCdn }),
+      );
+      continue;
+    }
+
+    updatedHtml = updatedHtml.split(ref.rawUrl).join(replacementUrl);
+  }
+
+  return updatedHtml;
+}
+
+function getConfiguredReplacementUrl(
+  url: string,
+  replacements: {
+    configuredFontCdn?: string;
+    configuredTailwindCdn?: string;
+  },
+) {
+  if (replacements.configuredFontCdn && isGoogleFontsCss2Url(url)) {
+    return replacements.configuredFontCdn;
+  }
+
+  if (replacements.configuredTailwindCdn && isTailwindCdnUrl(url)) {
+    return replacements.configuredTailwindCdn;
+  }
+
+  return undefined;
+}
+
+function isGoogleFontsCss2Url(value: string) {
+  try {
+    const url = new URL(value);
+
+    return url.hostname === "fonts.googleapis.com" && url.pathname === "/css2";
+  } catch {
+    return false;
+  }
+}
+
+function isTailwindCdnUrl(value: string) {
+  try {
+    const url = new URL(value);
+
+    return (
+      url.hostname === "cdn.tailwindcss.com" ||
+      url.href.includes("tailwindcss")
+    );
+  } catch {
+    return false;
+  }
 }
 
 function mergeMissingApprovedCdnTags(
@@ -304,7 +429,9 @@ function mergeMissingApprovedCdnTags(
       continue;
     }
 
-    updatedHtml = approvedCdnTag.resourceType === "stylesheet"
+    updatedHtml =
+      approvedCdnTag.resourceType === "stylesheet" ||
+      approvedCdnTag.resourceType === "style-import"
       ? insertBeforeClosingTag(
           updatedHtml,
           "</head>",
@@ -344,12 +471,22 @@ function normalizeUrl(value: string) {
   return new URL(value).href;
 }
 
-function isIndexHtmlPath(relativePath: string) {
-  return normalizeToolPath(relativePath) === "index.html";
+export function isHtmlPath(relativePath: string) {
+  return normalizeToolPath(relativePath).toLowerCase().endsWith(".html");
 }
 
-function normalizeToolPath(relativePath: string) {
+export function normalizeToolPath(relativePath: string) {
   return path.posix.normalize(relativePath.replaceAll("\\", "/"));
+}
+
+function normalizeHttpsUrl(value: string) {
+  try {
+    const url = new URL(value);
+
+    return url.protocol === "https:" ? url.href : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function isMissingPathError(error: unknown): error is NodeJS.ErrnoException {

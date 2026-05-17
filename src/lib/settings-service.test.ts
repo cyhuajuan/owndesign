@@ -26,8 +26,11 @@ describe("SettingsService", () => {
       modelConfigurations: [],
       resources: expect.objectContaining({
         fontLibraries: [
-          expect.objectContaining({ isDefault: true, name: "Google Fonts" }),
-          expect.objectContaining({ isDefault: false, name: "Noto Sans SC" }),
+          expect.objectContaining({
+            cdn: "https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Noto+Sans+SC:wght@100..900&display=swap",
+            isDefault: true,
+            name: "Google Fonts",
+          }),
         ],
         iconLibraries: [
           expect.objectContaining({ isDefault: true, name: "Lucide Icons" }),
@@ -57,8 +60,11 @@ describe("SettingsService", () => {
     await expect(service.getSettings()).resolves.toMatchObject({
       resources: {
         fontLibraries: [
-          expect.objectContaining({ isDefault: true, name: "Google Fonts" }),
-          expect.objectContaining({ name: "Noto Sans SC" }),
+          expect.objectContaining({
+            cdn: "https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Noto+Sans+SC:wght@100..900&display=swap",
+            isDefault: true,
+            name: "Google Fonts",
+          }),
         ],
         iconLibraries: [
           expect.objectContaining({ isDefault: true, name: "Lucide Icons" }),

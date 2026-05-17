@@ -7,6 +7,7 @@ import {
 import type { PatchInput, ProjectWorkspaceToolContext } from "./types";
 
 export function createPatchTool({
+  approvedCdnUrls,
   projectId,
   workspaceStore,
 }: ProjectWorkspaceToolContext) {
@@ -83,6 +84,7 @@ export function createPatchTool({
               change.oldString,
               change.newString,
               change.replaceAll,
+              approvedCdnUrls,
             ),
           });
           continue;
@@ -95,6 +97,7 @@ export function createPatchTool({
             projectId,
             change.path,
             change.content,
+            approvedCdnUrls,
           ),
         });
       }

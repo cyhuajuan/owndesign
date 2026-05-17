@@ -11,16 +11,10 @@ const defaultSettings = {
   resources: {
     fontLibraries: [
       {
-        cdn: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap",
+        cdn: "https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Noto+Sans+SC:wght@100..900&display=swap",
         id: "font-1",
         isDefault: true,
         name: "Google Fonts",
-      },
-      {
-        cdn: "https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap",
-        id: "font-2",
-        isDefault: false,
-        name: "Noto Sans SC",
       },
     ],
     iconLibraries: [
@@ -156,6 +150,14 @@ describe("SettingsControl", () => {
     await user.click(screen.getByTitle("设置"));
     await user.click(await screen.findByRole("button", { name: "资源管理" }));
 
+    await user.click(screen.getByRole("button", { name: /添加字体库/ }));
+    await user.type(screen.getByPlaceholderText("字体库名称"), "HarmonyOS Sans");
+    await user.type(
+      screen.getByPlaceholderText("CDN URL (https://...)"),
+      "https://cdn.example.com/harmony.css",
+    );
+    await user.click(screen.getByTitle("确认添加"));
+
     await user.click(screen.getAllByRole("button", { name: "设为默认" })[0]);
     await user.click(screen.getAllByTitle("移除")[0]);
     await user.click(screen.getByRole("button", { name: "保存设置" }));
@@ -174,7 +176,7 @@ describe("SettingsControl", () => {
     expect(payload.resources.fontLibraries).toEqual([
       expect.objectContaining({
         isDefault: true,
-        name: "Noto Sans SC",
+        name: "HarmonyOS Sans",
       }),
     ]);
   });

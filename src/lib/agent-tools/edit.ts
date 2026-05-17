@@ -4,6 +4,7 @@ import { editProjectWorkspaceFileWithCdnGuard } from "./cdn-guard";
 import type { EditInput, ProjectWorkspaceToolContext } from "./types";
 
 export function createEditTool({
+  approvedCdnUrls,
   projectId,
   workspaceStore,
 }: ProjectWorkspaceToolContext) {
@@ -42,6 +43,7 @@ export function createEditTool({
         oldString,
         newString,
         replaceAll,
+        approvedCdnUrls,
       ),
   });
 }

@@ -18,6 +18,7 @@ const routeMocks = vi.hoisted(() => {
       thinkingMode,
     })),
     createSettingsService: vi.fn(),
+    getSettings: vi.fn(),
     createWorkspaceStore: vi.fn(),
     resolveModelConfiguration: vi.fn(),
     saveUIMessageStream: vi.fn(),
@@ -57,6 +58,7 @@ describe("/api/chat", () => {
     routeMocks.createConversationService.mockReset();
     routeMocks.createDesignPageAgent.mockClear();
     routeMocks.createSettingsService.mockReset();
+    routeMocks.getSettings.mockReset();
     routeMocks.createWorkspaceStore.mockReset();
     routeMocks.resolveModelConfiguration.mockReset();
     routeMocks.saveUIMessageStream.mockReset();
@@ -77,7 +79,25 @@ describe("/api/chat", () => {
       model: "deepseek-chat",
       provider: "deepseek",
     });
+    routeMocks.getSettings.mockResolvedValue({
+      resources: {
+        fontLibraries: [
+          {
+            id: "font-1",
+            name: "Configured Font",
+            cdn: "https://cdn.example.com/font.css",
+            isDefault: true,
+          },
+        ],
+        iconLibraries: [],
+        tailwind: {
+          enabled: true,
+          cdnUrl: "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
+        },
+      },
+    });
     routeMocks.createSettingsService.mockReturnValue({
+      getSettings: routeMocks.getSettings,
       resolveModelConfiguration: routeMocks.resolveModelConfiguration,
     });
   });
@@ -111,6 +131,9 @@ describe("/api/chat", () => {
         model: expect.objectContaining({ provider: "test" }),
         providerOptions: expect.objectContaining({ thinkingMode: "max" }),
         projectId: "project-1",
+        resources: expect.objectContaining({
+          tailwind: expect.objectContaining({ enabled: true }),
+        }),
       }),
     );
     expect(routeMocks.buildProviderOptions).toHaveBeenCalledWith(

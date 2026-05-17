@@ -14,6 +14,8 @@ import {
   createSettingsService,
   type DeepSeekThinkingMode,
   type ModelConfiguration,
+  type ResourceLibrary,
+  type ResourceSettings,
 } from "./settings-service";
 import type { ProjectOutputType } from "./workspace-store";
 import { WorkspaceStore } from "./workspace-store";
@@ -40,6 +42,7 @@ type CreateDesignPageAgentInput = {
   outputType: ProjectOutputType;
   providerOptions?: ToolLoopAgentSettings["providerOptions"];
   projectId: string;
+  resources: ResourceSettings;
   workspaceStore: WorkspaceStore;
 };
 
@@ -51,8 +54,11 @@ export class AiSdkDesignPageAgent implements DesignPageAgent {
       throw new Error(`Unsupported Project Output Type: ${input.outputType}`);
     }
 
-    const modelConfiguration =
-      await createSettingsService().resolveModelConfiguration();
+    const settingsService = createSettingsService();
+    const [settings, modelConfiguration] = await Promise.all([
+      settingsService.getSettings(),
+      settingsService.resolveModelConfiguration(),
+    ]);
     const agent = createDesignPageAgent({
       model: buildLanguageModel(
         modelConfiguration,
@@ -60,6 +66,7 @@ export class AiSdkDesignPageAgent implements DesignPageAgent {
       outputType: input.outputType,
       providerOptions: buildProviderOptions(modelConfiguration),
       projectId: input.projectId,
+      resources: settings.resources,
       workspaceStore: this.workspaceStore,
     });
 
@@ -78,14 +85,19 @@ export function createDesignPageAgent({
   outputType,
   providerOptions,
   projectId,
+  resources,
   workspaceStore,
 }: CreateDesignPageAgentInput) {
   return new ToolLoopAgent({
     model,
-    instructions: buildDesignPageAgentInstructions(outputType),
+    instructions: buildDesignPageAgentInstructions(outputType, resources),
     providerOptions,
     stopWhen: stepCountIs(50),
-    tools: createProjectWorkspaceTools({ projectId, workspaceStore }),
+    tools: createProjectWorkspaceTools({
+      approvedCdnUrls: buildApprovedCdnUrls(resources),
+      projectId,
+      workspaceStore,
+    }),
   });
 }
 
@@ -135,11 +147,15 @@ export function buildProviderOptions(
 
 export function buildDesignPageAgentInstructions(
   outputType: ProjectOutputType,
+  resources?: ResourceSettings,
 ) {
   return [
     loadDesignPageAgentCorePrompt(),
+    resources ? buildResourcePolicyPrompt(resources) : "",
     buildProjectOutputPrompt(outputType),
-  ].join("\n\n");
+  ]
+    .filter(Boolean)
+    .join("\n\n");
 }
 
 export function loadDesignPageAgentCorePrompt() {
@@ -166,9 +182,86 @@ export function buildProjectOutputPrompt(outputType: ProjectOutputType) {
     "If no page is specified and no multi-page structure is evident, default to `index.html`; if multiple HTML files exist and the target is unclear, inspect first and ask a concise follow-up question if needed.",
     "When creating a new HTML page, do not overwrite `index.html` unless the user intent points to the home or main page.",
     "Prefer `edit` for existing files, `write` for new files or deliberate full overwrites, and `patch` for coordinated multi-file changes.",
-    "Only add external CDNs through `addCdnResource`, and never by raw file edits. `addCdnResource` currently manages `index.html`; for other HTML pages, prefer inline or local fallbacks instead of adding unapproved CDN tags.",
-    "`write`, `edit`, and `patch` reject unapproved external CDN tags in `index.html`; request CDN approval through `addCdnResource` first.",
-    "When writing `index.html`, preserve any existing `data-hjdesign-approved-cdn=\"true\"` CDN tags.",
-    "If the user denies a CDN approval request, do not retry the same CDN. Use a local or inline fallback, or explain the limitation.",
+    "Only add external CDNs through `addCdnResource`, and never by raw file edits unless the URL is listed as a configured resource CDN in the Resource Policy.",
+    "`write`, `edit`, and `patch` reject unapproved external CDN tags in HTML files; configured resource CDNs are pre-approved, while other CDNs require `addCdnResource` approval first.",
+    "When writing HTML, preserve any existing `data-hjdesign-approved-cdn=\"true\"` CDN tags.",
+    "If the user denies a CDN approval request, do not retry the same unconfigured CDN. Use a local or inline fallback, or explain the limitation.",
   ].join("\n");
+}
+
+export function buildResourcePolicyPrompt(resources: ResourceSettings) {
+  const defaultFontLibrary = getDefaultResourceLibrary(resources.fontLibraries);
+  const defaultIconLibrary = getDefaultResourceLibrary(resources.iconLibraries);
+  const fontLines = formatResourceLibraryList(resources.fontLibraries, "style-import");
+  const iconLines = resources.iconLibraries.map(
+    (library) => `- ${library.name}: ${library.cdn || "(no CDN)"}; tag=${inferIconLibraryResourceType(library.cdn)}${library.isDefault ? "; default" : ""}`,
+  );
+  const tailwindCdn = resources.tailwind.cdnUrl.trim();
+
+  return [
+    "## Resource Policy",
+    "Use these global resource settings when designing HTML preview pages.",
+    defaultFontLibrary
+      ? `Default font library: ${formatResourceLibrary(defaultFontLibrary, "style-import")}.`
+      : "Default font library: none configured.",
+    defaultIconLibrary
+      ? `Default icon library: ${formatResourceLibrary(defaultIconLibrary, inferIconLibraryResourceType(defaultIconLibrary.cdn))}.`
+      : "Default icon library: none configured.",
+    "If the user prompt explicitly names a configured font or icon library, use that named library; otherwise use the default library.",
+    "Use configured CDN URLs verbatim. Do not add, remove, or rewrite query parameters, font families, versions, or hostnames.",
+    "When adding a font CDN, use a head style block with @import, exactly like `<style>\\n@import url('https://example.com/font.css');\\n</style>`, not a stylesheet link.",
+    "If a configured library has an empty CDN, follow the library choice in styling and naming, but do not add a CDN tag for it.",
+    "Configured font libraries:",
+    fontLines.length ? fontLines.join("\n") : "- none",
+    "Configured icon libraries:",
+    iconLines.length ? iconLines.join("\n") : "- none",
+    resources.tailwind.enabled
+      ? `Tailwind CSS: enabled; CDN=${tailwindCdn}; tag=${inferTailwindResourceType(tailwindCdn)}. Use Tailwind utility classes as the primary styling method instead of regular CSS. Only add minimal CSS for browser gaps or third-party adjustments.`
+      : `Tailwind CSS: disabled; CDN=${tailwindCdn}. Use regular inline CSS as the primary styling method.`,
+    "Configured resource CDN URLs are pre-approved and do not need user approval. Other external CDN URLs still need approval through `addCdnResource`.",
+  ].join("\n");
+}
+
+export function buildApprovedCdnUrls(resources: ResourceSettings) {
+  return [
+    ...resources.fontLibraries.map((library) => library.cdn),
+    ...resources.iconLibraries.map((library) => library.cdn),
+    resources.tailwind.enabled ? resources.tailwind.cdnUrl : "",
+  ]
+    .map((url) => url.trim())
+    .filter(Boolean);
+}
+
+function getDefaultResourceLibrary(libraries: ResourceLibrary[]) {
+  return libraries.find((library) => library.isDefault) ?? libraries[0];
+}
+
+function formatResourceLibraryList(
+  libraries: ResourceLibrary[],
+  resourceType: "script" | "style-import" | "stylesheet",
+) {
+  return libraries.map(
+    (library) => `- ${formatResourceLibrary(library, resourceType)}${library.isDefault ? "; default" : ""}`,
+  );
+}
+
+function formatResourceLibrary(
+  library: ResourceLibrary,
+  resourceType: "script" | "style-import" | "stylesheet",
+) {
+  return `${library.name}: ${library.cdn || "(no CDN)"}; tag=${resourceType}`;
+}
+
+function inferIconLibraryResourceType(cdn: string): "script" | "stylesheet" {
+  const normalized = cdn.toLowerCase();
+
+  return normalized.includes(".css") ||
+    normalized.includes("/css/") ||
+    normalized.includes("font-awesome")
+    ? "stylesheet"
+    : "script";
+}
+
+function inferTailwindResourceType(cdn: string): "script" | "stylesheet" {
+  return cdn.toLowerCase().includes(".css") ? "stylesheet" : "script";
 }

@@ -4,6 +4,7 @@ import { writeProjectWorkspaceFileWithCdnGuard } from "./cdn-guard";
 import type { ProjectWorkspaceToolContext, WriteInput } from "./types";
 
 export function createWriteTool({
+  approvedCdnUrls,
   projectId,
   workspaceStore,
 }: ProjectWorkspaceToolContext) {
@@ -31,6 +32,7 @@ export function createWriteTool({
         projectId,
         path,
         content,
+        approvedCdnUrls,
       ),
   });
 }

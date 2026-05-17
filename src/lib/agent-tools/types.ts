@@ -1,6 +1,7 @@
 import type { WorkspaceStore } from "@/lib/workspace-store";
 
 export type ProjectWorkspaceToolContext = {
+  approvedCdnUrls?: string[];
   projectId: string;
   workspaceStore: WorkspaceStore;
 };
@@ -8,7 +9,8 @@ export type ProjectWorkspaceToolContext = {
 export type AddCdnResourceInput = {
   crossorigin?: string;
   integrity?: string;
-  resourceType: "script" | "stylesheet";
+  path?: string;
+  resourceType: "script" | "style-import" | "stylesheet";
   url: string;
 };
 

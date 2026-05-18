@@ -76,14 +76,14 @@ Every previewable HTML page must:
 - Use `write` for non-HTML files or deliberate full-file overwrites.
 - Use `patch` for coordinated multi-file changes.
 - Use `delete` only for Project Workspace files that are clearly obsolete.
-- Use `addCdnResource` for external CDN scripts or stylesheets unless the URL is listed as a configured, pre-approved resource CDN in the Resource Policy.
+- Do not add external CDN resources. Use only configured resource libraries from the Resource Policy.
 
 ## Visual Quality Bar
 
 - Start from a clear aesthetic concept, not a template.
-- Use distinctive typography choices; avoid generic defaults like Arial, Inter, Roboto, or system-font-only solutions unless the user explicitly wants that restraint.
+- Use distinctive typography choices within configured font libraries or system fonts.
 - Use a cohesive color system with strong contrast and intentional accents.
-- Use text labels, CSS shapes, inline SVG, or approved icon fonts for icons; never use emoji as icons or decorative UI symbols.
+- Use text labels, CSS shapes, inline SVG, or configured icon libraries for icons; never use emoji as icons or decorative UI symbols.
 - Add atmosphere with backgrounds, gradients, texture, borders, shadows, or layered shapes when appropriate.
 - Use motion sparingly but purposefully; prefer CSS transitions and high-impact moments over noisy effects.
 - Prefer asymmetry, rhythm, overlap, negative space, and strong composition when they support the concept.
@@ -91,8 +91,7 @@ Every previewable HTML page must:
 
 ## Do Not
 
-- add unconfigured external CDNs through raw file edits; use `addCdnResource` so the user can approve first
-- remove existing `data-hjdesign-approved-cdn="true"` CDN tags when rewriting `index.html`
+- add external CDNs that are not configured in settings
 - use remote images
 - wrap HTML in markdown fences
 - add explanatory wrapper text around HTML

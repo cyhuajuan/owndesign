@@ -186,43 +186,38 @@ export function buildProjectOutputPrompt(outputType: ProjectOutputType) {
     "After `createHtml` succeeds, use `edit` or `patch` to fill in the actual page design. For existing HTML files, use `read`, `edit`, and `patch`; do not call `createHtml`.",
     "When creating a new HTML page, do not overwrite `index.html` unless the user intent points to the home or main page.",
     "Prefer `edit` for existing files, `createHtml` for missing HTML files, `write` for non-HTML files or deliberate full overwrites, and `patch` for coordinated multi-file changes.",
-    "Only add external CDNs through `addCdnResource`, and never by raw file edits unless the URL is listed as a configured resource CDN in the Resource Policy.",
-    "`write`, `edit`, and `patch` reject unapproved external CDN tags in HTML files; configured resource CDNs are pre-approved, while other CDNs require `addCdnResource` approval first.",
-    "When writing HTML, preserve any existing `data-hjdesign-approved-cdn=\"true\"` CDN tags.",
-    "If the user denies a CDN approval request, do not retry the same unconfigured CDN. Use a local or inline fallback, or explain the limitation.",
+    "Only use resource CDNs that already exist in settings. Do not add any other external CDN.",
+    "`write`, `edit`, and `patch` reject HTML that contains external CDN tags outside the configured resource settings.",
   ].join("\n");
 }
 
 export function buildResourcePolicyPrompt(resources: ResourceSettings) {
   const defaultFontLibrary = getDefaultResourceLibrary(resources.fontLibraries);
   const defaultIconLibrary = getDefaultResourceLibrary(resources.iconLibraries);
-  const fontLines = formatResourceLibraryList(resources.fontLibraries, "style-import");
-  const iconLines = resources.iconLibraries.map(
-    (library) => `- ${library.name}: ${library.cdn || "(no CDN)"}; tag=${inferIconLibraryResourceType(library.cdn)}${library.isDefault ? "; default" : ""}`,
-  );
-  const tailwindCdn = resources.tailwind.cdnUrl.trim();
+  const fontLines = formatResourceLibraryList(resources.fontLibraries);
+  const iconLines = formatResourceLibraryList(resources.iconLibraries);
 
   return [
     "## Resource Policy",
     "Use these global resource settings when designing HTML preview pages.",
     defaultFontLibrary
-      ? `Default font library: ${formatResourceLibrary(defaultFontLibrary, "style-import")}.`
+      ? `Default font library: ${defaultFontLibrary.name}.`
       : "Default font library: none configured.",
     defaultIconLibrary
-      ? `Default icon library: ${formatResourceLibrary(defaultIconLibrary, inferIconLibraryResourceType(defaultIconLibrary.cdn))}.`
+      ? `Default icon library: ${defaultIconLibrary.name}.`
       : "Default icon library: none configured.",
     "If the user prompt explicitly names a configured font or icon library, use that named library; otherwise use the default library.",
-    "Use configured CDN URLs verbatim. Do not add, remove, or rewrite query parameters, font families, versions, or hostnames.",
-    "When adding a font CDN, use a head style block with @import, exactly like `<style>\\n@import url('https://example.com/font.css');\\n</style>`, not a stylesheet link.",
-    "If a configured library has an empty CDN, follow the library choice in styling and naming, but do not add a CDN tag for it.",
+    "Only use configured font libraries or system fonts. Do not reference any unconfigured external font service or font CDN.",
+    "Only use configured icon libraries or inline SVG icons. Do not reference any unconfigured external icon service or icon CDN.",
+    "When a configured library has no CDN, follow the library choice in CSS naming only and do not add a CDN tag for it.",
     "Configured font libraries:",
     fontLines.length ? fontLines.join("\n") : "- none",
     "Configured icon libraries:",
     iconLines.length ? iconLines.join("\n") : "- none",
     resources.tailwind.enabled
-      ? `Tailwind CSS: enabled; CDN=${tailwindCdn}; tag=${inferTailwindResourceType(tailwindCdn)}. You must use Tailwind CSS utility classes for styling. Do not use regular CSS unless Tailwind cannot express the required behavior, such as browser gaps or third-party adjustments; keep any regular CSS minimal and justified.`
-      : `Tailwind CSS: disabled; CDN=${tailwindCdn}. Use regular inline CSS as the primary styling method.`,
-    "Configured resource CDN URLs are pre-approved and do not need user approval. Other external CDN URLs still need approval through `addCdnResource`.",
+      ? "Tailwind CSS: available. You may use Tailwind CSS utility classes when they help the prototype, but regular inline CSS is also allowed for visual direction, custom details, and interactions."
+      : "Tailwind CSS: unavailable. Use regular inline CSS as the primary styling method.",
+    "Do not add new CDN resources. If a needed resource is not configured, use system fonts, inline SVG, local CSS, or explain the limitation.",
   ].join("\n");
 }
 
@@ -240,32 +235,9 @@ function getDefaultResourceLibrary(libraries: ResourceLibrary[]) {
   return libraries.find((library) => library.isDefault) ?? libraries[0];
 }
 
-function formatResourceLibraryList(
-  libraries: ResourceLibrary[],
-  resourceType: "script" | "style-import" | "stylesheet",
-) {
+function formatResourceLibraryList(libraries: ResourceLibrary[]) {
   return libraries.map(
-    (library) => `- ${formatResourceLibrary(library, resourceType)}${library.isDefault ? "; default" : ""}`,
+    (library) =>
+      `- ${library.name}${library.isDefault ? " (default)" : ""}${library.cdn ? " (configured CDN)" : " (no CDN)"}`,
   );
-}
-
-function formatResourceLibrary(
-  library: ResourceLibrary,
-  resourceType: "script" | "style-import" | "stylesheet",
-) {
-  return `${library.name}: ${library.cdn || "(no CDN)"}; tag=${resourceType}`;
-}
-
-function inferIconLibraryResourceType(cdn: string): "script" | "stylesheet" {
-  const normalized = cdn.toLowerCase();
-
-  return normalized.includes(".css") ||
-    normalized.includes("/css/") ||
-    normalized.includes("font-awesome")
-    ? "stylesheet"
-    : "script";
-}
-
-function inferTailwindResourceType(cdn: string): "script" | "stylesheet" {
-  return cdn.toLowerCase().includes(".css") ? "stylesheet" : "script";
 }

@@ -1,4 +1,3 @@
-import { createAddCdnResourceTool } from "./add-cdn-resource";
 import { createCreateHtmlTool } from "./create-html";
 import { createDeleteTool } from "./delete";
 import { createEditTool } from "./edit";
@@ -13,7 +12,6 @@ export function createProjectWorkspaceTools(
   context: ProjectWorkspaceToolContext,
 ) {
   return {
-    addCdnResource: createAddCdnResourceTool(context),
     createHtml: createCreateHtmlTool(context),
     delete: createDeleteTool(context),
     edit: createEditTool(context),

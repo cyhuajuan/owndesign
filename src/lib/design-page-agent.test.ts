@@ -235,7 +235,6 @@ describe("AiSdkDesignPageAgent", () => {
       tools: Record<string, unknown>;
     };
     expect(Object.keys(config.tools).sort()).toEqual([
-      "addCdnResource",
       "createHtml",
       "delete",
       "edit",
@@ -246,33 +245,7 @@ describe("AiSdkDesignPageAgent", () => {
       "write",
     ]);
     expect(config.tools).not.toHaveProperty("writeFile");
-  });
-
-  it("does not require approval for configured CDN resources", async () => {
-    const workspaceStore = await createWorkspaceStore();
-    await createProject(workspaceStore);
-    const agent = new AiSdkDesignPageAgent(workspaceStore);
-    aiMocks.generate.mockResolvedValueOnce({ text: "" });
-
-    await agent.generateProjectOutput(buildInput());
-
-    const config = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
-      tools: {
-        addCdnResource: {
-          needsApproval: (input: { url: string }) => boolean;
-        };
-      };
-    };
-    expect(
-      config.tools.addCdnResource.needsApproval({
-        url: "https://cdn.example.com/font.css",
-      }),
-    ).toBe(false);
-    expect(
-      config.tools.addCdnResource.needsApproval({
-        url: "https://cdn.example.com/other.css",
-      }),
-    ).toBe(true);
+    expect(config.tools).not.toHaveProperty("addCdnResource");
   });
 
   it("creates missing HTML from configured resource defaults", async () => {
@@ -322,6 +295,44 @@ describe("AiSdkDesignPageAgent", () => {
       '<script src="https://cdn.example.com/icons.js" data-hjdesign-approved-cdn="true"></script>',
     );
     expect(html).not.toContain("tailwindcss");
+  });
+
+  it("creates missing HTML with Tailwind when it is enabled in settings", async () => {
+    aiMocks.getSettings.mockResolvedValueOnce({
+      resources: {
+        ...defaultResources,
+        tailwind: {
+          enabled: true,
+          cdnUrl: "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
+        },
+      },
+    });
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    const agent = new AiSdkDesignPageAgent(workspaceStore);
+    aiMocks.generate.mockResolvedValueOnce({ text: "" });
+
+    await agent.generateProjectOutput(buildInput());
+
+    const config = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
+      tools: {
+        createHtml: {
+          execute: (input: { path: string }) => Promise<unknown>;
+        };
+      };
+    };
+    await expect(
+      config.tools.createHtml.execute({ path: "index.html" }),
+    ).resolves.toMatchObject({
+      path: "index.html",
+      tailwindEnabled: true,
+    });
+
+    const html = await workspaceStore.readProjectWorkspaceFile(
+      "project-1",
+      "index.html",
+    );
+    expect(html).toContain("https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4");
   });
 
   it("creates HTML with explicit resource selections and Tailwind", async () => {
@@ -721,200 +732,7 @@ describe("AiSdkDesignPageAgent", () => {
     ).rejects.toThrow("escapes workspace");
   });
 
-  it("adds approved CDN stylesheets and scripts to index.html", async () => {
-    const workspaceStore = await createWorkspaceStore();
-    await createProject(workspaceStore);
-    await workspaceStore.writeProjectWorkspaceFile(
-      "project-1",
-      "index.html",
-      "<!doctype html><html><head><title>Demo</title></head><body><main></main></body></html>",
-    );
-    const agent = new AiSdkDesignPageAgent(workspaceStore);
-    aiMocks.generate.mockResolvedValueOnce({ text: "" });
-
-    await agent.generateProjectOutput(buildInput());
-
-    const config = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
-      tools: {
-        addCdnResource: {
-          execute: (input: {
-            crossorigin?: string;
-            integrity?: string;
-            resourceType: "script" | "style-import" | "stylesheet";
-            url: string;
-          }) => Promise<unknown>;
-        };
-      };
-    };
-    await expect(
-      config.tools.addCdnResource.execute({
-        integrity: "sha384-demo",
-        resourceType: "stylesheet",
-        url: "https://cdn.example.com/app.css",
-      }),
-    ).resolves.toMatchObject({
-      added: true,
-      path: "index.html",
-      resourceType: "stylesheet",
-    });
-    await expect(
-      config.tools.addCdnResource.execute({
-        crossorigin: "anonymous",
-        resourceType: "script",
-        url: "https://cdn.example.com/app.js",
-      }),
-    ).resolves.toMatchObject({
-      added: true,
-      path: "index.html",
-      resourceType: "script",
-    });
-
-    const html = await workspaceStore.readProjectWorkspaceFile(
-      "project-1",
-      "index.html",
-    );
-    expect(html).toContain(
-      '<link rel="stylesheet" href="https://cdn.example.com/app.css" data-hjdesign-approved-cdn="true" integrity="sha384-demo">',
-    );
-    expect(html.indexOf("https://cdn.example.com/app.css")).toBeLessThan(
-      html.indexOf("</head>"),
-    );
-    expect(html).toContain(
-      '<script src="https://cdn.example.com/app.js" data-hjdesign-approved-cdn="true" crossorigin="anonymous"></script>',
-    );
-    expect(html.indexOf("https://cdn.example.com/app.js")).toBeLessThan(
-      html.indexOf("</body>"),
-    );
-  });
-
-  it("creates index.html when an approved CDN is added before the page exists", async () => {
-    const workspaceStore = await createWorkspaceStore();
-    await createProject(workspaceStore);
-    const agent = new AiSdkDesignPageAgent(workspaceStore);
-    aiMocks.generate.mockResolvedValueOnce({ text: "" });
-
-    await agent.generateProjectOutput(buildInput());
-
-    const config = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
-      tools: {
-        addCdnResource: {
-          execute: (input: {
-            resourceType: "script" | "style-import" | "stylesheet";
-            url: string;
-          }) => Promise<unknown>;
-        };
-      };
-    };
-    await expect(
-      config.tools.addCdnResource.execute({
-        resourceType: "stylesheet",
-        url: "https://cdn.example.com/early.css",
-      }),
-    ).resolves.toMatchObject({
-      added: true,
-      createdIndexHtml: true,
-      path: "index.html",
-    });
-
-    const html = await workspaceStore.readProjectWorkspaceFile(
-      "project-1",
-      "index.html",
-    );
-    expect(html).toContain("<!doctype html>");
-    expect(html).toContain(
-      '<link rel="stylesheet" href="https://cdn.example.com/early.css" data-hjdesign-approved-cdn="true">',
-    );
-  });
-
-  it("adds approved CDN resources to a named HTML page", async () => {
-    const workspaceStore = await createWorkspaceStore();
-    await createProject(workspaceStore);
-    await workspaceStore.writeProjectWorkspaceFile(
-      "project-1",
-      "settings.html",
-      "<!doctype html><html><head></head><body></body></html>",
-    );
-    const agent = new AiSdkDesignPageAgent(workspaceStore);
-    aiMocks.generate.mockResolvedValueOnce({ text: "" });
-
-    await agent.generateProjectOutput(buildInput());
-
-    const config = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
-      tools: {
-        addCdnResource: {
-          execute: (input: {
-            path?: string;
-            resourceType: "script" | "style-import" | "stylesheet";
-            url: string;
-          }) => Promise<unknown>;
-        };
-      };
-    };
-    await expect(
-      config.tools.addCdnResource.execute({
-        path: "settings.html",
-        resourceType: "style-import",
-        url: "https://cdn.example.com/font.css",
-      }),
-    ).resolves.toMatchObject({
-      added: true,
-      path: "settings.html",
-    });
-
-    await expect(
-      workspaceStore.readProjectWorkspaceFile("project-1", "settings.html"),
-    ).resolves.toContain(
-      "<style data-hjdesign-approved-cdn=\"true\">\n@import url('https://cdn.example.com/font.css');\n</style>",
-    );
-  });
-
-  it("preserves approved CDN tags when index.html is overwritten", async () => {
-    const workspaceStore = await createWorkspaceStore();
-    await createProject(workspaceStore);
-    await workspaceStore.writeProjectWorkspaceFile(
-      "project-1",
-      "index.html",
-      "<!doctype html><html><head></head><body></body></html>",
-    );
-    const agent = new AiSdkDesignPageAgent(workspaceStore);
-    aiMocks.generate.mockResolvedValueOnce({ text: "" });
-
-    await agent.generateProjectOutput(buildInput());
-
-    const config = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
-      tools: {
-        addCdnResource: {
-          execute: (input: {
-            resourceType: "script" | "style-import" | "stylesheet";
-            url: string;
-          }) => Promise<unknown>;
-        };
-        write: {
-          execute: (input: { content: string; path: string }) => Promise<unknown>;
-        };
-      };
-    };
-    await config.tools.addCdnResource.execute({
-      resourceType: "script",
-      url: "https://cdn.example.com/approved.js",
-    });
-    await config.tools.write.execute({
-      content:
-        "<!doctype html><html><head><title>Next</title></head><body><main>Updated</main></body></html>",
-      path: "index.html",
-    });
-
-    const html = await workspaceStore.readProjectWorkspaceFile(
-      "project-1",
-      "index.html",
-    );
-    expect(html).toContain("<main>Updated</main>");
-    expect(html).toContain(
-      '<script src="https://cdn.example.com/approved.js" data-hjdesign-approved-cdn="true"></script>',
-    );
-  });
-
-  it("rejects direct unapproved CDN additions through write", async () => {
+  it("rejects unconfigured CDN additions through write", async () => {
     const workspaceStore = await createWorkspaceStore();
     await createProject(workspaceStore);
     const agent = new AiSdkDesignPageAgent(workspaceStore);
@@ -935,10 +753,10 @@ describe("AiSdkDesignPageAgent", () => {
           '<!doctype html><html><head><link rel="stylesheet" href="https://cdn.example.com/raw.css"></head><body></body></html>',
         path: "index.html",
       }),
-    ).rejects.toThrow("must be approved with addCdnResource");
+    ).rejects.toThrow("can only use CDN resources configured in settings");
   });
 
-  it("rejects direct unapproved CDN additions through edit", async () => {
+  it("rejects unconfigured CDN additions through edit", async () => {
     const workspaceStore = await createWorkspaceStore();
     await createProject(workspaceStore);
     await workspaceStore.writeProjectWorkspaceFile(
@@ -969,10 +787,10 @@ describe("AiSdkDesignPageAgent", () => {
         oldString: "</body>",
         path: "index.html",
       }),
-    ).rejects.toThrow("must be approved with addCdnResource");
+    ).rejects.toThrow("can only use CDN resources configured in settings");
   });
 
-  it("rejects direct unapproved CSS imports through write", async () => {
+  it("rejects unconfigured CSS imports through write", async () => {
     const workspaceStore = await createWorkspaceStore();
     await createProject(workspaceStore);
     const agent = new AiSdkDesignPageAgent(workspaceStore);
@@ -993,7 +811,7 @@ describe("AiSdkDesignPageAgent", () => {
           "<!doctype html><html><head><style>@import url('https://cdn.example.com/raw-font.css');</style></head><body></body></html>",
         path: "index.html",
       }),
-    ).rejects.toThrow("must be approved with addCdnResource");
+    ).rejects.toThrow("can only use CDN resources configured in settings");
   });
 
   it("allows configured CDN additions through write", async () => {
@@ -1020,6 +838,39 @@ describe("AiSdkDesignPageAgent", () => {
     ).resolves.toMatchObject({
       path: "index.html",
     });
+  });
+
+  it("rejects existing unconfigured CDN tags on later HTML edits", async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    await workspaceStore.writeProjectWorkspaceFile(
+      "project-1",
+      "index.html",
+      '<!doctype html><html><head><script src="https://cdn.example.com/legacy.js" data-hjdesign-approved-cdn="true"></script></head><body><main>Old</main></body></html>',
+    );
+    const agent = new AiSdkDesignPageAgent(workspaceStore);
+    aiMocks.generate.mockResolvedValueOnce({ text: "" });
+
+    await agent.generateProjectOutput(buildInput());
+
+    const config = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
+      tools: {
+        edit: {
+          execute: (input: {
+            newString: string;
+            oldString: string;
+            path: string;
+          }) => Promise<unknown>;
+        };
+      };
+    };
+    await expect(
+      config.tools.edit.execute({
+        newString: "New",
+        oldString: "Old",
+        path: "index.html",
+      }),
+    ).rejects.toThrow("can only use CDN resources configured in settings");
   });
 
   it("normalizes model-chosen font and Tailwind CDNs to configured CDNs through write", async () => {
@@ -1103,77 +954,6 @@ describe("AiSdkDesignPageAgent", () => {
     });
   });
 
-  it("does not add the same CDN URL twice", async () => {
-    const workspaceStore = await createWorkspaceStore();
-    await createProject(workspaceStore);
-    await workspaceStore.writeProjectWorkspaceFile(
-      "project-1",
-      "index.html",
-      '<!doctype html><html><head><link rel="stylesheet" href="https://cdn.example.com/app.css"></head><body></body></html>',
-    );
-    const agent = new AiSdkDesignPageAgent(workspaceStore);
-    aiMocks.generate.mockResolvedValueOnce({ text: "" });
-
-    await agent.generateProjectOutput(buildInput());
-
-    const config = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
-      tools: {
-        addCdnResource: {
-          execute: (input: {
-            resourceType: "script" | "style-import" | "stylesheet";
-            url: string;
-          }) => Promise<unknown>;
-        };
-      };
-    };
-    await expect(
-      config.tools.addCdnResource.execute({
-        resourceType: "stylesheet",
-        url: "https://cdn.example.com/app.css",
-      }),
-    ).resolves.toMatchObject({
-      added: false,
-      reason: "already-exists",
-    });
-
-    const html = await workspaceStore.readProjectWorkspaceFile(
-      "project-1",
-      "index.html",
-    );
-    expect(html.match(/cdn\.example\.com\/app\.css/g)).toHaveLength(1);
-  });
-
-  it("rejects non-HTTPS CDN URLs", async () => {
-    const workspaceStore = await createWorkspaceStore();
-    await createProject(workspaceStore);
-    await workspaceStore.writeProjectWorkspaceFile(
-      "project-1",
-      "index.html",
-      "<!doctype html><html><head></head><body></body></html>",
-    );
-    const agent = new AiSdkDesignPageAgent(workspaceStore);
-    aiMocks.generate.mockResolvedValueOnce({ text: "" });
-
-    await agent.generateProjectOutput(buildInput());
-
-    const config = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
-      tools: {
-        addCdnResource: {
-          execute: (input: {
-            resourceType: "script" | "style-import" | "stylesheet";
-            url: string;
-          }) => Promise<unknown>;
-        };
-      };
-    };
-    await expect(
-      config.tools.addCdnResource.execute({
-        resourceType: "script",
-        url: "http://cdn.example.com/app.js",
-      }),
-    ).rejects.toThrow("CDN URL must use HTTPS");
-  });
-
   it("builds instructions from the core markdown prompt and dynamic Project Output prompt", async () => {
     const workspaceStore = await createWorkspaceStore();
     await createProject(workspaceStore);
@@ -1211,18 +991,27 @@ describe("AiSdkDesignPageAgent", () => {
     );
     expect(config.instructions).toContain("semantic `.html` file");
     expect(config.instructions).toContain("do not overwrite `index.html`");
-    expect(config.instructions).toContain("Only add external CDNs through");
+    expect(config.instructions).toContain(
+      "Only use resource CDNs that already exist in settings",
+    );
     expect(config.instructions).toContain("Configured Font");
     expect(config.instructions).toContain("Configured Icons");
-    expect(config.instructions).toContain("https://cdn.example.com/font.css");
+    expect(config.instructions).toContain("Only use configured font libraries or system fonts");
     expect(config.instructions).toContain(
-      "Tailwind CSS: disabled; CDN=https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
+      "Only use configured icon libraries or inline SVG icons",
     );
+    expect(config.instructions).toContain("Tailwind CSS: unavailable");
     expect(config.instructions).toContain(
       "Use regular inline CSS as the primary styling method",
     );
-    expect(config.instructions).toContain("preserve any existing");
     expect(config.instructions).toContain("`index.html`");
+    expect(config.instructions).not.toContain("https://cdn.example.com/font.css");
+    expect(config.instructions).not.toContain(
+      "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
+    );
+    expect(config.instructions).not.toContain("approval");
+    expect(config.instructions).not.toContain("addCdnResource");
+    expect(config.instructions).not.toContain("must use Tailwind");
     expect(config.instructions).not.toContain(
       "When the user expects a previewable page, write or update `index.html`",
     );
@@ -1236,7 +1025,7 @@ describe("AiSdkDesignPageAgent", () => {
     });
   });
 
-  it("instructs the agent to use Tailwind when enabled", async () => {
+  it("instructs the agent that Tailwind is available when enabled", async () => {
     aiMocks.getSettings.mockResolvedValueOnce({
       resources: {
         ...defaultResources,
@@ -1256,15 +1045,14 @@ describe("AiSdkDesignPageAgent", () => {
     const config = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
       instructions: string;
     };
+    expect(config.instructions).toContain("Tailwind CSS: available");
     expect(config.instructions).toContain(
-      "Tailwind CSS: enabled; CDN=https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
+      "You may use Tailwind CSS utility classes when they help the prototype",
     );
-    expect(config.instructions).toContain(
-      "You must use Tailwind CSS utility classes for styling",
+    expect(config.instructions).not.toContain(
+      "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
     );
-    expect(config.instructions).toContain(
-      "Do not use regular CSS unless Tailwind cannot express the required behavior",
-    );
+    expect(config.instructions).not.toContain("must use Tailwind");
   });
 });
 

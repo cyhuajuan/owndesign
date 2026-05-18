@@ -8,14 +8,6 @@ export type ProjectWorkspaceToolContext = {
   workspaceStore: WorkspaceStore;
 };
 
-export type AddCdnResourceInput = {
-  crossorigin?: string;
-  integrity?: string;
-  path?: string;
-  resourceType: "script" | "style-import" | "stylesheet";
-  url: string;
-};
-
 export type CreateHtmlInput = {
   fontLibraryName?: string;
   iconLibraryName?: string;

@@ -2,7 +2,12 @@ import path from "node:path";
 
 import type { WorkspaceStore } from "@/lib/workspace-store";
 
-import type { AddCdnResourceInput } from "./types";
+type CdnResourceInput = {
+  crossorigin?: string;
+  integrity?: string;
+  resourceType: "script" | "style-import" | "stylesheet";
+  url: string;
+};
 
 export async function writeProjectWorkspaceFileWithCdnGuard(
   workspaceStore: WorkspaceStore,
@@ -79,7 +84,7 @@ export async function readProjectWorkspaceFileIfExists(
   }
 }
 
-export function buildCdnTag(input: AddCdnResourceInput) {
+export function buildCdnTag(input: CdnResourceInput) {
   const attributes = [
     'data-hjdesign-approved-cdn="true"',
     input.integrity ? `integrity="${escapeHtmlAttribute(input.integrity)}"` : "",
@@ -101,56 +106,6 @@ export function buildCdnTag(input: AddCdnResourceInput) {
   return `<script src="${url}"${suffix}></script>`;
 }
 
-export function buildEmptyIndexHtml() {
-  return [
-    "<!doctype html>",
-    "<html>",
-    "<head>",
-    '  <meta charset="utf-8">',
-    '  <meta name="viewport" content="width=device-width, initial-scale=1">',
-    "  <title>HJDesign Preview</title>",
-    "</head>",
-    "<body>",
-    "</body>",
-    "</html>",
-    "",
-  ].join("\n");
-}
-
-export function insertBeforeClosingTag(
-  html: string,
-  closingTag: string,
-  tag: string,
-  fallback: "append" | "prepend",
-) {
-  const index = html.toLowerCase().lastIndexOf(closingTag);
-  const insertion = `  ${tag}\n`;
-
-  if (index === -1) {
-    return fallback === "prepend"
-      ? `${insertion}${html}`
-      : `${html}${html.endsWith("\n") ? "" : "\n"}${tag}\n`;
-  }
-
-  return `${html.slice(0, index)}${insertion}${html.slice(index)}`;
-}
-
-export function parseHttpsCdnUrl(rawUrl: string) {
-  let url: URL;
-
-  try {
-    url = new URL(rawUrl);
-  } catch {
-    throw new Error(`CDN URL must be a valid HTTPS URL: ${rawUrl}`);
-  }
-
-  if (url.protocol !== "https:") {
-    throw new Error(`CDN URL must use HTTPS: ${rawUrl}`);
-  }
-
-  return url;
-}
-
 async function guardIndexHtmlCdnChanges(
   workspaceStore: WorkspaceStore,
   projectId: string,
@@ -162,34 +117,26 @@ async function guardIndexHtmlCdnChanges(
     return content;
   }
 
-  const existingHtml =
-    (await readProjectWorkspaceFileIfExists(
-      workspaceStore,
-      projectId,
-      relativePath,
-    )) ?? "";
   const normalizedContent = normalizeConfiguredResourceCdnRefs(
     content,
     approvedCdnUrls,
   );
-  const approvedCdnTags = extractApprovedCdnTags(existingHtml);
-  const approvedUrls = new Set([
-    ...approvedCdnTags.map(({ url }) => url),
-    ...approvedCdnUrls.map(normalizeHttpsUrl).filter(Boolean),
-  ]);
+  const approvedUrls = new Set(
+    approvedCdnUrls.map(normalizeHttpsUrl).filter(Boolean),
+  );
   const unapprovedRefs = extractExternalCdnRefs(normalizedContent).filter(
     ({ url }) => !approvedUrls.has(url),
   );
 
   if (unapprovedRefs.length > 0) {
     throw new Error(
-      `External CDN resources in HTML files must be approved with addCdnResource first: ${unapprovedRefs
+      `HTML files can only use CDN resources configured in settings: ${unapprovedRefs
         .map(({ url }) => url)
         .join(", ")}`,
     );
   }
 
-  return mergeMissingApprovedCdnTags(normalizedContent, approvedCdnTags);
+  return normalizedContent;
 }
 
 function replaceInContent(
@@ -254,12 +201,6 @@ function countOccurrences(content: string, needle: string) {
   return content.split(needle).length - 1;
 }
 
-function extractApprovedCdnTags(html: string) {
-  return extractCdnTags(html).filter(({ tag }) =>
-    /data-hjdesign-approved-cdn\s*=\s*["']?true["']?/i.test(tag),
-  );
-}
-
 function extractExternalCdnRefs(html: string) {
   return extractCdnTags(html).map(({ resourceType, url }) => ({
     resourceType,
@@ -270,7 +211,7 @@ function extractExternalCdnRefs(html: string) {
 function extractCdnTags(html: string) {
   const refs: Array<{
     rawUrl: string;
-    resourceType: AddCdnResourceInput["resourceType"];
+    resourceType: CdnResourceInput["resourceType"];
     tag: string;
     url: string;
   }> = [];
@@ -330,7 +271,9 @@ function normalizeConfiguredResourceCdnRefs(
   html: string,
   approvedCdnUrls: string[],
 ) {
-  const approvedUrls = approvedCdnUrls.map(normalizeHttpsUrl).filter(Boolean);
+  const approvedUrls = approvedCdnUrls
+    .map(normalizeHttpsUrl)
+    .filter((url): url is string => Boolean(url));
   const configuredFontCdn = approvedUrls.find(isGoogleFontsCss2Url);
   const configuredTailwindCdn = approvedUrls.find(isTailwindCdnUrl);
   let updatedHtml = html;
@@ -403,50 +346,6 @@ function isTailwindCdnUrl(value: string) {
   } catch {
     return false;
   }
-}
-
-function mergeMissingApprovedCdnTags(
-  html: string,
-  approvedCdnTags: Array<{
-    resourceType: AddCdnResourceInput["resourceType"];
-    tag: string;
-    url: string;
-  }>,
-) {
-  let updatedHtml = html;
-
-  for (const approvedCdnTag of approvedCdnTags) {
-    const existingTag = extractCdnTags(updatedHtml).find(
-      ({ url }) => url === approvedCdnTag.url,
-    );
-
-    if (existingTag?.tag.includes('data-hjdesign-approved-cdn="true"')) {
-      continue;
-    }
-
-    if (existingTag) {
-      updatedHtml = updatedHtml.replace(existingTag.tag, approvedCdnTag.tag);
-      continue;
-    }
-
-    updatedHtml =
-      approvedCdnTag.resourceType === "stylesheet" ||
-      approvedCdnTag.resourceType === "style-import"
-      ? insertBeforeClosingTag(
-          updatedHtml,
-          "</head>",
-          approvedCdnTag.tag,
-          "prepend",
-        )
-      : insertBeforeClosingTag(
-          updatedHtml,
-          "</body>",
-          approvedCdnTag.tag,
-          "append",
-        );
-  }
-
-  return updatedHtml;
 }
 
 function getHtmlAttribute(tag: string, name: string) {

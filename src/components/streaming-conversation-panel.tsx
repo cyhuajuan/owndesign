@@ -128,6 +128,7 @@ export function StreamingConversationPanel({
     transport,
   });
   const announcedToolOutputs = useRef(new Set<string>());
+  const hasScannedInitialToolOutputs = useRef(false);
   const isGenerating = status === "submitted" || status === "streaming";
   const canSend = Boolean(selectedModel) && !isGenerating;
   const handleModelSelect = useCallback(
@@ -173,28 +174,33 @@ export function StreamingConversationPanel({
   }, []);
 
   useEffect(() => {
-    for (const message of messages) {
-      for (const part of message.parts) {
-        if (
-          !isProjectWorkspaceMutationToolPart(part) ||
-          part.state !== "output-available"
-        ) {
-          continue;
-        }
+    announcedToolOutputs.current.clear();
+    hasScannedInitialToolOutputs.current = false;
+  }, [conversationId, projectId]);
 
-        if (announcedToolOutputs.current.has(part.toolCallId)) {
-          continue;
-        }
+  useEffect(() => {
+    const latestAssistantMessage = getLatestAssistantMessage(messages);
+    let messagesToScan = messages;
 
-        announcedToolOutputs.current.add(part.toolCallId);
-        window.dispatchEvent(
-          new CustomEvent("hjdesign:project-output-updated", {
-            detail: { projectId },
-          }),
-        );
-      }
+    if (hasScannedInitialToolOutputs.current) {
+      messagesToScan =
+        latestAssistantMessage === undefined ? [] : [latestAssistantMessage];
     }
-  }, [messages, projectId]);
+
+    hasScannedInitialToolOutputs.current = true;
+
+    for (const message of messagesToScan) {
+      if (!message) {
+        continue;
+      }
+
+      announceProjectWorkspaceMutationOutputs(
+        message,
+        projectId,
+        announcedToolOutputs.current,
+      );
+    }
+  }, [conversationId, messages, projectId]);
 
   return (
     <>
@@ -550,9 +556,15 @@ function ToolPartView({
 }: {
   part: ToolLikePart;
 }) {
+  const [isOpen, setIsOpen] = useState(false);
+
   return (
     <div className="w-full space-y-2">
-      <Tool className="mb-0 w-full bg-background text-sm" defaultOpen={false}>
+      <Tool
+        className="mb-0 w-full bg-background text-sm"
+        onOpenChange={setIsOpen}
+        open={isOpen}
+      >
         {part.type === "dynamic-tool" ? (
           <ToolHeader
             state={part.state}
@@ -562,15 +574,53 @@ function ToolPartView({
         ) : (
           <ToolHeader state={part.state} type={part.type} />
         )}
-        <ToolContent>
-          <ToolInput input={part.input} />
-          {part.output !== undefined || part.errorText ? (
-            <ToolOutput errorText={part.errorText} output={part.output} />
-          ) : null}
-        </ToolContent>
+        {isOpen ? (
+          <ToolContent>
+            <ToolInput input={part.input} />
+            {part.output !== undefined || part.errorText ? (
+              <ToolOutput errorText={part.errorText} output={part.output} />
+            ) : null}
+          </ToolContent>
+        ) : null}
       </Tool>
     </div>
   );
+}
+
+function getLatestAssistantMessage(messages: UIMessage[]) {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index]?.role === "assistant") {
+      return messages[index];
+    }
+  }
+
+  return undefined;
+}
+
+function announceProjectWorkspaceMutationOutputs(
+  message: UIMessage,
+  projectId: string,
+  announcedToolOutputs: Set<string>,
+) {
+  for (const part of message.parts) {
+    if (
+      !isProjectWorkspaceMutationToolPart(part) ||
+      part.state !== "output-available"
+    ) {
+      continue;
+    }
+
+    if (announcedToolOutputs.has(part.toolCallId)) {
+      continue;
+    }
+
+    announcedToolOutputs.add(part.toolCallId);
+    window.dispatchEvent(
+      new CustomEvent("hjdesign:project-output-updated", {
+        detail: { projectId },
+      }),
+    );
+  }
 }
 
 function isProjectWorkspaceMutationToolPart(part: unknown): part is ToolLikePart {

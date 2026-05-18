@@ -18,6 +18,12 @@ function buildLongString(prefix: string, tail = "-hidden-tail") {
   return prefix.repeat(TOOL_DISPLAY_STRING_LIMIT) + tail;
 }
 
+function getProjectOutputUpdatedEvents(dispatchEventSpy: ReturnType<typeof vi.spyOn>) {
+  return dispatchEventSpy.mock.calls.filter(
+    ([event]) => event.type === "hjdesign:project-output-updated",
+  );
+}
+
 vi.mock("@ai-sdk/react", () => ({
   useChat: vi.fn(),
 }));
@@ -536,6 +542,177 @@ describe("MessageParts", () => {
         type: "hjdesign:project-output-updated",
       }),
     );
+    dispatchEventSpy.mockRestore();
+  });
+
+  it("does not dispatch duplicate preview refreshes for the same completed tool", () => {
+    const dispatchEventSpy = vi.spyOn(window, "dispatchEvent");
+    const chatState = {
+      error: undefined,
+      messages: [
+        {
+          id: "assistant-1",
+          parts: [
+            {
+              input: { path: "index.html" },
+              output: { path: "index.html", replacements: 1 },
+              state: "output-available",
+              toolCallId: "call-1",
+              type: "tool-edit",
+            },
+          ],
+          role: "assistant",
+        },
+      ],
+      addToolApprovalResponse: vi.fn(),
+      sendMessage: vi.fn(),
+      status: "ready",
+    } as unknown as ReturnType<typeof useChat>;
+    vi.mocked(useChat).mockReturnValue(chatState);
+
+    const { rerender } = render(
+      <StreamingConversationPanel
+        conversationId="conversation-1"
+        initialMessages={[]}
+        projectId="project-1"
+      />,
+    );
+
+    rerender(
+      <StreamingConversationPanel
+        conversationId="conversation-1"
+        initialMessages={[]}
+        projectId="project-1"
+      />,
+    );
+
+    expect(getProjectOutputUpdatedEvents(dispatchEventSpy)).toHaveLength(1);
+    dispatchEventSpy.mockRestore();
+  });
+
+  it("only scans the latest assistant message after the initial tool scan", () => {
+    const dispatchEventSpy = vi.spyOn(window, "dispatchEvent");
+    vi.mocked(useChat).mockReturnValue({
+      error: undefined,
+      messages: [
+        {
+          id: "assistant-1",
+          parts: [
+            {
+              input: { path: "index.html" },
+              output: { path: "index.html", replacements: 1 },
+              state: "output-available",
+              toolCallId: "call-1",
+              type: "tool-edit",
+            },
+          ],
+          role: "assistant",
+        },
+      ],
+      addToolApprovalResponse: vi.fn(),
+      sendMessage: vi.fn(),
+      status: "ready",
+    } as unknown as ReturnType<typeof useChat>);
+
+    const { rerender } = render(
+      <StreamingConversationPanel
+        conversationId="conversation-1"
+        initialMessages={[]}
+        projectId="project-1"
+      />,
+    );
+
+    vi.mocked(useChat).mockReturnValue({
+      error: undefined,
+      messages: [
+        {
+          id: "assistant-1",
+          parts: [
+            {
+              input: { path: "index.html" },
+              output: { path: "index.html", replacements: 1 },
+              state: "output-available",
+              toolCallId: "call-1",
+              type: "tool-edit",
+            },
+            {
+              input: { path: "ignored.html" },
+              output: { path: "ignored.html", replacements: 1 },
+              state: "output-available",
+              toolCallId: "call-ignored",
+              type: "tool-edit",
+            },
+          ],
+          role: "assistant",
+        },
+        {
+          id: "assistant-2",
+          parts: [
+            {
+              text: "更新完成。",
+              type: "text",
+            },
+          ],
+          role: "assistant",
+        },
+      ],
+      addToolApprovalResponse: vi.fn(),
+      sendMessage: vi.fn(),
+      status: "ready",
+    } as unknown as ReturnType<typeof useChat>);
+
+    rerender(
+      <StreamingConversationPanel
+        conversationId="conversation-1"
+        initialMessages={[]}
+        projectId="project-1"
+      />,
+    );
+
+    vi.mocked(useChat).mockReturnValue({
+      error: undefined,
+      messages: [
+        {
+          id: "assistant-1",
+          parts: [
+            {
+              input: { path: "index.html" },
+              output: { path: "index.html", replacements: 1 },
+              state: "output-available",
+              toolCallId: "call-1",
+              type: "tool-edit",
+            },
+          ],
+          role: "assistant",
+        },
+        {
+          id: "assistant-2",
+          parts: [
+            {
+              input: { path: "latest.html" },
+              output: { path: "latest.html", replacements: 1 },
+              state: "output-available",
+              toolCallId: "call-latest",
+              type: "tool-edit",
+            },
+          ],
+          role: "assistant",
+        },
+      ],
+      addToolApprovalResponse: vi.fn(),
+      sendMessage: vi.fn(),
+      status: "ready",
+    } as unknown as ReturnType<typeof useChat>);
+
+    rerender(
+      <StreamingConversationPanel
+        conversationId="conversation-1"
+        initialMessages={[]}
+        projectId="project-1"
+      />,
+    );
+
+    expect(getProjectOutputUpdatedEvents(dispatchEventSpy)).toHaveLength(2);
     dispatchEventSpy.mockRestore();
   });
 

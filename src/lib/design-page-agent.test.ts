@@ -1260,7 +1260,10 @@ describe("AiSdkDesignPageAgent", () => {
       "Tailwind CSS: enabled; CDN=https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
     );
     expect(config.instructions).toContain(
-      "Use Tailwind utility classes as the primary styling method",
+      "You must use Tailwind CSS utility classes for styling",
+    );
+    expect(config.instructions).toContain(
+      "Do not use regular CSS unless Tailwind cannot express the required behavior",
     );
   });
 });

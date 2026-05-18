@@ -220,7 +220,7 @@ export function buildResourcePolicyPrompt(resources: ResourceSettings) {
     "Configured icon libraries:",
     iconLines.length ? iconLines.join("\n") : "- none",
     resources.tailwind.enabled
-      ? `Tailwind CSS: enabled; CDN=${tailwindCdn}; tag=${inferTailwindResourceType(tailwindCdn)}. Use Tailwind utility classes as the primary styling method instead of regular CSS. Only add minimal CSS for browser gaps or third-party adjustments.`
+      ? `Tailwind CSS: enabled; CDN=${tailwindCdn}; tag=${inferTailwindResourceType(tailwindCdn)}. You must use Tailwind CSS utility classes for styling. Do not use regular CSS unless Tailwind cannot express the required behavior, such as browser gaps or third-party adjustments; keep any regular CSS minimal and justified.`
       : `Tailwind CSS: disabled; CDN=${tailwindCdn}. Use regular inline CSS as the primary styling method.`,
     "Configured resource CDN URLs are pre-approved and do not need user approval. Other external CDN URLs still need approval through `addCdnResource`.",
   ].join("\n");

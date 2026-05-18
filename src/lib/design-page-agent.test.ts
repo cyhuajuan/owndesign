@@ -84,10 +84,6 @@ const defaultResources = {
       isDefault: true,
     },
   ],
-  tailwind: {
-    enabled: false,
-    cdnUrl: "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
-  },
 };
 
 beforeEach(() => {
@@ -281,7 +277,6 @@ describe("AiSdkDesignPageAgent", () => {
         name: "Configured Icons",
       },
       path: "index.html",
-      tailwindEnabled: false,
       title: "CRM Dashboard",
     });
 
@@ -297,45 +292,7 @@ describe("AiSdkDesignPageAgent", () => {
     expect(html).not.toContain("tailwindcss");
   });
 
-  it("creates missing HTML with Tailwind when it is enabled in settings", async () => {
-    aiMocks.getSettings.mockResolvedValueOnce({
-      resources: {
-        ...defaultResources,
-        tailwind: {
-          enabled: true,
-          cdnUrl: "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
-        },
-      },
-    });
-    const workspaceStore = await createWorkspaceStore();
-    await createProject(workspaceStore);
-    const agent = new AiSdkDesignPageAgent(workspaceStore);
-    aiMocks.generate.mockResolvedValueOnce({ text: "" });
-
-    await agent.generateProjectOutput(buildInput());
-
-    const config = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
-      tools: {
-        createHtml: {
-          execute: (input: { path: string }) => Promise<unknown>;
-        };
-      };
-    };
-    await expect(
-      config.tools.createHtml.execute({ path: "index.html" }),
-    ).resolves.toMatchObject({
-      path: "index.html",
-      tailwindEnabled: true,
-    });
-
-    const html = await workspaceStore.readProjectWorkspaceFile(
-      "project-1",
-      "index.html",
-    );
-    expect(html).toContain("https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4");
-  });
-
-  it("creates HTML with explicit resource selections and Tailwind", async () => {
+  it("creates HTML with explicit resource selections", async () => {
     aiMocks.getSettings.mockResolvedValueOnce({
       resources: {
         fontLibraries: [
@@ -366,10 +323,6 @@ describe("AiSdkDesignPageAgent", () => {
             isDefault: false,
           },
         ],
-        tailwind: {
-          enabled: false,
-          cdnUrl: "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
-        },
       },
     });
     const workspaceStore = await createWorkspaceStore();
@@ -386,7 +339,6 @@ describe("AiSdkDesignPageAgent", () => {
             fontLibraryName?: string;
             iconLibraryName?: string;
             path: string;
-            tailwindEnabled?: boolean;
           }) => Promise<unknown>;
         };
       };
@@ -396,7 +348,6 @@ describe("AiSdkDesignPageAgent", () => {
         fontLibraryName: "Display Font",
         iconLibraryName: "Font Awesome",
         path: "pages/detail.html",
-        tailwindEnabled: true,
       }),
     ).resolves.toMatchObject({
       fontLibrary: { cdn: "", name: "Display Font" },
@@ -405,7 +356,6 @@ describe("AiSdkDesignPageAgent", () => {
         name: "Font Awesome",
       },
       path: "pages/detail.html",
-      tailwindEnabled: true,
     });
 
     const html = await workspaceStore.readProjectWorkspaceFile(
@@ -415,19 +365,10 @@ describe("AiSdkDesignPageAgent", () => {
     expect(html).not.toContain("default-font.css");
     expect(html).not.toContain("Display Font");
     expect(html).toContain("https://cdn.example.com/font-awesome.css");
-    expect(html).toContain("https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4");
+    expect(html).not.toContain("tailwindcss");
   });
 
   it("allows explicit resource disabling during HTML creation", async () => {
-    aiMocks.getSettings.mockResolvedValueOnce({
-      resources: {
-        ...defaultResources,
-        tailwind: {
-          enabled: true,
-          cdnUrl: "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
-        },
-      },
-    });
     const workspaceStore = await createWorkspaceStore();
     await createProject(workspaceStore);
     const agent = new AiSdkDesignPageAgent(workspaceStore);
@@ -442,7 +383,6 @@ describe("AiSdkDesignPageAgent", () => {
             fontLibraryName?: string;
             iconLibraryName?: string;
             path: string;
-            tailwindEnabled?: boolean;
           }) => Promise<unknown>;
         };
       };
@@ -451,7 +391,6 @@ describe("AiSdkDesignPageAgent", () => {
       fontLibraryName: "",
       iconLibraryName: "",
       path: "index.html",
-      tailwindEnabled: false,
     });
 
     const html = await workspaceStore.readProjectWorkspaceFile(
@@ -873,11 +812,9 @@ describe("AiSdkDesignPageAgent", () => {
     ).rejects.toThrow("can only use CDN resources configured in settings");
   });
 
-  it("normalizes model-chosen font and Tailwind CDNs to configured CDNs through write", async () => {
+  it("normalizes model-chosen Google Fonts CDN to the configured CDN through write", async () => {
     const configuredFontCdn =
       "https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Noto+Sans+SC:wght@100..900&display=swap";
-    const configuredTailwindCdn =
-      "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4";
     aiMocks.getSettings.mockResolvedValueOnce({
       resources: {
         ...defaultResources,
@@ -889,10 +826,6 @@ describe("AiSdkDesignPageAgent", () => {
             isDefault: true,
           },
         ],
-        tailwind: {
-          enabled: true,
-          cdnUrl: configuredTailwindCdn,
-        },
       },
     });
     const workspaceStore = await createWorkspaceStore();
@@ -912,7 +845,7 @@ describe("AiSdkDesignPageAgent", () => {
     await expect(
       config.tools.write.execute({
         content:
-          "<!doctype html><html><head><script src=\"https://cdn.tailwindcss.com/\"></script><style>@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Noto+Sans+SC:wght@100..900&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap');</style></head><body></body></html>",
+          "<!doctype html><html><head><style>@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Noto+Sans+SC:wght@100..900&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap');</style></head><body></body></html>",
         path: "index.html",
       }),
     ).resolves.toMatchObject({
@@ -923,10 +856,39 @@ describe("AiSdkDesignPageAgent", () => {
       "project-1",
       "index.html",
     );
-    expect(html).toContain(configuredTailwindCdn);
     expect(html).toContain(configuredFontCdn);
-    expect(html).not.toContain("https://cdn.tailwindcss.com/");
     expect(html).not.toContain("Playfair+Display");
+  });
+
+  it("rejects Tailwind CDN additions through write", async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    const agent = new AiSdkDesignPageAgent(workspaceStore);
+    aiMocks.generate.mockResolvedValueOnce({ text: "" });
+
+    await agent.generateProjectOutput(buildInput());
+
+    const config = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
+      tools: {
+        write: {
+          execute: (input: { content: string; path: string }) => Promise<unknown>;
+        };
+      };
+    };
+    await expect(
+      config.tools.write.execute({
+        content:
+          '<!doctype html><html><head><script src="https://cdn.tailwindcss.com/"></script></head><body></body></html>',
+        path: "index.html",
+      }),
+    ).rejects.toThrow("can only use CDN resources configured in settings");
+    await expect(
+      config.tools.write.execute({
+        content:
+          '<!doctype html><html><head><script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script></head><body></body></html>',
+        path: "index.html",
+      }),
+    ).rejects.toThrow("can only use CDN resources configured in settings");
   });
 
   it("does not apply CDN guards to non-html files", async () => {
@@ -1000,18 +962,15 @@ describe("AiSdkDesignPageAgent", () => {
     expect(config.instructions).toContain(
       "Only use configured icon libraries or inline SVG icons",
     );
-    expect(config.instructions).toContain("Tailwind CSS: unavailable");
     expect(config.instructions).toContain(
       "Use regular inline CSS as the primary styling method",
     );
     expect(config.instructions).toContain("`index.html`");
     expect(config.instructions).not.toContain("https://cdn.example.com/font.css");
-    expect(config.instructions).not.toContain(
-      "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
-    );
+    expect(config.instructions).not.toContain("Tailwind");
+    expect(config.instructions).not.toContain("tailwindcss");
     expect(config.instructions).not.toContain("approval");
     expect(config.instructions).not.toContain("addCdnResource");
-    expect(config.instructions).not.toContain("must use Tailwind");
     expect(config.instructions).not.toContain(
       "When the user expects a previewable page, write or update `index.html`",
     );
@@ -1025,35 +984,6 @@ describe("AiSdkDesignPageAgent", () => {
     });
   });
 
-  it("instructs the agent that Tailwind is available when enabled", async () => {
-    aiMocks.getSettings.mockResolvedValueOnce({
-      resources: {
-        ...defaultResources,
-        tailwind: {
-          enabled: true,
-          cdnUrl: "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
-        },
-      },
-    });
-    const workspaceStore = await createWorkspaceStore();
-    await createProject(workspaceStore);
-    const agent = new AiSdkDesignPageAgent(workspaceStore);
-    aiMocks.generate.mockResolvedValueOnce({ text: "" });
-
-    await agent.generateProjectOutput(buildInput());
-
-    const config = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
-      instructions: string;
-    };
-    expect(config.instructions).toContain("Tailwind CSS: available");
-    expect(config.instructions).toContain(
-      "You may use Tailwind CSS utility classes when they help the prototype",
-    );
-    expect(config.instructions).not.toContain(
-      "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
-    );
-    expect(config.instructions).not.toContain("must use Tailwind");
-  });
 });
 
 async function createWorkspaceStore() {

@@ -35,10 +35,6 @@ describe("SettingsService", () => {
         iconLibraries: [
           expect.objectContaining({ isDefault: true, name: "Lucide Icons" }),
         ],
-        tailwind: {
-          cdnUrl: "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
-          enabled: false,
-        },
       }),
     });
   });
@@ -68,10 +64,6 @@ describe("SettingsService", () => {
         iconLibraries: [
           expect.objectContaining({ isDefault: true, name: "Lucide Icons" }),
         ],
-        tailwind: {
-          cdnUrl: "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
-          enabled: false,
-        },
       },
     });
   });
@@ -322,10 +314,6 @@ describe("SettingsService", () => {
             name: "Custom Icons",
           },
         ],
-        tailwind: {
-          cdnUrl: "https://cdn.example.com/tailwind.js",
-          enabled: true,
-        },
       },
     });
 
@@ -347,19 +335,38 @@ describe("SettingsService", () => {
             name: "Custom Icons",
           },
         ],
+      },
+    });
+    await expect(service.getPublicSettings()).resolves.toMatchObject({
+      resources: {
+        fontLibraries: [expect.objectContaining({ name: "Custom Font" })],
+        iconLibraries: [expect.objectContaining({ name: "Custom Icons" })],
+      },
+    });
+  });
+
+  it("ignores legacy Tailwind resource settings", async () => {
+    const service = await createService();
+
+    const settings = await service.updateSettings({
+      defaultModelId: null,
+      interfaceLanguage: "zh-CN",
+      modelConfigurations: [],
+      resources: {
+        fontLibraries: [],
+        iconLibraries: [],
         tailwind: {
           cdnUrl: "https://cdn.example.com/tailwind.js",
           enabled: true,
         },
       },
     });
+
+    expect(settings.resources).not.toHaveProperty("tailwind");
     await expect(service.getPublicSettings()).resolves.toMatchObject({
-      resources: {
-        tailwind: {
-          cdnUrl: "https://cdn.example.com/tailwind.js",
-          enabled: true,
-        },
-      },
+      resources: expect.not.objectContaining({
+        tailwind: expect.anything(),
+      }),
     });
   });
 
@@ -398,10 +405,6 @@ describe("SettingsService", () => {
             name: "Icon B",
           },
         ],
-        tailwind: {
-          cdnUrl: "",
-          enabled: false,
-        },
       },
     });
 
@@ -409,9 +412,7 @@ describe("SettingsService", () => {
       .toEqual([true, false]);
     expect(settings.resources.iconLibraries.map((library) => library.isDefault))
       .toEqual([true, false]);
-    expect(settings.resources.tailwind.cdnUrl).toBe(
-      "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
-    );
+    expect(settings.resources).not.toHaveProperty("tailwind");
   });
 
   it("rejects input resource libraries without names", async () => {
@@ -425,10 +426,6 @@ describe("SettingsService", () => {
         resources: {
           fontLibraries: [{ cdn: "https://cdn.example.com/font.css", name: " " }],
           iconLibraries: [],
-          tailwind: {
-            cdnUrl: "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
-            enabled: false,
-          },
         },
       }),
     ).rejects.toThrow("Resource name is required.");

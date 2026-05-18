@@ -39,10 +39,6 @@ export type ResourceLibrary = {
 export type ResourceSettings = {
   fontLibraries: ResourceLibrary[];
   iconLibraries: ResourceLibrary[];
-  tailwind: {
-    enabled: boolean;
-    cdnUrl: string;
-  };
 };
 
 export type AppSettings = {
@@ -81,10 +77,6 @@ const DEFAULT_SETTINGS: AppSettings = {
         isDefault: true,
       },
     ],
-    tailwind: {
-      enabled: false,
-      cdnUrl: "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
-    },
   },
 };
 
@@ -341,7 +333,6 @@ function parseStoredResourceSettings(value: unknown): ResourceSettings {
           .map(parseResourceLibrary)
           .filter((library): library is ResourceLibrary => Boolean(library))
       : DEFAULT_SETTINGS.resources.iconLibraries,
-    tailwind: parseTailwindSettings(value.tailwind),
   };
 }
 
@@ -360,7 +351,6 @@ function parseInputResourceSettings(
     iconLibraries: Array.isArray(value.iconLibraries)
       ? value.iconLibraries.map(parseInputResourceLibrary)
       : previous.iconLibraries,
-    tailwind: parseTailwindSettings(value.tailwind, previous.tailwind),
   };
 }
 
@@ -393,32 +383,10 @@ function parseInputResourceLibrary(value: unknown): ResourceLibrary {
   return library;
 }
 
-function parseTailwindSettings(
-  value: unknown,
-  fallback = DEFAULT_SETTINGS.resources.tailwind,
-): ResourceSettings["tailwind"] {
-  if (!isRecord(value)) {
-    return fallback;
-  }
-
-  return {
-    enabled: value.enabled === true,
-    cdnUrl:
-      asTrimmedString(value.cdnUrl) ||
-      "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
-  };
-}
-
 function normalizeResourceSettings(settings: ResourceSettings): ResourceSettings {
   return {
     fontLibraries: normalizeResourceLibraries(settings.fontLibraries),
     iconLibraries: normalizeResourceLibraries(settings.iconLibraries),
-    tailwind: {
-      enabled: settings.tailwind.enabled,
-      cdnUrl:
-        settings.tailwind.cdnUrl.trim() ||
-        "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
-    },
   };
 }
 

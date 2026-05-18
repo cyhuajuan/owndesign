@@ -552,7 +552,6 @@ describe("MessageParts", () => {
               input: { path: "index.html" },
               output: {
                 path: "index.html",
-                tailwindEnabled: false,
                 title: "HJDesign Preview",
               },
               state: "output-available",

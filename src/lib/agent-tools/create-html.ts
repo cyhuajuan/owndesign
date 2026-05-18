@@ -38,11 +38,6 @@ export function createCreateHtmlTool({
           description:
             "Relative HTML file path inside the Project Workspace, such as index.html or pages/detail.html.",
         },
-        tailwindEnabled: {
-          type: "boolean",
-          description:
-            "Optional Tailwind CSS preference. Omit to use configured settings.",
-        },
         title: {
           type: "string",
           description: "Optional document title. Defaults to HJDesign Preview.",
@@ -78,11 +73,9 @@ export function createCreateHtmlTool({
         input.iconLibraryName,
         "icon",
       );
-      const tailwindEnabled = input.tailwindEnabled ?? resources.tailwind.enabled;
       const html = buildHtmlTemplate({
         fontLibrary,
         iconLibrary,
-        tailwindCdn: tailwindEnabled ? resources.tailwind.cdnUrl.trim() : "",
         title: input.title?.trim() || DEFAULT_TITLE,
       });
 
@@ -92,7 +85,6 @@ export function createCreateHtmlTool({
         fontLibrary: formatSelectedLibrary(fontLibrary),
         iconLibrary: formatSelectedLibrary(iconLibrary),
         path: targetPath,
-        tailwindEnabled: Boolean(tailwindEnabled && resources.tailwind.cdnUrl.trim()),
         title: input.title?.trim() || DEFAULT_TITLE,
       };
     },
@@ -124,23 +116,15 @@ function selectLibrary(
 function buildHtmlTemplate({
   fontLibrary,
   iconLibrary,
-  tailwindCdn,
   title,
 }: {
   fontLibrary?: ResourceLibrary;
   iconLibrary?: ResourceLibrary;
-  tailwindCdn: string;
   title: string;
 }) {
   const headTags = [
     fontLibrary?.cdn
       ? buildCdnTag({ resourceType: "style-import", url: fontLibrary.cdn })
-      : "",
-    tailwindCdn
-      ? buildCdnTag({
-          resourceType: inferTailwindResourceType(tailwindCdn),
-          url: tailwindCdn,
-        })
       : "",
     iconLibrary?.cdn && inferIconLibraryResourceType(iconLibrary.cdn) === "stylesheet"
       ? buildCdnTag({ resourceType: "stylesheet", url: iconLibrary.cdn })
@@ -179,10 +163,6 @@ function inferIconLibraryResourceType(cdn: string): "script" | "stylesheet" {
     normalized.includes("font-awesome")
     ? "stylesheet"
     : "script";
-}
-
-function inferTailwindResourceType(cdn: string): "script" | "stylesheet" {
-  return cdn.toLowerCase().includes(".css") ? "stylesheet" : "script";
 }
 
 function isLucideLibrary(library: ResourceLibrary | undefined) {

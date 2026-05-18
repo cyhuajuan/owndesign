@@ -90,10 +90,6 @@ describe("/api/chat", () => {
           },
         ],
         iconLibraries: [],
-        tailwind: {
-          enabled: true,
-          cdnUrl: "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
-        },
       },
     });
     routeMocks.createSettingsService.mockReturnValue({
@@ -132,7 +128,7 @@ describe("/api/chat", () => {
         providerOptions: expect.objectContaining({ thinkingMode: "max" }),
         projectId: "project-1",
         resources: expect.objectContaining({
-          tailwind: expect.objectContaining({ enabled: true }),
+          fontLibraries: expect.any(Array),
         }),
       }),
     );

@@ -25,10 +25,6 @@ const defaultSettings = {
         name: "Lucide Icons",
       },
     ],
-    tailwind: {
-      cdnUrl: "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
-      enabled: false,
-    },
   },
 };
 
@@ -58,13 +54,14 @@ describe("SettingsControl", () => {
     await user.click(await screen.findByRole("button", { name: "资源管理" }));
 
     expect(screen.getAllByText("资源管理").length).toBeGreaterThan(0);
-    expect(screen.getByText("管理字体库、图标库和 CSS 框架。")).toBeInTheDocument();
+    expect(
+      screen.getByText("管理设计页面可使用的字体库和图标库。"),
+    ).toBeInTheDocument();
     expect(screen.getByText("字体库")).toBeInTheDocument();
     expect(screen.getByText("图标库")).toBeInTheDocument();
-    expect(screen.getByText("CSS 框架")).toBeInTheDocument();
     expect(screen.getByText("Google Fonts")).toBeInTheDocument();
     expect(screen.getByText("Lucide Icons")).toBeInTheDocument();
-    expect(screen.getByText("启用 Tailwind CSS")).toBeInTheDocument();
+    expect(screen.queryByText("启用 Tailwind CSS")).not.toBeInTheDocument();
   });
 
   it("adds and edits resource settings before saving", async () => {
@@ -90,18 +87,6 @@ describe("SettingsControl", () => {
     );
     await user.click(screen.getByTitle("确认添加"));
 
-    await user.click(screen.getByRole("button", { name: "启用 Tailwind CSS" }));
-    await user.clear(
-      screen.getByPlaceholderText(
-        "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
-      ),
-    );
-    await user.type(
-      screen.getByPlaceholderText(
-        "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
-      ),
-      "https://cdn.example.com/tailwind.js",
-    );
     await user.click(screen.getByRole("button", { name: "保存设置" }));
 
     await waitFor(() =>
@@ -131,10 +116,7 @@ describe("SettingsControl", () => {
         }),
       ]),
     );
-    expect(payload.resources.tailwind).toEqual({
-      cdnUrl: "https://cdn.example.com/tailwind.js",
-      enabled: true,
-    });
+    expect(payload.resources).not.toHaveProperty("tailwind");
   });
 
   it("sets a resource as default and removes resources", async () => {

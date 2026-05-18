@@ -182,7 +182,7 @@ export function buildProjectOutputPrompt(outputType: ProjectOutputType) {
     "Choose the HTML target from the user's intent: edit `index.html` for home/main/landing page requests; create or edit a semantic `.html` file such as `login.html`, `settings.html`, or `pages/detail.html` for a new or named page.",
     "If no page is specified and no multi-page structure is evident, default to `index.html`; if multiple HTML files exist and the target is unclear, inspect first and ask a concise follow-up question if needed.",
     "When the target HTML file does not exist, you must call `createHtml` first instead of using `write` to create the initial HTML.",
-    "For `createHtml`, choose `path` from the user's page target. Pass `fontLibraryName`, `iconLibraryName`, or `tailwindEnabled` only when the user explicitly specifies those resource preferences; otherwise omit them so the tool reads configured defaults.",
+    "For `createHtml`, choose `path` from the user's page target. Pass `fontLibraryName` or `iconLibraryName` only when the user explicitly specifies those resource preferences; otherwise omit them so the tool reads configured defaults.",
     "After `createHtml` succeeds, use `edit` or `patch` to fill in the actual page design. For existing HTML files, use `read`, `edit`, and `patch`; do not call `createHtml`.",
     "When creating a new HTML page, do not overwrite `index.html` unless the user intent points to the home or main page.",
     "Prefer `edit` for existing files, `createHtml` for missing HTML files, `write` for non-HTML files or deliberate full overwrites, and `patch` for coordinated multi-file changes.",
@@ -214,9 +214,7 @@ export function buildResourcePolicyPrompt(resources: ResourceSettings) {
     fontLines.length ? fontLines.join("\n") : "- none",
     "Configured icon libraries:",
     iconLines.length ? iconLines.join("\n") : "- none",
-    resources.tailwind.enabled
-      ? "Tailwind CSS: available. You may use Tailwind CSS utility classes when they help the prototype, but regular inline CSS is also allowed for visual direction, custom details, and interactions."
-      : "Tailwind CSS: unavailable. Use regular inline CSS as the primary styling method.",
+    "Use regular inline CSS as the primary styling method.",
     "Do not add new CDN resources. If a needed resource is not configured, use system fonts, inline SVG, local CSS, or explain the limitation.",
   ].join("\n");
 }
@@ -225,7 +223,6 @@ export function buildApprovedCdnUrls(resources: ResourceSettings) {
   return [
     ...resources.fontLibraries.map((library) => library.cdn),
     ...resources.iconLibraries.map((library) => library.cdn),
-    resources.tailwind.enabled ? resources.tailwind.cdnUrl : "",
   ]
     .map((url) => url.trim())
     .filter(Boolean);

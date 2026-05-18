@@ -38,10 +38,6 @@ type ResourceLibrary = {
 type ResourceSettings = {
   fontLibraries: ResourceLibrary[];
   iconLibraries: ResourceLibrary[];
-  tailwind: {
-    enabled: boolean;
-    cdnUrl: string;
-  };
 };
 
 type ModelConfigurationForm = {
@@ -86,10 +82,6 @@ const DEFAULT_RESOURCES: ResourceSettings = {
       isDefault: true,
     },
   ],
-  tailwind: {
-    enabled: false,
-    cdnUrl: "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
-  },
 };
 
 export function SettingsControl() {
@@ -285,7 +277,7 @@ function ResourceSettingsSection({
     <div>
       <div className="mb-1 text-base font-semibold">资源管理</div>
       <div className="mb-6 max-w-[560px] text-[13px] leading-normal text-[#6b6b76]">
-        管理字体库、图标库和 CSS 框架。
+        管理设计页面可使用的字体库和图标库。
       </div>
 
       <ResourceGroup
@@ -307,76 +299,6 @@ function ResourceSettingsSection({
         onChange={(iconLibraries) => onChange({ ...resources, iconLibraries })}
         title="图标库"
       />
-      <div className="my-7 h-px bg-[#2a2a2e]" />
-      <div className="mb-8">
-        <div className="mb-3.5 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-sm font-semibold text-[#f0f0f2]">
-            CSS 框架
-          </div>
-        </div>
-        <div
-          className={cn(
-            "flex max-w-[480px] items-center justify-between rounded-[8px] border border-[#2a2a2e] bg-[#0a0a0b] px-4 py-3 transition-colors duration-150 hover:border-[#38383d]",
-            resources.tailwind.enabled && "rounded-b-none",
-          )}
-        >
-          <div className="flex flex-col gap-0.5">
-            <span className="text-[13px] font-medium text-[#f0f0f2]">
-              启用 Tailwind CSS
-            </span>
-            <span className="max-w-[320px] text-[11px] text-[#6b6b76]">
-              开启后，设计页面将使用 Tailwind CSS 替代原生 CSS 编写样式。
-            </span>
-          </div>
-          <button
-            aria-label="启用 Tailwind CSS"
-            aria-pressed={resources.tailwind.enabled}
-            className={cn(
-              "relative h-[22px] w-10 shrink-0 rounded-full bg-[#2a2a2e] transition-colors duration-200",
-              resources.tailwind.enabled && "bg-[#6c5ce7]",
-            )}
-            onClick={() =>
-              onChange({
-                ...resources,
-                tailwind: {
-                  ...resources.tailwind,
-                  enabled: !resources.tailwind.enabled,
-                },
-              })
-            }
-            type="button"
-          >
-            <span
-              className={cn(
-                "absolute top-0.5 left-0.5 size-[18px] rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.2)] transition-transform duration-200",
-                resources.tailwind.enabled && "translate-x-[18px]",
-              )}
-            />
-          </button>
-        </div>
-        {resources.tailwind.enabled ? (
-          <div className="flex max-w-[480px] items-center gap-2 rounded-b-[8px] border border-t-0 border-[#2a2a2e] bg-[#0a0a0b] px-4 pt-3 pb-3.5">
-            <label className="w-[70px] shrink-0 text-[11px] font-medium text-[#6b6b76]">
-              CDN 地址
-            </label>
-            <input
-              className={resourceCdnInputClass}
-              onChange={(event) =>
-                onChange({
-                  ...resources,
-                  tailwind: {
-                    ...resources.tailwind,
-                    cdnUrl: event.target.value,
-                  },
-                })
-              }
-              placeholder="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"
-              type="text"
-              value={resources.tailwind.cdnUrl}
-            />
-          </div>
-        ) : null}
-      </div>
     </div>
   );
 }

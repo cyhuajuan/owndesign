@@ -12,7 +12,6 @@ export type CreateHtmlInput = {
   fontLibraryName?: string;
   iconLibraryName?: string;
   path: string;
-  tailwindEnabled?: boolean;
   title?: string;
 };
 

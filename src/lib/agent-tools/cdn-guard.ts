@@ -275,13 +275,11 @@ function normalizeConfiguredResourceCdnRefs(
     .map(normalizeHttpsUrl)
     .filter((url): url is string => Boolean(url));
   const configuredFontCdn = approvedUrls.find(isGoogleFontsCss2Url);
-  const configuredTailwindCdn = approvedUrls.find(isTailwindCdnUrl);
   let updatedHtml = html;
 
   for (const ref of extractCdnTags(html)) {
     const replacementUrl = getConfiguredReplacementUrl(ref.url, {
       configuredFontCdn,
-      configuredTailwindCdn,
     });
 
     if (!replacementUrl || ref.url === replacementUrl) {
@@ -311,15 +309,10 @@ function getConfiguredReplacementUrl(
   url: string,
   replacements: {
     configuredFontCdn?: string;
-    configuredTailwindCdn?: string;
   },
 ) {
   if (replacements.configuredFontCdn && isGoogleFontsCss2Url(url)) {
     return replacements.configuredFontCdn;
-  }
-
-  if (replacements.configuredTailwindCdn && isTailwindCdnUrl(url)) {
-    return replacements.configuredTailwindCdn;
   }
 
   return undefined;
@@ -330,19 +323,6 @@ function isGoogleFontsCss2Url(value: string) {
     const url = new URL(value);
 
     return url.hostname === "fonts.googleapis.com" && url.pathname === "/css2";
-  } catch {
-    return false;
-  }
-}
-
-function isTailwindCdnUrl(value: string) {
-  try {
-    const url = new URL(value);
-
-    return (
-      url.hostname === "cdn.tailwindcss.com" ||
-      url.href.includes("tailwindcss")
-    );
   } catch {
     return false;
   }

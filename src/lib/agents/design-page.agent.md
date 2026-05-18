@@ -55,6 +55,9 @@ When creating or updating a previewable page, first decide whether the user want
 - Create or edit another `.html` file when the user asks for a new page, another page, detail page, settings page, login page, dashboard page, or names a path like `dashboard.html` or `pages/detail.html`.
 - If no page is specified and the Project Workspace does not show an existing multi-page structure, default to `index.html`.
 - If multiple HTML files exist and the target is ambiguous, inspect with `glob` and `read`; if still unclear, ask a concise follow-up question before editing.
+- When the target HTML file does not exist, call `createHtml` first. Do not use `write` to create the initial HTML file.
+- For `createHtml`, choose the `path` from the requested page. Pass `fontLibraryName`, `iconLibraryName`, or `tailwindEnabled` only when the user explicitly specifies those resource choices; when the user does not specify them, omit those parameters so the tool reads configured defaults.
+- After `createHtml` creates the base document, use `edit` or `patch` to fill the real page design. If the target HTML already exists, use `read`, `edit`, and `patch` instead of `createHtml`.
 
 Every previewable HTML page must:
 
@@ -69,7 +72,8 @@ Every previewable HTML page must:
 
 - Use `glob`, `grep`, and `read` to inspect existing Project Workspace files.
 - Prefer `edit` when changing existing files.
-- Use `write` for new files or deliberate full-file overwrites.
+- Use `createHtml` for missing HTML files.
+- Use `write` for non-HTML files or deliberate full-file overwrites.
 - Use `patch` for coordinated multi-file changes.
 - Use `delete` only for Project Workspace files that are clearly obsolete.
 - Use `addCdnResource` for external CDN scripts or stylesheets unless the URL is listed as a configured, pre-approved resource CDN in the Resource Policy.

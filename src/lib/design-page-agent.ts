@@ -96,6 +96,7 @@ export function createDesignPageAgent({
     tools: createProjectWorkspaceTools({
       approvedCdnUrls: buildApprovedCdnUrls(resources),
       projectId,
+      resources,
       workspaceStore,
     }),
   });
@@ -180,8 +181,11 @@ export function buildProjectOutputPrompt(outputType: ProjectOutputType) {
     "All previewable HTML files must stay inside the Project Workspace; use relative paths ending in `.html`.",
     "Choose the HTML target from the user's intent: edit `index.html` for home/main/landing page requests; create or edit a semantic `.html` file such as `login.html`, `settings.html`, or `pages/detail.html` for a new or named page.",
     "If no page is specified and no multi-page structure is evident, default to `index.html`; if multiple HTML files exist and the target is unclear, inspect first and ask a concise follow-up question if needed.",
+    "When the target HTML file does not exist, you must call `createHtml` first instead of using `write` to create the initial HTML.",
+    "For `createHtml`, choose `path` from the user's page target. Pass `fontLibraryName`, `iconLibraryName`, or `tailwindEnabled` only when the user explicitly specifies those resource preferences; otherwise omit them so the tool reads configured defaults.",
+    "After `createHtml` succeeds, use `edit` or `patch` to fill in the actual page design. For existing HTML files, use `read`, `edit`, and `patch`; do not call `createHtml`.",
     "When creating a new HTML page, do not overwrite `index.html` unless the user intent points to the home or main page.",
-    "Prefer `edit` for existing files, `write` for new files or deliberate full overwrites, and `patch` for coordinated multi-file changes.",
+    "Prefer `edit` for existing files, `createHtml` for missing HTML files, `write` for non-HTML files or deliberate full overwrites, and `patch` for coordinated multi-file changes.",
     "Only add external CDNs through `addCdnResource`, and never by raw file edits unless the URL is listed as a configured resource CDN in the Resource Policy.",
     "`write`, `edit`, and `patch` reject unapproved external CDN tags in HTML files; configured resource CDNs are pre-approved, while other CDNs require `addCdnResource` approval first.",
     "When writing HTML, preserve any existing `data-hjdesign-approved-cdn=\"true\"` CDN tags.",

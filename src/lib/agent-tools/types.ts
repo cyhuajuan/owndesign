@@ -1,8 +1,10 @@
 import type { WorkspaceStore } from "@/lib/workspace-store";
+import type { ResourceSettings } from "@/lib/settings-service";
 
 export type ProjectWorkspaceToolContext = {
   approvedCdnUrls?: string[];
   projectId: string;
+  resources: ResourceSettings;
   workspaceStore: WorkspaceStore;
 };
 
@@ -12,6 +14,14 @@ export type AddCdnResourceInput = {
   path?: string;
   resourceType: "script" | "style-import" | "stylesheet";
   url: string;
+};
+
+export type CreateHtmlInput = {
+  fontLibraryName?: string;
+  iconLibraryName?: string;
+  path: string;
+  tailwindEnabled?: boolean;
+  title?: string;
 };
 
 export type DeleteInput = {

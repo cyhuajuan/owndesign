@@ -656,6 +656,50 @@ describe("MessageParts", () => {
     dispatchEventSpy.mockRestore();
   });
 
+  it("dispatches preview refresh after createHtml output completes", () => {
+    const dispatchEventSpy = vi.spyOn(window, "dispatchEvent");
+    vi.mocked(useChat).mockReturnValue({
+      addToolApprovalResponse: vi.fn(),
+      error: undefined,
+      messages: [
+        {
+          id: "assistant-1",
+          parts: [
+            {
+              input: { path: "index.html" },
+              output: {
+                path: "index.html",
+                tailwindEnabled: false,
+                title: "HJDesign Preview",
+              },
+              state: "output-available",
+              toolCallId: "call-1",
+              type: "tool-createHtml",
+            },
+          ],
+          role: "assistant",
+        },
+      ],
+      sendMessage: vi.fn(),
+      status: "ready",
+    } as unknown as ReturnType<typeof useChat>);
+
+    render(
+      <StreamingConversationPanel
+        conversationId="conversation-1"
+        initialMessages={[]}
+        projectId="project-1"
+      />,
+    );
+
+    expect(dispatchEventSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "hjdesign:project-output-updated",
+      }),
+    );
+    dispatchEventSpy.mockRestore();
+  });
+
   it("stops streaming generation from the composer submit button", async () => {
     const user = userEvent.setup();
     const sendMessage = vi.fn();

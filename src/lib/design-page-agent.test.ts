@@ -236,6 +236,7 @@ describe("AiSdkDesignPageAgent", () => {
     };
     expect(Object.keys(config.tools).sort()).toEqual([
       "addCdnResource",
+      "createHtml",
       "delete",
       "edit",
       "glob",
@@ -272,6 +273,227 @@ describe("AiSdkDesignPageAgent", () => {
         url: "https://cdn.example.com/other.css",
       }),
     ).toBe(true);
+  });
+
+  it("creates missing HTML from configured resource defaults", async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    const agent = new AiSdkDesignPageAgent(workspaceStore);
+    aiMocks.generate.mockResolvedValueOnce({ text: "" });
+
+    await agent.generateProjectOutput(buildInput());
+
+    const config = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
+      tools: {
+        createHtml: {
+          execute: (input: {
+            path: string;
+            title?: string;
+          }) => Promise<unknown>;
+        };
+      };
+    };
+    await expect(
+      config.tools.createHtml.execute({
+        path: "index.html",
+        title: "CRM Dashboard",
+      }),
+    ).resolves.toMatchObject({
+      fontLibrary: {
+        cdn: "https://cdn.example.com/font.css",
+        name: "Configured Font",
+      },
+      iconLibrary: {
+        cdn: "https://cdn.example.com/icons.js",
+        name: "Configured Icons",
+      },
+      path: "index.html",
+      tailwindEnabled: false,
+      title: "CRM Dashboard",
+    });
+
+    const html = await workspaceStore.readProjectWorkspaceFile(
+      "project-1",
+      "index.html",
+    );
+    expect(html).toContain("<main id=\"app\"></main>");
+    expect(html).toContain("@import url('https://cdn.example.com/font.css');");
+    expect(html).toContain(
+      '<script src="https://cdn.example.com/icons.js" data-hjdesign-approved-cdn="true"></script>',
+    );
+    expect(html).not.toContain("tailwindcss");
+  });
+
+  it("creates HTML with explicit resource selections and Tailwind", async () => {
+    aiMocks.getSettings.mockResolvedValueOnce({
+      resources: {
+        fontLibraries: [
+          {
+            id: "font-1",
+            name: "Default Font",
+            cdn: "https://cdn.example.com/default-font.css",
+            isDefault: true,
+          },
+          {
+            id: "font-2",
+            name: "Display Font",
+            cdn: "",
+            isDefault: false,
+          },
+        ],
+        iconLibraries: [
+          {
+            id: "icon-1",
+            name: "Default Icons",
+            cdn: "https://cdn.example.com/default-icons.js",
+            isDefault: true,
+          },
+          {
+            id: "icon-2",
+            name: "Font Awesome",
+            cdn: "https://cdn.example.com/font-awesome.css",
+            isDefault: false,
+          },
+        ],
+        tailwind: {
+          enabled: false,
+          cdnUrl: "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
+        },
+      },
+    });
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    const agent = new AiSdkDesignPageAgent(workspaceStore);
+    aiMocks.generate.mockResolvedValueOnce({ text: "" });
+
+    await agent.generateProjectOutput(buildInput());
+
+    const config = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
+      tools: {
+        createHtml: {
+          execute: (input: {
+            fontLibraryName?: string;
+            iconLibraryName?: string;
+            path: string;
+            tailwindEnabled?: boolean;
+          }) => Promise<unknown>;
+        };
+      };
+    };
+    await expect(
+      config.tools.createHtml.execute({
+        fontLibraryName: "Display Font",
+        iconLibraryName: "Font Awesome",
+        path: "pages/detail.html",
+        tailwindEnabled: true,
+      }),
+    ).resolves.toMatchObject({
+      fontLibrary: { cdn: "", name: "Display Font" },
+      iconLibrary: {
+        cdn: "https://cdn.example.com/font-awesome.css",
+        name: "Font Awesome",
+      },
+      path: "pages/detail.html",
+      tailwindEnabled: true,
+    });
+
+    const html = await workspaceStore.readProjectWorkspaceFile(
+      "project-1",
+      "pages/detail.html",
+    );
+    expect(html).not.toContain("default-font.css");
+    expect(html).not.toContain("Display Font");
+    expect(html).toContain("https://cdn.example.com/font-awesome.css");
+    expect(html).toContain("https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4");
+  });
+
+  it("allows explicit resource disabling during HTML creation", async () => {
+    aiMocks.getSettings.mockResolvedValueOnce({
+      resources: {
+        ...defaultResources,
+        tailwind: {
+          enabled: true,
+          cdnUrl: "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
+        },
+      },
+    });
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    const agent = new AiSdkDesignPageAgent(workspaceStore);
+    aiMocks.generate.mockResolvedValueOnce({ text: "" });
+
+    await agent.generateProjectOutput(buildInput());
+
+    const config = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
+      tools: {
+        createHtml: {
+          execute: (input: {
+            fontLibraryName?: string;
+            iconLibraryName?: string;
+            path: string;
+            tailwindEnabled?: boolean;
+          }) => Promise<unknown>;
+        };
+      };
+    };
+    await config.tools.createHtml.execute({
+      fontLibraryName: "",
+      iconLibraryName: "",
+      path: "index.html",
+      tailwindEnabled: false,
+    });
+
+    const html = await workspaceStore.readProjectWorkspaceFile(
+      "project-1",
+      "index.html",
+    );
+    expect(html).not.toContain("cdn.example.com/font.css");
+    expect(html).not.toContain("cdn.example.com/icons.js");
+    expect(html).not.toContain("tailwindcss");
+  });
+
+  it("rejects invalid or existing HTML initialization targets", async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    await workspaceStore.writeProjectWorkspaceFile(
+      "project-1",
+      "index.html",
+      "<main>Existing</main>",
+    );
+    const agent = new AiSdkDesignPageAgent(workspaceStore);
+    aiMocks.generate.mockResolvedValueOnce({ text: "" });
+
+    await agent.generateProjectOutput(buildInput());
+
+    const config = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
+      tools: {
+        createHtml: {
+          execute: (input: {
+            fontLibraryName?: string;
+            iconLibraryName?: string;
+            path: string;
+          }) => Promise<unknown>;
+        };
+      };
+    };
+    await expect(
+      config.tools.createHtml.execute({ path: "index.html" }),
+    ).rejects.toThrow("already exists");
+    await expect(
+      config.tools.createHtml.execute({ path: "notes.txt" }),
+    ).rejects.toThrow("must end with .html");
+    await expect(
+      config.tools.createHtml.execute({ path: "../escape.html" }),
+    ).rejects.toThrow("escapes workspace");
+    await expect(
+      config.tools.createHtml.execute({
+        fontLibraryName: "Missing Font",
+        path: "new.html",
+      }),
+    ).rejects.toThrow("Configured font library was not found");
+    await expect(
+      workspaceStore.readProjectWorkspaceFile("project-1", "index.html"),
+    ).resolves.toBe("<main>Existing</main>");
   });
 
   it("reads files with line windows and finds workspace files with glob and grep", async () => {
@@ -980,6 +1202,13 @@ describe("AiSdkDesignPageAgent", () => {
     expect(config.instructions).toContain("first decide whether the user wants");
     expect(config.instructions).toContain("relative paths ending in `.html`");
     expect(config.instructions).toContain("default to `index.html`");
+    expect(config.instructions).toContain("must call `createHtml` first");
+    expect(config.instructions).toContain(
+      "omit them so the tool reads configured defaults",
+    );
+    expect(config.instructions).toContain(
+      "After `createHtml` succeeds, use `edit` or `patch`",
+    );
     expect(config.instructions).toContain("semantic `.html` file");
     expect(config.instructions).toContain("do not overwrite `index.html`");
     expect(config.instructions).toContain("Only add external CDNs through");

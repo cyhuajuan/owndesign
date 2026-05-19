@@ -156,4 +156,63 @@ describe("SettingsControl", () => {
       }),
     ]);
   });
+
+  it("uses fixed DeepSeek model options", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<SettingsControl />);
+
+    await user.click(screen.getByTitle("设置"));
+    await user.click(await screen.findByRole("button", { name: "AI 模型" }));
+    await user.click(screen.getByRole("button", { name: /添加模型/ }));
+
+    const providerSelect = container.querySelector("select");
+    expect(providerSelect).not.toBeNull();
+    await user.selectOptions(providerSelect!, "deepseek");
+
+    const selects = container.querySelectorAll("select");
+    const modelSelect = selects[1];
+
+    expect(modelSelect).toBeInTheDocument();
+    expect(
+      Array.from(modelSelect.options).map((option) => option.value),
+    ).toEqual(["deepseek-v4-flash", "deepseek-v4-pro"]);
+  });
+
+  it("saves OpenAI Compatible context size field", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<SettingsControl />);
+
+    await user.click(screen.getByTitle("设置"));
+    await user.click(await screen.findByRole("button", { name: "AI 模型" }));
+    await user.click(screen.getByRole("button", { name: /添加模型/ }));
+
+    const providerSelect = container.querySelector("select");
+    expect(providerSelect).not.toBeNull();
+    await user.selectOptions(providerSelect!, "openai-compatible");
+
+    expect(screen.getByText("Context Size (K)")).toBeInTheDocument();
+    await user.type(screen.getByPlaceholderText("例如 gpt-4o"), "gpt-4o");
+    const textInputs = container.querySelectorAll("input[type='text']");
+    await user.type(textInputs[1], "https://api.example.com/v1");
+    await user.type(screen.getByPlaceholderText("sk-..."), "key");
+    await user.type(screen.getByPlaceholderText("200"), "512");
+    await user.click(screen.getByRole("button", { name: "保存设置" }));
+
+    await waitFor(() =>
+      expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+        "/api/settings",
+        expect.objectContaining({ method: "PUT" }),
+      ),
+    );
+    const putCall = vi
+      .mocked(fetch)
+      .mock.calls.find(([, init]) => init?.method === "PUT");
+    const payload = JSON.parse(String(putCall?.[1]?.body));
+
+    expect(payload.modelConfigurations[0]).toMatchObject({
+      contextSizeK: "512",
+      model: "gpt-4o",
+      provider: "openai-compatible",
+    });
+  });
 });

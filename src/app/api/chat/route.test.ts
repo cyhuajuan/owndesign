@@ -146,8 +146,28 @@ describe("/api/chat", () => {
 
     const streamOptions = routeMocks.createAgentUIStreamResponse.mock
       .calls[0]?.[0] as {
+      messageMetadata: (input: { part: { type: string } }) => unknown;
       onFinish: (input: { messages: typeof messages }) => Promise<void>;
+      onStepFinish: (step: { usage: unknown }) => void;
     };
+    streamOptions.onStepFinish({
+      usage: {
+        inputTokens: 8000,
+        inputTokenDetails: { cacheReadTokens: 1000 },
+        outputTokens: 2000,
+        outputTokenDetails: { reasoningTokens: 500 },
+        totalTokens: 10000,
+      },
+    });
+    expect(streamOptions.messageMetadata({ part: { type: "finish" } })).toEqual({
+      contextUsage: {
+        cachedInputTokens: 1000,
+        inputTokens: 8000,
+        outputTokens: 2000,
+        reasoningTokens: 500,
+        totalTokens: 10000,
+      },
+    });
     await streamOptions.onFinish({ messages });
 
     expect(routeMocks.saveUIMessageStream).toHaveBeenCalledWith(

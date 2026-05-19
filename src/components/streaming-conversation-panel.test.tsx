@@ -39,9 +39,10 @@ beforeEach(() => {
           {
             apiKey: "",
             baseUrl: "",
+            contextSizeK: 1000,
             hasApiKey: true,
             id: "model-1",
-            model: "deepseek-chat",
+            model: "deepseek-v4-flash",
             provider: "deepseek",
           },
         ],
@@ -850,6 +851,61 @@ describe("MessageParts", () => {
     );
 
     expect(await screen.findByRole("button", { name: "提交" })).toBeDisabled();
+  });
+
+  it("renders context usage next to model selection", async () => {
+    vi.mocked(useChat).mockReturnValue({
+      addToolApprovalResponse: vi.fn(),
+      error: undefined,
+      messages: [],
+      sendMessage: vi.fn(),
+      status: "ready",
+      stop: vi.fn(),
+    } as unknown as ReturnType<typeof useChat>);
+
+    render(
+      <StreamingConversationPanel
+        conversationId="conversation-1"
+        initialMessages={[]}
+        projectId="project-1"
+      />,
+    );
+
+    expect(await screen.findByRole("button", { name: "上下文 0%" })).toBeInTheDocument();
+  });
+
+  it("updates context usage from latest assistant message metadata", async () => {
+    vi.mocked(useChat).mockReturnValue({
+      addToolApprovalResponse: vi.fn(),
+      error: undefined,
+      messages: [
+        {
+          id: "assistant-1",
+          metadata: {
+            contextUsage: {
+              inputTokens: 8000,
+              outputTokens: 2000,
+              totalTokens: 10000,
+            },
+          },
+          parts: [{ text: "完成。", type: "text" }],
+          role: "assistant",
+        },
+      ],
+      sendMessage: vi.fn(),
+      status: "ready",
+      stop: vi.fn(),
+    } as unknown as ReturnType<typeof useChat>);
+
+    render(
+      <StreamingConversationPanel
+        conversationId="conversation-1"
+        initialMessages={[]}
+        projectId="project-1"
+      />,
+    );
+
+    expect(await screen.findByRole("button", { name: "上下文 1%" })).toBeInTheDocument();
   });
 
   it("does not configure chat approval continuation", () => {

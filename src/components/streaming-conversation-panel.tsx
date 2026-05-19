@@ -23,6 +23,18 @@ import {
   ConversationEmptyState,
 } from "@/components/ai-elements/conversation";
 import {
+  Context,
+  ContextCacheUsage,
+  ContextContent,
+  ContextContentBody,
+  ContextContentFooter,
+  ContextContentHeader,
+  ContextInputUsage,
+  ContextOutputUsage,
+  ContextReasoningUsage,
+  ContextTrigger,
+} from "@/components/ai-elements/context";
+import {
   Message,
   MessageContent,
   MessageResponse,
@@ -75,6 +87,7 @@ type PublicSettings = {
     provider: "deepseek" | "openai-compatible";
     model: string;
     baseUrl: string;
+    contextSizeK: number;
     apiKey: "";
     hasApiKey: boolean;
     providerOptions?: ModelProviderOptions;
@@ -87,6 +100,14 @@ type ModelProviderOptions = {
   deepseek?: {
     thinkingMode: DeepSeekThinkingMode;
   };
+};
+
+type ContextUsageMetadata = {
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+  reasoningTokens?: number;
+  cachedInputTokens?: number;
 };
 
 export function StreamingConversationPanel({
@@ -127,6 +148,7 @@ export function StreamingConversationPanel({
     messages: initialMessages,
     transport,
   });
+  const contextUsage = useMemo(() => getLatestContextUsage(messages), [messages]);
   const announcedToolOutputs = useRef(new Set<string>());
   const hasScannedInitialToolOutputs = useRef(false);
   const isGenerating = status === "submitted" || status === "streaming";
@@ -260,11 +282,17 @@ export function StreamingConversationPanel({
             />
           </PromptInputBody>
           <PromptInputFooter className="justify-end px-2 pb-1">
-            <ModelSelect
-              onSelect={handleModelSelect}
-              selectedModelId={selectedModelId}
-              settings={settings}
-            />
+            <div className="flex min-w-0 items-center gap-1">
+              <ModelContextUsage
+                configuration={selectedModel}
+                usage={contextUsage}
+              />
+              <ModelSelect
+                onSelect={handleModelSelect}
+                selectedModelId={selectedModelId}
+                settings={settings}
+              />
+            </div>
             <PromptInputTools />
             <PromptInputSubmit
               className="bg-primary text-primary-foreground hover:bg-primary/90"
@@ -477,6 +505,7 @@ async function saveSettings(settings: PublicSettings) {
         provider: configuration.provider,
         model: configuration.model,
         baseUrl: configuration.baseUrl,
+        contextSizeK: configuration.contextSizeK,
         providerOptions: configuration.providerOptions,
         apiKey: "",
       })),
@@ -484,6 +513,120 @@ async function saveSettings(settings: PublicSettings) {
     headers: { "Content-Type": "application/json" },
     method: "PUT",
   });
+}
+
+function ModelContextUsage({
+  configuration,
+  usage,
+}: {
+  configuration?: PublicSettings["modelConfigurations"][number];
+  usage?: ContextUsageMetadata;
+}) {
+  if (!configuration) {
+    return null;
+  }
+
+  const maxTokens = getModelContextSizeK(configuration) * 1000;
+  const usedTokens = getUsedTokens(usage);
+
+  return (
+    <Context
+      maxTokens={maxTokens}
+      usage={{
+        cachedInputTokens: usage?.cachedInputTokens,
+        inputTokens: usage?.inputTokens,
+        outputTokens: usage?.outputTokens,
+        reasoningTokens: usage?.reasoningTokens,
+        totalTokens: usage?.totalTokens,
+      }}
+      usedTokens={usedTokens}
+    >
+      <ContextTrigger />
+      <ContextContent>
+        <ContextContentHeader />
+        <ContextContentBody>
+          <ContextInputUsage />
+          <ContextOutputUsage />
+          <ContextReasoningUsage />
+          <ContextCacheUsage />
+        </ContextContentBody>
+        <ContextContentFooter />
+      </ContextContent>
+    </Context>
+  );
+}
+
+function getModelContextSizeK(
+  configuration: PublicSettings["modelConfigurations"][number],
+) {
+  if (typeof configuration.contextSizeK === "number") {
+    return configuration.contextSizeK;
+  }
+
+  return configuration.provider === "deepseek" ? 1000 : 200;
+}
+
+function getLatestContextUsage(messages: UIMessage[]) {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+
+    if (message?.role !== "assistant") {
+      continue;
+    }
+
+    const usage = getContextUsageFromMetadata(message.metadata);
+
+    if (usage) {
+      return usage;
+    }
+  }
+
+  return undefined;
+}
+
+function getContextUsageFromMetadata(
+  metadata: UIMessage["metadata"],
+): ContextUsageMetadata | undefined {
+  if (!isRecord(metadata) || !isRecord(metadata.contextUsage)) {
+    return undefined;
+  }
+
+  return {
+    cachedInputTokens: asOptionalNumber(metadata.contextUsage.cachedInputTokens),
+    inputTokens: asOptionalNumber(metadata.contextUsage.inputTokens),
+    outputTokens: asOptionalNumber(metadata.contextUsage.outputTokens),
+    reasoningTokens: asOptionalNumber(metadata.contextUsage.reasoningTokens),
+    totalTokens: asOptionalNumber(metadata.contextUsage.totalTokens),
+  };
+}
+
+function getUsedTokens(usage: ContextUsageMetadata | undefined) {
+  if (!usage) {
+    return 0;
+  }
+
+  return (
+    usage.totalTokens ??
+    addOptionalNumbers(usage.inputTokens, usage.outputTokens) ??
+    0
+  );
+}
+
+function addOptionalNumbers(
+  first: number | undefined,
+  second: number | undefined,
+) {
+  return first === undefined && second === undefined
+    ? undefined
+    : (first ?? 0) + (second ?? 0);
+}
+
+function asOptionalNumber(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }
 
 export function MessageParts({

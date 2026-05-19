@@ -78,7 +78,7 @@ describe("SettingsService", () => {
           apiKey: "deepseek-key",
           baseUrl: "",
           id: "deepseek-1",
-          model: "deepseek-chat",
+          model: "deepseek-v4-flash",
           provider: "deepseek",
         },
         {
@@ -115,7 +115,7 @@ describe("SettingsService", () => {
           apiKey: "secret-key",
           baseUrl: "",
           id: "deepseek-1",
-          model: "deepseek-chat",
+          model: "deepseek-v4-flash",
           provider: "deepseek",
         },
       ],
@@ -143,7 +143,7 @@ describe("SettingsService", () => {
           apiKey: "secret-key",
           baseUrl: "",
           id: "deepseek-1",
-          model: "deepseek-chat",
+          model: "deepseek-v4-flash",
           provider: "deepseek",
         },
       ],
@@ -157,7 +157,7 @@ describe("SettingsService", () => {
           apiKey: "",
           baseUrl: "",
           id: "deepseek-1",
-          model: "deepseek-reasoner",
+          model: "deepseek-v4-pro",
           provider: "deepseek",
         },
       ],
@@ -167,7 +167,7 @@ describe("SettingsService", () => {
       modelConfigurations: [
         {
           apiKey: "secret-key",
-          model: "deepseek-reasoner",
+          model: "deepseek-v4-pro",
         },
       ],
     });
@@ -205,7 +205,7 @@ describe("SettingsService", () => {
             apiKey: "",
             baseUrl: "",
             id: "deepseek-1",
-            model: "deepseek-chat",
+            model: "deepseek-v4-flash",
             provider: "deepseek",
           },
         ],
@@ -224,7 +224,7 @@ describe("SettingsService", () => {
           apiKey: "key",
           baseUrl: "",
           id: "deepseek-1",
-          model: "deepseek-chat",
+          model: "deepseek-v4-flash",
           provider: "deepseek",
           providerOptions: {
             deepseek: { thinkingMode: "max" },
@@ -265,6 +265,104 @@ describe("SettingsService", () => {
     });
 
     expect(settings.modelConfigurations[0]?.providerOptions).toBeUndefined();
+  });
+
+  it("normalizes DeepSeek context size and legacy model ids", async () => {
+    const service = await createService();
+
+    const settings = await service.updateSettings({
+      defaultModelId: "deepseek-1",
+      interfaceLanguage: "zh-CN",
+      modelConfigurations: [
+        {
+          apiKey: "key",
+          baseUrl: "",
+          contextSizeK: 128,
+          id: "deepseek-1",
+          model: "deepseek-chat",
+          provider: "deepseek",
+        },
+      ],
+    });
+
+    expect(settings.modelConfigurations[0]).toMatchObject({
+      contextSizeK: 1000,
+      model: "deepseek-v4-flash",
+    });
+    await expect(service.getPublicSettings()).resolves.toMatchObject({
+      modelConfigurations: [
+        expect.objectContaining({
+          contextSizeK: 1000,
+          model: "deepseek-v4-flash",
+        }),
+      ],
+    });
+  });
+
+  it("defaults OpenAI Compatible context size to 200K", async () => {
+    const service = await createService();
+
+    const settings = await service.updateSettings({
+      defaultModelId: "compatible-1",
+      interfaceLanguage: "zh-CN",
+      modelConfigurations: [
+        {
+          apiKey: "key",
+          baseUrl: "https://api.example.com/v1",
+          contextSizeK: "",
+          id: "compatible-1",
+          model: "gpt-4o",
+          provider: "openai-compatible",
+        },
+      ],
+    });
+
+    expect(settings.modelConfigurations[0]?.contextSizeK).toBe(200);
+  });
+
+  it("saves custom OpenAI Compatible context size", async () => {
+    const service = await createService();
+
+    const settings = await service.updateSettings({
+      defaultModelId: "compatible-1",
+      interfaceLanguage: "zh-CN",
+      modelConfigurations: [
+        {
+          apiKey: "key",
+          baseUrl: "https://api.example.com/v1",
+          contextSizeK: "512",
+          id: "compatible-1",
+          model: "gpt-4o",
+          provider: "openai-compatible",
+        },
+      ],
+    });
+
+    expect(settings.modelConfigurations[0]?.contextSizeK).toBe(512);
+    await expect(service.getPublicSettings()).resolves.toMatchObject({
+      modelConfigurations: [expect.objectContaining({ contextSizeK: 512 })],
+    });
+  });
+
+  it("rejects invalid OpenAI Compatible context size", async () => {
+    const service = await createService();
+
+    await expect(
+      service.updateSettings({
+        defaultModelId: "compatible-1",
+        interfaceLanguage: "zh-CN",
+        modelConfigurations: [
+          {
+            apiKey: "key",
+            baseUrl: "https://api.example.com/v1",
+            contextSizeK: 0,
+            id: "compatible-1",
+            model: "gpt-4o",
+            provider: "openai-compatible",
+          },
+        ],
+      }),
+    ).rejects.toThrow("Context size must be a positive number.");
   });
 
   it("rejects invalid DeepSeek thinking mode provider options", async () => {

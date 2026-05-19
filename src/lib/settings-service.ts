@@ -8,6 +8,13 @@ export const SETTINGS_UPDATED_EVENT = "hjdesign:settings-updated";
 export type InterfaceLanguage = "zh-CN" | "en-US";
 export type ModelProvider = "deepseek" | "openai-compatible";
 export type DeepSeekThinkingMode = "disabled" | "high" | "max";
+export const DEEPSEEK_CONTEXT_SIZE_K = 1000;
+export const DEFAULT_OPENAI_COMPATIBLE_CONTEXT_SIZE_K = 200;
+export const DEEPSEEK_MODELS = [
+  "deepseek-v4-flash",
+  "deepseek-v4-pro",
+] as const;
+export const DEFAULT_DEEPSEEK_MODEL = DEEPSEEK_MODELS[0];
 
 export type ModelProviderOptions = {
   deepseek?: {
@@ -21,6 +28,7 @@ export type ModelConfiguration = {
   model: string;
   baseUrl: string;
   apiKey: string;
+  contextSizeK: number;
   providerOptions?: ModelProviderOptions;
 };
 
@@ -167,6 +175,7 @@ export function toPublicSettings(settings: AppSettings): PublicAppSettings {
       provider: configuration.provider,
       model: configuration.model,
       baseUrl: configuration.baseUrl,
+      contextSizeK: configuration.contextSizeK,
       providerOptions: configuration.providerOptions,
       apiKey: "",
       hasApiKey: Boolean(configuration.apiKey),
@@ -223,7 +232,7 @@ function parseStoredModelConfiguration(
   }
 
   const provider = parseModelProvider(value.provider);
-  const model = asTrimmedString(value.model);
+  const model = normalizeModelId(asTrimmedString(value.model), provider);
 
   if (!provider || !model) {
     return undefined;
@@ -237,6 +246,7 @@ function parseStoredModelConfiguration(
     model,
     baseUrl: asTrimmedString(value.baseUrl),
     apiKey: asTrimmedString(value.apiKey),
+    contextSizeK: normalizeContextSizeK(value.contextSizeK, provider),
     ...(providerOptions ? { providerOptions } : {}),
   };
 }
@@ -251,8 +261,9 @@ function parseInputModelConfiguration(
 
   const id = asTrimmedString(value.id) || randomUUID();
   const provider = parseModelProvider(value.provider);
-  const model = asTrimmedString(value.model);
+  const model = normalizeModelId(asTrimmedString(value.model), provider);
   const baseUrl = asTrimmedString(value.baseUrl);
+  const contextSizeK = parseInputContextSizeK(value.contextSizeK, provider);
   const incomingApiKey = asTrimmedString(value.apiKey);
   const previousApiKey =
     previous.modelConfigurations.find((configuration) => configuration.id === id)
@@ -283,6 +294,7 @@ function parseInputModelConfiguration(
     model,
     baseUrl,
     apiKey,
+    contextSizeK,
     ...(providerOptions ? { providerOptions } : {}),
   };
 }
@@ -298,8 +310,12 @@ function normalizeSettings(settings: AppSettings): AppSettings {
       id: configuration.id,
       provider: configuration.provider,
       baseUrl: configuration.baseUrl.trim(),
-      model: configuration.model.trim(),
+      model: normalizeModelId(configuration.model.trim(), configuration.provider),
       apiKey: configuration.apiKey.trim(),
+      contextSizeK: normalizeContextSizeK(
+        configuration.contextSizeK,
+        configuration.provider,
+      ),
       ...(providerOptions ? { providerOptions } : {}),
     };
   });
@@ -448,6 +464,62 @@ function parseProviderOptions(
   }
 
   return { deepseek: { thinkingMode } };
+}
+
+function parseInputContextSizeK(
+  value: unknown,
+  provider: ModelProvider | undefined,
+) {
+  if (provider === "deepseek") {
+    return DEEPSEEK_CONTEXT_SIZE_K;
+  }
+
+  if (value === undefined || value === null || value === "") {
+    return DEFAULT_OPENAI_COMPATIBLE_CONTEXT_SIZE_K;
+  }
+
+  const numericValue =
+    typeof value === "number"
+      ? value
+      : typeof value === "string"
+        ? Number(value.trim())
+        : Number.NaN;
+
+  if (!Number.isFinite(numericValue) || numericValue <= 0) {
+    throw new Error("Context size must be a positive number.");
+  }
+
+  return Math.round(numericValue);
+}
+
+function normalizeContextSizeK(
+  value: unknown,
+  provider: ModelProvider | undefined,
+) {
+  if (provider === "deepseek") {
+    return DEEPSEEK_CONTEXT_SIZE_K;
+  }
+
+  const numericValue =
+    typeof value === "number"
+      ? value
+      : typeof value === "string"
+        ? Number(value.trim())
+        : Number.NaN;
+
+  return Number.isFinite(numericValue) && numericValue > 0
+    ? Math.round(numericValue)
+    : DEFAULT_OPENAI_COMPATIBLE_CONTEXT_SIZE_K;
+}
+
+function normalizeModelId(model: string, provider: ModelProvider | undefined) {
+  if (provider !== "deepseek") {
+    return model;
+  }
+
+  return DEEPSEEK_MODELS.includes(model as (typeof DEEPSEEK_MODELS)[number])
+    ? model
+    : DEFAULT_DEEPSEEK_MODEL;
 }
 
 function normalizeProviderOptions(

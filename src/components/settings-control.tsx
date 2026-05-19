@@ -46,6 +46,7 @@ type ModelConfigurationForm = {
   model: string;
   baseUrl: string;
   apiKey: string;
+  contextSizeK: string;
   providerOptions?: ModelProviderOptions;
   collapsed: boolean;
 };
@@ -58,6 +59,7 @@ type PublicSettings = {
     provider: "deepseek" | "openai-compatible";
     model: string;
     baseUrl: string;
+    contextSizeK: number;
     apiKey: "";
     hasApiKey: boolean;
     providerOptions?: ModelProviderOptions;
@@ -134,6 +136,7 @@ function SettingsPanel({ onClose }: { onClose: () => void }) {
             provider: configuration.provider,
             model: configuration.model,
             baseUrl: configuration.baseUrl,
+            contextSizeK: String(configuration.contextSizeK),
             apiKey: "",
             providerOptions: configuration.providerOptions,
             collapsed: true,
@@ -561,6 +564,7 @@ function AiSettingsSection({
               model: "",
               baseUrl: "",
               apiKey: "",
+              contextSizeK: "",
               providerOptions: undefined,
               collapsed: false,
             },
@@ -624,12 +628,26 @@ function ModelConfigCard({
           <ModelField label="Provider" required>
             <select
               className="w-full cursor-pointer appearance-none rounded-[6px] border border-[#2a2a2e] bg-[#1c1c1f] px-2.5 py-[7px] pr-7 text-[13px] text-[#f0f0f2] outline-none transition-colors duration-150 hover:border-[#38383d] focus:border-[#6c5ce7]"
-              onChange={(event) =>
+              onChange={(event) => {
+                const provider = event.target.value as ModelProvider;
+
                 onChange({
                   ...configuration,
-                  provider: event.target.value as ModelProvider,
-                })
-              }
+                  provider,
+                  ...(provider === "deepseek"
+                    ? {
+                        model: isDeepSeekModel(configuration.model)
+                          ? configuration.model
+                          : DEFAULT_DEEPSEEK_MODEL,
+                        contextSizeK: String(DEEPSEEK_CONTEXT_SIZE_K),
+                      }
+                    : provider === "openai-compatible"
+                      ? {
+                          contextSizeK: configuration.contextSizeK,
+                        }
+                      : {}),
+                });
+              }}
               value={configuration.provider}
             >
               <option value="">选择 Provider...</option>
@@ -638,15 +656,39 @@ function ModelConfigCard({
             </select>
           </ModelField>
           <ModelField label="Model" required>
-            <input
-              className={modelInputClass}
-              onChange={(event) =>
-                onChange({ ...configuration, model: event.target.value })
-              }
-              placeholder="例如 gpt-4o"
-              type="text"
-              value={configuration.model}
-            />
+            {configuration.provider === "deepseek" ? (
+              <select
+                className="w-full cursor-pointer appearance-none rounded-[6px] border border-[#2a2a2e] bg-[#1c1c1f] px-2.5 py-[7px] pr-7 text-[13px] text-[#f0f0f2] outline-none transition-colors duration-150 hover:border-[#38383d] focus:border-[#6c5ce7]"
+                onChange={(event) =>
+                  onChange({
+                    ...configuration,
+                    model: event.target.value,
+                    contextSizeK: String(DEEPSEEK_CONTEXT_SIZE_K),
+                  })
+                }
+                value={
+                  isDeepSeekModel(configuration.model)
+                    ? configuration.model
+                    : DEFAULT_DEEPSEEK_MODEL
+                }
+              >
+                {DEEPSEEK_MODELS.map((model) => (
+                  <option key={model} value={model}>
+                    {model}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                className={modelInputClass}
+                onChange={(event) =>
+                  onChange({ ...configuration, model: event.target.value })
+                }
+                placeholder="例如 gpt-4o"
+                type="text"
+                value={configuration.model}
+              />
+            )}
           </ModelField>
           <ModelField
             label="Base URL"
@@ -673,6 +715,23 @@ function ModelConfigCard({
               value={configuration.apiKey}
             />
           </ModelField>
+          {configuration.provider === "openai-compatible" ? (
+            <ModelField label="Context Size (K)">
+              <input
+                className={modelInputClass}
+                min={1}
+                onChange={(event) =>
+                  onChange({
+                    ...configuration,
+                    contextSizeK: event.target.value,
+                  })
+                }
+                placeholder={String(DEFAULT_OPENAI_COMPATIBLE_CONTEXT_SIZE_K)}
+                type="number"
+                value={configuration.contextSizeK}
+              />
+            </ModelField>
+          ) : null}
         </div>
       )}
     </div>
@@ -721,6 +780,7 @@ async function saveSettings(settings: {
         baseUrl: configuration.baseUrl,
         id: configuration.id,
         model: configuration.model,
+        contextSizeK: configuration.contextSizeK,
         providerOptions: configuration.providerOptions,
         provider: configuration.provider,
       })),
@@ -788,3 +848,14 @@ const modelInputClass =
 
 const resourceCdnInputClass =
   "min-w-0 flex-1 rounded-[6px] border border-[#2a2a2e] bg-[#1c1c1f] px-2 py-1.5 font-mono text-xs text-[#a0a0ab] outline-none transition-colors duration-150 placeholder:text-[#6b6b76] focus:border-[#6c5ce7]";
+
+const DEEPSEEK_CONTEXT_SIZE_K = 1000;
+const DEFAULT_OPENAI_COMPATIBLE_CONTEXT_SIZE_K = 200;
+const DEEPSEEK_MODELS = ["deepseek-v4-flash", "deepseek-v4-pro"] as const;
+const DEFAULT_DEEPSEEK_MODEL = DEEPSEEK_MODELS[0];
+
+function isDeepSeekModel(model: string): model is (typeof DEEPSEEK_MODELS)[number] {
+  return DEEPSEEK_MODELS.includes(
+    model as (typeof DEEPSEEK_MODELS)[number],
+  );
+}

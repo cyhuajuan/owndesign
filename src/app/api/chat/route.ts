@@ -1,4 +1,8 @@
-import { createAgentUIStreamResponse, type InferAgentUIMessage } from "ai";
+import {
+  createAgentUIStreamResponse,
+  type InferAgentUIMessage,
+  type LanguageModelUsage,
+} from "ai";
 
 import { normalizeConversationMessages } from "@/lib/chat-messages";
 import { createConversationService, createWorkspaceStore } from "@/lib/hjdesign";
@@ -71,12 +75,35 @@ export async function POST(request: Request) {
     resources,
     workspaceStore,
   });
+  let latestStepUsage: LanguageModelUsage | undefined;
 
   return createAgentUIStreamResponse({
     agent,
     uiMessages: messages,
     originalMessages: messages,
     sendReasoning: true,
+    onStepFinish: (step) => {
+      latestStepUsage = step.usage;
+    },
+    messageMetadata: ({ part }) => {
+      if (part.type !== "finish" || !latestStepUsage) {
+        return undefined;
+      }
+
+      return {
+        contextUsage: {
+          inputTokens: latestStepUsage.inputTokens,
+          outputTokens: latestStepUsage.outputTokens,
+          totalTokens: latestStepUsage.totalTokens,
+          reasoningTokens:
+            latestStepUsage.outputTokenDetails?.reasoningTokens ??
+            latestStepUsage.reasoningTokens,
+          cachedInputTokens:
+            latestStepUsage.inputTokenDetails?.cacheReadTokens ??
+            latestStepUsage.cachedInputTokens,
+        },
+      };
+    },
     onError: (error) =>
       error instanceof Error ? `生成失败：${error.message}` : "生成失败：Unknown error",
     onFinish: async ({ messages: finishedMessages }) => {

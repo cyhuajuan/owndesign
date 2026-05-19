@@ -9,6 +9,7 @@ import { SettingsService } from "./settings-service";
 const tempRoots: string[] = [];
 
 afterEach(async () => {
+  SettingsService.clearSettingsCache();
   await Promise.all(
     tempRoots.splice(0).map(async (tempRoot) => {
       await rm(tempRoot, { force: true, recursive: true });

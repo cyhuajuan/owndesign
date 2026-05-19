@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
@@ -64,6 +64,11 @@ type SettingsServiceOptions = {
   settingsPath?: string;
 };
 
+type SettingsCacheEntry = {
+  mtimeMs: number;
+  settings: AppSettings;
+};
+
 const DEFAULT_SETTINGS: AppSettings = {
   defaultModelId: null,
   interfaceLanguage: "zh-CN",
@@ -89,11 +94,17 @@ const DEFAULT_SETTINGS: AppSettings = {
 };
 
 export class SettingsService {
+  private static readonly cache = new Map<string, SettingsCacheEntry>();
+
   private readonly settingsPath: string;
 
   constructor(options: SettingsServiceOptions = {}) {
     this.settingsPath =
       options.settingsPath ?? path.join(os.homedir(), ".hjdesign", "settings.json");
+  }
+
+  static clearSettingsCache() {
+    SettingsService.cache.clear();
   }
 
   async getSettings() {
@@ -140,9 +151,22 @@ export class SettingsService {
 
   private async readSettings() {
     try {
-      const content = await readFile(this.settingsPath, "utf8");
+      const fileStats = await stat(this.settingsPath);
+      const cached = SettingsService.cache.get(this.settingsPath);
 
-      return parseStoredSettings(JSON.parse(content));
+      if (cached && cached.mtimeMs === fileStats.mtimeMs) {
+        return cached.settings;
+      }
+
+      const content = await readFile(this.settingsPath, "utf8");
+      const settings = parseStoredSettings(JSON.parse(content));
+
+      SettingsService.cache.set(this.settingsPath, {
+        mtimeMs: fileStats.mtimeMs,
+        settings,
+      });
+
+      return settings;
     } catch (error) {
       if (isMissingPathError(error)) {
         return DEFAULT_SETTINGS;
@@ -159,6 +183,17 @@ export class SettingsService {
       `${JSON.stringify(settings, null, 2)}\n`,
       "utf8",
     );
+
+    try {
+      const fileStats = await stat(this.settingsPath);
+
+      SettingsService.cache.set(this.settingsPath, {
+        mtimeMs: fileStats.mtimeMs,
+        settings,
+      });
+    } catch {
+      SettingsService.cache.delete(this.settingsPath);
+    }
   }
 }
 

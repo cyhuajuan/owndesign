@@ -5,6 +5,7 @@ import { createGlobTool } from "./glob";
 import { createGrepTool } from "./grep";
 import { createPatchTool } from "./patch";
 import { createReadTool } from "./read";
+import { createSwitchPreviewTool } from "./switch-preview";
 import type { ProjectWorkspaceToolContext } from "./types";
 import { createWriteTool } from "./write";
 
@@ -19,6 +20,7 @@ export function createProjectWorkspaceTools(
     grep: createGrepTool(context),
     patch: createPatchTool(context),
     read: createReadTool(context),
+    switchPreview: createSwitchPreviewTool(context),
     write: createWriteTool(context),
   };
 }

@@ -38,6 +38,7 @@ export type DesignPageAgent = {
 };
 
 type CreateDesignPageAgentInput = {
+  currentPreviewPath?: string;
   model: LanguageModel;
   outputType: ProjectOutputType;
   providerOptions?: ToolLoopAgentSettings["providerOptions"];
@@ -81,6 +82,7 @@ export class AiSdkDesignPageAgent implements DesignPageAgent {
 }
 
 export function createDesignPageAgent({
+  currentPreviewPath,
   model,
   outputType,
   providerOptions,
@@ -90,7 +92,11 @@ export function createDesignPageAgent({
 }: CreateDesignPageAgentInput) {
   return new ToolLoopAgent({
     model,
-    instructions: buildDesignPageAgentInstructions(outputType, resources),
+    instructions: buildDesignPageAgentInstructions(
+      outputType,
+      resources,
+      currentPreviewPath,
+    ),
     providerOptions,
     stopWhen: stepCountIs(50),
     tools: createProjectWorkspaceTools({
@@ -149,11 +155,12 @@ export function buildProviderOptions(
 export function buildDesignPageAgentInstructions(
   outputType: ProjectOutputType,
   resources?: ResourceSettings,
+  currentPreviewPath?: string,
 ) {
   return [
     loadDesignPageAgentCorePrompt(),
     resources ? buildResourcePolicyPrompt(resources) : "",
-    buildProjectOutputPrompt(outputType),
+    buildProjectOutputPrompt(outputType, currentPreviewPath),
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -166,7 +173,10 @@ export function loadDesignPageAgentCorePrompt() {
   ).trim();
 }
 
-export function buildProjectOutputPrompt(outputType: ProjectOutputType) {
+export function buildProjectOutputPrompt(
+  outputType: ProjectOutputType,
+  currentPreviewPath?: string,
+) {
   if (outputType !== "html") {
     throw new Error(`Unsupported Project Output Type: ${outputType}`);
   }
@@ -177,14 +187,23 @@ export function buildProjectOutputPrompt(outputType: ProjectOutputType) {
     "Project Output is a previewable UI prototype, not a production app implementation.",
     "Use inline JavaScript only for local UI state interactions; do not implement clipboard, network, storage, or real submit behavior.",
     "Use Project Workspace tools to inspect, create, edit, search, patch, and delete UTF-8 files.",
+    "Use `switchPreview` to move the Preview Pane to an existing target HTML page after you create or finish updating that page.",
+    "## Current Preview Context",
+    `Current preview page: ${currentPreviewPath ?? "none"}.`,
+    "When the user refers to 'here', 'this page', 'current page', 'top', 'bottom', or similar relative page positions, resolve that intent to the current preview page when it is known.",
+    "If the user explicitly names another HTML file or path, that explicit target overrides the current preview page.",
+    "If the user only gives a relative reference and the current preview page is known, edit that page directly instead of asking a follow-up question.",
+    "If the request still spans multiple plausible HTML files, inspect first and ask only when the target remains ambiguous after inspection.",
     "Inspect with `glob`, `grep`, and `read` before coordinated edits when existing files may matter.",
     "All previewable HTML files must stay inside the Project Workspace; use relative paths ending in `.html`.",
     "Choose the HTML target from the user's intent: edit `index.html` for home/main/landing page requests; create or edit a semantic `.html` file such as `login.html`, `settings.html`, or `pages/detail.html` for a new or named page.",
     "If no page is specified and no multi-page structure is evident, default to `index.html`; if multiple HTML files exist and the target is unclear, inspect first and ask a concise follow-up question if needed.",
     "When the target HTML file does not exist, you must call `createHtml` first instead of using `write` to create the initial HTML.",
     "For `createHtml`, choose `path` from the user's page target. Pass `fontLibraryName` or `iconLibraryName` only when the user explicitly specifies those resource preferences; otherwise omit them so the tool reads configured defaults.",
-    "After `createHtml` succeeds, use `edit` or `patch` to fill in the actual page design. For existing HTML files, use `read`, `edit`, and `patch`; do not call `createHtml`.",
+    "After `createHtml` succeeds, use `edit` or `patch` to fill in the actual page design, then call `switchPreview` for that page. For existing HTML files, use `read`, `edit`, and `patch`; do not call `createHtml`.",
     "When creating a new HTML page, do not overwrite `index.html` unless the user intent points to the home or main page.",
+    "When you create or update a different target page that the user should now inspect, call `switchPreview` with that HTML path after the changes are complete.",
+    "When the current preview page is already the correct target page, do not call `switchPreview` redundantly.",
     "Prefer `edit` for existing files, `createHtml` for missing HTML files, `write` for non-HTML files or deliberate full overwrites, and `patch` for coordinated multi-file changes.",
     "Only use resource CDNs that already exist in settings. Do not add any other external CDN.",
     "`write`, `edit`, and `patch` reject HTML that contains external CDN tags outside the configured resource settings.",

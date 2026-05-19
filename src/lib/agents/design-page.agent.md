@@ -58,6 +58,9 @@ When creating or updating a previewable page, first decide whether the user want
 - When the target HTML file does not exist, call `createHtml` first. Do not use `write` to create the initial HTML file.
 - For `createHtml`, choose the `path` from the requested page. Pass `fontLibraryName` or `iconLibraryName` only when the user explicitly specifies those resource choices; when the user does not specify them, omit those parameters so the tool reads configured defaults.
 - After `createHtml` creates the base document, use `edit` or `patch` to fill the real page design. If the target HTML already exists, use `read`, `edit`, and `patch` instead of `createHtml`.
+- When current preview page is provided and the user says “这里 / 当前页 / 这个页面 / 底部 / 上方” or similar relative references, treat that preview page as the target unless the user explicitly names another HTML file.
+- When you create a new target HTML page or finish updating a different page that the user should now inspect, call `switchPreview` after the file changes are complete.
+- Do not call `switchPreview` when the current preview page is already the intended target.
 
 Every previewable HTML page must:
 

@@ -3,6 +3,11 @@
 import { useChat } from "@ai-sdk/react";
 import type { UIMessage } from "ai";
 import {
+  usePathname,
+  useRouter,
+  useSearchParams,
+} from "next/navigation";
+import {
   DefaultChatTransport,
   getToolName as getAIMessageToolName,
   isToolUIPart,
@@ -115,6 +120,10 @@ export function StreamingConversationPanel({
   initialMessages,
   projectId,
 }: StreamingConversationPanelProps) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const selectedPreviewPath = searchParams.get("previewPath") ?? undefined;
   const [settings, setSettings] = useState<PublicSettings>();
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const selectedModel = settings?.modelConfigurations.find(
@@ -131,6 +140,7 @@ export function StreamingConversationPanel({
         body: {
           conversationId,
           modelConfigurationId: selectedModelId,
+          previewPath: selectedPreviewPath,
           projectId,
           ...(selectedDeepSeekThinkingMode
             ? {
@@ -141,7 +151,13 @@ export function StreamingConversationPanel({
             : {}),
         },
       }),
-    [conversationId, projectId, selectedDeepSeekThinkingMode, selectedModelId],
+    [
+      conversationId,
+      projectId,
+      selectedDeepSeekThinkingMode,
+      selectedModelId,
+      selectedPreviewPath,
+    ],
   );
   const { error, messages, sendMessage, status, stop } = useChat({
     id: conversationId,
@@ -221,8 +237,16 @@ export function StreamingConversationPanel({
         projectId,
         announcedToolOutputs.current,
       );
+      syncPreviewPathSwitchOutputs(
+        message,
+        pathname,
+        projectId,
+        router,
+        searchParams,
+        announcedToolOutputs.current,
+      );
     }
-  }, [conversationId, messages, projectId]);
+  }, [conversationId, messages, pathname, projectId, router, searchParams]);
 
   return (
     <>
@@ -766,11 +790,51 @@ function announceProjectWorkspaceMutationOutputs(
   }
 }
 
+function syncPreviewPathSwitchOutputs(
+  message: UIMessage,
+  pathname: string,
+  projectId: string,
+  router: ReturnType<typeof useRouter>,
+  searchParams: ReturnType<typeof useSearchParams>,
+  announcedToolOutputs: Set<string>,
+) {
+  for (const part of message.parts) {
+    if (
+      !isSwitchPreviewToolPart(part) ||
+      part.state !== "output-available" ||
+      announcedToolOutputs.has(part.toolCallId)
+    ) {
+      continue;
+    }
+
+    const nextPath = asToolOutputPath(part.output);
+
+    if (!nextPath) {
+      continue;
+    }
+
+    announcedToolOutputs.add(part.toolCallId);
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("previewPath", nextPath);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    window.dispatchEvent(
+      new CustomEvent("hjdesign:project-output-updated", {
+        detail: { projectId },
+      }),
+    );
+  }
+}
+
 function isProjectWorkspaceMutationToolPart(part: unknown): part is ToolLikePart {
   return (
     isToolPart(part) &&
     ["createHtml", "delete", "edit", "patch", "write"].includes(getToolName(part))
   );
+}
+
+function isSwitchPreviewToolPart(part: unknown): part is ToolLikePart {
+  return isToolPart(part) && getToolName(part) === "switchPreview";
 }
 
 function isToolPart(part: unknown): part is ToolLikePart {
@@ -779,6 +843,16 @@ function isToolPart(part: unknown): part is ToolLikePart {
 
 function getToolName(part: ToolLikePart) {
   return getAIMessageToolName(part);
+}
+
+function asToolOutputPath(value: unknown) {
+  return typeof value === "object" &&
+    value !== null &&
+    "path" in value &&
+    typeof value.path === "string" &&
+    value.path.trim()
+    ? value.path
+    : undefined;
 }
 
 type ToolLikePart = ToolUIPart | DynamicToolUIPart;

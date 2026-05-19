@@ -113,6 +113,7 @@ describe("/api/chat", () => {
           conversationId: "conversation-1",
           messages,
           modelConfigurationId: "model-1",
+          previewPath: "dashboard.html",
           projectId: "project-1",
           providerOptionsSelection: { deepseek: "max" },
         }),
@@ -123,6 +124,7 @@ describe("/api/chat", () => {
     expect(await response.text()).toBe("stream");
     expect(routeMocks.createDesignPageAgent).toHaveBeenCalledWith(
       expect.objectContaining({
+        currentPreviewPath: "dashboard.html",
         outputType: "html",
         model: expect.objectContaining({ provider: "test" }),
         providerOptions: expect.objectContaining({ thinkingMode: "max" }),

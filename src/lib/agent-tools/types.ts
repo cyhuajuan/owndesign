@@ -64,6 +64,10 @@ export type ReadInput = {
   path: string;
 };
 
+export type SwitchPreviewInput = {
+  path: string;
+};
+
 export type WriteInput = {
   content: string;
   path: string;

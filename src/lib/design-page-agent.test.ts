@@ -238,6 +238,7 @@ describe("AiSdkDesignPageAgent", () => {
       "grep",
       "patch",
       "read",
+      "switchPreview",
       "write",
     ]);
     expect(config.tools).not.toHaveProperty("writeFile");
@@ -941,6 +942,8 @@ describe("AiSdkDesignPageAgent", () => {
     expect(config.instructions).toContain("real submit");
     expect(config.instructions).toContain("never use emoji as icons");
     expect(config.instructions).toContain("Project Workspace tools");
+    expect(config.instructions).toContain("Use `switchPreview`");
+    expect(config.instructions).toContain("Current preview page: none.");
     expect(config.instructions).toContain("first decide whether the user wants");
     expect(config.instructions).toContain("relative paths ending in `.html`");
     expect(config.instructions).toContain("default to `index.html`");
@@ -982,6 +985,77 @@ describe("AiSdkDesignPageAgent", () => {
     expect(aiMocks.generate).toHaveBeenCalledWith({
       prompt: "设计一个 CRM 仪表盘的界面",
     });
+  });
+
+  it("includes the current preview page in runtime instructions", async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    aiMocks.generate.mockResolvedValueOnce({ text: "" });
+
+    const agent = new AiSdkDesignPageAgent(workspaceStore);
+
+    await agent.generateProjectOutput(buildInput());
+
+    const baseConfig = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
+      instructions: string;
+    };
+    expect(baseConfig.instructions).toContain("Current preview page: none.");
+
+    aiMocks.generate.mockResolvedValueOnce({ text: "" });
+
+    const { createDesignPageAgent } = await import("./design-page-agent");
+    createDesignPageAgent({
+      currentPreviewPath: "dashboard.html",
+      model: { modelId: "test-model", provider: "test" } as never,
+      outputType: "html",
+      projectId: "project-1",
+      resources: defaultResources,
+      workspaceStore,
+    });
+
+    const config = aiMocks.toolLoopAgent.mock.calls.at(-1)?.[0] as {
+      instructions: string;
+    };
+    expect(config.instructions).toContain("Current preview page: dashboard.html.");
+    expect(config.instructions).toContain(
+      "edit that page directly instead of asking a follow-up question",
+    );
+  });
+
+  it("switches preview only to existing HTML files", async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    await workspaceStore.writeProjectWorkspaceFile(
+      "project-1",
+      "pages/detail.html",
+      "<main>Detail</main>",
+    );
+    const agent = new AiSdkDesignPageAgent(workspaceStore);
+    aiMocks.generate.mockResolvedValueOnce({ text: "" });
+
+    await agent.generateProjectOutput(buildInput());
+
+    const config = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
+      tools: {
+        switchPreview: {
+          execute: (input: { path: string }) => Promise<unknown>;
+        };
+      };
+    };
+    await expect(
+      config.tools.switchPreview.execute({ path: "pages/detail.html" }),
+    ).resolves.toEqual({
+      path: "pages/detail.html",
+    });
+    await expect(
+      config.tools.switchPreview.execute({ path: "missing.html" }),
+    ).rejects.toThrow("was not found");
+    await expect(
+      config.tools.switchPreview.execute({ path: "notes.txt" }),
+    ).rejects.toThrow("must end with .html");
+    await expect(
+      config.tools.switchPreview.execute({ path: "" }),
+    ).rejects.toThrow("must not be empty");
   });
 
 });

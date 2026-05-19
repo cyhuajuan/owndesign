@@ -20,6 +20,7 @@ type ChatRequestBody = {
   conversationId?: unknown;
   messages?: unknown;
   modelConfigurationId?: unknown;
+  previewPath?: unknown;
   projectId?: unknown;
   providerOptionsSelection?: unknown;
 };
@@ -32,6 +33,7 @@ export async function POST(request: Request) {
   const body = (await request.json()) as ChatRequestBody;
   const projectId = asNonEmptyString(body.projectId);
   const conversationId = asNonEmptyString(body.conversationId);
+  const previewPath = asNonEmptyString(body.previewPath);
 
   if (!projectId || !conversationId || !Array.isArray(body.messages)) {
     return new Response("Invalid chat request.", { status: 400 });
@@ -71,6 +73,7 @@ export async function POST(request: Request) {
       modelConfiguration,
       parseDeepSeekProviderOptionsSelection(body.providerOptionsSelection),
     ),
+    currentPreviewPath: previewPath,
     projectId,
     resources,
     workspaceStore,

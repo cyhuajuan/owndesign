@@ -59,7 +59,7 @@ export function ContextTrigger({
         <Button
           aria-label={`上下文 ${percent}%`}
           className={cn(
-            "h-7 gap-1.5 rounded-[6px] bg-transparent px-2 text-xs text-[#a0a0ab] hover:bg-[#252528] hover:text-[#f0f0f2]",
+            "h-7 rounded-[6px] bg-transparent px-2 text-xs text-[#a0a0ab] hover:bg-[#252528] hover:text-[#f0f0f2]",
             className,
           )}
           size="sm"
@@ -72,7 +72,6 @@ export function ContextTrigger({
       {children ?? (
         <>
           <ContextProgressRing percent={percent} />
-          <span>{percent}%</span>
         </>
       )}
     </HoverCardTrigger>

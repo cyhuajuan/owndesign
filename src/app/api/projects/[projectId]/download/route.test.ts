@@ -71,7 +71,7 @@ describe("/api/projects/[projectId]/download", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toBe("text/html; charset=utf-8");
     expect(response.headers.get("Content-Disposition")).toBe(
-      'attachment; filename="detail.html"',
+      'attachment; filename="detail.html"; filename*=UTF-8\'\'detail.html',
     );
     await expect(response.text()).resolves.toBe("<!doctype html><h1>Detail</h1>");
   });
@@ -122,7 +122,7 @@ describe("/api/projects/[projectId]/download", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toBe("application/zip");
     expect(response.headers.get("Content-Disposition")).toBe(
-      'attachment; filename="Project- Zip-Test-workspace.zip"',
+      'attachment; filename="Project-Zip-Test-workspace.zip"; filename*=UTF-8\'\'Project-%20Zip-Test-workspace.zip',
     );
 
     const zipBuffer = Buffer.from(await response.arrayBuffer());

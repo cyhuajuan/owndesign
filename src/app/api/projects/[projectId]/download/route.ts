@@ -1,12 +1,12 @@
-import { createReadStream, createWriteStream } from "node:fs";
 import {
   mkdtemp,
+  readFile,
   rm,
   stat,
 } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { Readable } from "node:stream";
+import { createWriteStream } from "node:fs";
 
 import { ZipFile } from "yazl";
 
@@ -85,22 +85,15 @@ async function downloadWorkspaceZip(
 
     await writeWorkspaceZip(workspaceStore, projectId, zipPath);
 
-    const zipStats = await stat(zipPath);
-    const stream = createReadStream(zipPath);
-    const cleanup = once(async () => {
-      if (tempDirectory) {
-        await rm(tempDirectory, { force: true, recursive: true });
-      }
-    });
+    const [zipStats, zipBuffer] = await Promise.all([
+      stat(zipPath),
+      readFile(zipPath),
+    ]);
 
-    stream.on("close", () => {
-      void cleanup();
-    });
-    stream.on("error", () => {
-      void cleanup();
-    });
+    await rm(tempDirectory, { force: true, recursive: true });
+    tempDirectory = undefined;
 
-    return new Response(Readable.toWeb(stream) as ReadableStream, {
+    return new Response(zipBuffer, {
       headers: {
         "Content-Disposition": createAttachmentDisposition(
           `${sanitizeDownloadFilename(project.name) || projectId}-workspace.zip`,
@@ -153,7 +146,10 @@ async function writeWorkspaceZip(
 }
 
 function createAttachmentDisposition(filename: string) {
-  return `attachment; filename="${filename.replace(/"/g, "")}"`;
+  const fallbackFilename = createAsciiFilenameFallback(filename);
+  const encodedFilename = encodeRFC5987Value(filename);
+
+  return `attachment; filename="${fallbackFilename}"; filename*=UTF-8''${encodedFilename}`;
 }
 
 function sanitizeDownloadFilename(value: string | undefined) {
@@ -161,6 +157,29 @@ function sanitizeDownloadFilename(value: string | undefined) {
     ?.replace(/[<>:"/\\|?*\u0000-\u001F]/g, "-")
     .replace(/[.\s]+$/g, "")
     .trim();
+}
+
+function createAsciiFilenameFallback(filename: string) {
+  const extension = path.extname(filename);
+  const basename = extension ? filename.slice(0, -extension.length) : filename;
+  const safeBasename = basename
+    .normalize("NFKD")
+    .replace(/[^\x20-\x7E]/g, "-")
+    .replace(/["\\]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^[.-]+|[.-]+$/g, "");
+  const safeExtension = extension.replace(/[^\x20-\x7E]/g, "");
+  const combined = `${safeBasename || "download"}${safeExtension}`;
+
+  return combined || "download";
+}
+
+function encodeRFC5987Value(value: string) {
+  return encodeURIComponent(value)
+    .replace(/['()*]/g, (character) =>
+      `%${character.charCodeAt(0).toString(16).toUpperCase()}`,
+    );
 }
 
 function mapWorkspaceErrorToResponse(error: unknown) {
@@ -188,17 +207,4 @@ function isMissingPathError(error: unknown): error is NodeJS.ErrnoException {
     "code" in error &&
     (error as NodeJS.ErrnoException).code === "ENOENT"
   );
-}
-
-function once<T extends unknown[]>(callback: (...args: T) => Promise<void>) {
-  let called = false;
-
-  return async (...args: T) => {
-    if (called) {
-      return;
-    }
-
-    called = true;
-    await callback(...args);
-  };
 }

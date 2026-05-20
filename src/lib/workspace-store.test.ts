@@ -351,6 +351,9 @@ describe("WorkspaceStore", () => {
       store.readProjectWorkspaceFile(project.id, path.join(workspaceRoot, "x.html")),
     ).rejects.toThrow("must be relative");
     await expect(
+      store.readProjectWorkspaceFileBuffer(project.id, "../escape.html"),
+    ).rejects.toThrow("escapes workspace");
+    await expect(
       store.deleteProjectWorkspacePath(project.id, ""),
     ).rejects.toThrow("must not be empty");
   });
@@ -388,6 +391,22 @@ describe("WorkspaceStore", () => {
     await expect(
       store.readProjectWorkspaceFile(project.id, "secret-link.txt"),
     ).rejects.toThrow("symlinks are not supported");
+    await expect(
+      store.readProjectWorkspaceFileBuffer(project.id, "secret-link.txt"),
+    ).rejects.toThrow("symlinks are not supported");
+  });
+
+  it("reads Project Workspace files as buffers", async () => {
+    const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".hjdesign");
+    const store = new WorkspaceStore({ workspaceRoot });
+    const project = buildProject({ id: "project-buffer-read" });
+
+    await store.createProject(project);
+    await store.writeProjectWorkspaceFile(project.id, "index.html", "<main>Buffer</main>");
+
+    await expect(
+      store.readProjectWorkspaceFileBuffer(project.id, "index.html"),
+    ).resolves.toEqual(Buffer.from("<main>Buffer</main>"));
   });
 
   it("discovers persisted Projects after reload and returns them in Project Updated Time descending order", async () => {

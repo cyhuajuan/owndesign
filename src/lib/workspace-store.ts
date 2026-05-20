@@ -671,6 +671,21 @@ export class WorkspaceStore {
     return readFile(filePath, "utf8");
   }
 
+  async readProjectWorkspaceFileBuffer(projectId: string, relativePath: string) {
+    const filePath = await this.resolveProjectWorkspacePath(
+      projectId,
+      relativePath,
+      { checkTargetSymlink: true },
+    );
+    const fileStats = await stat(filePath);
+
+    if (!fileStats.isFile()) {
+      throw new Error(`Project Workspace path is not a file: ${relativePath}`);
+    }
+
+    return readFile(filePath);
+  }
+
   async writeProjectWorkspaceFile(
     projectId: string,
     relativePath: string,

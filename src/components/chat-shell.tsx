@@ -4,6 +4,7 @@ import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
+  DownloadIcon,
   ExternalLinkIcon,
   LayersIcon,
   PanelLeftCloseIcon,
@@ -26,6 +27,12 @@ import {
   PromptInputTools,
 } from "@/components/ai-elements/prompt-input";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { SettingsControl } from "@/components/settings-control";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -75,6 +82,7 @@ type ChatShellProps = {
   previewBody?: ReactNode;
   previewFilename?: ReactNode;
   previewHref?: string;
+  previewProjectId?: string;
   previewStatus?: PreviewStatus;
 };
 
@@ -93,6 +101,7 @@ export function ChatShell({
   previewBody,
   previewFilename,
   previewHref,
+  previewProjectId,
   previewStatus = "ready",
 }: ChatShellProps) {
   const pathname = usePathname();
@@ -177,6 +186,12 @@ export function ChatShell({
       onChange={selectPreviewPath}
     />
   );
+  const currentHtmlDownloadUrl = previewProjectId
+    ? buildProjectDownloadUrl(previewProjectId, "current-html", activePreviewPath)
+    : undefined;
+  const workspaceZipDownloadUrl = previewProjectId
+    ? buildProjectDownloadUrl(previewProjectId, "workspace-zip")
+    : undefined;
 
   return (
     <SidebarProvider
@@ -288,6 +303,43 @@ export function ChatShell({
                 <div className="flex items-center gap-1">
                   {previewActions ?? (
                     <>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger
+                          disabled={!previewProjectId}
+                          render={
+                            <Button
+                              aria-label="下载"
+                              size="icon-sm"
+                              type="button"
+                              variant="ghost"
+                            >
+                              <DownloadIcon />
+                            </Button>
+                          }
+                        />
+                        <DropdownMenuContent align="end" className="min-w-44">
+                          <DropdownMenuItem
+                            disabled={!currentHtmlDownloadUrl}
+                            onClick={() => {
+                              if (currentHtmlDownloadUrl) {
+                                triggerBrowserDownload(currentHtmlDownloadUrl);
+                              }
+                            }}
+                          >
+                            下载当前HTML
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            disabled={!workspaceZipDownloadUrl}
+                            onClick={() => {
+                              if (workspaceZipDownloadUrl) {
+                                triggerBrowserDownload(workspaceZipDownloadUrl);
+                              }
+                            }}
+                          >
+                            下载全部打包成ZIP
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                       <Button
                         aria-label="刷新预览"
                         onClick={() => {
@@ -380,6 +432,29 @@ function writeConversationPaneState(value: boolean) {
     String(value),
   );
   window.dispatchEvent(new Event(CONVERSATION_PANE_EVENT));
+}
+
+function buildProjectDownloadUrl(
+  projectId: string,
+  kind: "current-html" | "workspace-zip",
+  previewPath?: string,
+) {
+  const params = new URLSearchParams({ kind });
+
+  if (kind === "current-html" && previewPath) {
+    params.set("previewPath", previewPath);
+  }
+
+  return `/api/projects/${encodeURIComponent(projectId)}/download?${params.toString()}`;
+}
+
+function triggerBrowserDownload(url: string) {
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "";
+  document.body.append(link);
+  link.click();
+  link.remove();
 }
 
 function PreviewFileSelect({

@@ -290,6 +290,7 @@ export default async function Home({ searchParams }: HomeProps) {
           />
         )
       }
+      previewProjectId={activeProject?.id}
     />
   );
 }

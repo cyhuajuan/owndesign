@@ -953,7 +953,7 @@ describe("AiSdkDesignPageAgent", () => {
     });
   });
 
-  it("builds instructions from the core markdown prompt and dynamic Project Output prompt", async () => {
+  it("builds structured instructions from core markdown and dynamic prompt sections", async () => {
     const workspaceStore = await createWorkspaceStore();
     await createProject(workspaceStore);
     const agent = new AiSdkDesignPageAgent(workspaceStore);
@@ -965,10 +965,20 @@ describe("AiSdkDesignPageAgent", () => {
       instructions: string;
     };
     expect(config.instructions).toContain("# Design Page Agent");
+    expect(config.instructions).toContain("<design_agent_core>");
+    expect(config.instructions).toContain("</design_agent_core>");
+    expect(config.instructions).toContain("<page_target_protocol>");
+    expect(config.instructions).toContain("</page_target_protocol>");
+    expect(config.instructions).toContain("<tool_workflow>");
+    expect(config.instructions).toContain("</tool_workflow>");
+    expect(config.instructions).toContain("<resource_policy>");
+    expect(config.instructions).toContain("</resource_policy>");
+    expect(config.instructions).toContain("<runtime_context>");
+    expect(config.instructions).toContain("</runtime_context>");
     expect(config.instructions).toContain(
       "You design and build previewable product pages",
     );
-    expect(config.instructions).toContain("## Project Output");
+    expect(config.instructions).toContain("## Runtime Context");
     expect(config.instructions).toContain("Project Output Type: html.");
     expect(config.instructions).toContain("previewable UI prototype");
     expect(config.instructions).toContain("local UI state");
@@ -981,6 +991,16 @@ describe("AiSdkDesignPageAgent", () => {
     expect(config.instructions).toContain("Use `switchPreview`");
     expect(config.instructions).toContain("Current preview page: none.");
     expect(config.instructions).toContain("first decide whether the user wants");
+    expect(config.instructions).toContain("Resolve target page.");
+    expect(config.instructions).toContain("Inspect workspace when needed");
+    expect(config.instructions).toContain("Create missing HTML with `createHtml`");
+    expect(config.instructions).toContain(
+      "Edit existing HTML with `read` plus `edit` or `patch`",
+    );
+    expect(config.instructions).toContain("Switch preview only when needed");
+    expect(config.instructions).toContain(
+      "Finish with concise user-facing summary",
+    );
     expect(config.instructions).toContain("relative paths ending in `.html`");
     expect(config.instructions).toContain("default to `index.html`");
     expect(config.instructions).toContain("must call `createHtml` first");
@@ -1018,6 +1038,7 @@ describe("AiSdkDesignPageAgent", () => {
     expect(config.instructions).not.toContain("Project One");
     expect(config.instructions).not.toContain("project-1");
     expect(config.instructions).not.toContain("conversation-1");
+    expect(config.instructions).toContain("Use the runtime page target protocol");
     expect(aiMocks.generate).toHaveBeenCalledWith({
       prompt: "设计一个 CRM 仪表盘的界面",
     });

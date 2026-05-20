@@ -172,7 +172,7 @@ describe("AiSdkDesignPageAgent", () => {
     ).rejects.toMatchObject({ code: "ENOENT" });
   });
 
-  it("configures the agent to ask follow-up questions when design details are missing", async () => {
+  it("configures the agent to ask follow-up questions only when page target remains ambiguous", async () => {
     const workspaceStore = await createWorkspaceStore();
     await createProject(workspaceStore);
     const agent = new AiSdkDesignPageAgent(workspaceStore);
@@ -187,7 +187,7 @@ describe("AiSdkDesignPageAgent", () => {
     expect(aiMocks.toolLoopAgent).toHaveBeenCalledWith(
       expect.objectContaining({
         instructions: expect.stringContaining(
-          "ask concise follow-up questions instead of modifying files",
+          "Ask a follow-up question only when the target page remains ambiguous",
         ),
         providerOptions: {
           deepseek: {
@@ -990,7 +990,18 @@ describe("AiSdkDesignPageAgent", () => {
     expect(config.instructions).toContain("Project Workspace tools");
     expect(config.instructions).toContain("Use `switchPreview`");
     expect(config.instructions).toContain("Current preview page: none.");
-    expect(config.instructions).toContain("first decide whether the user wants");
+    expect(config.instructions).toContain(
+      "Resolve target page before creating or updating",
+    );
+    expect(config.instructions).toContain(
+      "If the user clearly names a page or path",
+    );
+    expect(config.instructions).toContain(
+      "If the user uses a relative reference and current preview page is known",
+    );
+    expect(config.instructions).toContain(
+      "Do not ask a follow-up question just because the request is brief",
+    );
     expect(config.instructions).toContain("Resolve target page.");
     expect(config.instructions).toContain("Inspect workspace when needed");
     expect(config.instructions).toContain("Create missing HTML with `createHtml`");
@@ -1003,12 +1014,21 @@ describe("AiSdkDesignPageAgent", () => {
     );
     expect(config.instructions).toContain("relative paths ending in `.html`");
     expect(config.instructions).toContain("default to `index.html`");
+    expect(config.instructions).toContain(
+      "current preview page is unknown",
+    );
     expect(config.instructions).toContain("must call `createHtml` first");
     expect(config.instructions).toContain(
       "omit them so the tool reads configured defaults",
     );
     expect(config.instructions).toContain(
       "After `createHtml` succeeds, use `edit` or `patch`",
+    );
+    expect(config.instructions).toContain(
+      "For existing HTML files, use `read` first",
+    );
+    expect(config.instructions).toContain(
+      "tool rejects HTML because of CDN guard rules",
     );
     expect(config.instructions).toContain("semantic `.html` file");
     expect(config.instructions).toContain("do not overwrite `index.html`");
@@ -1075,7 +1095,7 @@ describe("AiSdkDesignPageAgent", () => {
     };
     expect(config.instructions).toContain("Current preview page: dashboard.html.");
     expect(config.instructions).toContain(
-      "edit that page directly instead of asking a follow-up question",
+      "edit that page directly; do not ask which page they mean",
     );
   });
 

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   AiSdkDesignPageAgent,
+  createDesignPageAgentContext,
   buildProviderOptions,
 } from "./design-page-agent";
 import { WorkspaceStore } from "./workspace-store";
@@ -218,6 +219,39 @@ describe("AiSdkDesignPageAgent", () => {
         thinking: { type: "enabled" },
         reasoningEffort: "max",
       },
+    });
+  });
+
+  it("creates a design agent context from settings, model selection, and preview state", async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+
+    const context = await createDesignPageAgentContext({
+      currentPreviewPath: "dashboard.html",
+      modelConfigurationId: "model-1",
+      outputType: "html",
+      projectId: "project-1",
+      providerOptionsSelection: "max",
+      workspaceStore,
+    });
+
+    expect(aiMocks.resolveModelConfiguration).toHaveBeenCalledWith("model-1");
+    expect(context).toMatchObject({
+      currentPreviewPath: "dashboard.html",
+      outputType: "html",
+      projectId: "project-1",
+      providerOptions: {
+        deepseek: {
+          thinking: { type: "enabled" },
+          reasoningEffort: "max",
+        },
+      },
+      resources: defaultResources,
+      workspaceStore,
+    });
+    expect(context.model).toEqual({
+      modelId: "deepseek-v4-flash",
+      provider: "deepseek",
     });
   });
 

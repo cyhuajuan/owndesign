@@ -7,12 +7,10 @@ import {
 import { normalizeConversationMessages } from "@/lib/chat-messages";
 import { createConversationService, createWorkspaceStore } from "@/lib/hjdesign";
 import {
-  buildProviderOptions,
-  buildLanguageModel,
   createDesignPageAgent,
+  createDesignPageAgentContext,
 } from "@/lib/design-page-agent";
 import {
-  createSettingsService,
   parseDeepSeekThinkingMode,
 } from "@/lib/settings-service";
 
@@ -51,33 +49,26 @@ export async function POST(request: Request) {
   const messages = normalizeConversationMessages(
     body.messages,
   ) as DesignPageUIMessage[];
-  const settingsService = createSettingsService();
-  let modelConfiguration;
-  let resources;
+  let agentContext;
 
   try {
-    resources = (await settingsService.getSettings()).resources;
-    modelConfiguration = await settingsService.resolveModelConfiguration(
-      asNonEmptyString(body.modelConfigurationId),
-    );
+    agentContext = await createDesignPageAgentContext({
+      currentPreviewPath: previewPath,
+      modelConfigurationId: asNonEmptyString(body.modelConfigurationId),
+      outputType: project.outputType,
+      projectId,
+      providerOptionsSelection: parseDeepSeekProviderOptionsSelection(
+        body.providerOptionsSelection,
+      ),
+      workspaceStore,
+    });
   } catch (error) {
     return new Response(
       error instanceof Error ? error.message : "Invalid model configuration.",
       { status: 400 },
     );
   }
-  const agent = createDesignPageAgent({
-    model: buildLanguageModel(modelConfiguration),
-    outputType: project.outputType,
-    providerOptions: buildProviderOptions(
-      modelConfiguration,
-      parseDeepSeekProviderOptionsSelection(body.providerOptionsSelection),
-    ),
-    currentPreviewPath: previewPath,
-    projectId,
-    resources,
-    workspaceStore,
-  });
+  const agent = createDesignPageAgent(agentContext);
   let latestStepUsage: LanguageModelUsage | undefined;
 
   return createAgentUIStreamResponse({

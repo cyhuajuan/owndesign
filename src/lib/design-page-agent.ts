@@ -47,6 +47,17 @@ type CreateDesignPageAgentInput = {
   workspaceStore: WorkspaceStore;
 };
 
+export type DesignAgentContext = CreateDesignPageAgentInput;
+
+type CreateDesignPageAgentContextInput = {
+  currentPreviewPath?: string;
+  modelConfigurationId?: string;
+  outputType: ProjectOutputType;
+  projectId: string;
+  providerOptionsSelection?: DeepSeekThinkingMode;
+  workspaceStore: WorkspaceStore;
+};
+
 export class AiSdkDesignPageAgent implements DesignPageAgent {
   constructor(private readonly workspaceStore: WorkspaceStore) {}
 
@@ -55,21 +66,12 @@ export class AiSdkDesignPageAgent implements DesignPageAgent {
       throw new Error(`Unsupported Project Output Type: ${input.outputType}`);
     }
 
-    const settingsService = createSettingsService();
-    const [settings, modelConfiguration] = await Promise.all([
-      settingsService.getSettings(),
-      settingsService.resolveModelConfiguration(),
-    ]);
-    const agent = createDesignPageAgent({
-      model: buildLanguageModel(
-        modelConfiguration,
-      ),
+    const context = await createDesignPageAgentContext({
       outputType: input.outputType,
-      providerOptions: buildProviderOptions(modelConfiguration),
       projectId: input.projectId,
-      resources: settings.resources,
       workspaceStore: this.workspaceStore,
     });
+    const agent = createDesignPageAgent(context);
 
     const result = await agent.generate({
       prompt: input.content,
@@ -81,31 +83,76 @@ export class AiSdkDesignPageAgent implements DesignPageAgent {
   }
 }
 
-export function createDesignPageAgent({
+export async function createDesignPageAgentContext({
   currentPreviewPath,
-  model,
+  modelConfigurationId,
   outputType,
-  providerOptions,
+  projectId,
+  providerOptionsSelection,
+  workspaceStore,
+}: CreateDesignPageAgentContextInput): Promise<DesignAgentContext> {
+  if (outputType !== "html") {
+    throw new Error(`Unsupported Project Output Type: ${outputType}`);
+  }
+
+  const settingsService = createSettingsService();
+  const [settings, modelConfiguration] = await Promise.all([
+    settingsService.getSettings(),
+    settingsService.resolveModelConfiguration(modelConfigurationId),
+  ]);
+
+  return {
+    currentPreviewPath,
+    model: buildLanguageModel(modelConfiguration),
+    outputType,
+    providerOptions: buildProviderOptions(
+      modelConfiguration,
+      providerOptionsSelection,
+    ),
+    projectId,
+    resources: settings.resources,
+    workspaceStore,
+  };
+}
+
+export function createDesignPageAgent(context: DesignAgentContext) {
+  const {
+    model,
+    providerOptions,
+  } = context;
+
+  return new ToolLoopAgent({
+    model,
+    instructions: buildDesignPageInstructions(context),
+    providerOptions,
+    stopWhen: stepCountIs(50),
+    tools: createDesignPageWorkspaceTools(context),
+  });
+}
+
+export function createDesignPageWorkspaceTools({
   projectId,
   resources,
   workspaceStore,
-}: CreateDesignPageAgentInput) {
-  return new ToolLoopAgent({
-    model,
-    instructions: buildDesignPageAgentInstructions(
-      outputType,
-      resources,
-      currentPreviewPath,
-    ),
-    providerOptions,
-    stopWhen: stepCountIs(50),
-    tools: createProjectWorkspaceTools({
-      approvedCdnUrls: buildApprovedCdnUrls(resources),
-      projectId,
-      resources,
-      workspaceStore,
-    }),
+}: DesignAgentContext) {
+  return createProjectWorkspaceTools({
+    approvedCdnUrls: buildApprovedCdnUrls(resources),
+    projectId,
+    resources,
+    workspaceStore,
   });
+}
+
+export function buildDesignPageInstructions({
+  currentPreviewPath,
+  outputType,
+  resources,
+}: DesignAgentContext) {
+  return buildDesignPageAgentInstructions(
+    outputType,
+    resources,
+    currentPreviewPath,
+  );
 }
 
 export function buildLanguageModel(configuration: ModelConfiguration) {

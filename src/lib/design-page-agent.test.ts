@@ -98,6 +98,7 @@ beforeEach(() => {
   aiMocks.resolveModelConfiguration.mockResolvedValue({
     apiKey: "secret",
     baseUrl: "https://api.deepseek.com",
+    contextSizeK: 1000,
     id: "model-1",
     model: "deepseek-v4-flash",
     provider: "deepseek",
@@ -201,6 +202,7 @@ describe("AiSdkDesignPageAgent", () => {
     const configuration = {
       apiKey: "secret",
       baseUrl: "",
+      contextSizeK: 1000,
       id: "model-1",
       model: "deepseek-chat",
       provider: "deepseek" as const,

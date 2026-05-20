@@ -20,7 +20,7 @@ function buildLongString(prefix: string, tail = "-hidden-tail") {
 
 function getProjectOutputUpdatedEvents(dispatchEventSpy: ReturnType<typeof vi.spyOn>) {
   return dispatchEventSpy.mock.calls.filter(
-    ([event]) => event.type === "hjdesign:project-output-updated",
+    ([event]: [Event]) => event.type === "hjdesign:project-output-updated",
   );
 }
 

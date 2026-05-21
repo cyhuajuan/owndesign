@@ -1,15 +1,16 @@
-import { jsonSchema, tool } from "ai";
+import type { WorkspaceGrepResult } from "@/lib/workspace-store";
 
-import type { GrepInput, ProjectWorkspaceToolContext } from "./types";
+import type { WorkspaceToolDefinition } from "./core";
+import type { GrepInput } from "./types";
 
-export function createGrepTool({
-  projectId,
-  workspaceStore,
-}: ProjectWorkspaceToolContext) {
-  return tool({
+export function createGrepToolDefinition(): WorkspaceToolDefinition<
+  GrepInput,
+  WorkspaceGrepResult
+> {
+  return {
     description:
       "Search UTF-8 text files in the current Project Workspace using a JavaScript regular expression.",
-    inputSchema: jsonSchema<GrepInput>({
+    inputSchema: {
       type: "object",
       properties: {
         include: {
@@ -29,12 +30,13 @@ export function createGrepTool({
       },
       required: ["pattern"],
       additionalProperties: false,
-    }),
-    execute: async ({ include, path, pattern }) => ({
-      matches: await workspaceStore.grepProjectWorkspace(projectId, pattern, {
+    },
+    name: "grep",
+    parallelSafe: true,
+    execute: async ({ include, path, pattern }, { projectId, workspaceStore }) =>
+      workspaceStore.grepProjectWorkspace(projectId, pattern, {
         include,
         path,
       }),
-    }),
-  });
+  };
 }

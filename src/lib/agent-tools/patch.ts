@@ -1,20 +1,15 @@
-import { jsonSchema, tool } from "ai";
+import { applyProjectWorkspacePatchWithCdnGuard } from "./cdn-guard";
+import type { WorkspaceToolDefinition } from "./core";
+import type { PatchInput } from "./types";
 
-import {
-  editProjectWorkspaceFileWithCdnGuard,
-  writeProjectWorkspaceFileWithCdnGuard,
-} from "./cdn-guard";
-import type { PatchInput, ProjectWorkspaceToolContext } from "./types";
-
-export function createPatchTool({
-  approvedCdnUrls,
-  projectId,
-  workspaceStore,
-}: ProjectWorkspaceToolContext) {
-  return tool({
+export function createPatchToolDefinition(): WorkspaceToolDefinition<
+  PatchInput,
+  Awaited<ReturnType<typeof applyProjectWorkspacePatchWithCdnGuard>>
+> {
+  return {
     description:
       "Apply coordinated UTF-8 file changes inside the current Project Workspace. Supports add/write, edit, and delete changes.",
-    inputSchema: jsonSchema<PatchInput>({
+    inputSchema: {
       type: "object",
       properties: {
         changes: {
@@ -58,54 +53,64 @@ export function createPatchTool({
       },
       required: ["changes"],
       additionalProperties: false,
-    }),
-    execute: async ({ changes }) => {
-      const results = [];
-
-      for (const change of changes) {
-        if (change.operation === "delete") {
-          results.push({
-            operation: change.operation,
-            result: await workspaceStore.deleteProjectWorkspacePath(
-              projectId,
-              change.path,
-            ),
-          });
-          continue;
-        }
-
-        if (change.operation === "edit") {
-          results.push({
-            operation: change.operation,
-            result: await editProjectWorkspaceFileWithCdnGuard(
-              workspaceStore,
-              projectId,
-              change.path,
-              change.oldString,
-              change.newString,
-              change.replaceAll,
-              approvedCdnUrls,
-            ),
-          });
-          continue;
-        }
-
-        results.push({
-          operation: change.operation,
-          result: await writeProjectWorkspaceFileWithCdnGuard(
-            workspaceStore,
-            projectId,
-            change.path,
-            change.content,
-            approvedCdnUrls,
-          ),
-        });
-      }
-
-      return {
-        changed: results.length,
-        results,
-      };
     },
-  });
+    name: "patch",
+    parallelSafe: false,
+    validate: validatePatchInput,
+    execute: async ({ changes }, { approvedCdnUrls, projectId, workspaceStore }) =>
+      applyProjectWorkspacePatchWithCdnGuard(
+        workspaceStore,
+        projectId,
+        changes,
+        approvedCdnUrls,
+      ),
+  };
+}
+
+function validatePatchInput(input: PatchInput) {
+  if (!Array.isArray(input.changes) || input.changes.length === 0) {
+    throw new Error("patch.changes must include at least one change.");
+  }
+
+  for (const [index, change] of input.changes.entries()) {
+    const label = `patch.changes[${index}]`;
+
+    if (!change.path) {
+      throw new Error(`${label}.path must not be empty.`);
+    }
+
+    if (change.operation === "edit") {
+      if (typeof change.oldString !== "string" || typeof change.newString !== "string") {
+        throw new Error(`${label} edit changes require oldString and newString.`);
+      }
+      if ("content" in change) {
+        throw new Error(`${label} edit changes must not include content.`);
+      }
+      continue;
+    }
+
+    if (change.operation === "add" || change.operation === "write") {
+      if (typeof change.content !== "string") {
+        throw new Error(`${label} ${change.operation} changes require content.`);
+      }
+      if ("oldString" in change || "newString" in change || "replaceAll" in change) {
+        throw new Error(`${label} ${change.operation} changes must not include edit fields.`);
+      }
+      continue;
+    }
+
+    if (change.operation === "delete") {
+      if (
+        "content" in change ||
+        "oldString" in change ||
+        "newString" in change ||
+        "replaceAll" in change
+      ) {
+        throw new Error(`${label} delete changes must not include content or edit fields.`);
+      }
+      continue;
+    }
+
+    throw new Error(`${label}.operation is not supported.`);
+  }
 }

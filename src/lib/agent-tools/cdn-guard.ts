@@ -1,6 +1,6 @@
 import path from "node:path";
 
-import type { WorkspaceStore } from "@/lib/workspace-store";
+import type { WorkspacePatchChange, WorkspaceStore } from "@/lib/workspace-store";
 
 type CdnResourceInput = {
   crossorigin?: string;
@@ -52,7 +52,7 @@ export async function editProjectWorkspaceFileWithCdnGuard(
     relativePath,
   );
 
-  await writeProjectWorkspaceFileWithCdnGuard(
+  const writeResult = await writeProjectWorkspaceFileWithCdnGuard(
     workspaceStore,
     projectId,
     relativePath,
@@ -61,11 +61,30 @@ export async function editProjectWorkspaceFileWithCdnGuard(
   );
 
   return {
+    diff: writeResult.diff,
     path: normalizeToolPath(relativePath),
     replacements: replaceAll
       ? countOccurrences(content, normalizeEditNeedle(content, oldString))
       : 1,
   };
+}
+
+export async function applyProjectWorkspacePatchWithCdnGuard(
+  workspaceStore: WorkspaceStore,
+  projectId: string,
+  changes: WorkspacePatchChange[],
+  approvedCdnUrls: string[] = [],
+) {
+  return workspaceStore.applyProjectWorkspacePatch(projectId, changes, {
+    transformContent: async (relativePath, content) =>
+      guardIndexHtmlCdnChanges(
+        workspaceStore,
+        projectId,
+        relativePath,
+        content,
+        approvedCdnUrls,
+      ),
+  });
 }
 
 export async function readProjectWorkspaceFileIfExists(

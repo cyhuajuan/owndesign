@@ -1,17 +1,15 @@
-import { jsonSchema, tool } from "ai";
-
 import { editProjectWorkspaceFileWithCdnGuard } from "./cdn-guard";
-import type { EditInput, ProjectWorkspaceToolContext } from "./types";
+import type { WorkspaceToolDefinition } from "./core";
+import type { EditInput } from "./types";
 
-export function createEditTool({
-  approvedCdnUrls,
-  projectId,
-  workspaceStore,
-}: ProjectWorkspaceToolContext) {
-  return tool({
+export function createEditToolDefinition(): WorkspaceToolDefinition<
+  EditInput,
+  Awaited<ReturnType<typeof editProjectWorkspaceFileWithCdnGuard>>
+> {
+  return {
     description:
       "Edit one UTF-8 text file by replacing oldString with newString. By default oldString must occur exactly once; set replaceAll to replace every occurrence.",
-    inputSchema: jsonSchema<EditInput>({
+    inputSchema: {
       type: "object",
       properties: {
         newString: {
@@ -34,8 +32,14 @@ export function createEditTool({
       },
       required: ["path", "oldString", "newString"],
       additionalProperties: false,
-    }),
-    execute: async ({ newString, oldString, path, replaceAll }) =>
+    },
+    name: "edit",
+    parallelSafe: false,
+    execute: async ({ newString, oldString, path, replaceAll }, {
+      approvedCdnUrls,
+      projectId,
+      workspaceStore,
+    }) =>
       editProjectWorkspaceFileWithCdnGuard(
         workspaceStore,
         projectId,
@@ -45,5 +49,5 @@ export function createEditTool({
         replaceAll,
         approvedCdnUrls,
       ),
-  });
+  };
 }

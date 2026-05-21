@@ -1,5 +1,3 @@
-import { jsonSchema, tool } from "ai";
-
 import type { ResourceLibrary } from "@/lib/settings-service";
 
 import {
@@ -8,19 +6,24 @@ import {
   normalizeToolPath,
   readProjectWorkspaceFileIfExists,
 } from "./cdn-guard";
-import type { CreateHtmlInput, ProjectWorkspaceToolContext } from "./types";
+import type { WorkspaceToolDefinition } from "./core";
+import type { CreateHtmlInput } from "./types";
 
 const DEFAULT_TITLE = "HJDesign Preview";
 
-export function createCreateHtmlTool({
-  projectId,
-  resources,
-  workspaceStore,
-}: ProjectWorkspaceToolContext) {
-  return tool({
+export function createCreateHtmlToolDefinition(): WorkspaceToolDefinition<
+  CreateHtmlInput,
+  {
+    fontLibrary?: { cdn: string; name: string };
+    iconLibrary?: { cdn: string; name: string };
+    path: string;
+    title: string;
+  }
+> {
+  return {
     description:
       "Create a new previewable HTML file from the configured resource template before designing a missing target HTML page. Never overwrites existing files.",
-    inputSchema: jsonSchema<CreateHtmlInput>({
+    inputSchema: {
       type: "object",
       properties: {
         fontLibraryName: {
@@ -45,8 +48,10 @@ export function createCreateHtmlTool({
       },
       required: ["path"],
       additionalProperties: false,
-    }),
-    execute: async (input) => {
+    },
+    name: "createHtml",
+    parallelSafe: false,
+    execute: async (input, { projectId, resources, workspaceStore }) => {
       const targetPath = normalizeToolPath(input.path);
 
       if (!isHtmlPath(targetPath)) {
@@ -88,7 +93,7 @@ export function createCreateHtmlTool({
         title: input.title?.trim() || DEFAULT_TITLE,
       };
     },
-  });
+  };
 }
 
 function selectLibrary(

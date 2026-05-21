@@ -1,16 +1,15 @@
-import { jsonSchema, tool } from "ai";
-
 import { isHtmlPath, normalizeToolPath } from "./cdn-guard";
-import type { ProjectWorkspaceToolContext, SwitchPreviewInput } from "./types";
+import type { WorkspaceToolDefinition } from "./core";
+import type { SwitchPreviewInput } from "./types";
 
-export function createSwitchPreviewTool({
-  projectId,
-  workspaceStore,
-}: ProjectWorkspaceToolContext) {
-  return tool({
+export function createSwitchPreviewToolDefinition(): WorkspaceToolDefinition<
+  SwitchPreviewInput,
+  { path: string }
+> {
+  return {
     description:
       "Switch the frontend preview to an existing HTML file in the current Project Workspace after creating or updating the target page.",
-    inputSchema: jsonSchema<SwitchPreviewInput>({
+    inputSchema: {
       type: "object",
       properties: {
         path: {
@@ -21,8 +20,10 @@ export function createSwitchPreviewTool({
       },
       required: ["path"],
       additionalProperties: false,
-    }),
-    execute: async (input) => {
+    },
+    name: "switchPreview",
+    parallelSafe: true,
+    execute: async (input, { projectId, workspaceStore }) => {
       const targetPath = normalizeToolPath(input.path);
 
       if (!targetPath || targetPath === ".") {
@@ -43,5 +44,5 @@ export function createSwitchPreviewTool({
         path: targetPath,
       };
     },
-  });
+  };
 }

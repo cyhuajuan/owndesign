@@ -1,15 +1,16 @@
-import { jsonSchema, tool } from "ai";
+import type { WorkspaceGlobMatch } from "@/lib/workspace-store";
 
-import type { GlobInput, ProjectWorkspaceToolContext } from "./types";
+import type { WorkspaceToolDefinition } from "./core";
+import type { GlobInput } from "./types";
 
-export function createGlobTool({
-  projectId,
-  workspaceStore,
-}: ProjectWorkspaceToolContext) {
-  return tool({
+export function createGlobToolDefinition(): WorkspaceToolDefinition<
+  GlobInput,
+  { matches: WorkspaceGlobMatch[]; totalMatches: number; truncated: boolean }
+> {
+  return {
     description:
       "Find files and directories in the current Project Workspace by glob pattern, sorted by most recently modified first.",
-    inputSchema: jsonSchema<GlobInput>({
+    inputSchema: {
       type: "object",
       properties: {
         path: {
@@ -25,13 +26,10 @@ export function createGlobTool({
       },
       required: ["pattern"],
       additionalProperties: false,
-    }),
-    execute: async ({ path, pattern }) => ({
-      matches: await workspaceStore.globProjectWorkspace(
-        projectId,
-        pattern,
-        path,
-      ),
-    }),
-  });
+    },
+    name: "glob",
+    parallelSafe: true,
+    execute: async ({ path, pattern }, { projectId, workspaceStore }) =>
+      workspaceStore.globProjectWorkspace(projectId, pattern, path),
+  };
 }

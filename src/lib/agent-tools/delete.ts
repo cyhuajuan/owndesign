@@ -1,15 +1,14 @@
-import { jsonSchema, tool } from "ai";
+import type { WorkspaceToolDefinition } from "./core";
+import type { DeleteInput } from "./types";
 
-import type { DeleteInput, ProjectWorkspaceToolContext } from "./types";
-
-export function createDeleteTool({
-  projectId,
-  workspaceStore,
-}: ProjectWorkspaceToolContext) {
-  return tool({
+export function createDeleteToolDefinition(): WorkspaceToolDefinition<
+  DeleteInput,
+  Awaited<ReturnType<import("@/lib/workspace-store").WorkspaceStore["deleteProjectWorkspacePath"]>>
+> {
+  return {
     description:
       "Recursively delete a file or directory from the current Project Workspace.",
-    inputSchema: jsonSchema<DeleteInput>({
+    inputSchema: {
       type: "object",
       properties: {
         path: {
@@ -20,8 +19,10 @@ export function createDeleteTool({
       },
       required: ["path"],
       additionalProperties: false,
-    }),
-    execute: async ({ path }) =>
+    },
+    name: "delete",
+    parallelSafe: false,
+    execute: async ({ path }, { projectId, workspaceStore }) =>
       workspaceStore.deleteProjectWorkspacePath(projectId, path),
-  });
+  };
 }

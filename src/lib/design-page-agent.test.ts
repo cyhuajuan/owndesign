@@ -9,6 +9,8 @@ import {
   createDesignPageAgentContext,
   buildProviderOptions,
 } from "./design-page-agent";
+import { createWorkspaceToolRegistry } from "./agent-tools/core";
+import { createProjectWorkspaceToolDefinitions } from "./agent-tools/project-workspace-tools";
 import { WorkspaceStore } from "./workspace-store";
 
 const aiMocks = vi.hoisted(() => {
@@ -281,6 +283,36 @@ describe("AiSdkDesignPageAgent", () => {
     expect(config.tools).not.toHaveProperty("addCdnResource");
   });
 
+  it("builds Project Workspace tools from one registry with metadata", async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    const agent = new AiSdkDesignPageAgent(workspaceStore);
+    aiMocks.generate.mockResolvedValueOnce({ text: "" });
+
+    await agent.generateProjectOutput(buildInput());
+
+    const config = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
+      tools: {
+        __metadata: Record<string, { parallelSafe: boolean }>;
+        patch: { inputSchema: { properties: unknown } };
+        read: { inputSchema: { required: string[] } };
+      };
+    };
+    expect(config.tools.__metadata.read).toEqual({ parallelSafe: true });
+    expect(config.tools.__metadata.patch).toEqual({ parallelSafe: false });
+    expect(config.tools.read.inputSchema.required).toEqual(["path"]);
+    expect(config.tools.patch.inputSchema.properties).toHaveProperty("changes");
+
+    const definitions = createProjectWorkspaceToolDefinitions();
+    expect(() =>
+      createWorkspaceToolRegistry([definitions[0], definitions[0]], {
+        projectId: "project-1",
+        resources: defaultResources,
+        workspaceStore,
+      }),
+    ).toThrow("already registered");
+  });
+
   it("creates missing HTML from configured resource defaults", async () => {
     const workspaceStore = await createWorkspaceStore();
     await createProject(workspaceStore);
@@ -300,10 +332,12 @@ describe("AiSdkDesignPageAgent", () => {
       };
     };
     await expect(
-      config.tools.createHtml.execute({
+      expectWorkspaceToolOk(
+        config.tools.createHtml.execute({
         path: "index.html",
         title: "CRM Dashboard",
-      }),
+        }),
+      ),
     ).resolves.toMatchObject({
       fontLibrary: {
         cdn: "https://cdn.example.com/font.css",
@@ -381,11 +415,13 @@ describe("AiSdkDesignPageAgent", () => {
       };
     };
     await expect(
-      config.tools.createHtml.execute({
+      expectWorkspaceToolOk(
+        config.tools.createHtml.execute({
         fontLibraryName: "Display Font",
         iconLibraryName: "Font Awesome",
         path: "pages/detail.html",
-      }),
+        }),
+      ),
     ).resolves.toMatchObject({
       fontLibrary: { cdn: "", name: "Display Font" },
       iconLibrary: {
@@ -463,21 +499,25 @@ describe("AiSdkDesignPageAgent", () => {
         };
       };
     };
-    await expect(
+    await expectWorkspaceToolError(
       config.tools.createHtml.execute({ path: "index.html" }),
-    ).rejects.toThrow("already exists");
-    await expect(
+      "already exists",
+    );
+    await expectWorkspaceToolError(
       config.tools.createHtml.execute({ path: "notes.txt" }),
-    ).rejects.toThrow("must end with .html");
-    await expect(
+      "must end with .html",
+    );
+    await expectWorkspaceToolError(
       config.tools.createHtml.execute({ path: "../escape.html" }),
-    ).rejects.toThrow("escapes workspace");
-    await expect(
+      "escapes workspace",
+    );
+    await expectWorkspaceToolError(
       config.tools.createHtml.execute({
         fontLibraryName: "Missing Font",
         path: "new.html",
       }),
-    ).rejects.toThrow("Configured font library was not found");
+      "Configured font library was not found",
+    );
     await expect(
       workspaceStore.readProjectWorkspaceFile("project-1", "index.html"),
     ).resolves.toBe("<main>Existing</main>");
@@ -519,7 +559,9 @@ describe("AiSdkDesignPageAgent", () => {
       };
     };
     await expect(
-      config.tools.read.execute({ limit: 1, offset: 2, path: "index.html" }),
+      expectWorkspaceToolOk(
+        config.tools.read.execute({ limit: 1, offset: 2, path: "index.html" }),
+      ),
     ).resolves.toMatchObject({
       content: "2:   <h1>CRM Dashboard</h1>",
       path: "index.html",
@@ -527,7 +569,7 @@ describe("AiSdkDesignPageAgent", () => {
       type: "file",
     });
     await expect(
-      config.tools.glob.execute({ pattern: "**/*.css" }),
+      expectWorkspaceToolOk(config.tools.glob.execute({ pattern: "**/*.css" })),
     ).resolves.toMatchObject({
       matches: [
         expect.objectContaining({
@@ -537,7 +579,9 @@ describe("AiSdkDesignPageAgent", () => {
       ],
     });
     await expect(
-      config.tools.grep.execute({ include: "*.html", pattern: "CRM\\s+Dashboard" }),
+      expectWorkspaceToolOk(
+        config.tools.grep.execute({ include: "*.html", pattern: "CRM\\s+Dashboard" }),
+      ),
     ).resolves.toMatchObject({
       matches: [
         {
@@ -574,20 +618,23 @@ describe("AiSdkDesignPageAgent", () => {
         };
       };
     };
-    await expect(
+    await expectWorkspaceToolError(
       config.tools.edit.execute({
         newString: "Submit",
         oldString: "Save",
         path: "index.html",
       }),
-    ).rejects.toThrow("oldString appears more than once");
+      "oldString appears more than once",
+    );
     await expect(
-      config.tools.edit.execute({
+      expectWorkspaceToolOk(
+        config.tools.edit.execute({
         newString: "Submit",
         oldString: "Save",
         path: "index.html",
         replaceAll: true,
-      }),
+        }),
+      ),
     ).resolves.toMatchObject({
       path: "index.html",
       replacements: 2,
@@ -641,7 +688,8 @@ describe("AiSdkDesignPageAgent", () => {
       };
     };
     await expect(
-      config.tools.patch.execute({
+      expectWorkspaceToolOk(
+        config.tools.patch.execute({
         changes: [
           {
             newString: "New",
@@ -659,7 +707,8 @@ describe("AiSdkDesignPageAgent", () => {
             path: "stale.txt",
           },
         ],
-      }),
+        }),
+      ),
     ).resolves.toMatchObject({
       changed: 3,
     });
@@ -695,7 +744,7 @@ describe("AiSdkDesignPageAgent", () => {
         };
       };
     };
-    await expect(
+    await expectWorkspaceToolError(
       config.tools.patch.execute({
         changes: [
           {
@@ -705,7 +754,104 @@ describe("AiSdkDesignPageAgent", () => {
           },
         ],
       }),
-    ).rejects.toThrow("escapes workspace");
+      "escapes workspace",
+    );
+  });
+
+  it("does not partially apply patch changes when CDN validation fails", async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    await workspaceStore.writeProjectWorkspaceFile(
+      "project-1",
+      "index.html",
+      "<!doctype html><html><head></head><body><main>Old</main></body></html>",
+    );
+    const agent = new AiSdkDesignPageAgent(workspaceStore);
+    aiMocks.generate.mockResolvedValueOnce({ text: "" });
+
+    await agent.generateProjectOutput(buildInput());
+
+    const config = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
+      tools: {
+        patch: {
+          execute: (input: {
+            changes: Array<
+              | {
+                  content: string;
+                  operation: "write";
+                  path: string;
+                }
+              | {
+                  newString: string;
+                  oldString: string;
+                  operation: "edit";
+                  path: string;
+                }
+            >;
+          }) => Promise<unknown>;
+        };
+      };
+    };
+    await expectWorkspaceToolError(
+      config.tools.patch.execute({
+        changes: [
+          {
+            newString: "New",
+            oldString: "Old",
+            operation: "edit",
+            path: "index.html",
+          },
+          {
+            content:
+              '<!doctype html><html><head><script src="https://cdn.example.com/raw.js"></script></head><body></body></html>',
+            operation: "write",
+            path: "blocked.html",
+          },
+        ],
+      }),
+      "can only use CDN resources configured in settings",
+    );
+    await expect(
+      workspaceStore.readProjectWorkspaceFile("project-1", "index.html"),
+    ).resolves.toContain("Old");
+    await expect(
+      workspaceStore.readProjectWorkspaceFile("project-1", "blocked.html"),
+    ).rejects.toThrow();
+  });
+
+  it("rejects invalid discriminated patch changes before execution", async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    const agent = new AiSdkDesignPageAgent(workspaceStore);
+    aiMocks.generate.mockResolvedValueOnce({ text: "" });
+
+    await agent.generateProjectOutput(buildInput());
+
+    const config = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
+      tools: {
+        patch: {
+          execute: (input: unknown) => Promise<unknown>;
+        };
+      };
+    };
+    await expectWorkspaceToolError(
+      config.tools.patch.execute({
+        changes: [{ operation: "edit", path: "index.html", oldString: "Old" }],
+      }),
+      "require oldString and newString",
+    );
+    await expectWorkspaceToolError(
+      config.tools.patch.execute({
+        changes: [{ operation: "write", path: "index.html" }],
+      }),
+      "write changes require content",
+    );
+    await expectWorkspaceToolError(
+      config.tools.patch.execute({
+        changes: [{ content: "bad", operation: "delete", path: "index.html" }],
+      }),
+      "delete changes must not include content",
+    );
   });
 
   it("rejects unconfigured CDN additions through write", async () => {
@@ -723,13 +869,14 @@ describe("AiSdkDesignPageAgent", () => {
         };
       };
     };
-    await expect(
+    await expectWorkspaceToolError(
       config.tools.write.execute({
         content:
           '<!doctype html><html><head><link rel="stylesheet" href="https://cdn.example.com/raw.css"></head><body></body></html>',
         path: "index.html",
       }),
-    ).rejects.toThrow("can only use CDN resources configured in settings");
+      "can only use CDN resources configured in settings",
+    );
   });
 
   it("rejects unconfigured CDN additions through edit", async () => {
@@ -756,14 +903,15 @@ describe("AiSdkDesignPageAgent", () => {
         };
       };
     };
-    await expect(
+    await expectWorkspaceToolError(
       config.tools.edit.execute({
         newString:
           '<script src="https://cdn.example.com/raw.js"></script></body>',
         oldString: "</body>",
         path: "index.html",
       }),
-    ).rejects.toThrow("can only use CDN resources configured in settings");
+      "can only use CDN resources configured in settings",
+    );
   });
 
   it("rejects unconfigured CSS imports through write", async () => {
@@ -781,13 +929,14 @@ describe("AiSdkDesignPageAgent", () => {
         };
       };
     };
-    await expect(
+    await expectWorkspaceToolError(
       config.tools.write.execute({
         content:
           "<!doctype html><html><head><style>@import url('https://cdn.example.com/raw-font.css');</style></head><body></body></html>",
         path: "index.html",
       }),
-    ).rejects.toThrow("can only use CDN resources configured in settings");
+      "can only use CDN resources configured in settings",
+    );
   });
 
   it("allows configured CDN additions through write", async () => {
@@ -806,11 +955,13 @@ describe("AiSdkDesignPageAgent", () => {
       };
     };
     await expect(
-      config.tools.write.execute({
+      expectWorkspaceToolOk(
+        config.tools.write.execute({
         content:
           "<!doctype html><html><head><style>@import url('https://cdn.example.com/font.css');</style></head><body></body></html>",
         path: "index.html",
-      }),
+        }),
+      ),
     ).resolves.toMatchObject({
       path: "index.html",
     });
@@ -840,13 +991,14 @@ describe("AiSdkDesignPageAgent", () => {
         };
       };
     };
-    await expect(
+    await expectWorkspaceToolError(
       config.tools.edit.execute({
         newString: "New",
         oldString: "Old",
         path: "index.html",
       }),
-    ).rejects.toThrow("can only use CDN resources configured in settings");
+      "can only use CDN resources configured in settings",
+    );
   });
 
   it("normalizes model-chosen Google Fonts CDN to the configured CDN through write", async () => {
@@ -880,11 +1032,13 @@ describe("AiSdkDesignPageAgent", () => {
       };
     };
     await expect(
-      config.tools.write.execute({
+      expectWorkspaceToolOk(
+        config.tools.write.execute({
         content:
           "<!doctype html><html><head><style>@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Noto+Sans+SC:wght@100..900&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap');</style></head><body></body></html>",
         path: "index.html",
-      }),
+        }),
+      ),
     ).resolves.toMatchObject({
       path: "index.html",
     });
@@ -912,20 +1066,22 @@ describe("AiSdkDesignPageAgent", () => {
         };
       };
     };
-    await expect(
+    await expectWorkspaceToolError(
       config.tools.write.execute({
         content:
           '<!doctype html><html><head><script src="https://cdn.tailwindcss.com/"></script></head><body></body></html>',
         path: "index.html",
       }),
-    ).rejects.toThrow("can only use CDN resources configured in settings");
-    await expect(
+      "can only use CDN resources configured in settings",
+    );
+    await expectWorkspaceToolError(
       config.tools.write.execute({
         content:
           '<!doctype html><html><head><script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script></head><body></body></html>',
         path: "index.html",
       }),
-    ).rejects.toThrow("can only use CDN resources configured in settings");
+      "can only use CDN resources configured in settings",
+    );
   });
 
   it("does not apply CDN guards to non-html files", async () => {
@@ -944,10 +1100,12 @@ describe("AiSdkDesignPageAgent", () => {
       };
     };
     await expect(
-      config.tools.write.execute({
+      expectWorkspaceToolOk(
+        config.tools.write.execute({
         content: '<script src="https://cdn.example.com/raw.js"></script>',
         path: "notes.txt",
-      }),
+        }),
+      ),
     ).resolves.toMatchObject({
       path: "notes.txt",
     });
@@ -1120,19 +1278,24 @@ describe("AiSdkDesignPageAgent", () => {
       };
     };
     await expect(
-      config.tools.switchPreview.execute({ path: "pages/detail.html" }),
+      expectWorkspaceToolOk(
+        config.tools.switchPreview.execute({ path: "pages/detail.html" }),
+      ),
     ).resolves.toEqual({
       path: "pages/detail.html",
     });
-    await expect(
+    await expectWorkspaceToolError(
       config.tools.switchPreview.execute({ path: "missing.html" }),
-    ).rejects.toThrow("was not found");
-    await expect(
+      "was not found",
+    );
+    await expectWorkspaceToolError(
       config.tools.switchPreview.execute({ path: "notes.txt" }),
-    ).rejects.toThrow("must end with .html");
-    await expect(
+      "must end with .html",
+    );
+    await expectWorkspaceToolError(
       config.tools.switchPreview.execute({ path: "" }),
-    ).rejects.toThrow("must not be empty");
+      "must not be empty",
+    );
   });
 
 });
@@ -1165,4 +1328,26 @@ function buildInput() {
     outputType: "html" as const,
     projectId: "project-1",
   };
+}
+
+async function expectWorkspaceToolOk<T>(promise: Promise<unknown>) {
+  const result = await promise;
+
+  expect(result).toMatchObject({
+    ok: true,
+    wallTimeMs: expect.any(Number),
+  });
+
+  return (result as { output: T }).output;
+}
+
+async function expectWorkspaceToolError(
+  promise: Promise<unknown>,
+  message: string,
+) {
+  await expect(promise).resolves.toMatchObject({
+    error: expect.stringContaining(message),
+    ok: false,
+    wallTimeMs: expect.any(Number),
+  });
 }

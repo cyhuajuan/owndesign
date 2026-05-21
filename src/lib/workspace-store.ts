@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import {
+  open,
   lstat,
   mkdir,
   readdir,
@@ -19,6 +20,8 @@ const DEFAULT_READ_LIMIT = 2000;
 const MAX_READ_BYTES = 50 * 1024;
 const MAX_LINE_LENGTH = 2000;
 const MAX_TOOL_RESULTS = 100;
+const MAX_TEXT_FILE_BYTES = 1024 * 1024;
+const MAX_DIFF_LINES = 80;
 
 export type ProjectRecord = {
   id: string;
@@ -55,10 +58,30 @@ export type WorkspaceSearchMatch = {
   preview: string;
 };
 
+export type WorkspaceSearchResult = {
+  matches: WorkspaceSearchMatch[];
+  skippedFiles: WorkspaceSkippedFile[];
+  totalMatches: number;
+  truncated: boolean;
+};
+
 export type WorkspaceGrepMatch = {
   path: string;
   line: number;
   preview: string;
+};
+
+export type WorkspaceSkippedFile = {
+  path: string;
+  reason: "binary" | "too-large";
+  size: number;
+};
+
+export type WorkspaceGrepResult = {
+  matches: WorkspaceGrepMatch[];
+  skippedFiles: WorkspaceSkippedFile[];
+  totalMatches: number;
+  truncated: boolean;
 };
 
 export type WorkspaceGlobMatch = {
@@ -72,9 +95,11 @@ export type WorkspaceReadEntryResult =
       content: string;
       endLine: number;
       lineCount: number;
+      omittedLines: number;
       path: string;
       startLine: number;
       truncated: boolean;
+      truncatedReason?: "byte-limit" | "line-limit" | "line-length" | "size-limit";
       type: "file";
     }
   | {
@@ -105,6 +130,22 @@ export type WorkspacePatchChange =
       operation: "delete";
       path: string;
     };
+
+export type WorkspacePatchResult = {
+  changed: number;
+  results: WorkspacePatchChangeResult[];
+};
+
+export type WorkspacePatchChangeResult = {
+  diff?: string;
+  operation: WorkspacePatchChange["operation"];
+  result: {
+    bytesWritten?: number;
+    deleted?: true;
+    path: string;
+    replacements?: number;
+  };
+};
 
 type WorkspaceStoreOptions = {
   workspaceRoot?: string;
@@ -403,7 +444,11 @@ export class WorkspaceStore {
       throw new Error(`Project Workspace path is not a file or directory: ${relativePath}`);
     }
 
-    const content = await readFile(targetPath, "utf8");
+    const fileStats = await stat(targetPath);
+    const sizeLimited = fileStats.size > MAX_TEXT_FILE_BYTES;
+    const content = sizeLimited
+      ? await readFilePrefix(targetPath, MAX_TEXT_FILE_BYTES)
+      : await readFile(targetPath, "utf8");
     const lines = content.split(/\r?\n/);
     const start = offset - 1;
 
@@ -414,23 +459,32 @@ export class WorkspaceStore {
     const selectedLines: string[] = [];
     let usedBytes = 0;
     let truncated = false;
+    let truncatedReason:
+      | "byte-limit"
+      | "line-limit"
+      | "line-length"
+      | "size-limit"
+      | undefined;
 
     for (let index = start; index < lines.length; index += 1) {
       if (selectedLines.length >= limit) {
         truncated = true;
+        truncatedReason = "line-limit";
         break;
       }
 
       const originalLine = lines[index];
-      const line =
-        originalLine.length > MAX_LINE_LENGTH
-          ? `${originalLine.slice(0, MAX_LINE_LENGTH)}...`
-          : originalLine;
+      const { line, truncated: lineTruncated } = truncateLineMiddle(originalLine);
+      if (lineTruncated) {
+        truncated = true;
+        truncatedReason ??= "line-length";
+      }
       const numberedLine = `${index + 1}: ${line}`;
       const lineBytes = Buffer.byteLength(numberedLine, "utf8") + 1;
 
       if (usedBytes + lineBytes > MAX_READ_BYTES) {
         truncated = true;
+        truncatedReason = "byte-limit";
         break;
       }
 
@@ -438,13 +492,25 @@ export class WorkspaceStore {
       usedBytes += lineBytes;
     }
 
+    if (sizeLimited) {
+      truncated = true;
+      truncatedReason = "size-limit";
+    }
+
+    const knownTotalLines = sizeLimited ? undefined : lines.length;
+    const visibleEndLine = offset + selectedLines.length - 1;
+
     return {
       content: selectedLines.join("\n"),
-      endLine: offset + selectedLines.length - 1,
-      lineCount: lines.length,
+      endLine: visibleEndLine,
+      lineCount: knownTotalLines ?? lines.length,
+      omittedLines: knownTotalLines
+        ? Math.max(0, knownTotalLines - visibleEndLine)
+        : 0,
       path: normalizedPath,
       startLine: offset,
       truncated,
+      truncatedReason,
       type: "file",
     };
   }
@@ -482,12 +548,18 @@ export class WorkspaceStore {
       },
     );
 
-    return matches
+    const sortedMatches = matches
       .sort(
         (left, right) =>
           new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime(),
       )
-      .slice(0, MAX_TOOL_RESULTS);
+    const slicedMatches = sortedMatches.slice(0, MAX_TOOL_RESULTS);
+
+    return {
+      matches: slicedMatches,
+      totalMatches: sortedMatches.length,
+      truncated: slicedMatches.length < sortedMatches.length,
+    };
   }
 
   async grepProjectWorkspace(
@@ -516,6 +588,7 @@ export class WorkspaceStore {
 
     const includeMatcher = options.include ? globToRegExp(options.include) : undefined;
     const matches: Array<WorkspaceGrepMatch & { updatedAtTime: number }> = [];
+    const skippedFiles: WorkspaceSkippedFile[] = [];
     const startPath = options.path && options.path !== "." ? options.path : "";
     const absoluteStartPath = startPath
       ? await this.resolveProjectWorkspacePath(projectId, startPath, {
@@ -538,7 +611,26 @@ export class WorkspaceStore {
       }
 
       const fileStats = await stat(absolutePath);
-      const content = await readFile(absolutePath, "utf8");
+      if (fileStats.size > MAX_TEXT_FILE_BYTES) {
+        skippedFiles.push({
+          path: relativeFilePath,
+          reason: "too-large",
+          size: fileStats.size,
+        });
+        return;
+      }
+
+      const buffer = await readFile(absolutePath);
+      if (isProbablyBinary(buffer)) {
+        skippedFiles.push({
+          path: relativeFilePath,
+          reason: "binary",
+          size: fileStats.size,
+        });
+        return;
+      }
+
+      const content = buffer.toString("utf8");
       const lines = content.split(/\r?\n/);
 
       lines.forEach((lineText, index) => {
@@ -567,54 +659,58 @@ export class WorkspaceStore {
       });
     }
 
-    return matches
+    const sortedMatches = matches
       .sort((left, right) => right.updatedAtTime - left.updatedAtTime)
-      .slice(0, MAX_TOOL_RESULTS)
+    const slicedMatches = sortedMatches.slice(0, MAX_TOOL_RESULTS)
       .map((match) => ({
         line: match.line,
         path: match.path,
         preview: match.preview,
       }));
+
+    return {
+      matches: slicedMatches,
+      skippedFiles,
+      totalMatches: sortedMatches.length,
+      truncated: slicedMatches.length < sortedMatches.length,
+    };
   }
 
   async applyProjectWorkspacePatch(
     projectId: string,
     changes: WorkspacePatchChange[],
-  ) {
-    const results = [];
-
-    for (const change of changes) {
-      if (change.operation === "delete") {
-        results.push({
-          operation: change.operation,
-          result: await this.deleteProjectWorkspacePath(projectId, change.path),
-        });
-        continue;
-      }
-
-      if (change.operation === "edit") {
-        results.push({
-          operation: change.operation,
-          result: await this.editProjectWorkspaceFile(
-            projectId,
-            change.path,
-            change.oldString,
-            change.newString,
-            change.replaceAll,
-          ),
-        });
-        continue;
-      }
-
-      results.push({
-        operation: change.operation,
-        result: await this.writeProjectWorkspaceFile(
-          projectId,
-          change.path,
-          change.content,
-        ),
-      });
+    options: {
+      transformContent?: (
+        relativePath: string,
+        content: string,
+      ) => Promise<string> | string;
+    } = {},
+  ): Promise<WorkspacePatchResult> {
+    if (!changes.length) {
+      throw new Error("Project Workspace patch must include at least one change.");
     }
+
+    const prepared = await this.prepareProjectWorkspacePatch(
+      projectId,
+      changes,
+      options,
+    );
+
+    for (const change of prepared) {
+      if (change.operation === "delete") {
+        await rm(change.absolutePath, { force: false, recursive: true });
+        continue;
+      }
+
+      await mkdir(path.dirname(change.absolutePath), { recursive: true });
+      await writeFile(change.absolutePath, change.content ?? "", "utf8");
+    }
+
+    const results = prepared.map((change) => ({
+      diff: change.diff,
+      operation: change.operation,
+      result: change.result,
+    }));
 
     return {
       changed: results.length,
@@ -626,12 +722,13 @@ export class WorkspaceStore {
     projectId: string,
     query: string,
     relativePath = "",
-  ) {
+  ): Promise<WorkspaceSearchResult> {
     if (!query) {
       throw new Error("Search query must not be empty.");
     }
 
     const matches: WorkspaceSearchMatch[] = [];
+    const skippedFiles: WorkspaceSkippedFile[] = [];
     const startPath = relativePath && relativePath !== "."
       ? await this.resolveProjectWorkspacePath(projectId, relativePath, {
           checkTargetSymlink: true,
@@ -640,20 +737,39 @@ export class WorkspaceStore {
     const startStats = await stat(startPath);
 
     if (startStats.isFile()) {
-      await this.searchWorkspaceFile(projectId, startPath, query, matches);
+      await this.searchWorkspaceFile(
+        projectId,
+        startPath,
+        query,
+        matches,
+        skippedFiles,
+      );
     } else if (startStats.isDirectory()) {
       await this.walkProjectWorkspace(
         projectId,
         relativePath === "." ? "" : relativePath,
         async (entry, absolutePath) => {
           if (entry.type === "file") {
-            await this.searchWorkspaceFile(projectId, absolutePath, query, matches);
+            await this.searchWorkspaceFile(
+              projectId,
+              absolutePath,
+              query,
+              matches,
+              skippedFiles,
+            );
           }
         },
       );
     }
 
-    return matches;
+    const slicedMatches = matches.slice(0, MAX_TOOL_RESULTS);
+
+    return {
+      matches: slicedMatches,
+      skippedFiles,
+      totalMatches: matches.length,
+      truncated: slicedMatches.length < matches.length,
+    };
   }
 
   async readProjectWorkspaceFile(projectId: string, relativePath: string) {
@@ -697,11 +813,19 @@ export class WorkspaceStore {
       { checkTargetSymlink: true, targetMayBeMissing: true },
     );
 
+    const previousContent = await readTextFileIfExists(filePath);
     await mkdir(path.dirname(filePath), { recursive: true });
     await writeFile(filePath, content, "utf8");
 
     return {
       bytesWritten: Buffer.byteLength(content, "utf8"),
+      diff: buildUnifiedDiff(
+        previousContent ?? "",
+        content,
+        normalizeWorkspaceRelativePath(
+          path.relative(this.getProjectWorkspaceDirectory(projectId), filePath),
+        ),
+      ),
       path: normalizeWorkspaceRelativePath(
         path.relative(this.getProjectWorkspaceDirectory(projectId), filePath),
       ),
@@ -724,13 +848,15 @@ export class WorkspaceStore {
     }
 
     const content = await this.readProjectWorkspaceFile(projectId, relativePath);
-    const firstIndex = content.indexOf(oldText);
+    const normalizedOldText = convertToLineEnding(oldText, detectLineEnding(content));
+    const normalizedNewText = convertToLineEnding(newText, detectLineEnding(content));
+    const firstIndex = content.indexOf(normalizedOldText);
 
     if (firstIndex === -1) {
       throw new Error(`oldText was not found in Project Workspace file: ${relativePath}`);
     }
 
-    const replacements = countOccurrences(content, oldText);
+    const replacements = countOccurrences(content, normalizedOldText);
 
     if (!replaceAll && replacements > 1) {
       throw new Error(
@@ -739,14 +865,19 @@ export class WorkspaceStore {
     }
 
     const updatedContent = replaceAll
-      ? content.split(oldText).join(newText)
+      ? content.split(normalizedOldText).join(normalizedNewText)
       : content.slice(0, firstIndex) +
-        newText +
-        content.slice(firstIndex + oldText.length);
+        normalizedNewText +
+        content.slice(firstIndex + normalizedOldText.length);
 
     await this.writeProjectWorkspaceFile(projectId, relativePath, updatedContent);
 
     return {
+      diff: buildUnifiedDiff(
+        content,
+        updatedContent,
+        normalizeWorkspaceRelativePath(relativePath),
+      ),
       path: normalizeWorkspaceRelativePath(relativePath),
       replacements: replaceAll ? replacements : 1,
     };
@@ -884,12 +1015,34 @@ export class WorkspaceStore {
     absolutePath: string,
     query: string,
     matches: WorkspaceSearchMatch[],
+    skippedFiles: WorkspaceSkippedFile[],
   ) {
-    const content = await readFile(absolutePath, "utf8");
-    const lines = content.split(/\r?\n/);
     const relativePath = normalizeWorkspaceRelativePath(
       path.relative(this.getProjectWorkspaceDirectory(projectId), absolutePath),
     );
+    const fileStats = await stat(absolutePath);
+
+    if (fileStats.size > MAX_TEXT_FILE_BYTES) {
+      skippedFiles.push({
+        path: relativePath,
+        reason: "too-large",
+        size: fileStats.size,
+      });
+      return;
+    }
+
+    const buffer = await readFile(absolutePath);
+    if (isProbablyBinary(buffer)) {
+      skippedFiles.push({
+        path: relativePath,
+        reason: "binary",
+        size: fileStats.size,
+      });
+      return;
+    }
+
+    const content = buffer.toString("utf8");
+    const lines = content.split(/\r?\n/);
 
     lines.forEach((lineText, index) => {
       if (!lineText.includes(query)) {
@@ -902,6 +1055,124 @@ export class WorkspaceStore {
         preview: lineText.trim().slice(0, 240),
       });
     });
+  }
+
+  private async prepareProjectWorkspacePatch(
+    projectId: string,
+    changes: WorkspacePatchChange[],
+    options: {
+      transformContent?: (
+        relativePath: string,
+        content: string,
+      ) => Promise<string> | string;
+    },
+  ) {
+    const state = new Map<string, string | undefined>();
+    const prepared: Array<
+      WorkspacePatchChangeResult & {
+        absolutePath: string;
+        content?: string;
+      }
+    > = [];
+
+    const readCurrentContent = async (relativePath: string) => {
+      if (state.has(relativePath)) {
+        return state.get(relativePath);
+      }
+
+      const absolutePath = await this.resolveProjectWorkspacePath(
+        projectId,
+        relativePath,
+        { checkTargetSymlink: true, targetMayBeMissing: true },
+      );
+      const content = await readTextFileIfExists(absolutePath);
+
+      state.set(relativePath, content);
+      return content;
+    };
+
+    for (const change of changes) {
+      const relativePath = normalizeWorkspaceRelativePath(change.path);
+      const absolutePath = await this.resolveProjectWorkspacePath(
+        projectId,
+        relativePath,
+        {
+          checkTargetSymlink: true,
+          targetMayBeMissing: change.operation !== "delete",
+        },
+      );
+
+      if (change.operation === "delete") {
+        const targetStats = await lstat(absolutePath);
+        const previousContent = targetStats.isFile()
+          ? await readCurrentContent(relativePath)
+          : undefined;
+        state.set(relativePath, undefined);
+        prepared.push({
+          absolutePath,
+          diff: previousContent
+            ? buildUnifiedDiff(previousContent, "", relativePath)
+            : undefined,
+          operation: change.operation,
+          result: {
+            deleted: true,
+            path: relativePath,
+          },
+        });
+        continue;
+      }
+
+      if (change.operation === "edit") {
+        const previousContent = await readCurrentContent(relativePath);
+
+        if (previousContent === undefined) {
+          throw new Error(`Project Workspace file was not found: ${relativePath}`);
+        }
+
+        const edited = applyTextEdit(
+          previousContent,
+          change.oldString,
+          change.newString,
+          change.replaceAll,
+          relativePath,
+        );
+        const content = options.transformContent
+          ? await options.transformContent(relativePath, edited.content)
+          : edited.content;
+
+        state.set(relativePath, content);
+        prepared.push({
+          absolutePath,
+          content,
+          diff: buildUnifiedDiff(previousContent, content, relativePath),
+          operation: change.operation,
+          result: {
+            path: relativePath,
+            replacements: edited.replacements,
+          },
+        });
+        continue;
+      }
+
+      const previousContent = await readCurrentContent(relativePath);
+      const content = options.transformContent
+        ? await options.transformContent(relativePath, change.content)
+        : change.content;
+
+      state.set(relativePath, content);
+      prepared.push({
+        absolutePath,
+        content,
+        diff: buildUnifiedDiff(previousContent ?? "", content, relativePath),
+        operation: change.operation,
+        result: {
+          bytesWritten: Buffer.byteLength(content, "utf8"),
+          path: relativePath,
+        },
+      });
+    }
+
+    return prepared;
   }
 
   private async resolveProjectWorkspacePath(
@@ -1010,6 +1281,155 @@ function countOccurrences(content: string, needle: string) {
   }
 
   return content.split(needle).length - 1;
+}
+
+function applyTextEdit(
+  content: string,
+  oldText: string,
+  newText: string,
+  replaceAll = false,
+  relativePath: string,
+) {
+  if (!oldText) {
+    throw new Error("oldText must not be empty.");
+  }
+
+  if (oldText === newText) {
+    throw new Error("No changes to apply: oldText and newText are identical.");
+  }
+
+  const normalizedOldText = convertToLineEnding(oldText, detectLineEnding(content));
+  const normalizedNewText = convertToLineEnding(newText, detectLineEnding(content));
+  const firstIndex = content.indexOf(normalizedOldText);
+
+  if (firstIndex === -1) {
+    throw new Error(`oldText was not found in Project Workspace file: ${relativePath}`);
+  }
+
+  const replacements = countOccurrences(content, normalizedOldText);
+
+  if (!replaceAll && replacements > 1) {
+    throw new Error(
+      `oldText appears more than once in Project Workspace file: ${relativePath}`,
+    );
+  }
+
+  return {
+    content: replaceAll
+      ? content.split(normalizedOldText).join(normalizedNewText)
+      : content.slice(0, firstIndex) +
+        normalizedNewText +
+        content.slice(firstIndex + normalizedOldText.length),
+    replacements: replaceAll ? replacements : 1,
+  };
+}
+
+function detectLineEnding(text: string): "\n" | "\r\n" {
+  return text.includes("\r\n") ? "\r\n" : "\n";
+}
+
+function convertToLineEnding(text: string, ending: "\n" | "\r\n") {
+  const normalized = text.replaceAll("\r\n", "\n").replaceAll("\r", "\n");
+
+  return ending === "\n" ? normalized : normalized.replaceAll("\n", "\r\n");
+}
+
+function truncateLineMiddle(line: string) {
+  if (line.length <= MAX_LINE_LENGTH) {
+    return {
+      line,
+      truncated: false,
+    };
+  }
+
+  const half = Math.floor((MAX_LINE_LENGTH - 19) / 2);
+
+  return {
+    line: `${line.slice(0, half)}...<truncated>...${line.slice(-half)}`,
+    truncated: true,
+  };
+}
+
+function buildUnifiedDiff(oldContent: string, newContent: string, relativePath: string) {
+  if (oldContent === newContent) {
+    return "";
+  }
+
+  const oldLines = oldContent.split(/\r?\n/);
+  const newLines = newContent.split(/\r?\n/);
+  const lines = [`--- ${relativePath}`, `+++ ${relativePath}`];
+  const maxLines = Math.max(oldLines.length, newLines.length);
+  let emitted = 0;
+  let omitted = 0;
+
+  for (let index = 0; index < maxLines; index += 1) {
+    const oldLine = oldLines[index];
+    const newLine = newLines[index];
+
+    if (oldLine === newLine) {
+      continue;
+    }
+
+    if (emitted >= MAX_DIFF_LINES) {
+      omitted += 1;
+      continue;
+    }
+
+    lines.push(`@@ line ${index + 1}`);
+
+    if (oldLine !== undefined) {
+      lines.push(`-${truncateLineMiddle(oldLine).line}`);
+    }
+
+    if (newLine !== undefined) {
+      lines.push(`+${truncateLineMiddle(newLine).line}`);
+    }
+
+    emitted += 1;
+  }
+
+  if (omitted > 0) {
+    lines.push(`... ${omitted} changed line(s) omitted ...`);
+  }
+
+  return lines.join("\n");
+}
+
+async function readTextFileIfExists(filePath: string) {
+  try {
+    const fileStats = await stat(filePath);
+
+    if (!fileStats.isFile()) {
+      return undefined;
+    }
+
+    return await readFile(filePath, "utf8");
+  } catch (error) {
+    if (isMissingPathError(error)) {
+      return undefined;
+    }
+
+    throw error;
+  }
+}
+
+async function readFilePrefix(filePath: string, maxBytes: number) {
+  const handle = await open(filePath, "r");
+
+  try {
+    const buffer = Buffer.alloc(maxBytes);
+    const { bytesRead } = await handle.read(buffer, 0, maxBytes, 0);
+
+    return buffer.subarray(0, bytesRead).toString("utf8");
+  } finally {
+    await handle.close();
+  }
+}
+
+function isProbablyBinary(buffer: Buffer) {
+  const sample = buffer.subarray(0, Math.min(buffer.length, 8000));
+
+  return sample.includes(0);
 }
 
 function globToRegExp(glob: string) {

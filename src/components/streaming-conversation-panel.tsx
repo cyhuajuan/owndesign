@@ -232,11 +232,6 @@ export function StreamingConversationPanel({
         continue;
       }
 
-      announceProjectWorkspaceMutationOutputs(
-        message,
-        projectId,
-        announcedToolOutputs.current,
-      );
       syncPreviewPathSwitchOutputs(
         message,
         pathname,
@@ -764,32 +759,6 @@ function getLatestAssistantMessage(messages: UIMessage[]) {
   return undefined;
 }
 
-function announceProjectWorkspaceMutationOutputs(
-  message: UIMessage,
-  projectId: string,
-  announcedToolOutputs: Set<string>,
-) {
-  for (const part of message.parts) {
-    if (
-      !isProjectWorkspaceMutationToolPart(part) ||
-      part.state !== "output-available"
-    ) {
-      continue;
-    }
-
-    if (announcedToolOutputs.has(part.toolCallId)) {
-      continue;
-    }
-
-    announcedToolOutputs.add(part.toolCallId);
-    window.dispatchEvent(
-      new CustomEvent("hjdesign:project-output-updated", {
-        detail: { projectId },
-      }),
-    );
-  }
-}
-
 function syncPreviewPathSwitchOutputs(
   message: UIMessage,
   pathname: string,
@@ -824,13 +793,6 @@ function syncPreviewPathSwitchOutputs(
       }),
     );
   }
-}
-
-function isProjectWorkspaceMutationToolPart(part: unknown): part is ToolLikePart {
-  return (
-    isToolPart(part) &&
-    ["createHtml", "delete", "edit", "patch", "write"].includes(getToolName(part))
-  );
 }
 
 function isSwitchPreviewToolPart(part: unknown): part is ToolLikePart {

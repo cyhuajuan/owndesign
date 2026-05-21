@@ -409,7 +409,7 @@ export function ControlBar({
                 />
               </Field>
             </FieldGroup>
-            <DialogFooter className="mt-5">
+            <DialogFooter className="mt-5 border-t-0">
               <Button type="submit">创建项目</Button>
             </DialogFooter>
           </form>

@@ -111,7 +111,7 @@ export const ToolHeader = ({
   return (
     <CollapsibleTrigger
       className={cn(
-        "flex w-full items-center justify-between gap-4 p-3",
+        "flex w-full items-center justify-between gap-4 p-3 [&[aria-expanded=true]_.tool-chevron]:rotate-180",
         className
       )}
       {...props}
@@ -121,7 +121,7 @@ export const ToolHeader = ({
         <span className="font-medium text-sm">{title ?? derivedName}</span>
         {getStatusBadge(state)}
       </div>
-      <ChevronDownIcon className="size-4 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
+      <ChevronDownIcon className="tool-chevron size-4 shrink-0 text-muted-foreground transition-transform duration-200" />
     </CollapsibleTrigger>
   );
 };

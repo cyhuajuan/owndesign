@@ -14,6 +14,10 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
+vi.mock("@/components/frontend-capability-bridge", () => ({
+  FrontendCapabilityBridge: () => null,
+}));
+
 describe("ChatShell", () => {
   const anchorClicks: string[] = [];
 

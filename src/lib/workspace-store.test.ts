@@ -146,13 +146,18 @@ describe("WorkspaceStore", () => {
 
     await expect(
       store.searchProjectWorkspace(project.id, "Dashboard"),
-    ).resolves.toEqual([
-      {
-        line: 2,
-        path: "index.html",
-        preview: "<h1>CRM Dashboard</h1>",
-      },
-    ]);
+    ).resolves.toEqual({
+      matches: [
+        {
+          line: 2,
+          path: "index.html",
+          preview: "<h1>CRM Dashboard</h1>",
+        },
+      ],
+      skippedFiles: [],
+      totalMatches: 1,
+      truncated: false,
+    });
   });
 
   it("reads Project Workspace files with line windows and directories with entry windows", async () => {
@@ -208,12 +213,14 @@ describe("WorkspaceStore", () => {
 
     await expect(
       store.globProjectWorkspace(project.id, "**/*.{css,js}"),
-    ).resolves.toEqual(
-      expect.arrayContaining([
+    ).resolves.toMatchObject({
+      matches: expect.arrayContaining([
         expect.objectContaining({ path: "assets/app.css", type: "file" }),
         expect.objectContaining({ path: "assets/app.js", type: "file" }),
       ]),
-    );
+      totalMatches: 2,
+      truncated: false,
+    });
   });
 
   it("greps Project Workspace text files with regex and include filters", async () => {
@@ -233,13 +240,18 @@ describe("WorkspaceStore", () => {
       store.grepProjectWorkspace(project.id, "CRM\\s+Dashboard", {
         include: "*.html",
       }),
-    ).resolves.toEqual([
-      {
-        line: 2,
-        path: "index.html",
-        preview: "<h1>CRM Dashboard</h1>",
-      },
-    ]);
+    ).resolves.toEqual({
+      matches: [
+        {
+          line: 2,
+          path: "index.html",
+          preview: "<h1>CRM Dashboard</h1>",
+        },
+      ],
+      skippedFiles: [],
+      totalMatches: 1,
+      truncated: false,
+    });
   });
 
   it("reads, writes, edits, and deletes Project Workspace paths", async () => {
@@ -250,8 +262,9 @@ describe("WorkspaceStore", () => {
     await store.createProject(project);
     await expect(
       store.writeProjectWorkspaceFile(project.id, "pages/home.html", "Hello world"),
-    ).resolves.toEqual({
+    ).resolves.toMatchObject({
       bytesWritten: 11,
+      diff: expect.stringContaining("+Hello world"),
       path: "pages/home.html",
     });
     await expect(
@@ -264,7 +277,8 @@ describe("WorkspaceStore", () => {
         "Hello",
         "Design",
       ),
-    ).resolves.toEqual({
+    ).resolves.toMatchObject({
+      diff: expect.stringContaining("+Design world"),
       path: "pages/home.html",
       replacements: 1,
     });
@@ -321,6 +335,37 @@ describe("WorkspaceStore", () => {
     ).rejects.toThrow();
   });
 
+  it("does not partially apply Project Workspace patch changes when validation fails", async () => {
+    const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".hjdesign");
+    const store = new WorkspaceStore({ workspaceRoot });
+    const project = buildProject({ id: "project-atomic-patch" });
+
+    await store.createProject(project);
+    await store.writeProjectWorkspaceFile(project.id, "index.html", "<main>Old</main>");
+
+    await expect(
+      store.applyProjectWorkspacePatch(project.id, [
+        {
+          content: "created",
+          operation: "write",
+          path: "created.txt",
+        },
+        {
+          newString: "New",
+          oldString: "Missing",
+          operation: "edit",
+          path: "index.html",
+        },
+      ]),
+    ).rejects.toThrow("oldText was not found");
+    await expect(
+      store.readProjectWorkspaceFile(project.id, "created.txt"),
+    ).rejects.toThrow();
+    await expect(
+      store.readProjectWorkspaceFile(project.id, "index.html"),
+    ).resolves.toBe("<main>Old</main>");
+  });
+
   it("rejects missing and non-unique exact edit targets", async () => {
     const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".hjdesign");
     const store = new WorkspaceStore({ workspaceRoot });
@@ -335,6 +380,50 @@ describe("WorkspaceStore", () => {
     await expect(
       store.editProjectWorkspaceFile(project.id, "index.html", "button", "link"),
     ).rejects.toThrow("oldText appears more than once");
+  });
+
+  it("returns truncation and skipped-file metadata for large reads and greps", async () => {
+    const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".hjdesign");
+    const store = new WorkspaceStore({ workspaceRoot });
+    const project = buildProject({ id: "project-tool-bounds" });
+    const longLine = `${"a".repeat(2500)}TAIL`;
+
+    await store.createProject(project);
+    await store.writeProjectWorkspaceFile(project.id, "long.html", longLine);
+    await store.writeProjectWorkspaceFile(
+      project.id,
+      "huge.txt",
+      "Dashboard\n".repeat(130_000),
+    );
+    await writeFile(
+      path.join(
+        workspaceRoot,
+        "projects",
+        project.id,
+        "workspace",
+        "binary.bin",
+      ),
+      Buffer.from([0, 1, 2, 3]),
+    );
+
+    await expect(
+      store.readProjectWorkspaceEntry(project.id, "long.html"),
+    ).resolves.toMatchObject({
+      content: expect.stringContaining("<truncated>"),
+      truncated: true,
+      truncatedReason: "line-length",
+    });
+    await expect(
+      store.grepProjectWorkspace(project.id, "Dashboard"),
+    ).resolves.toMatchObject({
+      matches: [],
+      skippedFiles: expect.arrayContaining([
+        expect.objectContaining({ path: "binary.bin", reason: "binary" }),
+        expect.objectContaining({ path: "huge.txt", reason: "too-large" }),
+      ]),
+      totalMatches: 0,
+      truncated: false,
+    });
   });
 
   it("rejects unsafe Project Workspace paths", async () => {

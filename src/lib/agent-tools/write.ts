@@ -1,17 +1,15 @@
-import { jsonSchema, tool } from "ai";
-
 import { writeProjectWorkspaceFileWithCdnGuard } from "./cdn-guard";
-import type { ProjectWorkspaceToolContext, WriteInput } from "./types";
+import type { WorkspaceToolDefinition } from "./core";
+import type { WriteInput } from "./types";
 
-export function createWriteTool({
-  approvedCdnUrls,
-  projectId,
-  workspaceStore,
-}: ProjectWorkspaceToolContext) {
-  return tool({
+export function createWriteToolDefinition(): WorkspaceToolDefinition<
+  WriteInput,
+  Awaited<ReturnType<typeof writeProjectWorkspaceFileWithCdnGuard>>
+> {
+  return {
     description:
       "Create or overwrite one UTF-8 text file in the current Project Workspace.",
-    inputSchema: jsonSchema<WriteInput>({
+    inputSchema: {
       type: "object",
       properties: {
         content: {
@@ -25,8 +23,14 @@ export function createWriteTool({
       },
       required: ["path", "content"],
       additionalProperties: false,
-    }),
-    execute: async ({ content, path }) =>
+    },
+    name: "write",
+    parallelSafe: false,
+    execute: async ({ content, path }, {
+      approvedCdnUrls,
+      projectId,
+      workspaceStore,
+    }) =>
       writeProjectWorkspaceFileWithCdnGuard(
         workspaceStore,
         projectId,
@@ -34,5 +38,5 @@ export function createWriteTool({
         content,
         approvedCdnUrls,
       ),
-  });
+  };
 }

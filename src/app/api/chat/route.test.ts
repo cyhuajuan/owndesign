@@ -9,18 +9,23 @@ const routeMocks = vi.hoisted(() => {
     createAgentUIStreamResponse,
     createConversationService: vi.fn(),
     createDesignPageAgent: vi.fn(() => ({ name: "agent" })),
-    buildLanguageModel: vi.fn((configuration: unknown) => ({
-      configuration,
-      provider: "test",
+    createDesignPageAgentContext: vi.fn(async (input: unknown) => ({
+      ...(input as object),
+      model: { provider: "test" },
+      providerOptions: { thinkingMode: "max" },
+      resources: {
+        fontLibraries: [
+          {
+            id: "font-1",
+            name: "Configured Font",
+            cdn: "https://cdn.example.com/font.css",
+            isDefault: true,
+          },
+        ],
+        iconLibraries: [],
+      },
     })),
-    buildProviderOptions: vi.fn((configuration: unknown, thinkingMode: unknown) => ({
-      configuration,
-      thinkingMode,
-    })),
-    createSettingsService: vi.fn(),
-    getSettings: vi.fn(),
     createWorkspaceStore: vi.fn(),
-    resolveModelConfiguration: vi.fn(),
     saveUIMessageStream: vi.fn(),
   };
 });
@@ -30,13 +35,11 @@ vi.mock("ai", () => ({
 }));
 
 vi.mock("@/lib/design-page-agent", () => ({
-  buildLanguageModel: routeMocks.buildLanguageModel,
-  buildProviderOptions: routeMocks.buildProviderOptions,
   createDesignPageAgent: routeMocks.createDesignPageAgent,
+  createDesignPageAgentContext: routeMocks.createDesignPageAgentContext,
 }));
 
 vi.mock("@/lib/settings-service", () => ({
-  createSettingsService: routeMocks.createSettingsService,
   parseDeepSeekThinkingMode: (value: unknown) =>
     value === "disabled" || value === "high" || value === "max"
       ? value
@@ -53,14 +56,10 @@ import { POST } from "./route";
 describe("/api/chat", () => {
   beforeEach(() => {
     routeMocks.createAgentUIStreamResponse.mockClear();
-    routeMocks.buildLanguageModel.mockClear();
-    routeMocks.buildProviderOptions.mockClear();
     routeMocks.createConversationService.mockReset();
     routeMocks.createDesignPageAgent.mockClear();
-    routeMocks.createSettingsService.mockReset();
-    routeMocks.getSettings.mockReset();
+    routeMocks.createDesignPageAgentContext.mockClear();
     routeMocks.createWorkspaceStore.mockReset();
-    routeMocks.resolveModelConfiguration.mockReset();
     routeMocks.saveUIMessageStream.mockReset();
     routeMocks.createWorkspaceStore.mockReturnValue({
       getProject: vi.fn(async () => ({
@@ -71,30 +70,6 @@ describe("/api/chat", () => {
     });
     routeMocks.createConversationService.mockReturnValue({
       saveUIMessageStream: routeMocks.saveUIMessageStream,
-    });
-    routeMocks.resolveModelConfiguration.mockResolvedValue({
-      apiKey: "secret",
-      baseUrl: "https://api.deepseek.com",
-      id: "model-1",
-      model: "deepseek-chat",
-      provider: "deepseek",
-    });
-    routeMocks.getSettings.mockResolvedValue({
-      resources: {
-        fontLibraries: [
-          {
-            id: "font-1",
-            name: "Configured Font",
-            cdn: "https://cdn.example.com/font.css",
-            isDefault: true,
-          },
-        ],
-        iconLibraries: [],
-      },
-    });
-    routeMocks.createSettingsService.mockReturnValue({
-      getSettings: routeMocks.getSettings,
-      resolveModelConfiguration: routeMocks.resolveModelConfiguration,
     });
   });
 
@@ -111,6 +86,7 @@ describe("/api/chat", () => {
       new Request("http://localhost/api/chat", {
         body: JSON.stringify({
           conversationId: "conversation-1",
+          frontendTabId: "tab-1",
           messages,
           modelConfigurationId: "model-1",
           previewPath: "dashboard.html",
@@ -122,23 +98,27 @@ describe("/api/chat", () => {
     );
 
     expect(await response.text()).toBe("stream");
+    expect(routeMocks.createDesignPageAgentContext).toHaveBeenCalledWith(
+      expect.objectContaining({
+        currentPreviewPath: "dashboard.html",
+        frontendTabId: "tab-1",
+        modelConfigurationId: "model-1",
+        outputType: "html",
+        projectId: "project-1",
+        providerOptionsSelection: "max",
+      }),
+    );
     expect(routeMocks.createDesignPageAgent).toHaveBeenCalledWith(
       expect.objectContaining({
         currentPreviewPath: "dashboard.html",
-        outputType: "html",
+        frontendTabId: "tab-1",
         model: expect.objectContaining({ provider: "test" }),
         providerOptions: expect.objectContaining({ thinkingMode: "max" }),
-        projectId: "project-1",
         resources: expect.objectContaining({
           fontLibraries: expect.any(Array),
         }),
       }),
     );
-    expect(routeMocks.buildProviderOptions).toHaveBeenCalledWith(
-      expect.objectContaining({ id: "model-1" }),
-      "max",
-    );
-    expect(routeMocks.resolveModelConfiguration).toHaveBeenCalledWith("model-1");
     expect(routeMocks.createAgentUIStreamResponse).toHaveBeenCalledWith(
       expect.objectContaining({
         sendReasoning: true,

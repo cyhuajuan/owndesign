@@ -1,15 +1,14 @@
-import { jsonSchema, tool } from "ai";
+import type { WorkspaceToolDefinition } from "./core";
+import type { ReadInput } from "./types";
 
-import type { ProjectWorkspaceToolContext, ReadInput } from "./types";
-
-export function createReadTool({
-  projectId,
-  workspaceStore,
-}: ProjectWorkspaceToolContext) {
-  return tool({
+export function createReadToolDefinition(): WorkspaceToolDefinition<
+  ReadInput,
+  Awaited<ReturnType<import("@/lib/workspace-store").WorkspaceStore["readProjectWorkspaceEntry"]>>
+> {
+  return {
     description:
       "Read one UTF-8 file or directory from the current Project Workspace. Files are returned with 1-indexed line numbers.",
-    inputSchema: jsonSchema<ReadInput>({
+    inputSchema: {
       type: "object",
       properties: {
         limit: {
@@ -30,11 +29,13 @@ export function createReadTool({
       },
       required: ["path"],
       additionalProperties: false,
-    }),
-    execute: async ({ limit, offset, path }) =>
+    },
+    name: "read",
+    parallelSafe: true,
+    execute: async ({ limit, offset, path }, { projectId, workspaceStore }) =>
       workspaceStore.readProjectWorkspaceEntry(projectId, path, {
         limit,
         offset,
       }),
-  });
+  };
 }

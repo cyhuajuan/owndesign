@@ -1,26 +1,34 @@
-import { createCreateHtmlTool } from "./create-html";
-import { createDeleteTool } from "./delete";
-import { createEditTool } from "./edit";
-import { createGlobTool } from "./glob";
-import { createGrepTool } from "./grep";
-import { createPatchTool } from "./patch";
-import { createReadTool } from "./read";
-import { createSwitchPreviewTool } from "./switch-preview";
+import { createCallFrontendCapabilityToolDefinition } from "./call-frontend-capability";
+import { createWorkspaceToolRegistry } from "./core";
+import { createCreateHtmlToolDefinition } from "./create-html";
+import { createDeleteToolDefinition } from "./delete";
+import { createEditToolDefinition } from "./edit";
+import { createGlobToolDefinition } from "./glob";
+import { createGrepToolDefinition } from "./grep";
+import { createPatchToolDefinition } from "./patch";
+import { createReadToolDefinition } from "./read";
 import type { ProjectWorkspaceToolContext } from "./types";
-import { createWriteTool } from "./write";
+import { createWriteToolDefinition } from "./write";
+
+export function createProjectWorkspaceToolDefinitions() {
+  return [
+    createCallFrontendCapabilityToolDefinition(),
+    createCreateHtmlToolDefinition(),
+    createDeleteToolDefinition(),
+    createEditToolDefinition(),
+    createGlobToolDefinition(),
+    createGrepToolDefinition(),
+    createPatchToolDefinition(),
+    createReadToolDefinition(),
+    createWriteToolDefinition(),
+  ];
+}
 
 export function createProjectWorkspaceTools(
   context: ProjectWorkspaceToolContext,
 ) {
-  return {
-    createHtml: createCreateHtmlTool(context),
-    delete: createDeleteTool(context),
-    edit: createEditTool(context),
-    glob: createGlobTool(context),
-    grep: createGrepTool(context),
-    patch: createPatchTool(context),
-    read: createReadTool(context),
-    switchPreview: createSwitchPreviewTool(context),
-    write: createWriteTool(context),
-  };
+  return createWorkspaceToolRegistry(
+    createProjectWorkspaceToolDefinitions(),
+    context,
+  );
 }

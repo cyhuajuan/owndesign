@@ -43,6 +43,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { FrontendCapabilityBridge } from "@/components/frontend-capability-bridge";
 import {
   Sidebar,
   SidebarContent,
@@ -205,6 +206,7 @@ export function ChatShell({
         } as CSSProperties
       }
     >
+      <FrontendCapabilityBridge projectId={previewProjectId} />
       <div className="flex h-screen w-full flex-col overflow-hidden bg-background">
         <header className="flex h-11 shrink-0 items-center gap-2 border-b border-border bg-card px-3">
           <div className="flex shrink-0 items-center gap-2 font-semibold text-primary">

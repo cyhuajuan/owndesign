@@ -42,6 +42,10 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => routingMocks.searchParams,
 }));
 
+vi.mock("@/components/frontend-capability-bridge", () => ({
+  FRONTEND_TAB_ID: "tab-1",
+}));
+
 vi.mock("ai", async () => {
   const actual = await vi.importActual<typeof import("ai")>("ai");
 
@@ -552,7 +556,7 @@ describe("MessageParts", () => {
     ).toBeGreaterThan(0);
   });
 
-  it("dispatches preview refresh after mutation tool output completes", () => {
+  it("does not dispatch preview refresh after mutation tool output completes", () => {
     const dispatchEventSpy = vi.spyOn(window, "dispatchEvent");
     vi.mocked(useChat).mockReturnValue({
       error: undefined,
@@ -584,186 +588,11 @@ describe("MessageParts", () => {
       />,
     );
 
-    expect(dispatchEventSpy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: "hjdesign:project-output-updated",
-      }),
-    );
+    expect(getProjectOutputUpdatedEvents(dispatchEventSpy)).toHaveLength(0);
     dispatchEventSpy.mockRestore();
   });
 
-  it("does not dispatch duplicate preview refreshes for the same completed tool", () => {
-    const dispatchEventSpy = vi.spyOn(window, "dispatchEvent");
-    const chatState = {
-      error: undefined,
-      messages: [
-        {
-          id: "assistant-1",
-          parts: [
-            {
-              input: { path: "index.html" },
-              output: { path: "index.html", replacements: 1 },
-              state: "output-available",
-              toolCallId: "call-1",
-              type: "tool-edit",
-            },
-          ],
-          role: "assistant",
-        },
-      ],
-      addToolApprovalResponse: vi.fn(),
-      sendMessage: vi.fn(),
-      status: "ready",
-    } as unknown as ReturnType<typeof useChat>;
-    vi.mocked(useChat).mockReturnValue(chatState);
-
-    const { rerender } = render(
-      <StreamingConversationPanel
-        conversationId="conversation-1"
-        initialMessages={[]}
-        projectId="project-1"
-      />,
-    );
-
-    rerender(
-      <StreamingConversationPanel
-        conversationId="conversation-1"
-        initialMessages={[]}
-        projectId="project-1"
-      />,
-    );
-
-    expect(getProjectOutputUpdatedEvents(dispatchEventSpy)).toHaveLength(1);
-    dispatchEventSpy.mockRestore();
-  });
-
-  it("only scans the latest assistant message after the initial tool scan", () => {
-    const dispatchEventSpy = vi.spyOn(window, "dispatchEvent");
-    vi.mocked(useChat).mockReturnValue({
-      error: undefined,
-      messages: [
-        {
-          id: "assistant-1",
-          parts: [
-            {
-              input: { path: "index.html" },
-              output: { path: "index.html", replacements: 1 },
-              state: "output-available",
-              toolCallId: "call-1",
-              type: "tool-edit",
-            },
-          ],
-          role: "assistant",
-        },
-      ],
-      addToolApprovalResponse: vi.fn(),
-      sendMessage: vi.fn(),
-      status: "ready",
-    } as unknown as ReturnType<typeof useChat>);
-
-    const { rerender } = render(
-      <StreamingConversationPanel
-        conversationId="conversation-1"
-        initialMessages={[]}
-        projectId="project-1"
-      />,
-    );
-
-    vi.mocked(useChat).mockReturnValue({
-      error: undefined,
-      messages: [
-        {
-          id: "assistant-1",
-          parts: [
-            {
-              input: { path: "index.html" },
-              output: { path: "index.html", replacements: 1 },
-              state: "output-available",
-              toolCallId: "call-1",
-              type: "tool-edit",
-            },
-            {
-              input: { path: "ignored.html" },
-              output: { path: "ignored.html", replacements: 1 },
-              state: "output-available",
-              toolCallId: "call-ignored",
-              type: "tool-edit",
-            },
-          ],
-          role: "assistant",
-        },
-        {
-          id: "assistant-2",
-          parts: [
-            {
-              text: "更新完成。",
-              type: "text",
-            },
-          ],
-          role: "assistant",
-        },
-      ],
-      addToolApprovalResponse: vi.fn(),
-      sendMessage: vi.fn(),
-      status: "ready",
-    } as unknown as ReturnType<typeof useChat>);
-
-    rerender(
-      <StreamingConversationPanel
-        conversationId="conversation-1"
-        initialMessages={[]}
-        projectId="project-1"
-      />,
-    );
-
-    vi.mocked(useChat).mockReturnValue({
-      error: undefined,
-      messages: [
-        {
-          id: "assistant-1",
-          parts: [
-            {
-              input: { path: "index.html" },
-              output: { path: "index.html", replacements: 1 },
-              state: "output-available",
-              toolCallId: "call-1",
-              type: "tool-edit",
-            },
-          ],
-          role: "assistant",
-        },
-        {
-          id: "assistant-2",
-          parts: [
-            {
-              input: { path: "latest.html" },
-              output: { path: "latest.html", replacements: 1 },
-              state: "output-available",
-              toolCallId: "call-latest",
-              type: "tool-edit",
-            },
-          ],
-          role: "assistant",
-        },
-      ],
-      addToolApprovalResponse: vi.fn(),
-      sendMessage: vi.fn(),
-      status: "ready",
-    } as unknown as ReturnType<typeof useChat>);
-
-    rerender(
-      <StreamingConversationPanel
-        conversationId="conversation-1"
-        initialMessages={[]}
-        projectId="project-1"
-      />,
-    );
-
-    expect(getProjectOutputUpdatedEvents(dispatchEventSpy)).toHaveLength(2);
-    dispatchEventSpy.mockRestore();
-  });
-
-  it("dispatches preview refresh after createHtml output completes", () => {
+  it("does not dispatch preview refresh after createHtml output completes", () => {
     const dispatchEventSpy = vi.spyOn(window, "dispatchEvent");
     vi.mocked(useChat).mockReturnValue({
       addToolApprovalResponse: vi.fn(),
@@ -798,11 +627,7 @@ describe("MessageParts", () => {
       />,
     );
 
-    expect(dispatchEventSpy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: "hjdesign:project-output-updated",
-      }),
-    );
+    expect(getProjectOutputUpdatedEvents(dispatchEventSpy)).toHaveLength(0);
     dispatchEventSpy.mockRestore();
   });
 
@@ -829,96 +654,15 @@ describe("MessageParts", () => {
       expect.objectContaining({
         transport: expect.objectContaining({
           api: "/api/chat",
-          body: expect.objectContaining({
-            conversationId: "conversation-1",
-            previewPath: "dashboard.html",
-            projectId: "project-1",
+        body: expect.objectContaining({
+          conversationId: "conversation-1",
+          frontendTabId: "tab-1",
+          previewPath: "dashboard.html",
+          projectId: "project-1",
           }),
         }),
       }),
     );
-  });
-
-  it("switches preview path when switchPreview output completes", () => {
-    vi.mocked(useChat).mockReturnValue({
-      addToolApprovalResponse: vi.fn(),
-      error: undefined,
-      messages: [
-        {
-          id: "assistant-1",
-          parts: [
-            {
-              input: { path: "pages/detail.html" },
-              output: { path: "pages/detail.html" },
-              state: "output-available",
-              toolCallId: "call-switch-1",
-              type: "tool-switchPreview",
-            },
-          ],
-          role: "assistant",
-        },
-      ],
-      sendMessage: vi.fn(),
-      status: "ready",
-      stop: vi.fn(),
-    } as unknown as ReturnType<typeof useChat>);
-
-    render(
-      <StreamingConversationPanel
-        conversationId="conversation-1"
-        initialMessages={[]}
-        projectId="project-1"
-      />,
-    );
-
-    expect(routingMocks.replace).toHaveBeenCalledWith(
-      "/?previewPath=pages%2Fdetail.html",
-      { scroll: false },
-    );
-  });
-
-  it("does not switch preview twice for the same switchPreview tool call", () => {
-    const chatState = {
-      addToolApprovalResponse: vi.fn(),
-      error: undefined,
-      messages: [
-        {
-          id: "assistant-1",
-          parts: [
-            {
-              input: { path: "pages/detail.html" },
-              output: { path: "pages/detail.html" },
-              state: "output-available",
-              toolCallId: "call-switch-1",
-              type: "tool-switchPreview",
-            },
-          ],
-          role: "assistant",
-        },
-      ],
-      sendMessage: vi.fn(),
-      status: "ready",
-      stop: vi.fn(),
-    } as unknown as ReturnType<typeof useChat>;
-    vi.mocked(useChat).mockReturnValue(chatState);
-
-    const { rerender } = render(
-      <StreamingConversationPanel
-        conversationId="conversation-1"
-        initialMessages={[]}
-        projectId="project-1"
-      />,
-    );
-
-    rerender(
-      <StreamingConversationPanel
-        conversationId="conversation-1"
-        initialMessages={[]}
-        projectId="project-1"
-      />,
-    );
-
-    expect(routingMocks.replace).toHaveBeenCalledTimes(1);
   });
 
   it("stops streaming generation from the composer submit button", async () => {

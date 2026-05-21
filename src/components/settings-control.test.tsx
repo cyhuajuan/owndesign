@@ -159,17 +159,17 @@ describe("SettingsControl", () => {
 
   it("uses fixed DeepSeek model options", async () => {
     const user = userEvent.setup();
-    const { container } = render(<SettingsControl />);
+    render(<SettingsControl />);
 
     await user.click(screen.getByTitle("设置"));
     await user.click(await screen.findByRole("button", { name: "AI 模型" }));
     await user.click(screen.getByRole("button", { name: /添加模型/ }));
 
-    const providerSelect = container.querySelector("select");
+    const providerSelect = document.querySelector("select");
     expect(providerSelect).not.toBeNull();
     await user.selectOptions(providerSelect!, "deepseek");
 
-    const selects = container.querySelectorAll("select");
+    const selects = document.querySelectorAll("select");
     const modelSelect = selects[1];
 
     expect(modelSelect).toBeInTheDocument();
@@ -180,19 +180,19 @@ describe("SettingsControl", () => {
 
   it("saves OpenAI Compatible context size field", async () => {
     const user = userEvent.setup();
-    const { container } = render(<SettingsControl />);
+    render(<SettingsControl />);
 
     await user.click(screen.getByTitle("设置"));
     await user.click(await screen.findByRole("button", { name: "AI 模型" }));
     await user.click(screen.getByRole("button", { name: /添加模型/ }));
 
-    const providerSelect = container.querySelector("select");
+    const providerSelect = document.querySelector("select");
     expect(providerSelect).not.toBeNull();
     await user.selectOptions(providerSelect!, "openai-compatible");
 
     expect(screen.getByText("Context Size (K)")).toBeInTheDocument();
     await user.type(screen.getByPlaceholderText("例如 gpt-4o"), "gpt-4o");
-    const textInputs = container.querySelectorAll("input[type='text']");
+    const textInputs = document.querySelectorAll("input[type='text']");
     await user.type(textInputs[1], "https://api.example.com/v1");
     await user.type(screen.getByPlaceholderText("sk-..."), "key");
     await user.type(screen.getByPlaceholderText("200"), "512");
@@ -214,5 +214,24 @@ describe("SettingsControl", () => {
       model: "gpt-4o",
       provider: "openai-compatible",
     });
+  });
+
+  it("closes when clicking the overlay and stays open when clicking the panel", async () => {
+    const user = userEvent.setup();
+
+    render(<SettingsControl />);
+
+    await user.click(screen.getByTitle("设置"));
+    expect(await screen.findByTestId("settings-panel")).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("settings-panel"));
+    expect(screen.getByTestId("settings-panel")).toBeInTheDocument();
+
+    const overlay = document.querySelector('[data-slot="dialog-overlay"]');
+    expect(overlay).not.toBeNull();
+    await user.click(overlay!);
+    await waitFor(() =>
+      expect(screen.queryByTestId("settings-panel")).not.toBeInTheDocument(),
+    );
   });
 });

@@ -132,11 +132,9 @@ export function ControlBar({
   const [projectQuery, setProjectQuery] = useState("");
   const [conversationQuery, setConversationQuery] = useState("");
   const [projectName, setProjectName] = useState("");
-  const [projectDescription, setProjectDescription] = useState("");
   const [renameName, setRenameName] = useState("");
   const [renameDescription, setRenameDescription] = useState("");
   const projectNameId = useId();
-  const projectDescriptionId = useId();
   const renameNameId = useId();
   const renameDescriptionId = useId();
   const deferredProjectQuery = useDeferredValue(projectQuery);
@@ -212,7 +210,7 @@ export function ControlBar({
                     className={cn(
                       "group/item mb-1 gap-2 last:mb-0",
                       project.id === activeProjectId &&
-                        "bg-primary/15 text-primary",
+                        "bg-primary/15 text-primary data-[selected=true]:bg-primary/15 data-[selected=true]:text-primary",
                     )}
                     key={project.id}
                     onSelect={() => {
@@ -314,7 +312,7 @@ export function ControlBar({
                     className={cn(
                       "group/item mb-1 gap-2 last:mb-0",
                       conversation.id === activeConversationId &&
-                        "bg-primary/15 text-primary",
+                        "bg-primary/15 text-primary [&_[data-icon=inline-start]]:text-primary data-[selected=true]:bg-primary/15 data-[selected=true]:text-primary data-[selected=true]:[&_[data-icon=inline-start]]:text-primary",
                     )}
                     key={conversation.id}
                     onSelect={() => {
@@ -373,7 +371,6 @@ export function ControlBar({
           setIsProjectCreateOpen(open);
           if (!open) {
             setProjectName("");
-            setProjectDescription("");
           }
         }}
         open={isProjectCreateOpen}
@@ -397,19 +394,8 @@ export function ControlBar({
                   value={projectName}
                 />
               </Field>
-              <Field>
-                <FieldLabel htmlFor={projectDescriptionId}>
-                  项目描述
-                </FieldLabel>
-                <Textarea
-                  id={projectDescriptionId}
-                  onChange={(event) => setProjectDescription(event.target.value)}
-                  placeholder="可选描述"
-                  value={projectDescription}
-                />
-              </Field>
             </FieldGroup>
-            <DialogFooter className="mt-5">
+            <DialogFooter className="mt-5 border-t-0">
               <Button type="submit">创建项目</Button>
             </DialogFooter>
           </form>
@@ -516,7 +502,6 @@ export function ControlBar({
     event.preventDefault();
 
     const trimmedName = projectName.trim();
-    const trimmedDescription = projectDescription.trim();
 
     if (!trimmedName) {
       return;
@@ -524,11 +509,8 @@ export function ControlBar({
 
     setIsProjectCreateOpen(false);
     setProjectName("");
-    setProjectDescription("");
     startTransition(() => {
-      void runAction(
-        onCreateProject(trimmedName, trimmedDescription || undefined),
-      );
+      void runAction(onCreateProject(trimmedName));
     });
   }
 

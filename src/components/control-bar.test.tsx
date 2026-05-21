@@ -70,10 +70,6 @@ describe("ControlBar", () => {
     );
     await user.click(screen.getByRole("option", { name: "新建项目" }));
     await user.type(screen.getByLabelText("项目名称"), "Control Bar Launch");
-    await user.type(
-      screen.getByLabelText("项目描述"),
-      "Created from switcher",
-    );
     await user.click(screen.getByRole("button", { name: "创建项目" }));
 
     expect(

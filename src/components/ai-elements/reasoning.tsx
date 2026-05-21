@@ -174,18 +174,20 @@ export const ReasoningTrigger = memo(
     return (
       <CollapsibleTrigger
         className={cn(
-          "flex w-full items-center gap-2 text-muted-foreground text-sm transition-colors hover:text-foreground",
+          "flex w-full items-center justify-between gap-4 text-muted-foreground text-sm transition-colors hover:text-foreground",
           className
         )}
         {...props}
       >
         {children ?? (
           <>
-            <BrainIcon className="size-4" />
-            {getThinkingMessage(isStreaming, duration)}
+            <div className="flex min-w-0 items-center gap-2">
+              <BrainIcon className="size-4 shrink-0" />
+              <div className="min-w-0">{getThinkingMessage(isStreaming, duration)}</div>
+            </div>
             <ChevronDownIcon
               className={cn(
-                "size-4 transition-transform",
+                "size-4 shrink-0 transition-transform duration-200",
                 isOpen ? "rotate-180" : "rotate-0"
               )}
             />

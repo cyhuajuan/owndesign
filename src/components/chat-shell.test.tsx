@@ -1,6 +1,6 @@
 import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ChatShell } from "./chat-shell";
 
@@ -22,6 +22,17 @@ describe("ChatShell", () => {
   const anchorClicks: string[] = [];
 
   beforeEach(() => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          defaultModelId: null,
+          interfaceLanguage: "zh-CN",
+          modelConfigurations: [],
+          resources: { fontLibraries: [], iconLibraries: [] },
+        }),
+      ),
+    );
     window.localStorage.clear();
     replaceMock.mockClear();
     anchorClicks.length = 0;
@@ -43,6 +54,10 @@ describe("ChatShell", () => {
         return element;
       }) as typeof document.createElement,
     );
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it("renders conversation workflow and preview regions", () => {

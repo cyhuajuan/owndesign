@@ -176,6 +176,10 @@ export function ChatShell({
   }, []);
 
   const selectPreviewPath = (nextPath: string) => {
+    if (nextPath === activePreviewPath) {
+      return;
+    }
+
     const params = new URLSearchParams(searchParams.toString());
     params.set("previewPath", nextPath);
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });

@@ -15,6 +15,12 @@ import {
   XIcon,
 } from "lucide-react";
 
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
 export const SETTINGS_UPDATED_EVENT = "hjdesign:settings-updated";
@@ -90,7 +96,7 @@ export function SettingsControl() {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <>
+    <Dialog onOpenChange={setIsOpen} open={isOpen}>
       <button
         className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[6px] text-[#6b6b76] transition-all duration-200 hover:bg-[#252528] hover:text-[#f0f0f2] [&_svg]:size-4 [&_svg]:transition-transform [&_svg]:duration-[400ms] hover:[&_svg]:rotate-[60deg]"
         onClick={() => setIsOpen(true)}
@@ -99,12 +105,18 @@ export function SettingsControl() {
       >
         <SettingsIcon />
       </button>
-      {isOpen ? <SettingsPanel onClose={() => setIsOpen(false)} /> : null}
-    </>
+      <SettingsPanel isOpen={isOpen} onClose={() => setIsOpen(false)} />
+    </Dialog>
   );
 }
 
-function SettingsPanel({ onClose }: { onClose: () => void }) {
+function SettingsPanel({
+  isOpen,
+  onClose,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+}) {
   const [activeSection, setActiveSection] = useState<
     "general" | "resources" | "ai"
   >("general");
@@ -149,9 +161,23 @@ function SettingsPanel({ onClose }: { onClose: () => void }) {
     };
   }, []);
 
+  if (!isOpen) {
+    return null;
+  }
+
   return (
-    <div className="fixed inset-0 z-[1000] flex animate-in fade-in-0 items-center justify-center bg-black/60 duration-150">
-      <div className="flex h-[80vh] max-h-[620px] w-full max-w-[820px] animate-in flex-row overflow-hidden rounded-[12px] border border-[#2a2a2e] bg-[#1c1c1f] p-0 text-[#f0f0f2] shadow-[0_8px_24px_rgba(0,0,0,0.5)] duration-150 zoom-in-95 slide-in-from-bottom-2">
+    <DialogContent
+      className="max-h-[620px] h-[80vh] max-w-[820px] gap-0 overflow-hidden border border-[#2a2a2e] bg-[#1c1c1f] p-0 text-[#f0f0f2] shadow-[0_8px_24px_rgba(0,0,0,0.5)]"
+      data-testid="settings-panel"
+      showCloseButton={false}
+    >
+      <DialogTitle className="sr-only">设置</DialogTitle>
+      <DialogDescription className="sr-only">
+        管理界面语言、资源配置和 AI 模型设置。
+      </DialogDescription>
+      <div
+        className="flex size-full flex-row overflow-hidden rounded-[12px]"
+      >
         <div className="flex w-[200px] min-w-[200px] shrink-0 flex-col overflow-y-auto border-r border-[#2a2a2e] bg-[#141416] py-5">
           <button
             className={navItemClass(activeSection === "general")}
@@ -225,7 +251,7 @@ function SettingsPanel({ onClose }: { onClose: () => void }) {
           </div>
         </div>
       </div>
-    </div>
+    </DialogContent>
   );
 }
 

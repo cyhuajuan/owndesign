@@ -212,7 +212,7 @@ export function ControlBar({
                     className={cn(
                       "group/item mb-1 gap-2 last:mb-0",
                       project.id === activeProjectId &&
-                        "bg-primary/15 text-primary",
+                        "bg-primary/15 text-primary data-[selected=true]:bg-primary/15 data-[selected=true]:text-primary",
                     )}
                     key={project.id}
                     onSelect={() => {
@@ -314,7 +314,7 @@ export function ControlBar({
                     className={cn(
                       "group/item mb-1 gap-2 last:mb-0",
                       conversation.id === activeConversationId &&
-                        "bg-primary/15 text-primary",
+                        "bg-primary/15 text-primary data-[selected=true]:bg-primary/15 data-[selected=true]:text-primary",
                     )}
                     key={conversation.id}
                     onSelect={() => {

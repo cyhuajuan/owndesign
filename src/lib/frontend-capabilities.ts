@@ -87,6 +87,8 @@ export function buildFrontendCapabilityPrompt() {
   return [
     "## Frontend Capabilities",
     "Use `callFrontendCapability` when the browser UI should perform one of these fixed frontend capabilities.",
+    "After successful previewable HTML file changes, call exactly one preview capability before the final user-facing summary.",
+    "Use `preview.switchHtml` when the Preview Pane should move to another HTML file; otherwise use `preview.refresh` so the current iframe reloads changed HTML.",
     "Do not use workspace file tools to simulate preview switching or refreshing.",
     ...FRONTEND_CAPABILITY_IDS.map((capability) => {
       const schema = JSON.stringify(

@@ -55,7 +55,7 @@ Follow this loop for file-changing requests:
 2. Inspect workspace when needed.
 3. Create missing HTML with `createHtml`.
 4. Edit existing HTML with `read` plus `edit` or `patch`.
-5. Switch preview only when needed.
+5. Refresh or switch preview after file changes.
 6. Finish with concise user-facing summary.
 
 Use the runtime page target protocol for current preview page, resource, and tool-selection rules.

@@ -313,7 +313,7 @@ export function buildPageTargetProtocolPrompt() {
     "After `createHtml` succeeds, use `edit` or `patch` to fill in the actual page design, then call `callFrontendCapability` with `preview.switchHtml` for that page only if the Preview Pane is not already there.",
     "For existing HTML files, use `read` first, then `edit` or `patch`; do not call `createHtml`.",
     "When creating a new HTML page, do not overwrite `index.html` unless the user intent points to the home or main page.",
-    "Switch preview only when needed after file changes are complete.",
+    "After file changes are complete, call `callFrontendCapability` exactly once before the final summary: use `preview.switchHtml` when the Preview Pane should move to another HTML file, otherwise use `preview.refresh`.",
     "Finish with concise user-facing summary after the workspace changes are done.",
   ].join("\n");
 }

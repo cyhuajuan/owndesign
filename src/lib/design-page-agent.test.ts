@@ -1174,7 +1174,15 @@ describe("AiSdkDesignPageAgent", () => {
     expect(config.instructions).toContain(
       "Edit existing HTML with `read` plus `edit` or `patch`",
     );
-    expect(config.instructions).toContain("Switch preview only when needed");
+    expect(config.instructions).toContain(
+      "Refresh or switch preview after file changes",
+    );
+    expect(config.instructions).toContain(
+      "After file changes are complete, call `callFrontendCapability` exactly once",
+    );
+    expect(config.instructions).toContain(
+      "otherwise use `preview.refresh`",
+    );
     expect(config.instructions).toContain(
       "Finish with concise user-facing summary",
     );

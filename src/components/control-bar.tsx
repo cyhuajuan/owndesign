@@ -132,11 +132,9 @@ export function ControlBar({
   const [projectQuery, setProjectQuery] = useState("");
   const [conversationQuery, setConversationQuery] = useState("");
   const [projectName, setProjectName] = useState("");
-  const [projectDescription, setProjectDescription] = useState("");
   const [renameName, setRenameName] = useState("");
   const [renameDescription, setRenameDescription] = useState("");
   const projectNameId = useId();
-  const projectDescriptionId = useId();
   const renameNameId = useId();
   const renameDescriptionId = useId();
   const deferredProjectQuery = useDeferredValue(projectQuery);
@@ -373,7 +371,6 @@ export function ControlBar({
           setIsProjectCreateOpen(open);
           if (!open) {
             setProjectName("");
-            setProjectDescription("");
           }
         }}
         open={isProjectCreateOpen}
@@ -395,17 +392,6 @@ export function ControlBar({
                   placeholder="输入项目名称"
                   required
                   value={projectName}
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor={projectDescriptionId}>
-                  项目描述
-                </FieldLabel>
-                <Textarea
-                  id={projectDescriptionId}
-                  onChange={(event) => setProjectDescription(event.target.value)}
-                  placeholder="可选描述"
-                  value={projectDescription}
                 />
               </Field>
             </FieldGroup>
@@ -516,7 +502,6 @@ export function ControlBar({
     event.preventDefault();
 
     const trimmedName = projectName.trim();
-    const trimmedDescription = projectDescription.trim();
 
     if (!trimmedName) {
       return;
@@ -524,11 +509,8 @@ export function ControlBar({
 
     setIsProjectCreateOpen(false);
     setProjectName("");
-    setProjectDescription("");
     startTransition(() => {
-      void runAction(
-        onCreateProject(trimmedName, trimmedDescription || undefined),
-      );
+      void runAction(onCreateProject(trimmedName));
     });
   }
 

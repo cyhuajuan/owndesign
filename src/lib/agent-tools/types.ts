@@ -3,6 +3,7 @@ import type { ResourceSettings } from "@/lib/settings-service";
 
 export type ProjectWorkspaceToolContext = {
   approvedCdnUrls?: string[];
+  frontendTabId?: string;
   projectId: string;
   resources: ResourceSettings;
   workspaceStore: WorkspaceStore;
@@ -64,8 +65,9 @@ export type ReadInput = {
   path: string;
 };
 
-export type SwitchPreviewInput = {
-  path: string;
+export type CallFrontendCapabilityInput = {
+  capability: string;
+  payload: unknown;
 };
 
 export type WriteInput = {

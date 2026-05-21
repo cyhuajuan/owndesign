@@ -1,3 +1,4 @@
+import { createCallFrontendCapabilityToolDefinition } from "./call-frontend-capability";
 import { createWorkspaceToolRegistry } from "./core";
 import { createCreateHtmlToolDefinition } from "./create-html";
 import { createDeleteToolDefinition } from "./delete";
@@ -6,12 +7,12 @@ import { createGlobToolDefinition } from "./glob";
 import { createGrepToolDefinition } from "./grep";
 import { createPatchToolDefinition } from "./patch";
 import { createReadToolDefinition } from "./read";
-import { createSwitchPreviewToolDefinition } from "./switch-preview";
 import type { ProjectWorkspaceToolContext } from "./types";
 import { createWriteToolDefinition } from "./write";
 
 export function createProjectWorkspaceToolDefinitions() {
   return [
+    createCallFrontendCapabilityToolDefinition(),
     createCreateHtmlToolDefinition(),
     createDeleteToolDefinition(),
     createEditToolDefinition(),
@@ -19,7 +20,6 @@ export function createProjectWorkspaceToolDefinitions() {
     createGrepToolDefinition(),
     createPatchToolDefinition(),
     createReadToolDefinition(),
-    createSwitchPreviewToolDefinition(),
     createWriteToolDefinition(),
   ];
 }

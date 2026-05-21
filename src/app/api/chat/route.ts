@@ -16,6 +16,7 @@ import {
 
 type ChatRequestBody = {
   conversationId?: unknown;
+  frontendTabId?: unknown;
   messages?: unknown;
   modelConfigurationId?: unknown;
   previewPath?: unknown;
@@ -54,6 +55,7 @@ export async function POST(request: Request) {
   try {
     agentContext = await createDesignPageAgentContext({
       currentPreviewPath: previewPath,
+      frontendTabId: asNonEmptyString(body.frontendTabId),
       modelConfigurationId: asNonEmptyString(body.modelConfigurationId),
       outputType: project.outputType,
       projectId,

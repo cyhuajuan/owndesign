@@ -86,6 +86,7 @@ describe("/api/chat", () => {
       new Request("http://localhost/api/chat", {
         body: JSON.stringify({
           conversationId: "conversation-1",
+          frontendTabId: "tab-1",
           messages,
           modelConfigurationId: "model-1",
           previewPath: "dashboard.html",
@@ -100,6 +101,7 @@ describe("/api/chat", () => {
     expect(routeMocks.createDesignPageAgentContext).toHaveBeenCalledWith(
       expect.objectContaining({
         currentPreviewPath: "dashboard.html",
+        frontendTabId: "tab-1",
         modelConfigurationId: "model-1",
         outputType: "html",
         projectId: "project-1",
@@ -109,6 +111,7 @@ describe("/api/chat", () => {
     expect(routeMocks.createDesignPageAgent).toHaveBeenCalledWith(
       expect.objectContaining({
         currentPreviewPath: "dashboard.html",
+        frontendTabId: "tab-1",
         model: expect.objectContaining({ provider: "test" }),
         providerOptions: expect.objectContaining({ thinkingMode: "max" }),
         resources: expect.objectContaining({

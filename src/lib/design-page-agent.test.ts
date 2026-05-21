@@ -36,6 +36,7 @@ const aiMocks = vi.hoisted(() => {
     generate,
     getSettings: vi.fn(),
     resolveModelConfiguration: vi.fn(),
+    sendFrontendCommand: vi.fn(),
     toolLoopAgent,
   };
 });
@@ -53,6 +54,10 @@ vi.mock("./settings-service", () => ({
     getSettings: aiMocks.getSettings,
     resolveModelConfiguration: aiMocks.resolveModelConfiguration,
   }),
+}));
+
+vi.mock("@/lib/frontend-command-bus", () => ({
+  sendFrontendCommand: aiMocks.sendFrontendCommand,
 }));
 
 vi.mock("ai", () => ({
@@ -106,6 +111,7 @@ beforeEach(() => {
     model: "deepseek-v4-flash",
     provider: "deepseek",
   });
+  aiMocks.sendFrontendCommand.mockReset();
   aiMocks.toolLoopAgent.mockClear();
 });
 
@@ -269,6 +275,7 @@ describe("AiSdkDesignPageAgent", () => {
       tools: Record<string, unknown>;
     };
     expect(Object.keys(config.tools).sort()).toEqual([
+      "callFrontendCapability",
       "createHtml",
       "delete",
       "edit",
@@ -276,7 +283,6 @@ describe("AiSdkDesignPageAgent", () => {
       "grep",
       "patch",
       "read",
-      "switchPreview",
       "write",
     ]);
     expect(config.tools).not.toHaveProperty("writeFile");
@@ -1146,7 +1152,9 @@ describe("AiSdkDesignPageAgent", () => {
     expect(config.instructions).toContain("real submit");
     expect(config.instructions).toContain("never use emoji as icons");
     expect(config.instructions).toContain("Project Workspace tools");
-    expect(config.instructions).toContain("Use `switchPreview`");
+    expect(config.instructions).toContain("Use `callFrontendCapability`");
+    expect(config.instructions).toContain("preview.switchHtml");
+    expect(config.instructions).toContain("preview.refresh");
     expect(config.instructions).toContain("Current preview page: none.");
     expect(config.instructions).toContain(
       "Resolve target page before creating or updating",
@@ -1257,7 +1265,7 @@ describe("AiSdkDesignPageAgent", () => {
     );
   });
 
-  it("switches preview only to existing HTML files", async () => {
+  it("calls frontend preview capabilities only with valid payloads", async () => {
     const workspaceStore = await createWorkspaceStore();
     await createProject(workspaceStore);
     await workspaceStore.writeProjectWorkspaceFile(
@@ -1265,36 +1273,108 @@ describe("AiSdkDesignPageAgent", () => {
       "pages/detail.html",
       "<main>Detail</main>",
     );
-    const agent = new AiSdkDesignPageAgent(workspaceStore);
-    aiMocks.generate.mockResolvedValueOnce({ text: "" });
-
-    await agent.generateProjectOutput(buildInput());
+    const { createDesignPageAgent } = await import("./design-page-agent");
+    createDesignPageAgent({
+      frontendTabId: "tab-1",
+      model: { modelId: "test-model", provider: "test" } as never,
+      outputType: "html",
+      projectId: "project-1",
+      resources: defaultResources,
+      workspaceStore,
+    });
 
     const config = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
       tools: {
-        switchPreview: {
-          execute: (input: { path: string }) => Promise<unknown>;
+        callFrontendCapability: {
+          execute: (input: {
+            capability: string;
+            payload: unknown;
+          }) => Promise<unknown>;
         };
       };
     };
     await expect(
       expectWorkspaceToolOk(
-        config.tools.switchPreview.execute({ path: "pages/detail.html" }),
+        config.tools.callFrontendCapability.execute({
+          capability: "preview.switchHtml",
+          payload: { path: "pages/detail.html" },
+        }),
       ),
     ).resolves.toEqual({
-      path: "pages/detail.html",
+      capability: "preview.switchHtml",
+      delivered: true,
+      payload: { path: "pages/detail.html" },
+    });
+    expect(aiMocks.sendFrontendCommand).toHaveBeenCalledWith({
+      capability: "preview.switchHtml",
+      frontendTabId: "tab-1",
+      payload: { path: "pages/detail.html" },
+      projectId: "project-1",
+    });
+    await expect(
+      expectWorkspaceToolOk(
+        config.tools.callFrontendCapability.execute({
+          capability: "preview.refresh",
+          payload: {},
+        }),
+      ),
+    ).resolves.toEqual({
+      capability: "preview.refresh",
+      delivered: true,
+      payload: {},
     });
     await expectWorkspaceToolError(
-      config.tools.switchPreview.execute({ path: "missing.html" }),
+      config.tools.callFrontendCapability.execute({
+        capability: "preview.switchHtml",
+        payload: { path: "missing.html" },
+      }),
       "was not found",
     );
     await expectWorkspaceToolError(
-      config.tools.switchPreview.execute({ path: "notes.txt" }),
+      config.tools.callFrontendCapability.execute({
+        capability: "preview.switchHtml",
+        payload: { path: "notes.txt" },
+      }),
       "must end with .html",
     );
     await expectWorkspaceToolError(
-      config.tools.switchPreview.execute({ path: "" }),
-      "must not be empty",
+      config.tools.callFrontendCapability.execute({
+        capability: "preview.switchHtml",
+        payload: {},
+      }),
+      "payload.path",
+    );
+  });
+
+  it("requires frontend tab id before calling frontend capabilities", async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    const { createDesignPageAgent } = await import("./design-page-agent");
+    createDesignPageAgent({
+      model: { modelId: "test-model", provider: "test" } as never,
+      outputType: "html",
+      projectId: "project-1",
+      resources: defaultResources,
+      workspaceStore,
+    });
+
+    const config = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
+      tools: {
+        callFrontendCapability: {
+          execute: (input: {
+            capability: string;
+            payload: unknown;
+          }) => Promise<unknown>;
+        };
+      };
+    };
+
+    await expectWorkspaceToolError(
+      config.tools.callFrontendCapability.execute({
+        capability: "preview.refresh",
+        payload: {},
+      }),
+      "Frontend tab id is required",
     );
   });
 

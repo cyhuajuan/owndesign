@@ -20,6 +20,7 @@ import {
 import type { ProjectOutputType } from "./workspace-store";
 import { WorkspaceStore } from "./workspace-store";
 import { createProjectWorkspaceTools } from "./agent-tools/project-workspace-tools";
+import { buildFrontendCapabilityPrompt } from "./frontend-capabilities";
 
 export type DesignPageAgentInput = {
   content: string;
@@ -39,6 +40,7 @@ export type DesignPageAgent = {
 
 type CreateDesignPageAgentInput = {
   currentPreviewPath?: string;
+  frontendTabId?: string;
   model: LanguageModel;
   outputType: ProjectOutputType;
   providerOptions?: ToolLoopAgentSettings["providerOptions"];
@@ -56,6 +58,7 @@ export type DesignPromptSection = {
 
 type CreateDesignPageAgentContextInput = {
   currentPreviewPath?: string;
+  frontendTabId?: string;
   modelConfigurationId?: string;
   outputType: ProjectOutputType;
   projectId: string;
@@ -90,6 +93,7 @@ export class AiSdkDesignPageAgent implements DesignPageAgent {
 
 export async function createDesignPageAgentContext({
   currentPreviewPath,
+  frontendTabId,
   modelConfigurationId,
   outputType,
   projectId,
@@ -108,6 +112,7 @@ export async function createDesignPageAgentContext({
 
   return {
     currentPreviewPath,
+    frontendTabId,
     model: buildLanguageModel(modelConfiguration),
     outputType,
     providerOptions: buildProviderOptions(
@@ -136,9 +141,11 @@ export function createDesignPageWorkspaceTools({
   projectId,
   resources,
   workspaceStore,
+  frontendTabId,
 }: DesignAgentContext) {
   return createProjectWorkspaceTools({
     approvedCdnUrls: buildApprovedCdnUrls(resources),
+    frontendTabId,
     projectId,
     resources,
     workspaceStore,
@@ -219,6 +226,10 @@ export function buildDesignPageAgentInstructions(
       tag: "tool_workflow",
       content: buildToolWorkflowPrompt(),
     },
+    {
+      tag: "frontend_capabilities",
+      content: buildFrontendCapabilityPrompt(),
+    },
     ...(resources
       ? [
           {
@@ -276,8 +287,8 @@ export function buildRuntimeContextPrompt(
     "If current preview page is known, treat relative references such as 'here', 'this page', 'current page', 'top', 'bottom', or similar page positions as that file.",
     "If the user names another HTML file, path, or page type, that explicit target overrides the current preview page.",
     "If the user only gives a relative page reference and the current preview page is known, edit that page directly; do not ask which page they mean.",
-    "Use `switchPreview` only when the Preview Pane should move to a different existing target HTML page after creation or updates.",
-    "When the current preview page is already the correct target page, do not call `switchPreview` redundantly.",
+    "Use `callFrontendCapability` with `preview.switchHtml` only when the Preview Pane should move to a different existing target HTML page after creation or updates.",
+    "When the current preview page is already the correct target page, do not call `preview.switchHtml` redundantly.",
   ].join("\n");
 }
 
@@ -299,7 +310,7 @@ export function buildPageTargetProtocolPrompt() {
     "When the target HTML file does not exist, you must call `createHtml` first instead of using `write` to create the initial HTML.",
     "For `createHtml`, choose `path` from the user's page target. Pass `fontLibraryName` or `iconLibraryName` only when the user explicitly specifies those resource preferences; otherwise omit them so the tool reads configured defaults.",
     "Edit existing HTML with `read` plus `edit` or `patch`.",
-    "After `createHtml` succeeds, use `edit` or `patch` to fill in the actual page design, then call `switchPreview` for that page only if the Preview Pane is not already there.",
+    "After `createHtml` succeeds, use `edit` or `patch` to fill in the actual page design, then call `callFrontendCapability` with `preview.switchHtml` for that page only if the Preview Pane is not already there.",
     "For existing HTML files, use `read` first, then `edit` or `patch`; do not call `createHtml`.",
     "When creating a new HTML page, do not overwrite `index.html` unless the user intent points to the home or main page.",
     "Switch preview only when needed after file changes are complete.",

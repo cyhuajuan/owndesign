@@ -42,6 +42,10 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => routingMocks.searchParams,
 }));
 
+vi.mock("@/components/frontend-capability-bridge", () => ({
+  FRONTEND_TAB_ID: "tab-1",
+}));
+
 vi.mock("ai", async () => {
   const actual = await vi.importActual<typeof import("ai")>("ai");
 
@@ -650,96 +654,15 @@ describe("MessageParts", () => {
       expect.objectContaining({
         transport: expect.objectContaining({
           api: "/api/chat",
-          body: expect.objectContaining({
-            conversationId: "conversation-1",
-            previewPath: "dashboard.html",
-            projectId: "project-1",
+        body: expect.objectContaining({
+          conversationId: "conversation-1",
+          frontendTabId: "tab-1",
+          previewPath: "dashboard.html",
+          projectId: "project-1",
           }),
         }),
       }),
     );
-  });
-
-  it("switches preview path when switchPreview output completes", () => {
-    vi.mocked(useChat).mockReturnValue({
-      addToolApprovalResponse: vi.fn(),
-      error: undefined,
-      messages: [
-        {
-          id: "assistant-1",
-          parts: [
-            {
-              input: { path: "pages/detail.html" },
-              output: { path: "pages/detail.html" },
-              state: "output-available",
-              toolCallId: "call-switch-1",
-              type: "tool-switchPreview",
-            },
-          ],
-          role: "assistant",
-        },
-      ],
-      sendMessage: vi.fn(),
-      status: "ready",
-      stop: vi.fn(),
-    } as unknown as ReturnType<typeof useChat>);
-
-    render(
-      <StreamingConversationPanel
-        conversationId="conversation-1"
-        initialMessages={[]}
-        projectId="project-1"
-      />,
-    );
-
-    expect(routingMocks.replace).toHaveBeenCalledWith(
-      "/?previewPath=pages%2Fdetail.html",
-      { scroll: false },
-    );
-  });
-
-  it("does not switch preview twice for the same switchPreview tool call", () => {
-    const chatState = {
-      addToolApprovalResponse: vi.fn(),
-      error: undefined,
-      messages: [
-        {
-          id: "assistant-1",
-          parts: [
-            {
-              input: { path: "pages/detail.html" },
-              output: { path: "pages/detail.html" },
-              state: "output-available",
-              toolCallId: "call-switch-1",
-              type: "tool-switchPreview",
-            },
-          ],
-          role: "assistant",
-        },
-      ],
-      sendMessage: vi.fn(),
-      status: "ready",
-      stop: vi.fn(),
-    } as unknown as ReturnType<typeof useChat>;
-    vi.mocked(useChat).mockReturnValue(chatState);
-
-    const { rerender } = render(
-      <StreamingConversationPanel
-        conversationId="conversation-1"
-        initialMessages={[]}
-        projectId="project-1"
-      />,
-    );
-
-    rerender(
-      <StreamingConversationPanel
-        conversationId="conversation-1"
-        initialMessages={[]}
-        projectId="project-1"
-      />,
-    );
-
-    expect(routingMocks.replace).toHaveBeenCalledTimes(1);
   });
 
   it("stops streaming generation from the composer submit button", async () => {

@@ -2,14 +2,9 @@
 
 import { useChat } from "@ai-sdk/react";
 import type { UIMessage } from "ai";
-import {
-  usePathname,
-  useRouter,
-  useSearchParams,
-} from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import {
   DefaultChatTransport,
-  getToolName as getAIMessageToolName,
   isToolUIPart,
   type DynamicToolUIPart,
   type ToolUIPart,
@@ -20,7 +15,7 @@ import {
   ChevronDownIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
   Conversation,
@@ -75,6 +70,7 @@ import {
   ReasoningContent,
   ReasoningTrigger,
 } from "@/components/ai-elements/reasoning";
+import { FRONTEND_TAB_ID } from "@/components/frontend-capability-bridge";
 import { SETTINGS_UPDATED_EVENT } from "@/components/settings-control";
 import { cn } from "@/lib/utils";
 
@@ -120,8 +116,6 @@ export function StreamingConversationPanel({
   initialMessages,
   projectId,
 }: StreamingConversationPanelProps) {
-  const pathname = usePathname();
-  const router = useRouter();
   const searchParams = useSearchParams();
   const selectedPreviewPath = searchParams.get("previewPath") ?? undefined;
   const [settings, setSettings] = useState<PublicSettings>();
@@ -139,6 +133,7 @@ export function StreamingConversationPanel({
         api: "/api/chat",
         body: {
           conversationId,
+          frontendTabId: FRONTEND_TAB_ID,
           modelConfigurationId: selectedModelId,
           previewPath: selectedPreviewPath,
           projectId,
@@ -165,8 +160,6 @@ export function StreamingConversationPanel({
     transport,
   });
   const contextUsage = useMemo(() => getLatestContextUsage(messages), [messages]);
-  const announcedToolOutputs = useRef(new Set<string>());
-  const hasScannedInitialToolOutputs = useRef(false);
   const isGenerating = status === "submitted" || status === "streaming";
   const canSend = Boolean(selectedModel) && !isGenerating;
   const handleModelSelect = useCallback(
@@ -210,38 +203,6 @@ export function StreamingConversationPanel({
       window.removeEventListener(SETTINGS_UPDATED_EVENT, loadSettings);
     };
   }, []);
-
-  useEffect(() => {
-    announcedToolOutputs.current.clear();
-    hasScannedInitialToolOutputs.current = false;
-  }, [conversationId, projectId]);
-
-  useEffect(() => {
-    const latestAssistantMessage = getLatestAssistantMessage(messages);
-    let messagesToScan = messages;
-
-    if (hasScannedInitialToolOutputs.current) {
-      messagesToScan =
-        latestAssistantMessage === undefined ? [] : [latestAssistantMessage];
-    }
-
-    hasScannedInitialToolOutputs.current = true;
-
-    for (const message of messagesToScan) {
-      if (!message) {
-        continue;
-      }
-
-      syncPreviewPathSwitchOutputs(
-        message,
-        pathname,
-        projectId,
-        router,
-        searchParams,
-        announcedToolOutputs.current,
-      );
-    }
-  }, [conversationId, messages, pathname, projectId, router, searchParams]);
 
   return (
     <>
@@ -749,72 +710,8 @@ function ToolPartView({
   );
 }
 
-function getLatestAssistantMessage(messages: UIMessage[]) {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    if (messages[index]?.role === "assistant") {
-      return messages[index];
-    }
-  }
-
-  return undefined;
-}
-
-function syncPreviewPathSwitchOutputs(
-  message: UIMessage,
-  pathname: string,
-  projectId: string,
-  router: ReturnType<typeof useRouter>,
-  searchParams: ReturnType<typeof useSearchParams>,
-  announcedToolOutputs: Set<string>,
-) {
-  for (const part of message.parts) {
-    if (
-      !isSwitchPreviewToolPart(part) ||
-      part.state !== "output-available" ||
-      announcedToolOutputs.has(part.toolCallId)
-    ) {
-      continue;
-    }
-
-    const nextPath = asToolOutputPath(part.output);
-
-    if (!nextPath) {
-      continue;
-    }
-
-    announcedToolOutputs.add(part.toolCallId);
-
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("previewPath", nextPath);
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-    window.dispatchEvent(
-      new CustomEvent("hjdesign:project-output-updated", {
-        detail: { projectId },
-      }),
-    );
-  }
-}
-
-function isSwitchPreviewToolPart(part: unknown): part is ToolLikePart {
-  return isToolPart(part) && getToolName(part) === "switchPreview";
-}
-
 function isToolPart(part: unknown): part is ToolLikePart {
   return isToolUIPart(part as UIMessage["parts"][number]);
-}
-
-function getToolName(part: ToolLikePart) {
-  return getAIMessageToolName(part);
-}
-
-function asToolOutputPath(value: unknown) {
-  return typeof value === "object" &&
-    value !== null &&
-    "path" in value &&
-    typeof value.path === "string" &&
-    value.path.trim()
-    ? value.path
-    : undefined;
 }
 
 type ToolLikePart = ToolUIPart | DynamicToolUIPart;

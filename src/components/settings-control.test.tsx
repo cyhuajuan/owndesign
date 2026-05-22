@@ -157,6 +157,33 @@ describe("SettingsControl", () => {
     ]);
   });
 
+  it("discards unsaved draft changes when the panel is reopened", async () => {
+    const user = userEvent.setup();
+
+    render(<SettingsControl />);
+    await user.click(screen.getByTitle("设置"));
+    await user.click(await screen.findByRole("button", { name: "资源管理" }));
+
+    await user.click(screen.getByRole("button", { name: /添加字体库/ }));
+    await user.type(screen.getByPlaceholderText("字体库名称"), "Draft Font");
+    await user.type(
+      screen.getByPlaceholderText("CDN URL (https://...)"),
+      "https://cdn.example.com/draft.css",
+    );
+    await user.click(screen.getByTitle("确认添加"));
+    expect(screen.getByText("Draft Font")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "取消" }));
+    await waitFor(() =>
+      expect(screen.queryByTestId("settings-panel")).not.toBeInTheDocument(),
+    );
+
+    await user.click(screen.getByTitle("设置"));
+    await user.click(await screen.findByRole("button", { name: "资源管理" }));
+
+    expect(screen.queryByText("Draft Font")).not.toBeInTheDocument();
+  });
+
   it("uses fixed DeepSeek model options", async () => {
     const user = userEvent.setup();
     render(<SettingsControl />);

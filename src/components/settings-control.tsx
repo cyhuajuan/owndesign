@@ -130,6 +130,10 @@ function SettingsPanel({
     useState<ResourceSettings>(DEFAULT_RESOURCES);
 
   useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
     let isMounted = true;
 
     void fetch("/api/settings")
@@ -159,7 +163,7 @@ function SettingsPanel({
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [isOpen]);
 
   if (!isOpen) {
     return null;

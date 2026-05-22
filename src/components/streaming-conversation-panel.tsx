@@ -59,6 +59,7 @@ import {
   PromptInputSubmit,
   PromptInputTextarea,
   PromptInputTools,
+  usePromptInputAttachments,
 } from "@/components/ai-elements/prompt-input";
 import {
   DropdownMenu,
@@ -323,16 +324,7 @@ export function StreamingConversationPanel({
             />
           </PromptInputBody>
           <PromptInputFooter className="px-2 pb-1">
-            <PromptInputTools>
-              <PromptInputActionMenu>
-                <PromptInputActionMenuTrigger
-                  aria-label="添加附件"
-                />
-                <PromptInputActionMenuContent side="top" sideOffset={6}>
-                  <PromptInputActionAddAttachments />
-                </PromptInputActionMenuContent>
-              </PromptInputActionMenu>
-            </PromptInputTools>
+            <PromptAttachmentControls selectedModel={selectedModel} />
             <div className="flex min-w-0 items-center gap-1">
               <ModelContextUsage
                 configuration={selectedModel}
@@ -354,6 +346,36 @@ export function StreamingConversationPanel({
         </PromptInput>
       </div>
     </>
+  );
+}
+
+function PromptAttachmentControls({
+  selectedModel,
+}: {
+  selectedModel?: PublicSettings["modelConfigurations"][number];
+}) {
+  const attachments = usePromptInputAttachments();
+  const hideAttachments = !selectedModel || selectedModel.provider === "deepseek";
+
+  useEffect(() => {
+    if (hideAttachments && attachments.files.length > 0) {
+      attachments.clear();
+    }
+  }, [attachments, hideAttachments]);
+
+  if (hideAttachments) {
+    return <PromptInputTools />;
+  }
+
+  return (
+    <PromptInputTools>
+      <PromptInputActionMenu>
+        <PromptInputActionMenuTrigger aria-label="添加附件" />
+        <PromptInputActionMenuContent side="top" sideOffset={6}>
+          <PromptInputActionAddAttachments />
+        </PromptInputActionMenuContent>
+      </PromptInputActionMenu>
+    </PromptInputTools>
   );
 }
 

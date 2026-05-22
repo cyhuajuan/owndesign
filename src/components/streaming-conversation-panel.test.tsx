@@ -114,6 +114,29 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+function stubOpenAICompatibleSettings() {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () =>
+      Response.json({
+        defaultModelId: "model-1",
+        interfaceLanguage: "zh-CN",
+        modelConfigurations: [
+          {
+            apiKey: "",
+            baseUrl: "https://example.test/v1",
+            contextSizeK: 200,
+            hasApiKey: true,
+            id: "model-1",
+            model: "gpt-4o",
+            provider: "openai-compatible",
+          },
+        ],
+      }),
+    ),
+  );
+}
+
 describe("MessageParts", () => {
   it("renders reasoning parts", () => {
     render(
@@ -855,6 +878,7 @@ describe("MessageParts", () => {
   it("renders the attachment action menu", async () => {
     const user = userEvent.setup();
     const inputClickSpy = vi.spyOn(HTMLInputElement.prototype, "click");
+    stubOpenAICompatibleSettings();
 
     vi.mocked(useChat).mockReturnValue({
       addToolApprovalResponse: vi.fn(),
@@ -876,7 +900,7 @@ describe("MessageParts", () => {
 
     await user.click(await screen.findByRole("button", { name: "添加附件" }));
 
-    const addItem = screen.getByText("添加图片或文件");
+    const addItem = await screen.findByText("添加图片或文件");
     expect(addItem).toBeInTheDocument();
 
     await user.click(addItem);
@@ -885,8 +909,97 @@ describe("MessageParts", () => {
     inputClickSpy.mockRestore();
   });
 
+  it("hides attachment controls for DeepSeek models", async () => {
+    vi.mocked(useChat).mockReturnValue({
+      addToolApprovalResponse: vi.fn(),
+      error: undefined,
+      messages: [],
+      sendMessage: vi.fn(),
+      status: "ready",
+      stop: vi.fn(),
+    } as unknown as ReturnType<typeof useChat>);
+
+    render(
+      <StreamingConversationPanel
+        conversationId="conversation-1"
+        conversationTitle="新建会话"
+        initialMessages={[]}
+        projectId="project-1"
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: "添加附件" })).not.toBeInTheDocument();
+  });
+
+  it("clears attachments after switching to a DeepSeek model", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          defaultModelId: "model-openai",
+          interfaceLanguage: "zh-CN",
+          modelConfigurations: [
+            {
+              apiKey: "",
+              baseUrl: "https://example.test/v1",
+              contextSizeK: 200,
+              hasApiKey: true,
+              id: "model-openai",
+              model: "gpt-4o",
+              provider: "openai-compatible",
+            },
+            {
+              apiKey: "",
+              baseUrl: "",
+              contextSizeK: 1000,
+              hasApiKey: true,
+              id: "model-deepseek",
+              model: "deepseek-v4-flash",
+              provider: "deepseek",
+            },
+          ],
+        }),
+      ),
+    );
+
+    vi.mocked(useChat).mockReturnValue({
+      addToolApprovalResponse: vi.fn(),
+      error: undefined,
+      messages: [],
+      sendMessage: vi.fn(),
+      status: "ready",
+      stop: vi.fn(),
+    } as unknown as ReturnType<typeof useChat>);
+
+    render(
+      <StreamingConversationPanel
+        conversationId="conversation-1"
+        conversationTitle="新建会话"
+        initialMessages={[]}
+        projectId="project-1"
+      />,
+    );
+
+    await user.upload(
+      screen.getByLabelText("上传文件"),
+      new File([new Uint8Array(1024)], "reference.png", {
+        type: "image/png",
+      }),
+    );
+
+    expect(screen.getByText("reference.png")).toBeInTheDocument();
+
+    await user.click(await screen.findByRole("button", { name: "gpt-4o" }));
+    await user.click(await screen.findByText("deepseek-v4-flash"));
+
+    expect(screen.queryByText("reference.png")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "添加附件" })).not.toBeInTheDocument();
+  });
+
   it("shows image attachment previews", async () => {
     const user = userEvent.setup();
+    stubOpenAICompatibleSettings();
 
     vi.mocked(useChat).mockReturnValue({
       addToolApprovalResponse: vi.fn(),
@@ -923,6 +1036,7 @@ describe("MessageParts", () => {
 
   it("shows file attachment previews and removes them", async () => {
     const user = userEvent.setup();
+    stubOpenAICompatibleSettings();
 
     vi.mocked(useChat).mockReturnValue({
       addToolApprovalResponse: vi.fn(),
@@ -962,6 +1076,7 @@ describe("MessageParts", () => {
   it("sends attachment-only messages with files", async () => {
     const user = userEvent.setup();
     const sendMessage = vi.fn();
+    stubOpenAICompatibleSettings();
 
     vi.mocked(useChat).mockReturnValue({
       addToolApprovalResponse: vi.fn(),
@@ -1003,6 +1118,7 @@ describe("MessageParts", () => {
 
   it("limits attachment count and size", async () => {
     const user = userEvent.setup();
+    stubOpenAICompatibleSettings();
 
     vi.mocked(useChat).mockReturnValue({
       addToolApprovalResponse: vi.fn(),

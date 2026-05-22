@@ -583,6 +583,7 @@ describe("MessageParts", () => {
     render(
       <StreamingConversationPanel
         conversationId="conversation-1"
+        conversationTitle="新建会话"
         initialMessages={[]}
         projectId="project-1"
       />,
@@ -590,6 +591,86 @@ describe("MessageParts", () => {
 
     expect(getProjectOutputUpdatedEvents(dispatchEventSpy)).toHaveLength(0);
     dispatchEventSpy.mockRestore();
+  });
+
+  it("emits conversation update after generation completes", () => {
+    const useChatMock = vi.mocked(useChat);
+    const onConversationUpdate = vi.fn();
+
+    useChatMock.mockReturnValue({
+      addToolApprovalResponse: vi.fn(),
+      error: undefined,
+      messages: [
+        {
+          id: "user-1",
+          parts: [{ text: "设计一个 CRM 仪表盘", type: "text" }],
+          role: "user",
+        },
+      ],
+      sendMessage: vi.fn(),
+      status: "streaming",
+      stop: vi.fn(),
+    } as unknown as ReturnType<typeof useChat>);
+
+    const { rerender } = render(
+      <StreamingConversationPanel
+        conversationId="conversation-1"
+        conversationTitle="新建会话"
+        initialMessages={[]}
+        onConversationUpdate={onConversationUpdate}
+        projectId="project-1"
+      />,
+    );
+
+    expect(onConversationUpdate).not.toHaveBeenCalled();
+
+    useChatMock.mockReturnValue({
+      addToolApprovalResponse: vi.fn(),
+      error: undefined,
+      messages: [
+        {
+          id: "user-1",
+          parts: [{ text: "设计一个 CRM 仪表盘", type: "text" }],
+          role: "user",
+        },
+        {
+          id: "assistant-1",
+          parts: [{ text: "已完成。", type: "text" }],
+          role: "assistant",
+        },
+      ],
+      sendMessage: vi.fn(),
+      status: "ready",
+      stop: vi.fn(),
+    } as unknown as ReturnType<typeof useChat>);
+
+    rerender(
+      <StreamingConversationPanel
+        conversationId="conversation-1"
+        conversationTitle="新建会话"
+        initialMessages={[]}
+        onConversationUpdate={onConversationUpdate}
+        projectId="project-1"
+      />,
+    );
+
+    expect(onConversationUpdate).toHaveBeenCalledTimes(1);
+    expect(onConversationUpdate.mock.calls[0]?.[0]).toMatchObject({
+      id: "conversation-1",
+      messages: [
+        {
+          id: "user-1",
+          parts: [{ text: "设计一个 CRM 仪表盘", type: "text" }],
+          role: "user",
+        },
+        {
+          id: "assistant-1",
+          parts: [{ text: "已完成。", type: "text" }],
+          role: "assistant",
+        },
+      ],
+      title: "设计一个 CRM 仪表盘",
+    });
   });
 
   it("does not dispatch preview refresh after createHtml output completes", () => {
@@ -622,6 +703,7 @@ describe("MessageParts", () => {
     render(
       <StreamingConversationPanel
         conversationId="conversation-1"
+        conversationTitle="新建会话"
         initialMessages={[]}
         projectId="project-1"
       />,
@@ -645,6 +727,7 @@ describe("MessageParts", () => {
     render(
       <StreamingConversationPanel
         conversationId="conversation-1"
+        conversationTitle="新建会话"
         initialMessages={[]}
         projectId="project-1"
       />,
@@ -682,6 +765,7 @@ describe("MessageParts", () => {
     render(
       <StreamingConversationPanel
         conversationId="conversation-1"
+        conversationTitle="新建会话"
         initialMessages={[]}
         projectId="project-1"
       />,
@@ -713,6 +797,7 @@ describe("MessageParts", () => {
     render(
       <StreamingConversationPanel
         conversationId="conversation-1"
+        conversationTitle="新建会话"
         initialMessages={[]}
         projectId="project-1"
       />,
@@ -750,6 +835,7 @@ describe("MessageParts", () => {
     render(
       <StreamingConversationPanel
         conversationId="conversation-1"
+        conversationTitle="新建会话"
         initialMessages={[]}
         projectId="project-1"
       />,
@@ -771,6 +857,7 @@ describe("MessageParts", () => {
     render(
       <StreamingConversationPanel
         conversationId="conversation-1"
+        conversationTitle="新建会话"
         initialMessages={[]}
         projectId="project-1"
       />,
@@ -805,6 +892,7 @@ describe("MessageParts", () => {
     render(
       <StreamingConversationPanel
         conversationId="conversation-1"
+        conversationTitle="新建会话"
         initialMessages={[]}
         projectId="project-1"
       />,
@@ -825,6 +913,7 @@ describe("MessageParts", () => {
     render(
       <StreamingConversationPanel
         conversationId="conversation-1"
+        conversationTitle="新建会话"
         initialMessages={[]}
         projectId="project-1"
       />,

@@ -15,7 +15,7 @@ import {
   ChevronDownIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   Conversation,
@@ -72,12 +72,24 @@ import {
 } from "@/components/ai-elements/reasoning";
 import { FRONTEND_TAB_ID } from "@/components/frontend-capability-bridge";
 import { SETTINGS_UPDATED_EVENT } from "@/components/settings-control";
+import { getFirstUserMessageText } from "@/lib/chat-messages";
 import { cn } from "@/lib/utils";
 
 type StreamingConversationPanelProps = {
   conversationId: string;
+  conversationTitle: string;
   initialMessages: UIMessage[];
+  onConversationUpdate?: (update: ConversationPanelUpdate) => void;
   projectId: string;
+  titleManuallySet?: boolean;
+};
+
+export type ConversationPanelUpdate = {
+  id: string;
+  lastMessageAt: string;
+  messages: UIMessage[];
+  title: string;
+  updatedAt: string;
 };
 
 type PublicSettings = {
@@ -113,13 +125,17 @@ type ContextUsageMetadata = {
 
 export function StreamingConversationPanel({
   conversationId,
+  conversationTitle,
   initialMessages,
+  onConversationUpdate,
   projectId,
+  titleManuallySet = false,
 }: StreamingConversationPanelProps) {
   const searchParams = useSearchParams();
   const selectedPreviewPath = searchParams.get("previewPath") ?? undefined;
   const [settings, setSettings] = useState<PublicSettings>();
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
+  const previousStatusRef = useRef("ready");
   const selectedModel = settings?.modelConfigurations.find(
     (configuration) => configuration.id === selectedModelId,
   );
@@ -203,6 +219,39 @@ export function StreamingConversationPanel({
       window.removeEventListener(SETTINGS_UPDATED_EVENT, loadSettings);
     };
   }, []);
+
+  useEffect(() => {
+    const previousStatus = previousStatusRef.current;
+    const wasGenerating =
+      previousStatus === "submitted" || previousStatus === "streaming";
+
+    if (wasGenerating && status === "ready") {
+      const timestamp = new Date().toISOString();
+
+      onConversationUpdate?.({
+        id: conversationId,
+        lastMessageAt: timestamp,
+        messages,
+        title: deriveConversationTitle({
+          conversationTitle,
+          initialMessages,
+          messages,
+          titleManuallySet,
+        }),
+        updatedAt: timestamp,
+      });
+    }
+
+    previousStatusRef.current = status;
+  }, [
+    conversationId,
+    conversationTitle,
+    initialMessages,
+    messages,
+    onConversationUpdate,
+    status,
+    titleManuallySet,
+  ]);
 
   return (
     <>
@@ -607,6 +656,32 @@ function asOptionalNumber(value: unknown) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function deriveConversationTitle({
+  conversationTitle,
+  initialMessages,
+  messages,
+  titleManuallySet,
+}: {
+  conversationTitle: string;
+  initialMessages: UIMessage[];
+  messages: UIMessage[];
+  titleManuallySet: boolean;
+}) {
+  if (
+    titleManuallySet ||
+    conversationTitle !== "新建会话" ||
+    initialMessages.length > 0
+  ) {
+    return conversationTitle;
+  }
+
+  const firstUserMessageText = getFirstUserMessageText(messages);
+
+  return firstUserMessageText
+    ? firstUserMessageText.trim().replace(/\s+/g, " ").slice(0, 80)
+    : conversationTitle;
 }
 
 export function MessageParts({

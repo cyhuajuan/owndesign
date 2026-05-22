@@ -1,19 +1,9 @@
 import { revalidatePath } from "next/cache";
-import { FolderIcon, MessageSquareIcon, PlusIcon } from "lucide-react";
-
-import {
-  ConversationEmptyState,
-} from "@/components/ai-elements/conversation";
-import { ChatShell } from "@/components/chat-shell";
-import { ControlBar } from "@/components/control-bar";
-import { PreviewEmptyState } from "@/components/preview-empty-state";
-import { ProjectPreviewFrame } from "@/components/project-preview-frame";
 import {
   createConversationService,
   createProjectService,
 } from "@/lib/hjdesign";
-import { normalizeConversationMessages } from "@/lib/chat-messages";
-import { StreamingConversationPanel } from "@/components/streaming-conversation-panel";
+import { WorkspaceShell } from "@/components/workspace-shell";
 
 async function createProjectFromControlBar(
   name: string,
@@ -198,99 +188,46 @@ export default async function Home({ searchParams }: HomeProps) {
   ) ?? conversationState.conversations[0];
 
   return (
-    <ChatShell
-      composer={
-        !activeProject || !activeConversation ? (
-          <ConversationEmptyState
-            className="min-h-28 pt-4"
-            description="请先创建项目，再开始发送消息。"
-            icon={<PlusIcon />}
-            title="输入区暂不可用"
-          />
-        ) : undefined
-      }
-      conversationBody={
-        activeProject && activeConversation ? (
-          <StreamingConversationPanel
-            conversationId={activeConversation.id}
-            initialMessages={normalizeConversationMessages(
-              activeConversation.messages,
-            )}
-            key={activeConversation.id}
-            projectId={activeProject.id}
-          />
-        ) : undefined
-      }
-      controlBar={
-        <ControlBar
-          activeConversationId={activeConversation?.id}
-          activeProjectId={activeProject?.id}
-          conversations={conversationState.conversations}
-          onCreateConversation={async () => {
-            "use server";
+    <WorkspaceShell
+      activeConversationId={activeConversation?.id}
+      activeProject={activeProject}
+      conversations={conversationState.conversations}
+      onCreateConversation={async () => {
+        "use server";
 
-            return createConversationFromControlBar(activeProject?.id ?? "");
-          }}
-          onCreateProject={createProjectFromControlBar}
-          onDeleteConversation={async (conversationId) => {
-            "use server";
+        return createConversationFromControlBar(activeProject?.id ?? "");
+      }}
+      onCreateProject={createProjectFromControlBar}
+      onDeleteConversation={async (conversationId) => {
+        "use server";
 
-            return deleteConversationFromControlBar(
-              activeProject?.id ?? "",
-              conversationId,
-              activeConversation?.id,
-            );
-          }}
-          onDeleteProject={deleteProjectFromControlBar}
-          onRenameConversation={async (conversationId, title) => {
-            "use server";
+        return deleteConversationFromControlBar(
+          activeProject?.id ?? "",
+          conversationId,
+          activeConversation?.id,
+        );
+      }}
+      onDeleteProject={deleteProjectFromControlBar}
+      onRenameConversation={async (conversationId, title) => {
+        "use server";
 
-            await renameConversationFromControlBar(
-              activeProject?.id ?? "",
-              conversationId,
-              title,
-            );
-          }}
-          onRenameProject={renameProjectFromControlBar}
-          onSelectConversation={async (conversationId) => {
-            "use server";
+        await renameConversationFromControlBar(
+          activeProject?.id ?? "",
+          conversationId,
+          title,
+        );
+      }}
+      onRenameProject={renameProjectFromControlBar}
+      onSelectConversation={async (conversationId) => {
+        "use server";
 
-            return switchConversationFromControlBar(
-              activeProject?.id ?? "",
-              conversationId,
-            );
-          }}
-          onSelectProject={switchProjectFromControlBar}
-          projects={projectState.projects}
-        />
-      }
-      messageHistory={
-        activeConversation ? undefined : (
-          <ConversationEmptyState
-            description="选择或创建一个会话来填充这里。"
-            icon={<MessageSquareIcon />}
-            title="暂无当前会话"
-          />
-        )
-      }
-      previewBody={
-        activeProject ? (
-          <ProjectPreviewFrame
-            initialUpdatedAt={activeProject.updatedAt}
-            key={activeProject.id}
-            projectId={activeProject.id}
-            projectName={activeProject.name}
-          />
-        ) : (
-          <PreviewEmptyState
-            badge="Preview"
-            description="在对话中向 AI 描述你的设计需求，生成的页面将在此处实时预览。"
-            icon={<FolderIcon />}
-            title="尚无预览内容"
-          />
-        )
-      }
-      previewProjectId={activeProject?.id}
+        return switchConversationFromControlBar(
+          activeProject?.id ?? "",
+          conversationId,
+        );
+      }}
+      onSelectProject={switchProjectFromControlBar}
+      projects={projectState.projects}
     />
   );
 }

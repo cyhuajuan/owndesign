@@ -3,6 +3,11 @@ import {
   createConversationService,
   createProjectService,
 } from "@/lib/owndesign";
+import { createSettingsService } from "@/lib/settings-service";
+import {
+  InitialSetupGuide,
+  type InitialSetupInput,
+} from "@/components/initial-setup-guide";
 import { WorkspaceShell } from "@/components/workspace-shell";
 
 async function createProjectFromControlBar(
@@ -168,6 +173,36 @@ async function deleteConversationFromControlBar(
   };
 }
 
+async function completeInitialSetup(input: InitialSetupInput) {
+  "use server";
+
+  const modelConfigurations = input.modelConfigurations.map((configuration) => ({
+    apiKey: configuration.apiKey,
+    baseUrl: configuration.baseUrl,
+    contextSizeK: configuration.contextSizeK,
+    id: configuration.id,
+    model: configuration.model,
+    provider: configuration.provider,
+    providerOptions: configuration.providerOptions,
+  }));
+
+  await createSettingsService().updateSettings({
+    defaultModelId: modelConfigurations[0]?.id ?? null,
+    interfaceLanguage: input.interfaceLanguage,
+    modelConfigurations,
+  });
+
+  const result = await createProjectService().createProject({
+    name: "helloworld",
+  });
+
+  revalidatePath("/");
+
+  return {
+    href: buildWorkspaceHref(result.project.id, result.conversation.id),
+  };
+}
+
 type HomeProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
@@ -177,6 +212,15 @@ export default async function Home({ searchParams }: HomeProps) {
   const requestedProjectId = getSearchParam(params.projectId);
   const requestedConversationId = getSearchParam(params.conversationId);
   const projectState = await createProjectService().getProjectState();
+  const settings = await createSettingsService().getPublicSettings();
+
+  if (
+    projectState.projects.length === 0 &&
+    settings.modelConfigurations.length === 0
+  ) {
+    return <InitialSetupGuide onComplete={completeInitialSetup} />;
+  }
+
   const activeProject = projectState.projects.find(
     (project) => project.id === requestedProjectId,
   ) ?? projectState.projects[0];

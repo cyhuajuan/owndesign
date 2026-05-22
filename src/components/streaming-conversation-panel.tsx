@@ -327,7 +327,6 @@ export function StreamingConversationPanel({
               <PromptInputActionMenu>
                 <PromptInputActionMenuTrigger
                   aria-label="添加附件"
-                  tooltip="添加附件"
                 />
                 <PromptInputActionMenuContent side="top" sideOffset={6}>
                   <PromptInputActionAddAttachments />

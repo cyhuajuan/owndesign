@@ -441,8 +441,12 @@ export const PromptInputActionAddAttachments = ({
   );
 
   return (
-    <DropdownMenuItem {...props} onClick={handleClick}>
-      <PaperclipIcon className="mr-2 size-4" /> {label}
+    <DropdownMenuItem
+      className={cn("gap-2 text-xs", props.className)}
+      {...props}
+      onClick={handleClick}
+    >
+      <PaperclipIcon /> {label}
     </DropdownMenuItem>
   );
 };
@@ -1295,7 +1299,11 @@ export const PromptInputActionMenuContent = ({
   className,
   ...props
 }: PromptInputActionMenuContentProps) => (
-  <DropdownMenuContent align="start" className={cn(className)} {...props} />
+  <DropdownMenuContent
+    align="start"
+    className={cn("min-w-40", className)}
+    {...props}
+  />
 );
 
 export type PromptInputActionMenuItemProps = ComponentProps<

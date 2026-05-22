@@ -79,6 +79,14 @@ beforeEach(() => {
   routingMocks.pathname = "/";
   routingMocks.replace.mockReset();
   routingMocks.searchParams = new URLSearchParams();
+  Object.defineProperty(URL, "createObjectURL", {
+    configurable: true,
+    value: vi.fn((file: File) => `blob:${file.name}`),
+  });
+  Object.defineProperty(URL, "revokeObjectURL", {
+    configurable: true,
+    value: vi.fn(),
+  });
   vi.stubGlobal(
     "fetch",
     vi.fn(async () =>
@@ -105,6 +113,29 @@ afterEach(() => {
   vi.mocked(useChat).mockReset();
   vi.unstubAllGlobals();
 });
+
+function stubOpenAICompatibleSettings() {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () =>
+      Response.json({
+        defaultModelId: "model-1",
+        interfaceLanguage: "zh-CN",
+        modelConfigurations: [
+          {
+            apiKey: "",
+            baseUrl: "https://example.test/v1",
+            contextSizeK: 200,
+            hasApiKey: true,
+            id: "model-1",
+            model: "gpt-4o",
+            provider: "openai-compatible",
+          },
+        ],
+      }),
+    ),
+  );
+}
 
 describe("MessageParts", () => {
   it("renders reasoning parts", () => {
@@ -842,6 +873,292 @@ describe("MessageParts", () => {
     );
 
     expect(await screen.findByRole("button", { name: "提交" })).toBeDisabled();
+  });
+
+  it("renders the attachment action menu", async () => {
+    const user = userEvent.setup();
+    const inputClickSpy = vi.spyOn(HTMLInputElement.prototype, "click");
+    stubOpenAICompatibleSettings();
+
+    vi.mocked(useChat).mockReturnValue({
+      addToolApprovalResponse: vi.fn(),
+      error: undefined,
+      messages: [],
+      sendMessage: vi.fn(),
+      status: "ready",
+      stop: vi.fn(),
+    } as unknown as ReturnType<typeof useChat>);
+
+    render(
+      <StreamingConversationPanel
+        conversationId="conversation-1"
+        conversationTitle="新建会话"
+        initialMessages={[]}
+        projectId="project-1"
+      />,
+    );
+
+    await user.click(await screen.findByRole("button", { name: "添加附件" }));
+
+    const addItem = await screen.findByText("添加图片或文件");
+    expect(addItem).toBeInTheDocument();
+
+    await user.click(addItem);
+
+    expect(inputClickSpy).toHaveBeenCalled();
+    inputClickSpy.mockRestore();
+  });
+
+  it("hides attachment controls for DeepSeek models", async () => {
+    vi.mocked(useChat).mockReturnValue({
+      addToolApprovalResponse: vi.fn(),
+      error: undefined,
+      messages: [],
+      sendMessage: vi.fn(),
+      status: "ready",
+      stop: vi.fn(),
+    } as unknown as ReturnType<typeof useChat>);
+
+    render(
+      <StreamingConversationPanel
+        conversationId="conversation-1"
+        conversationTitle="新建会话"
+        initialMessages={[]}
+        projectId="project-1"
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: "添加附件" })).not.toBeInTheDocument();
+  });
+
+  it("clears attachments after switching to a DeepSeek model", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          defaultModelId: "model-openai",
+          interfaceLanguage: "zh-CN",
+          modelConfigurations: [
+            {
+              apiKey: "",
+              baseUrl: "https://example.test/v1",
+              contextSizeK: 200,
+              hasApiKey: true,
+              id: "model-openai",
+              model: "gpt-4o",
+              provider: "openai-compatible",
+            },
+            {
+              apiKey: "",
+              baseUrl: "",
+              contextSizeK: 1000,
+              hasApiKey: true,
+              id: "model-deepseek",
+              model: "deepseek-v4-flash",
+              provider: "deepseek",
+            },
+          ],
+        }),
+      ),
+    );
+
+    vi.mocked(useChat).mockReturnValue({
+      addToolApprovalResponse: vi.fn(),
+      error: undefined,
+      messages: [],
+      sendMessage: vi.fn(),
+      status: "ready",
+      stop: vi.fn(),
+    } as unknown as ReturnType<typeof useChat>);
+
+    render(
+      <StreamingConversationPanel
+        conversationId="conversation-1"
+        conversationTitle="新建会话"
+        initialMessages={[]}
+        projectId="project-1"
+      />,
+    );
+
+    await user.upload(
+      screen.getByLabelText("上传文件"),
+      new File([new Uint8Array(1024)], "reference.png", {
+        type: "image/png",
+      }),
+    );
+
+    expect(screen.getByText("reference.png")).toBeInTheDocument();
+
+    await user.click(await screen.findByRole("button", { name: "gpt-4o" }));
+    await user.click(await screen.findByText("deepseek-v4-flash"));
+
+    expect(screen.queryByText("reference.png")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "添加附件" })).not.toBeInTheDocument();
+  });
+
+  it("shows image attachment previews", async () => {
+    const user = userEvent.setup();
+    stubOpenAICompatibleSettings();
+
+    vi.mocked(useChat).mockReturnValue({
+      addToolApprovalResponse: vi.fn(),
+      error: undefined,
+      messages: [],
+      sendMessage: vi.fn(),
+      status: "ready",
+      stop: vi.fn(),
+    } as unknown as ReturnType<typeof useChat>);
+
+    render(
+      <StreamingConversationPanel
+        conversationId="conversation-1"
+        conversationTitle="新建会话"
+        initialMessages={[]}
+        projectId="project-1"
+      />,
+    );
+
+    const input = screen.getByLabelText("上传文件");
+    const file = new File([new Uint8Array(1024)], "hero.png", {
+      type: "image/png",
+    });
+
+    await user.upload(input, file);
+
+    expect(screen.getByText("hero.png")).toBeInTheDocument();
+    expect(screen.getByText("1 KB")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "hero.png" })).toHaveAttribute(
+      "src",
+      "blob:hero.png",
+    );
+  });
+
+  it("shows file attachment previews and removes them", async () => {
+    const user = userEvent.setup();
+    stubOpenAICompatibleSettings();
+
+    vi.mocked(useChat).mockReturnValue({
+      addToolApprovalResponse: vi.fn(),
+      error: undefined,
+      messages: [],
+      sendMessage: vi.fn(),
+      status: "ready",
+      stop: vi.fn(),
+    } as unknown as ReturnType<typeof useChat>);
+
+    render(
+      <StreamingConversationPanel
+        conversationId="conversation-1"
+        conversationTitle="新建会话"
+        initialMessages={[]}
+        projectId="project-1"
+      />,
+    );
+
+    const input = screen.getByLabelText("上传文件");
+    const file = new File([new Uint8Array(2048)], "brief.pdf", {
+      type: "application/pdf",
+    });
+
+    await user.upload(input, file);
+
+    expect(screen.getByText("brief.pdf")).toBeInTheDocument();
+    expect(screen.getByText("2 KB")).toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: "brief.pdf" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "移除 brief.pdf" }));
+
+    expect(screen.queryByText("brief.pdf")).not.toBeInTheDocument();
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:brief.pdf");
+  });
+
+  it("sends attachment-only messages with files", async () => {
+    const user = userEvent.setup();
+    const sendMessage = vi.fn();
+    stubOpenAICompatibleSettings();
+
+    vi.mocked(useChat).mockReturnValue({
+      addToolApprovalResponse: vi.fn(),
+      error: undefined,
+      messages: [],
+      sendMessage,
+      status: "ready",
+      stop: vi.fn(),
+    } as unknown as ReturnType<typeof useChat>);
+
+    render(
+      <StreamingConversationPanel
+        conversationId="conversation-1"
+        conversationTitle="新建会话"
+        initialMessages={[]}
+        projectId="project-1"
+      />,
+    );
+
+    const input = screen.getByLabelText("上传文件");
+    const file = new File([new Uint8Array(1024)], "reference.png", {
+      type: "image/png",
+    });
+
+    await user.upload(input, file);
+    await user.click(await screen.findByRole("button", { name: "提交" }));
+
+    expect(sendMessage).toHaveBeenCalledWith({
+      files: [
+        expect.objectContaining({
+          filename: "reference.png",
+          mediaType: "image/png",
+          type: "file",
+        }),
+      ],
+      text: "",
+    });
+  });
+
+  it("limits attachment count and size", async () => {
+    const user = userEvent.setup();
+    stubOpenAICompatibleSettings();
+
+    vi.mocked(useChat).mockReturnValue({
+      addToolApprovalResponse: vi.fn(),
+      error: undefined,
+      messages: [],
+      sendMessage: vi.fn(),
+      status: "ready",
+      stop: vi.fn(),
+    } as unknown as ReturnType<typeof useChat>);
+
+    render(
+      <StreamingConversationPanel
+        conversationId="conversation-1"
+        conversationTitle="新建会话"
+        initialMessages={[]}
+        projectId="project-1"
+      />,
+    );
+
+    const input = screen.getByLabelText("上传文件");
+    const files = Array.from({ length: 9 }, (_, index) =>
+      new File([new Uint8Array(1024)], `asset-${index + 1}.txt`, {
+        type: "text/plain",
+      }),
+    );
+
+    await user.upload(input, files);
+
+    expect(screen.getByText("asset-8.txt")).toBeInTheDocument();
+    expect(screen.queryByText("asset-9.txt")).not.toBeInTheDocument();
+
+    const oversized = new File(
+      [new Uint8Array(10 * 1024 * 1024 + 1)],
+      "large.zip",
+      { type: "application/zip" },
+    );
+
+    await user.upload(input, oversized);
+
+    expect(screen.queryByText("large.zip")).not.toBeInTheDocument();
   });
 
   it("renders context usage next to model selection", async () => {

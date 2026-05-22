@@ -43,8 +43,9 @@ import { cn } from "@/lib/utils";
 import type { ChatStatus, FileUIPart, SourceDocumentUIPart } from "ai";
 import {
   CornerDownLeftIcon,
-  ImageIcon,
+  FileIcon,
   Monitor,
+  PaperclipIcon,
   PlusIcon,
   SquareIcon,
   XIcon,
@@ -178,8 +179,10 @@ const captureScreenshot = async (): Promise<File | null> => {
 // Provider Context & Types
 // ============================================================================
 
+type PromptInputAttachment = FileUIPart & { id: string; size?: number };
+
 export interface AttachmentsContext {
-  files: (FileUIPart & { id: string })[];
+  files: PromptInputAttachment[];
   add: (files: File[] | FileList) => void;
   remove: (id: string) => void;
   clear: () => void;
@@ -255,7 +258,7 @@ export const PromptInputProvider = ({
 
   // ----- attachments state (global when wrapped)
   const [attachmentFiles, setAttachmentFiles] = useState<
-    (FileUIPart & { id: string })[]
+    PromptInputAttachment[]
   >([]);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   // oxlint-disable-next-line eslint(no-empty-function)
@@ -273,6 +276,7 @@ export const PromptInputProvider = ({
         filename: file.name,
         id: nanoid(),
         mediaType: file.type,
+        size: file.size,
         type: "file" as const,
         url: URL.createObjectURL(file),
       })),
@@ -414,27 +418,35 @@ export type PromptInputActionAddAttachmentsProps = ComponentProps<
   label?: string;
 };
 
-type DropdownMenuItemSelectHandler = NonNullable<
-  ComponentProps<typeof DropdownMenuItem>["onSelect"]
+type DropdownMenuItemClickHandler = NonNullable<
+  ComponentProps<typeof DropdownMenuItem>["onClick"]
 >;
 
 export const PromptInputActionAddAttachments = ({
   label = "添加图片或文件",
+  onClick,
   ...props
 }: PromptInputActionAddAttachmentsProps) => {
   const attachments = usePromptInputAttachments();
 
-  const handleSelect: DropdownMenuItemSelectHandler = useCallback(
+  const handleClick: DropdownMenuItemClickHandler = useCallback(
     (event) => {
-      event.preventDefault();
+      onClick?.(event);
+      if (event.defaultPrevented) {
+        return;
+      }
       attachments.openFileDialog();
     },
-    [attachments]
+    [attachments, onClick]
   );
 
   return (
-    <DropdownMenuItem {...props} onSelect={handleSelect}>
-      <ImageIcon className="mr-2 size-4" /> {label}
+    <DropdownMenuItem
+      className={cn("gap-2 text-xs", props.className)}
+      {...props}
+      onClick={handleClick}
+    >
+      <PaperclipIcon /> {label}
     </DropdownMenuItem>
   );
 };
@@ -447,14 +459,14 @@ export type PromptInputActionAddScreenshotProps = ComponentProps<
 
 export const PromptInputActionAddScreenshot = ({
   label = "截取屏幕截图",
-  onSelect,
+  onClick,
   ...props
 }: PromptInputActionAddScreenshotProps) => {
   const attachments = usePromptInputAttachments();
 
-  const handleSelect: DropdownMenuItemSelectHandler = useCallback(
+  const handleClick: DropdownMenuItemClickHandler = useCallback(
     async (event) => {
-      onSelect?.(event);
+      onClick?.(event);
       if (event.defaultPrevented) {
         return;
       }
@@ -474,11 +486,11 @@ export const PromptInputActionAddScreenshot = ({
         throw error;
       }
     },
-    [onSelect, attachments]
+    [onClick, attachments]
   );
 
   return (
-    <DropdownMenuItem {...props} onSelect={handleSelect}>
+    <DropdownMenuItem {...props} onClick={handleClick}>
       <Monitor className="mr-2 size-4" />
       {label}
     </DropdownMenuItem>
@@ -537,7 +549,7 @@ export const PromptInput = ({
   const formRef = useRef<HTMLFormElement | null>(null);
 
   // ----- Local attachments (only used when no provider)
-  const [items, setItems] = useState<(FileUIPart & { id: string })[]>([]);
+  const [items, setItems] = useState<PromptInputAttachment[]>([]);
   const files = usingProvider ? controller.attachments.files : items;
 
   // ----- Local referenced sources (always local to PromptInput)
@@ -614,12 +626,13 @@ export const PromptInput = ({
             message: "文件数量过多，部分文件未添加。",
           });
         }
-        const next: (FileUIPart & { id: string })[] = [];
+        const next: PromptInputAttachment[] = [];
         for (const file of capped) {
           next.push({
             filename: file.name,
             id: nanoid(),
             mediaType: file.type,
+            size: file.size,
             type: "file",
             url: URL.createObjectURL(file),
           });
@@ -866,8 +879,9 @@ export const PromptInput = ({
       try {
         // Convert blob URLs to data URLs asynchronously
         const convertedFiles: FileUIPart[] = await Promise.all(
-          files.map(async ({ id, ...item }) => {
+          files.map(async ({ id, size, ...item }) => {
             void id;
+            void size;
             if (item.url?.startsWith("blob:")) {
               const dataUrl = await convertBlobUrlToDataUrl(item.url);
               // If conversion failed, keep the original blob URL
@@ -1089,6 +1103,94 @@ export const PromptInputHeader = ({
   />
 );
 
+export type PromptInputAttachmentsProps = HTMLAttributes<HTMLDivElement>;
+
+export const PromptInputAttachments = ({
+  className,
+  ...props
+}: PromptInputAttachmentsProps) => {
+  const attachments = usePromptInputAttachments();
+
+  if (attachments.files.length === 0) {
+    return null;
+  }
+
+  return (
+    <div
+      className={cn(
+        "flex w-full gap-2 overflow-x-auto px-2.5 py-2",
+        className
+      )}
+      {...props}
+    >
+      {attachments.files.map((file) => (
+        <AttachmentPreview
+          file={file}
+          key={file.id}
+          onRemove={() => attachments.remove(file.id)}
+        />
+      ))}
+    </div>
+  );
+};
+
+function AttachmentPreview({
+  file,
+  onRemove,
+}: {
+  file: PromptInputAttachment;
+  onRemove: () => void;
+}) {
+  const isImage = file.mediaType.startsWith("image/") && file.url;
+  const filename = file.filename ?? "未命名文件";
+
+  return (
+    <div className="group relative flex w-[92px] shrink-0 flex-col items-center gap-1 rounded-lg border border-border bg-background p-1.5">
+      <div className="flex size-12 items-center justify-center overflow-hidden rounded-md bg-input/30 text-muted-foreground">
+        {isImage ? (
+          <img
+            alt={filename}
+            className="size-full object-cover"
+            src={file.url}
+          />
+        ) : (
+          <FileIcon className="size-5 opacity-70" />
+        )}
+      </div>
+      <div className="flex w-full min-w-0 flex-col items-center gap-0.5">
+        <span className="w-full truncate text-center text-[10px] leading-tight text-muted-foreground">
+          {filename}
+        </span>
+        {typeof file.size === "number" ? (
+          <span className="text-[9px] leading-tight text-muted-foreground/70">
+            {formatAttachmentSize(file.size)}
+          </span>
+        ) : null}
+      </div>
+      <button
+        aria-label={`移除 ${filename}`}
+        className="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full border border-border bg-background text-muted-foreground opacity-0 transition-opacity hover:bg-destructive hover:text-destructive-foreground group-hover:opacity-100"
+        onClick={onRemove}
+        type="button"
+      >
+        <XIcon className="size-2.5" />
+      </button>
+    </div>
+  );
+}
+
+function formatAttachmentSize(size: number) {
+  if (size < 1024) {
+    return `${size} B`;
+  }
+
+  if (size < 1024 * 1024) {
+    return `${Math.round(size / 1024)} KB`;
+  }
+
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export type PromptInputFooterProps = Omit<
   ComponentProps<typeof InputGroupAddon>,
   "align"
@@ -1164,7 +1266,7 @@ export const PromptInputButton = ({
 
   return (
     <Tooltip>
-      <TooltipTrigger>{button}</TooltipTrigger>
+      <TooltipTrigger render={button} />
       <TooltipContent side={side}>
         {tooltipContent}
         {shortcut && (
@@ -1197,7 +1299,11 @@ export const PromptInputActionMenuContent = ({
   className,
   ...props
 }: PromptInputActionMenuContentProps) => (
-  <DropdownMenuContent align="start" className={cn(className)} {...props} />
+  <DropdownMenuContent
+    align="start"
+    className={cn("min-w-40", className)}
+    {...props}
+  />
 );
 
 export type PromptInputActionMenuItemProps = ComponentProps<

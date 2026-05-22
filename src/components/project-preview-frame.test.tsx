@@ -1,13 +1,16 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ProjectPreviewFrame } from "./project-preview-frame";
 
 const navigationMocks = vi.hoisted(() => ({
+  replace: vi.fn(),
   searchParams: new URLSearchParams(),
 }));
 
 vi.mock("next/navigation", () => ({
+  usePathname: () => "/",
+  useRouter: () => ({ replace: navigationMocks.replace }),
   useSearchParams: () => navigationMocks.searchParams,
 }));
 
@@ -162,6 +165,96 @@ describe("ProjectPreviewFrame", () => {
       "/api/projects/project-2/preview-session",
     );
   });
+
+  it("syncs the route when the iframe load heartbeat reports a new HTML path", async () => {
+    const fetchMock = mockPreviewFetch();
+
+    const { rerender } = render(
+      <ProjectPreviewFrame
+        initialUpdatedAt="2026-05-15T00:00:00.000Z"
+        projectId="project-1"
+        projectName="Project One"
+      />,
+    );
+
+    const iframe = await screen.findByTitle("Project One HTML 预览");
+    fetchMock.mockImplementation(async (_input, init) => {
+      const body = JSON.parse(String(init?.body ?? "{}")) as {
+        previewPath?: string;
+      };
+
+      return Response.json({
+        activePath: body.previewPath ?? "pages/about.html",
+        files: ["index.html", "pages/about.html"],
+        url: `http://127.0.0.1:3000/${body.previewPath ?? "pages/about.html"}`,
+      });
+    });
+
+    fireEvent.load(iframe);
+
+    await waitFor(() => {
+      expect(navigationMocks.replace).toHaveBeenCalledWith(
+        "/?previewPath=pages%2Fabout.html",
+        { scroll: false },
+      );
+    });
+
+    const heartbeatCalls = getHeartbeatPosts(fetchMock);
+    expect(parseBody(heartbeatCalls.at(-1)!)).toEqual({
+      clientId: expect.any(String),
+    });
+
+    navigationMocks.searchParams = new URLSearchParams(
+      "previewPath=pages%2Fabout.html",
+    );
+    rerender(
+      <ProjectPreviewFrame
+        initialUpdatedAt="2026-05-15T00:00:00.000Z"
+        projectId="project-1"
+        projectName="Project One"
+      />,
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(getSessionPosts(fetchMock)).toHaveLength(1);
+    expect(screen.getByTitle("Project One HTML 预览")).toBe(iframe);
+  });
+
+  it("does not replace the route when iframe load keeps the same HTML path", async () => {
+    navigationMocks.searchParams = new URLSearchParams(
+      "previewPath=dashboard.html",
+    );
+    const fetchMock = mockPreviewFetch();
+
+    render(
+      <ProjectPreviewFrame
+        initialUpdatedAt="2026-05-15T00:00:00.000Z"
+        projectId="project-1"
+        projectName="Project One"
+      />,
+    );
+
+    const iframe = await screen.findByTitle("Project One HTML 预览");
+    fetchMock.mockImplementation(async (_input, init) => {
+      const body = JSON.parse(String(init?.body ?? "{}")) as {
+        previewPath?: string;
+      };
+
+      return Response.json({
+        activePath: body.previewPath ?? "dashboard.html",
+        files: ["index.html", "dashboard.html"],
+        url: `http://127.0.0.1:3000/${body.previewPath ?? "dashboard.html"}`,
+      });
+    });
+    fireEvent.load(iframe);
+
+    await waitFor(() => {
+      expect(getHeartbeatPosts(fetchMock)).toHaveLength(1);
+    });
+
+    expect(navigationMocks.replace).not.toHaveBeenCalled();
+  });
 });
 
 function mockPreviewFetch() {
@@ -196,6 +289,14 @@ function getSessionPosts(fetchMock: ReturnType<typeof mockPreviewFetch>) {
 
 function getDeletes(fetchMock: ReturnType<typeof mockPreviewFetch>) {
   return fetchMock.mock.calls.filter(([, init]) => init?.method === "DELETE");
+}
+
+function getHeartbeatPosts(fetchMock: ReturnType<typeof mockPreviewFetch>) {
+  return fetchMock.mock.calls.filter(
+    ([input, init]) =>
+      init?.method === "POST" &&
+      getCallUrl([input, init]).endsWith("/preview-session/heartbeat"),
+  );
 }
 
 function getCallUrl(call: unknown[]) {

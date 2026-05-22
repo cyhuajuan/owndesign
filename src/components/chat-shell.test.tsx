@@ -131,7 +131,7 @@ describe("ChatShell", () => {
     });
 
     await user.click(screen.getByRole("combobox", { name: "切换预览 HTML" }));
-    await user.click(screen.getByRole("option", { name: "dashboard.html" }));
+    await user.click(await screen.findByRole("option", { name: "dashboard.html" }));
 
     expect(replaceMock).toHaveBeenCalledWith("/?previewPath=dashboard.html", {
       scroll: false,

@@ -20,19 +20,19 @@ afterEach(async () => {
 });
 
 describe("PreviewServerManager", () => {
-  it("reuses one server for multiple clients of the same Project", async () => {
+  it("starts one server per project client", async () => {
     const { manager, workspaceStore } = await createPreviewManager();
     await createProject(workspaceStore);
 
     const firstSession = await manager.ensure("project-1", "client-1");
     const secondSession = await manager.ensure("project-1", "client-2");
 
-    expect(secondSession.url).toBe(firstSession.url);
-    expect(manager.getActiveServerCount()).toBe(1);
+    expect(secondSession.url).not.toBe(firstSession.url);
+    expect(manager.getActiveServerCount()).toBe(2);
     expect(manager.getLeaseCount("project-1")).toBe(2);
   });
 
-  it("keeps the server alive until the last client releases it", async () => {
+  it("releases one client server without affecting another client", async () => {
     const { manager, workspaceStore } = await createPreviewManager();
     await createProject(workspaceStore);
 
@@ -105,6 +105,7 @@ describe("PreviewServerManager", () => {
 
     expect(session.activePath).toBe("index.html");
     expect(session.files).toEqual(["index.html"]);
+    expect(session.url).not.toContain("?");
     await expect(response.text()).resolves.toContain("Preview works");
   });
 
@@ -132,7 +133,90 @@ describe("PreviewServerManager", () => {
     expect(session.activePath).toBe("pages/about.html");
     expect(session.files).toEqual(["index.html", "pages/about.html"]);
     expect(session.url).toMatch(/\/pages\/about\.html$/);
+    expect(session.url).not.toContain("?");
     await expect(response.text()).resolves.toContain("About works");
+  });
+
+  it("tracks the last served HTML path for a client heartbeat", async () => {
+    const { manager, workspaceStore } = await createPreviewManager();
+    await createProject(workspaceStore);
+    await workspaceStore.writeProjectWorkspaceFile(
+      "project-1",
+      "index.html",
+      "<main>Index</main>",
+    );
+    await workspaceStore.writeProjectWorkspaceFile(
+      "project-1",
+      "pages/about.html",
+      "<main>About works</main>",
+    );
+
+    const session = await manager.ensure("project-1", "client-1");
+    await fetch(new URL("/pages/about.html", session.url));
+
+    const heartbeat = await manager.heartbeat("project-1", "client-1");
+
+    expect(heartbeat.activePath).toBe("pages/about.html");
+    expect(heartbeat.url).toMatch(/\/pages\/about\.html$/);
+    expect(heartbeat.url).not.toContain("?");
+  });
+
+  it("does not update the active HTML path for static assets", async () => {
+    const { manager, workspaceStore } = await createPreviewManager();
+    await createProject(workspaceStore);
+    await workspaceStore.writeProjectWorkspaceFile(
+      "project-1",
+      "index.html",
+      "<main>Index</main>",
+    );
+    await workspaceStore.writeProjectWorkspaceFile(
+      "project-1",
+      "pages/about.html",
+      "<main>About works</main>",
+    );
+    await workspaceStore.writeProjectWorkspaceFile(
+      "project-1",
+      "assets/site.css",
+      "body { color: black; }",
+    );
+
+    const session = await manager.ensure(
+      "project-1",
+      "client-1",
+      "pages/about.html",
+    );
+    await fetch(new URL("/assets/site.css", session.url));
+
+    const heartbeat = await manager.heartbeat("project-1", "client-1");
+
+    expect(heartbeat.activePath).toBe("pages/about.html");
+  });
+
+  it("lets an explicit preview path override the recorded HTML path", async () => {
+    const { manager, workspaceStore } = await createPreviewManager();
+    await createProject(workspaceStore);
+    await workspaceStore.writeProjectWorkspaceFile(
+      "project-1",
+      "index.html",
+      "<main>Index</main>",
+    );
+    await workspaceStore.writeProjectWorkspaceFile(
+      "project-1",
+      "pages/about.html",
+      "<main>About works</main>",
+    );
+
+    const session = await manager.ensure("project-1", "client-1");
+    await fetch(new URL("/pages/about.html", session.url));
+
+    const nextSession = await manager.ensure(
+      "project-1",
+      "client-1",
+      "index.html",
+    );
+
+    expect(nextSession.activePath).toBe("index.html");
+    expect(nextSession.url).toMatch(/\/index\.html$/);
   });
 
   it("falls back to index.html when the requested HTML file is missing", async () => {

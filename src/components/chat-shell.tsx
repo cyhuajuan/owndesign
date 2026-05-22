@@ -54,11 +54,11 @@ import {
 import { cn } from "@/lib/utils";
 
 const CONVERSATION_PANE_STORAGE_KEY =
-  "hjdesign.app.conversation-pane-collapsed";
-const CONVERSATION_PANE_EVENT = "hjdesign:conversation-pane";
-const PREVIEW_REFRESH_EVENT = "hjdesign:preview-refresh";
-const PREVIEW_HREF_EVENT = "hjdesign:preview-href-updated";
-const PREVIEW_FILES_EVENT = "hjdesign:preview-files-updated";
+  "owndesign.app.conversation-pane-collapsed";
+const CONVERSATION_PANE_EVENT = "owndesign:conversation-pane";
+const PREVIEW_REFRESH_EVENT = "owndesign:preview-refresh";
+const PREVIEW_HREF_EVENT = "owndesign:preview-href-updated";
+const PREVIEW_FILES_EVENT = "owndesign:preview-files-updated";
 
 const demoMessages = [
   {
@@ -215,7 +215,7 @@ export function ChatShell({
         <header className="flex h-11 shrink-0 items-center gap-2 border-b border-border bg-card px-3">
           <div className="flex shrink-0 items-center gap-2 font-semibold text-primary">
             <LayersIcon className="size-5" />
-            <span className="text-[15px] tracking-normal">HJDesign</span>
+            <span className="text-[15px] tracking-normal">OwnDesign</span>
           </div>
           <Separator orientation="vertical" className="h-5" />
           {controlBar ? (

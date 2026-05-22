@@ -9,7 +9,7 @@ import {
 import type { WorkspaceToolDefinition } from "./core";
 import type { CreateHtmlInput } from "./types";
 
-const DEFAULT_TITLE = "HJDesign Preview";
+const DEFAULT_TITLE = "OwnDesign Preview";
 
 export function createCreateHtmlToolDefinition(): WorkspaceToolDefinition<
   CreateHtmlInput,
@@ -43,7 +43,7 @@ export function createCreateHtmlToolDefinition(): WorkspaceToolDefinition<
         },
         title: {
           type: "string",
-          description: "Optional document title. Defaults to HJDesign Preview.",
+          description: "Optional document title. Defaults to OwnDesign Preview.",
         },
       },
       required: ["path"],

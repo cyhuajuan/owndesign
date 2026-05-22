@@ -364,7 +364,7 @@ describe("AiSdkDesignPageAgent", () => {
     expect(html).toContain("<main id=\"app\"></main>");
     expect(html).toContain("@import url('https://cdn.example.com/font.css');");
     expect(html).toContain(
-      '<script src="https://cdn.example.com/icons.js" data-hjdesign-approved-cdn="true"></script>',
+      '<script src="https://cdn.example.com/icons.js" data-owndesign-approved-cdn="true"></script>',
     );
     expect(html).not.toContain("tailwindcss");
   });
@@ -979,7 +979,7 @@ describe("AiSdkDesignPageAgent", () => {
     await workspaceStore.writeProjectWorkspaceFile(
       "project-1",
       "index.html",
-      '<!doctype html><html><head><script src="https://cdn.example.com/legacy.js" data-hjdesign-approved-cdn="true"></script></head><body><main>Old</main></body></html>',
+      '<!doctype html><html><head><script src="https://cdn.example.com/legacy.js" data-owndesign-approved-cdn="true"></script></head><body><main>Old</main></body></html>',
     );
     const agent = new AiSdkDesignPageAgent(workspaceStore);
     aiMocks.generate.mockResolvedValueOnce({ text: "" });
@@ -1389,11 +1389,11 @@ describe("AiSdkDesignPageAgent", () => {
 });
 
 async function createWorkspaceStore() {
-  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "hjdesign-agent-"));
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "owndesign-agent-"));
   tempRoots.push(tempRoot);
 
   return new WorkspaceStore({
-    workspaceRoot: path.join(tempRoot, ".hjdesign"),
+    workspaceRoot: path.join(tempRoot, ".owndesign"),
     moveToTrash: async (targetPath) => {
       await rm(targetPath, { force: true, recursive: true });
     },

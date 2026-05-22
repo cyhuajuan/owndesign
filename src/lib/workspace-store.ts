@@ -162,7 +162,7 @@ export class WorkspaceStore {
 
   constructor(options: WorkspaceStoreOptions = {}) {
     this.workspaceRoot =
-      options.workspaceRoot ?? path.join(os.homedir(), ".hjdesign");
+      options.workspaceRoot ?? path.join(os.homedir(), ".owndesign");
     this.moveToTrash =
       options.moveToTrash ??
       (async (targetPath: string) => {
@@ -1507,7 +1507,7 @@ async function movePathToTrash(
 
 async function runWindowsRecycleCommand(targetPath: string) {
   const recycleScript = `
-$targetPath = [Environment]::GetEnvironmentVariable('HJDESIGN_TRASH_TARGET')
+$targetPath = [Environment]::GetEnvironmentVariable('OWNDESIGN_TRASH_TARGET')
 Add-Type -AssemblyName Microsoft.VisualBasic
 $item = Get-Item -LiteralPath $targetPath -Force
 if ($item.PSIsContainer) {
@@ -1530,7 +1530,7 @@ if ($item.PSIsContainer) {
     {
       env: {
         ...process.env,
-        HJDESIGN_TRASH_TARGET: targetPath,
+        OWNDESIGN_TRASH_TARGET: targetPath,
       },
       windowsHide: true,
     },

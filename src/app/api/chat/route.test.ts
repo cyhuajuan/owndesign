@@ -46,7 +46,7 @@ vi.mock("@/lib/settings-service", () => ({
       : undefined,
 }));
 
-vi.mock("@/lib/hjdesign", () => ({
+vi.mock("@/lib/owndesign", () => ({
   createConversationService: routeMocks.createConversationService,
   createWorkspaceStore: routeMocks.createWorkspaceStore,
 }));

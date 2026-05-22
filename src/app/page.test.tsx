@@ -8,7 +8,7 @@ vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
 }));
 
-vi.mock("@/lib/hjdesign", () => ({
+vi.mock("@/lib/owndesign", () => ({
   createConversationService: () => ({
     getConversationState: vi.fn().mockResolvedValue({ conversations: [] }),
   }),

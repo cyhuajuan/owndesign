@@ -538,9 +538,9 @@ async function createService() {
 }
 
 async function createServiceWithPath() {
-  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "hjdesign-settings-"));
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "owndesign-settings-"));
   tempRoots.push(tempRoot);
-  const settingsPath = path.join(tempRoot, ".hjdesign", "settings.json");
+  const settingsPath = path.join(tempRoot, ".owndesign", "settings.json");
 
   return {
     service: new SettingsService({ settingsPath }),

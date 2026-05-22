@@ -27,7 +27,7 @@ const DEFAULT_LEASE_TTL_MS = 90_000;
 const PREVIEW_HOST = "127.0.0.1";
 
 declare global {
-  var __hjdesignPreviewServerManager: PreviewServerManager | undefined;
+  var __owndesignPreviewServerManager: PreviewServerManager | undefined;
 }
 
 export class PreviewServerManager {
@@ -225,11 +225,11 @@ export class PreviewServerManager {
 }
 
 export function getPreviewServerManager(workspaceStore: WorkspaceStore) {
-  globalThis.__hjdesignPreviewServerManager ??= new PreviewServerManager({
+  globalThis.__owndesignPreviewServerManager ??= new PreviewServerManager({
     workspaceStore,
   });
 
-  return globalThis.__hjdesignPreviewServerManager;
+  return globalThis.__owndesignPreviewServerManager;
 }
 
 async function readIndexHtmlOrEmptyPreview(
@@ -253,7 +253,7 @@ function buildEmptyPreviewHtml() {
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>HJDesign Preview</title>
+  <title>OwnDesign Preview</title>
   <style>
     :root {
       color-scheme: dark;

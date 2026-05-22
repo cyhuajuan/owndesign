@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 
-export const SETTINGS_UPDATED_EVENT = "hjdesign:settings-updated";
+export const SETTINGS_UPDATED_EVENT = "owndesign:settings-updated";
 
 export type InterfaceLanguage = "zh-CN" | "en-US";
 export type ModelProvider = "deepseek" | "openai-compatible";
@@ -100,7 +100,7 @@ export class SettingsService {
 
   constructor(options: SettingsServiceOptions = {}) {
     this.settingsPath =
-      options.settingsPath ?? path.join(os.homedir(), ".hjdesign", "settings.json");
+      options.settingsPath ?? path.join(os.homedir(), ".owndesign", "settings.json");
   }
 
   static clearSettingsCache() {

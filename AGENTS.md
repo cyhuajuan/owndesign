@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-HJDesign is an AI-powered web design workbench. Users create projects with conversations, send design prompts to an AI agent, and preview generated HTML pages in an iframe. The UI is in Chinese (zh-CN).
+OwnDesign is an AI-powered web design workbench. Users create projects with conversations, send design prompts to an AI agent, and preview generated HTML pages in an iframe. The UI is in Chinese (zh-CN).
 
 ## Commands
 
@@ -17,7 +17,7 @@ Run a single test: `pnpm vitest run src/lib/workspace-store.test.ts`
 
 ## Architecture
 
-### Data Layer — `~/.hjdesign/`
+### Data Layer — `~/.owndesign/`
 
 File-based persistence. Each project gets `projects/<id>/` with `project.json`, a `workspace/` directory for generated HTML/CSS files, and a `conversations/` directory. Settings live in `settings.json`.
 

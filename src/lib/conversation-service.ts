@@ -8,7 +8,7 @@ import {
 } from "./design-page-agent";
 import {
   getFirstUserMessageText,
-  HJDesignUIMessage,
+  OwnDesignUIMessage,
 } from "./chat-messages";
 
 type ConversationServiceOptions = {
@@ -158,7 +158,7 @@ export class ConversationService {
   async saveUIMessageStream(
     projectId: string,
     conversationId: string,
-    messages: HJDesignUIMessage[],
+    messages: OwnDesignUIMessage[],
   ) {
     const existingConversation = await this.workspaceStore.getConversation(
       projectId,

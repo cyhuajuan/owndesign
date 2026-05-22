@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { createWorkspaceStore } from "@/lib/hjdesign";
+import { createWorkspaceStore } from "@/lib/owndesign";
 import { getPreviewServerManager } from "@/lib/preview-server-manager";
 
 type PreviewHeartbeatRouteContext = {

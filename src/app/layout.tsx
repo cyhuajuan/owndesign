@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "HJDesign",
+  title: "OwnDesign",
   description: "面向设计工作流的项目会话工作台",
 };
 

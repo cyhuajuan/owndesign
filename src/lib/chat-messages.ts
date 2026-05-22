@@ -1,6 +1,6 @@
 import type { UIMessage } from "ai";
 
-export type HJDesignUIMessage = UIMessage;
+export type OwnDesignUIMessage = UIMessage;
 
 type LegacyMessage = {
   content: string;
@@ -9,20 +9,20 @@ type LegacyMessage = {
 
 export function normalizeConversationMessages(
   messages: unknown[],
-): HJDesignUIMessage[] {
+): OwnDesignUIMessage[] {
   return messages
     .map((message, index) => normalizeConversationMessage(message, index))
-    .filter((message): message is HJDesignUIMessage => Boolean(message));
+    .filter((message): message is OwnDesignUIMessage => Boolean(message));
 }
 
-export function getUIMessageText(message: HJDesignUIMessage) {
+export function getUIMessageText(message: OwnDesignUIMessage) {
   return message.parts
     .filter((part) => part.type === "text")
     .map((part) => part.text)
     .join("");
 }
 
-export function getFirstUserMessageText(messages: HJDesignUIMessage[]) {
+export function getFirstUserMessageText(messages: OwnDesignUIMessage[]) {
   const firstUserMessage = messages.find((message) => message.role === "user");
 
   return firstUserMessage ? getUIMessageText(firstUserMessage) : "";
@@ -31,7 +31,7 @@ export function getFirstUserMessageText(messages: HJDesignUIMessage[]) {
 function normalizeConversationMessage(
   message: unknown,
   index: number,
-): HJDesignUIMessage | undefined {
+): OwnDesignUIMessage | undefined {
   if (isUIMessage(message)) {
     return message;
   }
@@ -67,7 +67,7 @@ function normalizeConversationMessage(
   };
 }
 
-function isUIMessage(message: unknown): message is HJDesignUIMessage {
+function isUIMessage(message: unknown): message is OwnDesignUIMessage {
   return (
     typeof message === "object" &&
     message !== null &&

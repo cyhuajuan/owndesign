@@ -26,7 +26,7 @@ type SendFrontendCommandInput<Capability extends FrontendCapabilityId> = {
 };
 
 declare global {
-  var __hjdesignFrontendCommandBus: FrontendCommandBus | undefined;
+  var __owndesignFrontendCommandBus: FrontendCommandBus | undefined;
 }
 
 export class FrontendCommandBus {
@@ -135,9 +135,9 @@ export class FrontendCommandBus {
 }
 
 export function getFrontendCommandBus() {
-  globalThis.__hjdesignFrontendCommandBus ??= new FrontendCommandBus();
+  globalThis.__owndesignFrontendCommandBus ??= new FrontendCommandBus();
 
-  return globalThis.__hjdesignFrontendCommandBus;
+  return globalThis.__owndesignFrontendCommandBus;
 }
 
 export function registerFrontendConnection(

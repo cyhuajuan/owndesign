@@ -10,7 +10,7 @@ import { createWriteStream } from "node:fs";
 
 import { ZipFile } from "yazl";
 
-import { createWorkspaceStore } from "@/lib/hjdesign";
+import { createWorkspaceStore } from "@/lib/owndesign";
 
 export const runtime = "nodejs";
 
@@ -79,7 +79,7 @@ async function downloadWorkspaceZip(
   try {
     const project = await workspaceStore.getProject(projectId);
     tempDirectory = await mkdtemp(
-      path.join(os.tmpdir(), "hjdesign-project-download-"),
+      path.join(os.tmpdir(), "owndesign-project-download-"),
     );
     const zipPath = path.join(tempDirectory, "workspace.zip");
 

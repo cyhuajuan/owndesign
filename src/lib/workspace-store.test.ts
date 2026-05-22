@@ -26,7 +26,7 @@ afterEach(async () => {
 });
 
 async function createTempWorkspaceRoot() {
-  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "hjdesign-workspace-store-"));
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "owndesign-workspace-store-"));
   tempRoots.push(tempRoot);
   return tempRoot;
 }
@@ -50,7 +50,7 @@ function buildProject(overrides: Partial<{
 
 describe("WorkspaceStore", () => {
   it("creates the Workspace lazily when first Project is persisted", async () => {
-    const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".hjdesign");
+    const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".owndesign");
     const store = new WorkspaceStore({ workspaceRoot });
 
     await expect(stat(workspaceRoot)).rejects.toThrow();
@@ -62,7 +62,7 @@ describe("WorkspaceStore", () => {
   });
 
   it("persists each Project in its own Project Directory with project metadata and workspace directory", async () => {
-    const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".hjdesign");
+    const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".owndesign");
     const store = new WorkspaceStore({ workspaceRoot });
     const project = buildProject({ id: "project-bravo", name: "Project Bravo" });
 
@@ -79,7 +79,7 @@ describe("WorkspaceStore", () => {
   });
 
   it("writes and reads Project Output from the Project Workspace", async () => {
-    const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".hjdesign");
+    const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".owndesign");
     const store = new WorkspaceStore({ workspaceRoot });
     const project = buildProject({ id: "project-output" });
     const html = "<!doctype html><html><body>Preview</body></html>";
@@ -94,7 +94,7 @@ describe("WorkspaceStore", () => {
   });
 
   it("lists nested Project Workspace files and directories recursively", async () => {
-    const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".hjdesign");
+    const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".owndesign");
     const store = new WorkspaceStore({ workspaceRoot });
     const project = buildProject({ id: "project-files" });
 
@@ -114,7 +114,7 @@ describe("WorkspaceStore", () => {
   });
 
   it("lists HTML files recursively with index first", async () => {
-    const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".hjdesign");
+    const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".owndesign");
     const store = new WorkspaceStore({ workspaceRoot });
     const project = buildProject({ id: "project-html-files" });
 
@@ -132,7 +132,7 @@ describe("WorkspaceStore", () => {
   });
 
   it("searches Project Workspace text files with line previews", async () => {
-    const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".hjdesign");
+    const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".owndesign");
     const store = new WorkspaceStore({ workspaceRoot });
     const project = buildProject({ id: "project-search" });
 
@@ -161,7 +161,7 @@ describe("WorkspaceStore", () => {
   });
 
   it("reads Project Workspace files with line windows and directories with entry windows", async () => {
-    const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".hjdesign");
+    const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".owndesign");
     const store = new WorkspaceStore({ workspaceRoot });
     const project = buildProject({ id: "project-read-entry" });
 
@@ -202,7 +202,7 @@ describe("WorkspaceStore", () => {
   });
 
   it("matches Project Workspace paths with glob patterns", async () => {
-    const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".hjdesign");
+    const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".owndesign");
     const store = new WorkspaceStore({ workspaceRoot });
     const project = buildProject({ id: "project-glob" });
 
@@ -224,7 +224,7 @@ describe("WorkspaceStore", () => {
   });
 
   it("greps Project Workspace text files with regex and include filters", async () => {
-    const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".hjdesign");
+    const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".owndesign");
     const store = new WorkspaceStore({ workspaceRoot });
     const project = buildProject({ id: "project-grep" });
 
@@ -255,7 +255,7 @@ describe("WorkspaceStore", () => {
   });
 
   it("reads, writes, edits, and deletes Project Workspace paths", async () => {
-    const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".hjdesign");
+    const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".owndesign");
     const store = new WorkspaceStore({ workspaceRoot });
     const project = buildProject({ id: "project-edit" });
 
@@ -297,7 +297,7 @@ describe("WorkspaceStore", () => {
   });
 
   it("applies Project Workspace patch changes", async () => {
-    const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".hjdesign");
+    const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".owndesign");
     const store = new WorkspaceStore({ workspaceRoot });
     const project = buildProject({ id: "project-patch" });
 
@@ -336,7 +336,7 @@ describe("WorkspaceStore", () => {
   });
 
   it("does not partially apply Project Workspace patch changes when validation fails", async () => {
-    const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".hjdesign");
+    const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".owndesign");
     const store = new WorkspaceStore({ workspaceRoot });
     const project = buildProject({ id: "project-atomic-patch" });
 
@@ -367,7 +367,7 @@ describe("WorkspaceStore", () => {
   });
 
   it("rejects missing and non-unique exact edit targets", async () => {
-    const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".hjdesign");
+    const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".owndesign");
     const store = new WorkspaceStore({ workspaceRoot });
     const project = buildProject({ id: "project-edit-errors" });
 
@@ -383,7 +383,7 @@ describe("WorkspaceStore", () => {
   });
 
   it("returns truncation and skipped-file metadata for large reads and greps", async () => {
-    const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".hjdesign");
+    const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".owndesign");
     const store = new WorkspaceStore({ workspaceRoot });
     const project = buildProject({ id: "project-tool-bounds" });
     const longLine = `${"a".repeat(2500)}TAIL`;
@@ -427,7 +427,7 @@ describe("WorkspaceStore", () => {
   });
 
   it("rejects unsafe Project Workspace paths", async () => {
-    const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".hjdesign");
+    const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".owndesign");
     const store = new WorkspaceStore({ workspaceRoot });
     const project = buildProject({ id: "project-unsafe-path" });
 
@@ -449,7 +449,7 @@ describe("WorkspaceStore", () => {
 
   it("rejects symlink access in the Project Workspace", async () => {
     const tempRoot = await createTempWorkspaceRoot();
-    const workspaceRoot = path.join(tempRoot, ".hjdesign");
+    const workspaceRoot = path.join(tempRoot, ".owndesign");
     const outsideRoot = path.join(tempRoot, "outside");
     const store = new WorkspaceStore({ workspaceRoot });
     const project = buildProject({ id: "project-symlink" });
@@ -486,7 +486,7 @@ describe("WorkspaceStore", () => {
   });
 
   it("reads Project Workspace files as buffers", async () => {
-    const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".hjdesign");
+    const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".owndesign");
     const store = new WorkspaceStore({ workspaceRoot });
     const project = buildProject({ id: "project-buffer-read" });
 
@@ -499,7 +499,7 @@ describe("WorkspaceStore", () => {
   });
 
   it("discovers persisted Projects after reload and returns them in Project Updated Time descending order", async () => {
-    const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".hjdesign");
+    const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".owndesign");
     const firstStore = new WorkspaceStore({ workspaceRoot });
 
     await firstStore.createProject(
@@ -534,7 +534,7 @@ describe("WorkspaceStore", () => {
   });
 
   it("moves a Project Directory to the recycle bin adapter instead of deleting it directly", async () => {
-    const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".hjdesign");
+    const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".owndesign");
     const recycleBinRoot = path.join(await createTempWorkspaceRoot(), "recycle-bin");
     const movedPaths: string[] = [];
     const store = new WorkspaceStore({
@@ -558,7 +558,7 @@ describe("WorkspaceStore", () => {
   });
 
   it("uses the Windows recycle command instead of the trash package on Windows", async () => {
-    const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".hjdesign");
+    const workspaceRoot = path.join(await createTempWorkspaceRoot(), ".owndesign");
     const recycleBinRoot = path.join(await createTempWorkspaceRoot(), "recycle-bin");
     const recycledPaths: string[] = [];
     const store = new WorkspaceStore({

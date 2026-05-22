@@ -1,4 +1,4 @@
-import { createWorkspaceStore } from "@/lib/hjdesign";
+import { createWorkspaceStore } from "@/lib/owndesign";
 import { registerFrontendConnection } from "@/lib/frontend-command-bus";
 
 type FrontendCapabilityStreamRouteContext = {

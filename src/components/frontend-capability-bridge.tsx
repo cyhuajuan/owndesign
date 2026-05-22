@@ -10,8 +10,8 @@ import {
 
 export const FRONTEND_TAB_ID = createFrontendTabId();
 
-const PROJECT_OUTPUT_UPDATED_EVENT = "hjdesign:project-output-updated";
-const PREVIEW_REFRESH_EVENT = "hjdesign:preview-refresh";
+const PROJECT_OUTPUT_UPDATED_EVENT = "owndesign:project-output-updated";
+const PREVIEW_REFRESH_EVENT = "owndesign:preview-refresh";
 
 type FrontendCapabilityBridgeProps = {
   projectId?: string;

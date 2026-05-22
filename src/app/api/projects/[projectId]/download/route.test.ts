@@ -21,7 +21,7 @@ vi.mock("node:os", () => ({
   tmpdir: routeMocks.tmpdir,
 }));
 
-vi.mock("@/lib/hjdesign", () => ({
+vi.mock("@/lib/owndesign", () => ({
   createWorkspaceStore: routeMocks.createWorkspaceStore,
 }));
 
@@ -33,10 +33,10 @@ let store: WorkspaceStore;
 
 beforeEach(async () => {
   workspaceRoot = path.join(
-    await mkdtemp(path.join(os.tmpdir(), "hjdesign-download-workspace-")),
-    ".hjdesign",
+    await mkdtemp(path.join(os.tmpdir(), "owndesign-download-workspace-")),
+    ".owndesign",
   );
-  tempZipRoot = await mkdtemp(path.join(os.tmpdir(), "hjdesign-download-tmp-"));
+  tempZipRoot = await mkdtemp(path.join(os.tmpdir(), "owndesign-download-tmp-"));
   routeMocks.tempZipRoot = tempZipRoot;
   routeMocks.tmpdir.mockImplementation(() => tempZipRoot);
   store = new WorkspaceStore({ workspaceRoot });

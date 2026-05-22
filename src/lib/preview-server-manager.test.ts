@@ -280,11 +280,11 @@ async function createPreviewManager(options: {
   leaseTtlMs?: number;
   now?: () => number;
 } = {}) {
-  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "hjdesign-preview-"));
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "owndesign-preview-"));
   tempRoots.push(tempRoot);
 
   const workspaceStore = new WorkspaceStore({
-    workspaceRoot: path.join(tempRoot, ".hjdesign"),
+    workspaceRoot: path.join(tempRoot, ".owndesign"),
   });
   const manager = new PreviewServerManager({
     cleanupIntervalMs: 60_000,

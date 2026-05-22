@@ -18,8 +18,8 @@ type PreviewSessionResponse = {
   url: string;
 };
 
-const PREVIEW_HREF_EVENT = "hjdesign:preview-href-updated";
-const PREVIEW_FILES_EVENT = "hjdesign:preview-files-updated";
+const PREVIEW_HREF_EVENT = "owndesign:preview-href-updated";
+const PREVIEW_FILES_EVENT = "owndesign:preview-files-updated";
 const HEARTBEAT_INTERVAL_MS = 30_000;
 
 export function ProjectPreviewFrame({
@@ -210,7 +210,7 @@ export function ProjectPreviewFrame({
 
   useEffect(() => {
     const handleProjectOutputUpdated = (event: Event) => {
-      if (event.type === "hjdesign:preview-refresh") {
+      if (event.type === "owndesign:preview-refresh") {
         if (previewUrlRef.current) {
           setPreviewUrl(previewUrlRef.current);
         }
@@ -232,18 +232,18 @@ export function ProjectPreviewFrame({
     };
 
     window.addEventListener(
-      "hjdesign:project-output-updated",
+      "owndesign:project-output-updated",
       handleProjectOutputUpdated,
     );
-    window.addEventListener("hjdesign:preview-refresh", handleProjectOutputUpdated);
+    window.addEventListener("owndesign:preview-refresh", handleProjectOutputUpdated);
 
     return () => {
       window.removeEventListener(
-        "hjdesign:project-output-updated",
+        "owndesign:project-output-updated",
         handleProjectOutputUpdated,
       );
       window.removeEventListener(
-        "hjdesign:preview-refresh",
+        "owndesign:preview-refresh",
         handleProjectOutputUpdated,
       );
     };

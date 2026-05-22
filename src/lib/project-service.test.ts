@@ -18,11 +18,11 @@ afterEach(async () => {
 });
 
 async function createWorkspaceStore() {
-  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "hjdesign-project-service-"));
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "owndesign-project-service-"));
   tempRoots.push(tempRoot);
 
   return new WorkspaceStore({
-    workspaceRoot: path.join(tempRoot, ".hjdesign"),
+    workspaceRoot: path.join(tempRoot, ".owndesign"),
   });
 }
 

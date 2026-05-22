@@ -21,12 +21,12 @@ afterEach(async () => {
 
 async function createWorkspaceStore() {
   const tempRoot = await mkdtemp(
-    path.join(os.tmpdir(), "hjdesign-conversation-service-"),
+    path.join(os.tmpdir(), "owndesign-conversation-service-"),
   );
   tempRoots.push(tempRoot);
 
   return new WorkspaceStore({
-    workspaceRoot: path.join(tempRoot, ".hjdesign"),
+    workspaceRoot: path.join(tempRoot, ".owndesign"),
     moveToTrash: async (targetPath) => {
       await rm(targetPath, { force: true, recursive: true });
     },

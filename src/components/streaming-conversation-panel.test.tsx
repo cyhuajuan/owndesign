@@ -20,7 +20,7 @@ function buildLongString(prefix: string, tail = "-hidden-tail") {
 
 function getProjectOutputUpdatedEvents(dispatchEventSpy: ReturnType<typeof vi.spyOn>) {
   return dispatchEventSpy.mock.calls.filter(
-    ([event]: [Event]) => event.type === "hjdesign:project-output-updated",
+    ([event]: [Event]) => event.type === "owndesign:project-output-updated",
   );
 }
 
@@ -686,7 +686,7 @@ describe("MessageParts", () => {
               input: { path: "index.html" },
               output: {
                 path: "index.html",
-                title: "HJDesign Preview",
+                title: "OwnDesign Preview",
               },
               state: "output-available",
               toolCallId: "call-1",

@@ -121,7 +121,7 @@ describe("ChatShell", () => {
     render(<ChatShell />);
     act(() => {
       window.dispatchEvent(
-        new CustomEvent("hjdesign:preview-files-updated", {
+        new CustomEvent("owndesign:preview-files-updated", {
           detail: {
             activePath: "index.html",
             files: ["index.html", "dashboard.html", "pages/detail.html"],
@@ -174,7 +174,7 @@ describe("ChatShell", () => {
     render(<ChatShell previewProjectId="project-1" />);
     act(() => {
       window.dispatchEvent(
-        new CustomEvent("hjdesign:preview-files-updated", {
+        new CustomEvent("owndesign:preview-files-updated", {
           detail: {
             activePath: "pages/detail.html",
             files: ["index.html", "pages/detail.html"],

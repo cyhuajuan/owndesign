@@ -5,7 +5,7 @@ const routeMocks = vi.hoisted(() => ({
   registerFrontendConnection: vi.fn(() => new ReadableStream()),
 }));
 
-vi.mock("@/lib/hjdesign", () => ({
+vi.mock("@/lib/owndesign", () => ({
   createWorkspaceStore: () => ({
     getProject: routeMocks.getProject,
   }),

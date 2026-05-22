@@ -68,7 +68,7 @@ describe("FrontendCapabilityBridge", () => {
     );
     expect(
       dispatchEventSpy.mock.calls.some(
-        ([event]) => event.type === "hjdesign:project-output-updated",
+        ([event]) => event.type === "owndesign:project-output-updated",
       ),
     ).toBe(true);
     dispatchEventSpy.mockRestore();
@@ -92,7 +92,7 @@ describe("FrontendCapabilityBridge", () => {
 
     expect(
       dispatchEventSpy.mock.calls.some(
-        ([event]) => event.type === "hjdesign:preview-refresh",
+        ([event]) => event.type === "owndesign:preview-refresh",
       ),
     ).toBe(true);
     dispatchEventSpy.mockRestore();

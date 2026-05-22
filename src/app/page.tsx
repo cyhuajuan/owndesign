@@ -2,7 +2,7 @@ import { revalidatePath } from "next/cache";
 import {
   createConversationService,
   createProjectService,
-} from "@/lib/hjdesign";
+} from "@/lib/owndesign";
 import { WorkspaceShell } from "@/components/workspace-shell";
 
 async function createProjectFromControlBar(

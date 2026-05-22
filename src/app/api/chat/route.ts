@@ -5,7 +5,7 @@ import {
 } from "ai";
 
 import { normalizeConversationMessages } from "@/lib/chat-messages";
-import { createConversationService, createWorkspaceStore } from "@/lib/hjdesign";
+import { createConversationService, createWorkspaceStore } from "@/lib/owndesign";
 import {
   createDesignPageAgent,
   createDesignPageAgentContext,

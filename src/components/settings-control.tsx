@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
-export const SETTINGS_UPDATED_EVENT = "hjdesign:settings-updated";
+export const SETTINGS_UPDATED_EVENT = "owndesign:settings-updated";
 
 type InterfaceLanguage = "zh-CN" | "en-US";
 type ModelProvider = "" | "deepseek" | "openai-compatible";

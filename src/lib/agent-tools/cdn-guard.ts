@@ -105,7 +105,7 @@ export async function readProjectWorkspaceFileIfExists(
 
 export function buildCdnTag(input: CdnResourceInput) {
   const attributes = [
-    'data-hjdesign-approved-cdn="true"',
+    'data-owndesign-approved-cdn="true"',
     input.integrity ? `integrity="${escapeHtmlAttribute(input.integrity)}"` : "",
     input.crossorigin
       ? `crossorigin="${escapeHtmlAttribute(input.crossorigin)}"`

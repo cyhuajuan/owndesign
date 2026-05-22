@@ -48,8 +48,14 @@ import {
 } from "@/components/ai-elements/tool";
 import {
   PromptInput,
+  PromptInputActionAddAttachments,
+  PromptInputActionMenu,
+  PromptInputActionMenuContent,
+  PromptInputActionMenuTrigger,
+  PromptInputAttachments,
   PromptInputBody,
   PromptInputFooter,
+  PromptInputHeader,
   PromptInputSubmit,
   PromptInputTextarea,
   PromptInputTools,
@@ -293,16 +299,22 @@ export function StreamingConversationPanel({
       <div className="border-t border-border bg-card px-3 pb-3">
         <PromptInput
           className="pt-3"
-          onSubmit={async ({ text }) => {
+          maxFileSize={10 * 1024 * 1024}
+          maxFiles={8}
+          multiple
+          onSubmit={async ({ files, text }) => {
             const trimmedText = text.trim();
 
-            if (!trimmedText || !canSend) {
+            if ((!trimmedText && files.length === 0) || !canSend) {
               return;
             }
 
-            await sendMessage({ text: trimmedText });
+            await sendMessage({ files, text: trimmedText });
           }}
         >
+          <PromptInputHeader>
+            <PromptInputAttachments />
+          </PromptInputHeader>
           <PromptInputBody>
             <PromptInputTextarea
               className="min-h-13 text-[13px]"
@@ -310,7 +322,18 @@ export function StreamingConversationPanel({
               placeholder="输入消息... (Enter 发送, Shift+Enter 换行)"
             />
           </PromptInputBody>
-          <PromptInputFooter className="justify-end px-2 pb-1">
+          <PromptInputFooter className="px-2 pb-1">
+            <PromptInputTools>
+              <PromptInputActionMenu>
+                <PromptInputActionMenuTrigger
+                  aria-label="添加附件"
+                  tooltip="添加附件"
+                />
+                <PromptInputActionMenuContent side="top" sideOffset={6}>
+                  <PromptInputActionAddAttachments />
+                </PromptInputActionMenuContent>
+              </PromptInputActionMenu>
+            </PromptInputTools>
             <div className="flex min-w-0 items-center gap-1">
               <ModelContextUsage
                 configuration={selectedModel}
@@ -321,14 +344,13 @@ export function StreamingConversationPanel({
                 selectedModelId={selectedModelId}
                 settings={settings}
               />
+              <PromptInputSubmit
+                className="bg-primary text-primary-foreground hover:bg-primary/90"
+                disabled={!selectedModel}
+                onStop={stop}
+                status={status}
+              />
             </div>
-            <PromptInputTools />
-            <PromptInputSubmit
-              className="bg-primary text-primary-foreground hover:bg-primary/90"
-              disabled={!selectedModel}
-              onStop={stop}
-              status={status}
-            />
           </PromptInputFooter>
         </PromptInput>
       </div>

@@ -4,8 +4,14 @@ import { startTransition, useState } from "react";
 
 import {
   PromptInput,
+  PromptInputActionAddAttachments,
+  PromptInputActionMenu,
+  PromptInputActionMenuContent,
+  PromptInputActionMenuTrigger,
+  PromptInputAttachments,
   PromptInputBody,
   PromptInputFooter,
+  PromptInputHeader,
   PromptInputSubmit,
   PromptInputTextarea,
   PromptInputTools,
@@ -27,6 +33,9 @@ export function MessageComposer({
   return (
     <PromptInput
       className="pt-4"
+      maxFileSize={10 * 1024 * 1024}
+      maxFiles={8}
+      multiple
       onSubmit={({ text }) => {
         const trimmedText = text.trim();
 
@@ -49,6 +58,9 @@ export function MessageComposer({
         });
       }}
     >
+      <PromptInputHeader>
+        <PromptInputAttachments />
+      </PromptInputHeader>
       <PromptInputBody>
         <PromptInputTextarea
           disabled={isPending}
@@ -56,7 +68,17 @@ export function MessageComposer({
         />
       </PromptInputBody>
       <PromptInputFooter>
-        <PromptInputTools />
+        <PromptInputTools>
+          <PromptInputActionMenu>
+            <PromptInputActionMenuTrigger
+              aria-label="添加附件"
+              tooltip="添加附件"
+            />
+            <PromptInputActionMenuContent side="top" sideOffset={6}>
+              <PromptInputActionAddAttachments />
+            </PromptInputActionMenuContent>
+          </PromptInputActionMenu>
+        </PromptInputTools>
         <PromptInputSubmit disabled={isPending} />
       </PromptInputFooter>
     </PromptInput>

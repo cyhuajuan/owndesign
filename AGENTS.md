@@ -1,97 +1,74 @@
-# AGENTS.md
-
 ## Project Overview
 
-OwnDesign is an AI-powered web design workbench. Users create projects with conversations, send design prompts to an AI agent, and preview generated HTML pages in an iframe. The UI is in Chinese (zh-CN).
+OwnDesign is a Chinese-language AI-powered design tool. Users converse with an AI agent (powered by DeepSeek or OpenAI-compatible models) to generate and iterate on HTML page designs, previewed live in an iframe. The UI defaults to `zh-CN`.
 
 ## Commands
 
-- `pnpm dev` — dev server on port 3710
-- `pnpm build` — production build
-- `pnpm lint` — ESLint
-- `pnpm typecheck` — `tsc --noEmit`
-- `pnpm test` — Vitest run
-- `pnpm test:watch` — Vitest watch
+```bash
+pnpm dev          # Start dev server on port 3710
+pnpm build        # Production build
+pnpm lint         # ESLint (flat config, eslint.config.mjs)
+pnpm typecheck    # tsc --noEmit
+pnpm test         # Vitest (jsdom, single run)
+pnpm test:watch   # Vitest in watch mode
+```
 
-Run a single test: `pnpm vitest run src/lib/workspace-store.test.ts`
+Single test: `pnpm vitest run src/path/to/file.test.ts`
 
 ## Architecture
 
-### Data Layer — `~/.owndesign/`
+### Two-Layer Structure
 
-File-based persistence. Each project gets `projects/<id>/` with `project.json`, a `workspace/` directory for generated HTML/CSS files, and a `conversations/` directory. Settings live in `settings.json`.
+- **Feature layer** (`src/features/`): Client-facing React components organized by domain — `conversation`, `onboarding`, `preview`, `projects`, `settings`, `workspace`. Components here are "use client" and compose the UI shell.
+- **Server layer** (`src/server/`): Pure backend logic — no React. Services are instantiated per-request via factory functions in `src/server/owndesign.ts`.
 
-- **`WorkspaceStore`** (`src/lib/workspace-store.ts`) — low-level CRUD for projects, conversations, and workspace file I/O (read, write, edit, patch, delete, glob, grep). All paths are relative and symlink-safe.
-- **`ProjectService`** (`src/lib/project-service.ts`) — project creation/rename/deletion, spawns a default conversation on create.
-- **`ConversationService`** (`src/lib/conversation-service.ts`) — conversation lifecycle, auto-titling from first user message, delegates to `DesignPageAgent`.
-- **`SettingsService`** (`src/lib/settings-service.ts`) — model configurations (DeepSeek or OpenAI-compatible), font/icon resource libraries, cached reads with mtime invalidation.
+### Data Persistence
 
-### AI Agent — Design Page Agent
+- `WorkspaceStore` (`src/server/workspace-store/`): File-system store rooted at `~/.owndesign/`. Projects live at `~/.owndesign/projects/{id}/`, conversations at `{id}/conversations/{id}.json`. Workspace files (the AI generates HTML here) are at `{id}/workspace/`.
+- `SettingsService` (`src/server/settings/settings-service.ts`): Reads/writes `~/.owndesign/settings.json` with an mtime-based cache. Holds model provider configs (DeepSeek, OpenAI-compatible) and font/icon CDN resource libraries.
+- Preview servers (`src/server/preview/preview-server-manager.ts`): Each project gets a Fastify static file server on a random port. Lease-based lifecycle with 90s TTL and keepalive.
 
-- **`src/lib/design-page-agent.ts`** — builds a `ToolLoopAgent` (AI SDK v6) with assembled prompt sections and registered workspace tools.
-- **`src/lib/agents/design-page.agent.md`** — the agent system prompt (role, design loop, visual quality bar, do-not rules).
-- Agent prompt is assembled from sections: `design_agent_core`, `page_target_protocol`, `tool_workflow`, `frontend_capabilities`, `resource_policy`, `runtime_context`.
-- Model selection: DeepSeek (with thinking modes disabled/high/max) or OpenAI-compatible, resolved from settings.
+### AI Agent Flow
 
-### Workspace Tools — `src/lib/agent-tools/`
+1. User sends message via `StreamingConversationPanel` (uses Vercel AI SDK `useChat`)
+2. `POST /api/chat` creates a `ToolLoopAgent` from `src/server/agent/design-page-agent.ts`
+3. Agent system prompt assembled from `design-page.agent.md` + runtime sections (page target protocol, resource policy, frontend capabilities)
+4. Agent tools (`src/server/agent/tools/`) operate on WorkspaceStore: `read`, `edit`, `write`, `patch`, `createHtml`, `delete`, `glob`, `grep`, `callFrontendCapability`
+5. `callFrontendCapability` sends SSE commands to the preview iframe via `FrontendCommandBus` (server-push, `POST /api/projects/{id}/frontend-capabilities/stream`)
+6. On finish, messages saved via `ConversationService.saveUIMessageStream`
 
-Tool registry pattern. Each tool has a `name`, `description`, `inputSchema` (JSON Schema), `execute`, and `parallelSafe` flag. Tools are:
+### Agent Tool CDN Guard
 
-| Tool | Purpose |
-|---|---|
-| `createHtml` | Scaffold new `.html` files from template with font/icon CDN |
-| `read` | Read workspace files or list directories |
-| `write` | Write/overwrite workspace files (CDN-guarded for HTML) |
-| `edit` | Find-and-replace in workspace files (CDN-guarded for HTML) |
-| `patch` | Coordinated multi-change patches (CDN-guarded for HTML) |
-| `delete` | Remove workspace files |
-| `glob` | Pattern-match workspace files |
-| `grep` | Regex search workspace files |
-| `callFrontendCapability` | Trigger `preview.refresh` or `preview.switchHtml` |
+`cdn-guard.ts` validates that HTML written through `write`, `edit`, and `patch` tools only uses CDN URLs configured in settings. This is enforced at the tool level, not at the agent prompt level.
 
-**CDN guard** (`src/lib/agent-tools/cdn-guard.ts`) — HTML files can only use CDN URLs explicitly configured in settings. All write/edit/patch operations on `.html` files are validated against the approved list.
+### Frontend Capability Bridge
 
-### Preview — Fastify Ephemeral Servers
+`src/features/preview/components/frontend-capability-bridge.tsx` — client component that opens an SSE connection per project to receive preview commands (`preview.refresh`, `preview.switchHtml`). Dispatches custom DOM events.
 
-**`PreviewServerManager`** (`src/lib/preview-server-manager.ts`) — spawns a Fastify server per project on an ephemeral port. Lease-based lifecycle with heartbeat renewal; idle preview servers shut down after TTL.
+### Key Types
 
-### Real-Time — Frontend Capabilities via SSE
+- `ProjectRecord`, `ConversationRecord`, `WorkspaceEntry` etc. — defined in `src/server/workspace-store/store.ts`
+- `ProjectOutputType` is currently `"html"` only
+- `DesignPageAgent` interface in `src/server/agent/design-page-agent.ts` — `AiSdkDesignPageAgent` is the production implementation; `MockReplyEngine` in `src/lib/mock-reply-engine.ts` exists for testing
 
-**`FrontendCommandBus`** (`src/lib/frontend-command-bus.ts`) — singleton SSE bus. The browser registers a connection per tab; the server pushes `preview.refresh` / `preview.switchHtml` commands as SSE events. Keepalive every 15s.
+### Component Libraries
 
-### API Routes
+- **shadcn/ui** (base-nova style) — components in `src/components/ui/`
+- **AI Elements** — components in `src/components/ai-elements/` (conversation, message, prompt-input, etc.), sourced from `@ai-elements` registry. These are excluded from ESLint (see `eslint.config.mjs`).
 
-| Route | Method | Purpose |
-|---|---|---|
-| `/api/chat` | POST | AI agent streaming response (`createAgentUIStreamResponse`) |
-| `/api/settings` | GET/PUT | Read/update app settings |
-| `/api/projects/[projectId]/download` | GET | Download project workspace as ZIP |
-| `/api/projects/[projectId]/preview-session` | GET/DELETE | Start/stop preview server session |
-| `/api/projects/[projectId]/preview-session/heartbeat` | POST | Renew preview lease |
-| `/api/projects/[projectId]/frontend-capabilities/stream` | GET | SSE stream for frontend commands |
+### Path Aliases
 
-### Frontend
+`@/*` maps to `./src/*` (configured in both `tsconfig.json` and `vitest.config.ts`).
 
-- `src/app/page.tsx` — server component, loads project/conversation state via search params. All mutations are server actions that call `revalidatePath("/")`.
-- `ChatShell` — main layout with sidebar (control bar), conversation panel, and preview iframe.
-- `StreamingConversationPanel` — uses AI SDK's `useChat` for real-time streaming.
-- `ProjectPreviewFrame` — iframe loading the Fastify preview server URL, receives frontend commands via `FrontendCapabilityBridge`.
-- `src/components/ai-elements/` — **ESLint-ignored** (third-party generated UI components from AI SDK).
+### Test Setup
 
-### Path Alias
+`vitest.setup.ts` mocks `next/navigation` and polyfills `ResizeObserver`, `getAnimations`, `scrollIntoView`. Uses `@testing-library/react` and `@testing-library/jest-dom/vitest`.
 
-`@/*` maps to `./src/*` (TypeScript and Vitest both configured).
+## Important Conventions
 
-## Testing
-
-- Vitest + jsdom environment + `@testing-library/react`
-- Setup file (`vitest.setup.ts`) mocks `next/navigation` and `ResizeObserver`
-- Test files colocated with source: `*.test.ts` / `*.test.tsx`
-
-## Key Constraints
-
-- Only `html` output type currently supported (`ProjectOutputType = "html"`)
-- Agent max 50 steps (`stepCountIs(50)`)
-- Workspace file size limit: 1MB; read limit: 2000 lines or 50KB per read
-- Windows recycle bin support via PowerShell for project/conversation deletion
-- Global singletons (PreviewServerManager, FrontendCommandBus) cached on `globalThis` to survive HMR
+- The project uses pnpm (not npm/yarn). `pnpm-workspace.yaml` exists but is minimal.
+- Language is TypeScript with strict mode. React 19, Next.js 16 (App Router).
+- All server state is file-based — no database. The `~/.owndesign/` directory is the data root.
+- The agent's system prompt is the single source of behavioral truth. Modifications to how the agent decides what to do belong in `design-page.agent.md` or the prompt builder functions in `design-page-agent.ts`.
+- Frontend custom events use the `owndesign:` prefix (e.g., `owndesign:preview-refresh`, `owndesign:preview-href-updated`).
+- Global singletons for `PreviewServerManager` and `FrontendCommandBus` are stored on `globalThis` to survive HMR in development.

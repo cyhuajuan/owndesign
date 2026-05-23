@@ -1,5 +1,5 @@
-import { createWorkspaceStore } from "@/lib/owndesign";
-import { registerFrontendConnection } from "@/lib/frontend-command-bus";
+import { createWorkspaceStore } from "@/server/owndesign";
+import { registerFrontendConnection } from "@/server/realtime/frontend-command-bus";
 
 type FrontendCapabilityStreamRouteContext = {
   params: Promise<{

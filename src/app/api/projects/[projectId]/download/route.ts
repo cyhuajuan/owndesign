@@ -10,7 +10,7 @@ import { createWriteStream } from "node:fs";
 
 import { ZipFile } from "yazl";
 
-import { createWorkspaceStore } from "@/lib/owndesign";
+import { createWorkspaceStore } from "@/server/owndesign";
 
 export const runtime = "nodejs";
 

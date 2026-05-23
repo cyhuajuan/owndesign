@@ -34,19 +34,19 @@ vi.mock("ai", () => ({
   createAgentUIStreamResponse: routeMocks.createAgentUIStreamResponse,
 }));
 
-vi.mock("@/lib/design-page-agent", () => ({
+vi.mock("@/server/agent/design-page-agent", () => ({
   createDesignPageAgent: routeMocks.createDesignPageAgent,
   createDesignPageAgentContext: routeMocks.createDesignPageAgentContext,
 }));
 
-vi.mock("@/lib/settings-service", () => ({
+vi.mock("@/server/settings/settings-service", () => ({
   parseDeepSeekThinkingMode: (value: unknown) =>
     value === "disabled" || value === "high" || value === "max"
       ? value
       : undefined,
 }));
 
-vi.mock("@/lib/owndesign", () => ({
+vi.mock("@/server/owndesign", () => ({
   createConversationService: routeMocks.createConversationService,
   createWorkspaceStore: routeMocks.createWorkspaceStore,
 }));

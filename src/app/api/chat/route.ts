@@ -4,15 +4,15 @@ import {
   type LanguageModelUsage,
 } from "ai";
 
-import { normalizeConversationMessages } from "@/lib/chat-messages";
-import { createConversationService, createWorkspaceStore } from "@/lib/owndesign";
+import { normalizeConversationMessages } from "@/server/conversations/chat-messages";
+import { createConversationService, createWorkspaceStore } from "@/server/owndesign";
 import {
   createDesignPageAgent,
   createDesignPageAgentContext,
-} from "@/lib/design-page-agent";
+} from "@/server/agent/design-page-agent";
 import {
   parseDeepSeekThinkingMode,
-} from "@/lib/settings-service";
+} from "@/server/settings/settings-service";
 
 type ChatRequestBody = {
   conversationId?: unknown;

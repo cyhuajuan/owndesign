@@ -4,7 +4,7 @@ import path from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { WorkspaceStore } from "@/lib/workspace-store";
+import { WorkspaceStore } from "@/server/workspace-store";
 
 const routeMocks = vi.hoisted(() => {
   return {
@@ -21,7 +21,7 @@ vi.mock("node:os", () => ({
   tmpdir: routeMocks.tmpdir,
 }));
 
-vi.mock("@/lib/owndesign", () => ({
+vi.mock("@/server/owndesign", () => ({
   createWorkspaceStore: routeMocks.createWorkspaceStore,
 }));
 

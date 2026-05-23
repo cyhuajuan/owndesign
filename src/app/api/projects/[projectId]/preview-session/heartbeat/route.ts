@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
-import { createWorkspaceStore } from "@/lib/owndesign";
-import { getPreviewServerManager } from "@/lib/preview-server-manager";
+import { createWorkspaceStore } from "@/server/owndesign";
+import { getPreviewServerManager } from "@/server/preview/preview-server-manager";
 
 type PreviewHeartbeatRouteContext = {
   params: Promise<{

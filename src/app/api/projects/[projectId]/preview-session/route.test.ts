@@ -7,11 +7,11 @@ const routeMocks = vi.hoisted(() => ({
   getPreviewServerManager: vi.fn(),
 }));
 
-vi.mock("@/lib/owndesign", () => ({
+vi.mock("@/server/owndesign", () => ({
   createWorkspaceStore: routeMocks.createWorkspaceStore,
 }));
 
-vi.mock("@/lib/preview-server-manager", () => ({
+vi.mock("@/server/preview/preview-server-manager", () => ({
   getPreviewServerManager: routeMocks.getPreviewServerManager,
 }));
 

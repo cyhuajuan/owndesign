@@ -16,7 +16,7 @@ vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
 }));
 
-vi.mock("@/lib/owndesign", () => ({
+vi.mock("@/server/owndesign", () => ({
   createConversationService: () => ({
     getConversationState,
   }),
@@ -26,14 +26,14 @@ vi.mock("@/lib/owndesign", () => ({
   }),
 }));
 
-vi.mock("@/lib/settings-service", () => ({
+vi.mock("@/server/settings/settings-service", () => ({
   createSettingsService: () => ({
     getPublicSettings,
     updateSettings,
   }),
 }));
 
-vi.mock("@/components/chat-shell", () => ({
+vi.mock("@/features/workspace/components/chat-shell", () => ({
   ChatShell: ({
     previewBody,
   }: {
@@ -45,11 +45,11 @@ vi.mock("@/components/chat-shell", () => ({
   ),
 }));
 
-vi.mock("@/components/control-bar", () => ({
+vi.mock("@/features/projects/components/control-bar", () => ({
   ControlBar: () => <div />,
 }));
 
-vi.mock("@/components/initial-setup-guide", () => ({
+vi.mock("@/features/onboarding/components/initial-setup-guide", () => ({
   InitialSetupGuide: ({
     onComplete,
   }: {

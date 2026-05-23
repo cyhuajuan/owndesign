@@ -1,4 +1,4 @@
-import { createSettingsService } from "@/lib/settings-service";
+import { createSettingsService } from "@/server/settings/settings-service";
 
 export async function GET() {
   return Response.json(await createSettingsService().getPublicSettings());

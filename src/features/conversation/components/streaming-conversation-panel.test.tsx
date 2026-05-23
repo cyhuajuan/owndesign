@@ -704,6 +704,98 @@ describe("MessageParts", () => {
     });
   });
 
+  it("marks only the last message reasoning as streaming while chat streams", () => {
+    vi.mocked(useChat).mockReturnValue({
+      addToolApprovalResponse: vi.fn(),
+      error: undefined,
+      messages: [
+        {
+          id: "assistant-1",
+          parts: [
+            {
+              state: "streaming",
+              text: "第一条思考不应因全局 streaming 展开。",
+              type: "reasoning",
+            },
+          ],
+          role: "assistant",
+        },
+        {
+          id: "assistant-2",
+          parts: [
+            {
+              state: "streaming",
+              text: "最后一条思考应展开。",
+              type: "reasoning",
+            },
+          ],
+          role: "assistant",
+        },
+      ],
+      sendMessage: vi.fn(),
+      status: "streaming",
+      stop: vi.fn(),
+    } as unknown as ReturnType<typeof useChat>);
+
+    render(
+      <StreamingConversationPanel
+        conversationId="conversation-1"
+        conversationTitle="新建会话"
+        initialMessages={[]}
+        projectId="project-1"
+      />,
+    );
+
+    const reasoningTriggers = screen.getAllByRole("button", {
+      name: /思考过程/,
+    });
+
+    expect(reasoningTriggers[0]).toHaveAttribute("aria-expanded", "false");
+    expect(reasoningTriggers[1]).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("keeps earlier reasoning collapsed when a later non-reasoning message streams", () => {
+    vi.mocked(useChat).mockReturnValue({
+      addToolApprovalResponse: vi.fn(),
+      error: undefined,
+      messages: [
+        {
+          id: "assistant-1",
+          parts: [
+            {
+              state: "streaming",
+              text: "历史思考不应展开。",
+              type: "reasoning",
+            },
+          ],
+          role: "assistant",
+        },
+        {
+          id: "assistant-2",
+          parts: [{ text: "正在写页面。", type: "text" }],
+          role: "assistant",
+        },
+      ],
+      sendMessage: vi.fn(),
+      status: "streaming",
+      stop: vi.fn(),
+    } as unknown as ReturnType<typeof useChat>);
+
+    render(
+      <StreamingConversationPanel
+        conversationId="conversation-1"
+        conversationTitle="新建会话"
+        initialMessages={[]}
+        projectId="project-1"
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: /思考过程/ })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+  });
+
   it("does not dispatch preview refresh after createHtml output completes", () => {
     const dispatchEventSpy = vi.spyOn(window, "dispatchEvent");
     vi.mocked(useChat).mockReturnValue({

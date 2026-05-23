@@ -4,7 +4,7 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import { AlertCircleIcon } from "lucide-react";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useRef } from "react";
+import { memo, useEffect, useMemo, useRef } from "react";
 
 import {
   Conversation,
@@ -148,19 +148,18 @@ export function StreamingConversationPanel({
               title="暂无消息"
             />
           ) : (
-            messages.map((message, index) => (
-              <Message from={message.role} key={`${message.id || "message"}-${index}`}>
-                <MessageContent
-                  className={message.role === "assistant" ? "w-full" : undefined}
-                >
-                  <MessageParts
-                    isLastMessage={index === messages.length - 1}
-                    isStreaming={status === "streaming"}
-                    message={message}
-                  />
-                </MessageContent>
-              </Message>
-            ))
+            messages.map((message, index) => {
+              const isLastMessage = index === messages.length - 1;
+
+              return (
+                <ConversationMessageItem
+                  isLastMessage={isLastMessage}
+                  isStreaming={status === "streaming" && isLastMessage}
+                  key={getMessageKey(message, index)}
+                  message={message}
+                />
+              );
+            })
           )}
           {error ? (
             <Message from="assistant">
@@ -225,6 +224,40 @@ export function StreamingConversationPanel({
       </div>
     </>
   );
+}
+
+const ConversationMessageItem = memo(
+  function ConversationMessageItem({
+    isLastMessage,
+    isStreaming,
+    message,
+  }: {
+    isLastMessage: boolean;
+    isStreaming: boolean;
+    message: UIMessage;
+  }) {
+    return (
+      <Message from={message.role}>
+        <MessageContent
+          className={message.role === "assistant" ? "w-full" : undefined}
+        >
+          <MessageParts
+            isLastMessage={isLastMessage}
+            isStreaming={isStreaming}
+            message={message}
+          />
+        </MessageContent>
+      </Message>
+    );
+  },
+  (previousProps, nextProps) =>
+    previousProps.message === nextProps.message &&
+    previousProps.isLastMessage === nextProps.isLastMessage &&
+    previousProps.isStreaming === nextProps.isStreaming,
+);
+
+function getMessageKey(message: UIMessage, index: number) {
+  return message.id || `message-${index}`;
 }
 
 export { MessageParts } from "@/features/conversation/components/message-parts";

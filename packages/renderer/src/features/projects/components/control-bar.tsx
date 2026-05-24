@@ -18,7 +18,7 @@ import {
 import type {
   ConversationRecord,
   ProjectRecord,
-} from "@owndesign/core/server/workspace-store";
+} from "@owndesign/core/workspace-store";
 import {
   AlertDialog,
   AlertDialogAction,

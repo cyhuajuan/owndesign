@@ -1,4 +1,4 @@
-import type { WorkspaceGlobMatch } from "@owndesign/core/server/workspace-store";
+import type { WorkspaceGlobMatch } from "@owndesign/core/workspace-store";
 
 import type { WorkspaceToolDefinition } from "./core";
 import type { GlobInput } from "./types";

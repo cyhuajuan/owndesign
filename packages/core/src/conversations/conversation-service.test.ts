@@ -5,9 +5,9 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { ConversationService } from "./conversation-service";
-import type { DesignPageAgent } from "@owndesign/core/server/agent/design-page-agent";
-import { ProjectService } from "@owndesign/core/server/projects/project-service";
-import { WorkspaceStore } from "@owndesign/core/server/workspace-store";
+import type { DesignPageAgent } from "@owndesign/core/agent/design-page-agent";
+import { ProjectService } from "@owndesign/core/projects/project-service";
+import { WorkspaceStore } from "@owndesign/core/workspace-store";
 
 const tempRoots: string[] = [];
 

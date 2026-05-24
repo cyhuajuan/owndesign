@@ -5,7 +5,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { PreviewServerManager } from "./preview-server-manager";
-import { WorkspaceStore, type ProjectRecord } from "@owndesign/core/server/workspace-store";
+import { WorkspaceStore, type ProjectRecord } from "@owndesign/core/workspace-store";
 
 const tempRoots: string[] = [];
 const managers: PreviewServerManager[] = [];

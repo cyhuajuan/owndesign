@@ -3,7 +3,7 @@ import type { DeleteInput } from "./types";
 
 export function createDeleteToolDefinition(): WorkspaceToolDefinition<
   DeleteInput,
-  Awaited<ReturnType<import("@owndesign/core/server/workspace-store").WorkspaceStore["deleteProjectWorkspacePath"]>>
+  Awaited<ReturnType<import("@owndesign/core/workspace-store").WorkspaceStore["deleteProjectWorkspacePath"]>>
 > {
   return {
     description:

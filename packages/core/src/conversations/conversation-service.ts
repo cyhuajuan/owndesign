@@ -1,11 +1,11 @@
 import {
   ConversationRecord,
   WorkspaceStore,
-} from "@owndesign/core/server/workspace-store";
+} from "@owndesign/core/workspace-store";
 import {
   AiSdkDesignPageAgent,
   DesignPageAgent,
-} from "@owndesign/core/server/agent/design-page-agent";
+} from "@owndesign/core/agent/design-page-agent";
 import {
   getFirstUserMessageText,
   OwnDesignUIMessage,

@@ -14,11 +14,11 @@ import {
   StreamingConversationPanel,
   type ConversationPanelUpdate,
 } from "@/features/conversation/components/streaming-conversation-panel";
-import { normalizeConversationMessages } from "@owndesign/core/server/conversations/chat-messages";
+import { normalizeConversationMessages } from "@owndesign/core/conversations/chat-messages";
 import type {
   ConversationRecord,
   ProjectRecord,
-} from "@owndesign/core/server/workspace-store";
+} from "@owndesign/core/workspace-store";
 
 type ActionResult = { href?: string } | undefined | void;
 

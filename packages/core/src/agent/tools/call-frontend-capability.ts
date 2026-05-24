@@ -3,8 +3,8 @@ import {
   isFrontendCapabilityId,
   validateFrontendCapabilityPayload,
   type FrontendCapabilityPayloads,
-} from "@owndesign/core/server/realtime/frontend-capabilities";
-import { sendFrontendCommand } from "@owndesign/core/server/realtime/frontend-command-bus";
+} from "@owndesign/core/realtime/frontend-capabilities";
+import { sendFrontendCommand } from "@owndesign/core/realtime/frontend-command-bus";
 
 import { isHtmlPath, normalizeToolPath } from "./cdn-guard";
 import type { WorkspaceToolDefinition } from "./core";

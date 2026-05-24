@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { createDeepSeek } from "@ai-sdk/deepseek";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
@@ -17,11 +18,11 @@ import {
   type ModelConfiguration,
   type ResourceLibrary,
   type ResourceSettings,
-} from "@owndesign/core/server/settings/settings-service";
-import type { ProjectOutputType } from "@owndesign/core/server/workspace-store";
-import { WorkspaceStore } from "@owndesign/core/server/workspace-store";
-import { createProjectWorkspaceTools } from "@owndesign/core/server/agent/tools/project-workspace-tools";
-import { buildFrontendCapabilityPrompt } from "@owndesign/core/server/realtime/frontend-capabilities";
+} from "@owndesign/core/settings/settings-service";
+import type { ProjectOutputType } from "@owndesign/core/workspace-store";
+import { WorkspaceStore } from "@owndesign/core/workspace-store";
+import { createProjectWorkspaceTools } from "@owndesign/core/agent/tools/project-workspace-tools";
+import { buildFrontendCapabilityPrompt } from "@owndesign/core/realtime/frontend-capabilities";
 
 export type DesignPageAgentInput = {
   content: string;
@@ -261,8 +262,10 @@ export function renderDesignPromptSections(sections: DesignPromptSection[]) {
 }
 
 export function loadDesignPageAgentCorePrompt() {
+  const currentDir = path.dirname(fileURLToPath(import.meta.url));
+
   return readFileSync(
-    path.join(process.cwd(), "src", "server", "agent", "design-page.agent.md"),
+    path.join(currentDir, "design-page.agent.md"),
     "utf8",
   ).trim();
 }

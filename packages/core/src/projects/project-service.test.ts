@@ -5,7 +5,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { ProjectService } from "./project-service";
-import { WorkspaceStore } from "@owndesign/core/server/workspace-store";
+import { WorkspaceStore } from "@owndesign/core/workspace-store";
 
 const tempRoots: string[] = [];
 

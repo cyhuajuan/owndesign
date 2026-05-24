@@ -1,8 +1,8 @@
-import { getPreviewServerManager } from "@owndesign/core/server/preview/preview-server-manager";
-import { ConversationService } from "@owndesign/core/server/conversations/conversation-service";
-import { ProjectService } from "@owndesign/core/server/projects/project-service";
-import { createSettingsService } from "@owndesign/core/server/settings/settings-service";
-import { WorkspaceStore } from "@owndesign/core/server/workspace-store";
+import { getPreviewServerManager } from "@owndesign/core/preview/preview-server-manager";
+import { ConversationService } from "@owndesign/core/conversations/conversation-service";
+import { ProjectService } from "@owndesign/core/projects/project-service";
+import { createSettingsService } from "@owndesign/core/settings/settings-service";
+import { WorkspaceStore } from "@owndesign/core/workspace-store";
 
 export type OwnDesignServerOptions = {
   settingsPath?: string;

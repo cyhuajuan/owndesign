@@ -1,5 +1,5 @@
-import type { WorkspaceStore } from "@owndesign/core/server/workspace-store";
-import type { ResourceSettings } from "@owndesign/core/server/settings/settings-service";
+import type { WorkspaceStore } from "@owndesign/core/workspace-store";
+import type { ResourceSettings } from "@owndesign/core/settings/settings-service";
 
 export type ProjectWorkspaceToolContext = {
   approvedCdnUrls?: string[];

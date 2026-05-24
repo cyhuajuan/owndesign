@@ -37,7 +37,7 @@ import {
 import type {
   InterfaceLanguage,
   ModelProviderOptions,
-} from "@owndesign/core/server/settings/settings-service";
+} from "@owndesign/core/settings/settings-service";
 import {
   DEEPSEEK_CONTEXT_SIZE_K,
   DEEPSEEK_MODELS,

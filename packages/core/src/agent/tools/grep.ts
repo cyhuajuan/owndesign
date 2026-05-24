@@ -1,4 +1,4 @@
-import type { WorkspaceGrepResult } from "@owndesign/core/server/workspace-store";
+import type { WorkspaceGrepResult } from "@owndesign/core/workspace-store";
 
 import type { WorkspaceToolDefinition } from "./core";
 import type { GrepInput } from "./types";

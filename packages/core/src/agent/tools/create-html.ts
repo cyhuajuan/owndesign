@@ -1,4 +1,4 @@
-import type { ResourceLibrary } from "@owndesign/core/server/settings/settings-service";
+import type { ResourceLibrary } from "@owndesign/core/settings/settings-service";
 
 import {
   buildCdnTag,

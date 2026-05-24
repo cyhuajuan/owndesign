@@ -3,7 +3,7 @@ import type { ReadInput } from "./types";
 
 export function createReadToolDefinition(): WorkspaceToolDefinition<
   ReadInput,
-  Awaited<ReturnType<import("@owndesign/core/server/workspace-store").WorkspaceStore["readProjectWorkspaceEntry"]>>
+  Awaited<ReturnType<import("@owndesign/core/workspace-store").WorkspaceStore["readProjectWorkspaceEntry"]>>
 > {
   return {
     description:

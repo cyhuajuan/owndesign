@@ -4,7 +4,7 @@ import path from "node:path";
 import fastifyStatic from "@fastify/static";
 import Fastify, { type FastifyInstance } from "fastify";
 
-import { WorkspaceStore } from "@owndesign/core/server/workspace-store";
+import { WorkspaceStore } from "@owndesign/core/workspace-store";
 
 type PreviewServerManagerOptions = {
   cleanupIntervalMs?: number;

@@ -12,16 +12,16 @@ import {
   type LanguageModelUsage,
 } from "ai";
 
-import { normalizeConversationMessages } from "@owndesign/core/server/conversations/chat-messages";
+import { normalizeConversationMessages } from "@owndesign/core/conversations/chat-messages";
 import {
   createDesignPageAgent,
   createDesignPageAgentContext,
-} from "@owndesign/core/server/agent/design-page-agent";
-import { getPreviewServerManager } from "@owndesign/core/server/preview/preview-server-manager";
-import { registerFrontendConnection } from "@owndesign/core/server/realtime/frontend-command-bus";
+} from "@owndesign/core/agent/design-page-agent";
+import { getPreviewServerManager } from "@owndesign/core/preview/preview-server-manager";
+import { registerFrontendConnection } from "@owndesign/core/realtime/frontend-command-bus";
 import {
   parseDeepSeekThinkingMode,
-} from "@owndesign/core/server/settings/settings-service";
+} from "@owndesign/core/settings/settings-service";
 
 import { buildWorkspaceHref } from "./navigation";
 import {

@@ -4,7 +4,7 @@ import type {
   PublicAppSettings,
   ResourceLibrary,
   ResourceSettings,
-} from "@owndesign/core/server/settings/settings-service";
+} from "@owndesign/core/settings/settings-service";
 import type { ModelProvider } from "@/features/settings/model-utils";
 
 export type {

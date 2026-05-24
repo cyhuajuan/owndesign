@@ -1,4 +1,4 @@
-import type { PublicAppSettings } from "@owndesign/core/server/settings/settings-service";
+import type { PublicAppSettings } from "@owndesign/core/settings/settings-service";
 
 export type PublicSettings = PublicAppSettings;
 

@@ -1,7 +1,7 @@
 import {
   DEEPSEEK_MODELS,
   type ModelProvider,
-} from "@owndesign/core/server/settings/model-utils";
+} from "@owndesign/core/settings/model-utils";
 
 export {
   DEEPSEEK_CONTEXT_SIZE_K,
@@ -10,7 +10,7 @@ export {
   DEFAULT_OPENAI_COMPATIBLE_CONTEXT_SIZE_K,
   type DeepSeekThinkingMode,
   type ModelProvider,
-} from "@owndesign/core/server/settings/model-utils";
+} from "@owndesign/core/settings/model-utils";
 
 export function getProviderLabel(provider: ModelProvider | "") {
   if (provider === "deepseek") {

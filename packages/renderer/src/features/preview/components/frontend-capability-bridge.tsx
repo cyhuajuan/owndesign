@@ -10,7 +10,7 @@ import {
 import {
   isFrontendCapabilityId,
   type FrontendCommand,
-} from "@owndesign/core/server/realtime/frontend-capabilities";
+} from "@owndesign/core/realtime/frontend-capabilities";
 import { useApiClient } from "@/api/context";
 
 export const FRONTEND_TAB_ID = createFrontendTabId();

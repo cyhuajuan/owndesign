@@ -2,7 +2,7 @@ import {
   ConversationRecord,
   ProjectRecord,
   WorkspaceStore,
-} from "@owndesign/core/server/workspace-store";
+} from "@owndesign/core/workspace-store";
 
 type CreateProjectInput = {
   name: string;

@@ -1,6 +1,6 @@
 import type { UIMessage } from "ai";
 
-import { getFirstUserMessageText } from "@owndesign/core/server/conversations/chat-messages";
+import { getFirstUserMessageText } from "@owndesign/core/conversations/chat-messages";
 
 export function deriveConversationTitle({
   conversationTitle,

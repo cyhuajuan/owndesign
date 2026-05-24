@@ -11,7 +11,7 @@ import {
 } from "./design-page-agent";
 import { createWorkspaceToolRegistry } from "./tools/core";
 import { createProjectWorkspaceToolDefinitions } from "./tools/project-workspace-tools";
-import { WorkspaceStore } from "@owndesign/core/server/workspace-store";
+import { WorkspaceStore } from "@owndesign/core/workspace-store";
 
 const aiMocks = vi.hoisted(() => {
   const generate = vi.fn();
@@ -49,14 +49,14 @@ vi.mock("@ai-sdk/openai-compatible", () => ({
   createOpenAICompatible: aiMocks.createOpenAICompatible,
 }));
 
-vi.mock("@owndesign/core/server/settings/settings-service", () => ({
+vi.mock("@owndesign/core/settings/settings-service", () => ({
   createSettingsService: () => ({
     getSettings: aiMocks.getSettings,
     resolveModelConfiguration: aiMocks.resolveModelConfiguration,
   }),
 }));
 
-vi.mock("@owndesign/core/server/realtime/frontend-command-bus", () => ({
+vi.mock("@owndesign/core/realtime/frontend-command-bus", () => ({
   sendFrontendCommand: aiMocks.sendFrontendCommand,
 }));
 

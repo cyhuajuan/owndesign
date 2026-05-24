@@ -1,6 +1,6 @@
 import path from "node:path";
 
-import type { WorkspacePatchChange, WorkspaceStore } from "@owndesign/core/server/workspace-store";
+import type { WorkspacePatchChange, WorkspaceStore } from "@owndesign/core/workspace-store";
 
 type CdnResourceInput = {
   crossorigin?: string;

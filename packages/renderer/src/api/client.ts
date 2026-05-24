@@ -4,8 +4,8 @@ import type { InitialSetupInput } from "@/features/onboarding/components/initial
 import type {
   ConversationRecord,
   ProjectRecord,
-} from "@owndesign/core/server/workspace-store";
-import type { PublicAppSettings } from "@owndesign/core/server/settings/settings-service";
+} from "@owndesign/core/workspace-store";
+import type { PublicAppSettings } from "@owndesign/core/settings/settings-service";
 import type {
   InterfaceLanguage,
   ModelConfigurationForm,

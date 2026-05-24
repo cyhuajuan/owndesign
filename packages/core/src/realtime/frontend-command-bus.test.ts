@@ -17,7 +17,7 @@ describe("FrontendCommandBus", () => {
     const reader = stream.getReader();
 
     await reader.read();
-    const command = bus.sendCommand({
+    const result = bus.sendCommand({
       capability: "preview.switchHtml",
       frontendTabId: "tab-1",
       payload: { path: "pages/detail.html" },
@@ -25,9 +25,12 @@ describe("FrontendCommandBus", () => {
     });
     const chunk = await reader.read();
 
-    expect(command).toMatchObject({
-      capability: "preview.switchHtml",
-      payload: { path: "pages/detail.html" },
+    expect(result).toMatchObject({
+      command: {
+        capability: "preview.switchHtml",
+        payload: { path: "pages/detail.html" },
+      },
+      delivered: true,
     });
     expect(new TextDecoder().decode(chunk.value)).toContain(
       "event: frontend-command",
@@ -52,14 +55,17 @@ describe("FrontendCommandBus", () => {
     expect(bus.hasConnection("project-1", "tab-1")).toBe(false);
   });
 
-  it("fails fast when target tab has no connection", () => {
-    expect(() =>
+  it("reports undelivered commands when target tab has no connection", () => {
+    expect(
       bus.sendCommand({
         capability: "preview.refresh",
         frontendTabId: "missing-tab",
         payload: {},
         projectId: "project-1",
       }),
-    ).toThrow("Frontend capability connection was not found");
+    ).toEqual({
+      command: undefined,
+      delivered: false,
+    });
   });
 });

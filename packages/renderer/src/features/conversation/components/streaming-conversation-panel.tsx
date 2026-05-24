@@ -3,7 +3,7 @@
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import { AlertCircleIcon } from "lucide-react";
-import { memo, useEffect, useMemo, useRef } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 
 import {
   Conversation,
@@ -34,12 +34,15 @@ import { getDeepSeekThinkingMode } from "@/features/conversation/utils/model-sel
 import { FRONTEND_TAB_ID } from "@/features/preview/components/frontend-capability-bridge";
 import { useApiClient } from "@/api/context";
 import { getCurrentPreviewPath } from "@/features/preview/preview-path";
+import type { ActiveRun } from "@/api/client";
 
 type StreamingConversationPanelProps = {
   conversationId: string;
   conversationTitle: string;
   initialMessages: UIMessage[];
   onConversationUpdate?: (update: ConversationPanelUpdate) => void;
+  onProjectRunChange?: (run: ActiveRun | undefined) => void;
+  projectActiveRun?: ActiveRun;
   projectId: string;
   titleManuallySet?: boolean;
 };
@@ -58,6 +61,8 @@ export function StreamingConversationPanel({
   conversationTitle,
   initialMessages,
   onConversationUpdate,
+  onProjectRunChange,
+  projectActiveRun,
   projectId,
   titleManuallySet = false,
 }: StreamingConversationPanelProps) {
@@ -69,6 +74,9 @@ export function StreamingConversationPanel({
     selectedModel?.provider === "deepseek"
       ? getDeepSeekThinkingMode(selectedModel)
       : undefined;
+  const hasProjectActiveRun = projectActiveRun?.status === "running";
+  const activeRunBelongsToConversation =
+    hasProjectActiveRun && projectActiveRun.conversationId === conversationId;
   const transport = useMemo(
     () =>
       new DefaultChatTransport({
@@ -87,6 +95,9 @@ export function StreamingConversationPanel({
               }
             : {}),
         }),
+        prepareReconnectToStreamRequest: () => ({
+          api: api.streamConversationRunUrl(projectId, conversationId),
+        }),
       }),
     [
       conversationId,
@@ -99,11 +110,37 @@ export function StreamingConversationPanel({
   const { error, messages, sendMessage, status, stop } = useChat({
     id: conversationId,
     messages: initialMessages,
+    resume: activeRunBelongsToConversation,
     transport,
+    onError: () => {
+      void api.getActiveRun(projectId).then(async (response) => {
+        if (response.status === 204) {
+          onProjectRunChange?.(undefined);
+          return;
+        }
+
+        if (response.ok) {
+          onProjectRunChange?.((await response.json()) as ActiveRun);
+        }
+      });
+      window.dispatchEvent(new Event("owndesign:workspace-refresh"));
+    },
   });
   const contextUsage = useMemo(() => getLatestContextUsage(messages), [messages]);
   const isGenerating = status === "submitted" || status === "streaming";
-  const canSend = Boolean(selectedModel) && !isGenerating;
+  const isProjectBusy = Boolean(hasProjectActiveRun);
+  const canSend = Boolean(selectedModel) && !isGenerating && !isProjectBusy;
+  const submitStatus = isProjectBusy && !isGenerating ? "streaming" : status;
+  const busyMessage = activeRunBelongsToConversation
+    ? "当前会话正在生成，刷新或切换回来会继续显示进度。"
+    : "当前项目已有任务正在执行，完成或停止后才能继续输入。";
+  const handleStop = useCallback(() => {
+    void api.cancelActiveRun(projectId).finally(() => {
+      stop();
+      onProjectRunChange?.(undefined);
+      window.dispatchEvent(new Event("owndesign:workspace-refresh"));
+    });
+  }, [api, onProjectRunChange, projectId, stop]);
 
   useEffect(() => {
     const previousStatus = previousStatusRef.current;
@@ -125,6 +162,8 @@ export function StreamingConversationPanel({
         }),
         updatedAt: timestamp,
       });
+      onProjectRunChange?.(undefined);
+      window.dispatchEvent(new Event("owndesign:workspace-refresh"));
     }
 
     previousStatusRef.current = status;
@@ -134,6 +173,7 @@ export function StreamingConversationPanel({
     initialMessages,
     messages,
     onConversationUpdate,
+    onProjectRunChange,
     status,
     titleManuallySet,
   ]);
@@ -171,6 +211,15 @@ export function StreamingConversationPanel({
               </MessageContent>
             </Message>
           ) : null}
+          {isProjectBusy ? (
+            <Message from="assistant">
+              <MessageContent className="w-full">
+                <div className="rounded-md border border-border bg-muted px-3 py-2 text-muted-foreground text-sm">
+                  {busyMessage}
+                </div>
+              </MessageContent>
+            </Message>
+          ) : null}
         </ConversationContent>
       </Conversation>
 
@@ -187,6 +236,13 @@ export function StreamingConversationPanel({
               return;
             }
 
+            onProjectRunChange?.({
+              conversationId,
+              createdAt: new Date().toISOString(),
+              projectId,
+              runId: "pending",
+              status: "running",
+            });
             await sendMessage({ files, text: trimmedText });
           }}
         >
@@ -196,7 +252,7 @@ export function StreamingConversationPanel({
           <PromptInputBody>
             <PromptInputTextarea
               className="min-h-13 text-[13px]"
-              disabled={isGenerating}
+              disabled={isGenerating || isProjectBusy}
               placeholder="输入消息... (Enter 发送, Shift+Enter 换行)"
             />
           </PromptInputBody>
@@ -215,8 +271,8 @@ export function StreamingConversationPanel({
               <PromptInputSubmit
                 className="bg-primary text-primary-foreground hover:bg-primary/90"
                 disabled={!selectedModel}
-                onStop={stop}
-                status={status}
+                onStop={handleStop}
+                status={submitStatus}
               />
             </div>
           </PromptInputFooter>

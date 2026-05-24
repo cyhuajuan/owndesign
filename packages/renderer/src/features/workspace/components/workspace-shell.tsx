@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { FolderIcon, MessageSquareIcon, PlusIcon } from "lucide-react";
 
 import {
@@ -15,6 +15,7 @@ import {
   type ConversationPanelUpdate,
 } from "@/features/conversation/components/streaming-conversation-panel";
 import { normalizeConversationMessages } from "@owndesign/core/conversations/chat-messages";
+import type { ActiveRun } from "@/api/client";
 import type {
   ConversationRecord,
   ProjectRecord,
@@ -25,6 +26,7 @@ type ActionResult = { href?: string } | undefined | void;
 type WorkspaceShellProps = {
   activeConversationId?: string;
   activeProject?: ProjectRecord;
+  activeRun?: ActiveRun;
   conversations: ConversationRecord[];
   onCreateConversation: () => Promise<ActionResult> | ActionResult;
   onCreateProject: (
@@ -58,6 +60,7 @@ type WorkspaceShellProps = {
 export const WorkspaceShell = memo(function WorkspaceShell({
   activeConversationId,
   activeProject,
+  activeRun,
   conversations,
   onCreateConversation,
   onCreateProject,
@@ -72,6 +75,15 @@ export const WorkspaceShell = memo(function WorkspaceShell({
   const [conversationUpdates, setConversationUpdates] = useState<
     Record<string, ConversationPanelUpdate>
   >({});
+  const [clientActiveRun, setClientActiveRun] = useState<ActiveRun | undefined>(
+    activeRun,
+  );
+  const effectiveActiveRun = clientActiveRun;
+
+  useEffect(() => {
+    setClientActiveRun(activeRun);
+  }, [activeRun]);
+
   const clientConversations = useMemo(
     () =>
       sortConversations(
@@ -138,6 +150,8 @@ export const WorkspaceShell = memo(function WorkspaceShell({
             )}
             key={activeConversation.id}
             onConversationUpdate={handleConversationUpdate}
+            onProjectRunChange={setClientActiveRun}
+            projectActiveRun={effectiveActiveRun}
             projectId={activeProject.id}
             titleManuallySet={activeConversation.titleManuallySet}
           />
@@ -178,6 +192,7 @@ export const WorkspaceShell = memo(function WorkspaceShell({
       ...current,
       [update.id]: update,
     }));
+    setClientActiveRun(undefined);
   }
 });
 

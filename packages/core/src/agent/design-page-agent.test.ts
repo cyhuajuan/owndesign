@@ -112,6 +112,7 @@ beforeEach(() => {
     provider: "deepseek",
   });
   aiMocks.sendFrontendCommand.mockReset();
+  aiMocks.sendFrontendCommand.mockReturnValue({ delivered: true });
   aiMocks.toolLoopAgent.mockClear();
 });
 

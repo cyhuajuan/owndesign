@@ -8,7 +8,7 @@ import { stream } from "hono/streaming";
 import { Hono } from "hono";
 import { ZipFile } from "yazl";
 import {
-  createAgentUIStreamResponse,
+  createAgentUIStream,
   type InferAgentUIMessage,
   type LanguageModelUsage,
 } from "ai";
@@ -32,6 +32,10 @@ import {
   createWorkspaceStore,
   type OwnDesignServerOptions,
 } from "./services";
+import {
+  createChatRunStreamResponse,
+  getChatRunManager,
+} from "./chat-run-manager";
 
 type ChatRequestBody = {
   conversationId?: unknown;
@@ -49,6 +53,7 @@ type DesignPageUIMessage = InferAgentUIMessage<
 
 export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
   const app = new Hono();
+  const chatRunManager = getChatRunManager(getChatRunManagerKey(options));
 
   app.use(
     "/api/*",
@@ -80,6 +85,9 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
     return context.json({
       activeConversationId: activeConversation?.id,
       activeProject,
+      activeRun: activeProject
+        ? chatRunManager.getActiveRun(activeProject.id)
+        : undefined,
       conversations: conversationState.conversations,
       projects: projectState.projects,
       settings,
@@ -308,6 +316,10 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
     const workspaceStore = createWorkspaceStore(options);
     const project = await workspaceStore.getProject(projectId);
 
+    if (chatRunManager.getActiveRun(projectId)) {
+      return context.text("当前项目已有任务正在执行。", 409);
+    }
+
     const messages = normalizeConversationMessages(
       body.messages,
     ) as DesignPageUIMessage[];
@@ -335,46 +347,104 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
     const agent = createDesignPageAgent(agentContext);
     let latestStepUsage: LanguageModelUsage | undefined;
 
-    return createAgentUIStreamResponse({
-      agent,
-      uiMessages: messages,
-      originalMessages: messages,
-      sendReasoning: true,
-      onStepFinish: (step) => {
-        latestStepUsage = step.usage;
-      },
-      messageMetadata: ({ part }) => {
-        if (part.type !== "finish" || !latestStepUsage) {
-          return undefined;
-        }
-
-        return {
-          contextUsage: {
-            inputTokens: latestStepUsage.inputTokens,
-            outputTokens: latestStepUsage.outputTokens,
-            totalTokens: latestStepUsage.totalTokens,
-            reasoningTokens:
-              latestStepUsage.outputTokenDetails?.reasoningTokens ??
-              latestStepUsage.reasoningTokens,
-            cachedInputTokens:
-              latestStepUsage.inputTokenDetails?.cacheReadTokens ??
-              latestStepUsage.cachedInputTokens,
-          },
-        };
-      },
-      onError: (error) =>
-        error instanceof Error
-          ? `生成失败：${error.message}`
-          : "生成失败：Unknown error",
-      onFinish: async ({ messages: finishedMessages }) => {
+    const run = chatRunManager.startRun({
+      conversationId,
+      createStream: async (abortSignal) => {
         await createConversationService(options).saveUIMessageStream(
           projectId,
           conversationId,
-          finishedMessages,
+          messages,
+        );
+
+        return createAgentUIStream({
+          abortSignal,
+          agent,
+          uiMessages: messages,
+          originalMessages: messages,
+          sendReasoning: true,
+          onStepFinish: (step) => {
+            latestStepUsage = step.usage;
+          },
+          messageMetadata: ({ part }) => {
+            if (part.type !== "finish" || !latestStepUsage) {
+              return undefined;
+            }
+
+            return {
+              contextUsage: {
+                inputTokens: latestStepUsage.inputTokens,
+                outputTokens: latestStepUsage.outputTokens,
+                totalTokens: latestStepUsage.totalTokens,
+                reasoningTokens:
+                  latestStepUsage.outputTokenDetails?.reasoningTokens ??
+                  latestStepUsage.reasoningTokens,
+                cachedInputTokens:
+                  latestStepUsage.inputTokenDetails?.cacheReadTokens ??
+                  latestStepUsage.cachedInputTokens,
+              },
+            };
+          },
+          onError: (error) =>
+            error instanceof Error
+              ? `生成失败：${error.message}`
+              : "生成失败：Unknown error",
+        });
+      },
+      initialMessages: messages,
+      onFinish: async (finishedMessages) => {
+        await createConversationService(options).saveUIMessageStream(
+          projectId,
+          conversationId,
+          finishedMessages as DesignPageUIMessage[],
         );
       },
+      projectId,
     });
+
+    if (!run.ok) {
+      return context.text("当前项目已有任务正在执行。", 409);
+    }
+
+    return createChatRunStreamResponse(run.stream);
   });
+
+  app.get("/api/projects/:projectId/runs/active", async (context) => {
+    const activeRun = chatRunManager.getActiveRun(context.req.param("projectId"));
+
+    if (!activeRun) {
+      return new Response(null, { status: 204 });
+    }
+
+    return context.json(activeRun);
+  });
+
+  app.delete("/api/projects/:projectId/runs/active", async (context) => {
+    const activeRun = chatRunManager.cancelActiveRun(
+      context.req.param("projectId"),
+    );
+
+    if (!activeRun) {
+      return new Response(null, { status: 204 });
+    }
+
+    return context.json(activeRun);
+  });
+
+  app.get(
+    "/api/projects/:projectId/conversations/:conversationId/runs/active/stream",
+    async (context) => {
+      const stream = chatRunManager.subscribeActiveRun(
+        context.req.param("projectId"),
+        context.req.param("conversationId"),
+      );
+
+      if (!stream) {
+        return new Response(null, { status: 204 });
+      }
+
+      return createChatRunStreamResponse(stream);
+    },
+  );
 
   app.post("/api/projects/:projectId/preview-session", async (context) => {
     const body = await readJson(context.req.raw);
@@ -663,6 +733,13 @@ function isMissingPathError(error: unknown): error is NodeJS.ErrnoException {
     "code" in error &&
     (error as NodeJS.ErrnoException).code === "ENOENT"
   );
+}
+
+function getChatRunManagerKey(options: OwnDesignServerOptions) {
+  return JSON.stringify({
+    settingsPath: options.settingsPath ?? "",
+    workspaceRoot: options.workspaceRoot ?? "",
+  });
 }
 
 async function readJson(request: Request) {

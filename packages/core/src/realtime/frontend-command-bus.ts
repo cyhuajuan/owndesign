@@ -83,9 +83,10 @@ export class FrontendCommandBus {
     );
 
     if (!connection) {
-      throw new Error(
-        `Frontend capability connection was not found for tab: ${frontendTabId}`,
-      );
+      return {
+        delivered: false as const,
+        command: undefined,
+      };
     }
 
     const command: FrontendCommand = {
@@ -101,7 +102,10 @@ export class FrontendCommandBus {
       command,
     );
 
-    return command;
+    return {
+      command,
+      delivered: true as const,
+    };
   }
 
   unregisterConnection(projectId: string, frontendTabId: string) {

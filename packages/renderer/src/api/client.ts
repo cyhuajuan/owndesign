@@ -17,9 +17,18 @@ type ActionResult = { href?: string } | undefined | void;
 export type WorkspaceState = {
   activeConversationId?: string;
   activeProject?: ProjectRecord;
+  activeRun?: ActiveRun;
   conversations: ConversationRecord[];
   projects: ProjectRecord[];
   settings: PublicAppSettings;
+};
+
+export type ActiveRun = {
+  conversationId: string;
+  createdAt: string;
+  projectId: string;
+  runId: string;
+  status: "running" | "completed" | "failed" | "cancelled";
 };
 
 export type ApiClient = ReturnType<typeof createApiClient>;
@@ -76,6 +85,17 @@ export function createApiClient(baseUrl = "") {
         `/api/projects/${encodeURIComponent(projectId)}`,
         { method: "DELETE" },
       );
+    },
+    cancelActiveRun(projectId: string) {
+      return fetch(
+        url(`/api/projects/${encodeURIComponent(projectId)}/runs/active`),
+        {
+          method: "DELETE",
+        },
+      );
+    },
+    getActiveRun(projectId: string) {
+      return fetch(url(`/api/projects/${encodeURIComponent(projectId)}/runs/active`));
     },
     loadSettings() {
       return requestJson<PublicAppSettings>("/api/settings");
@@ -173,6 +193,13 @@ export function createApiClient(baseUrl = "") {
     },
     streamChatUrl() {
       return url("/api/chat");
+    },
+    streamConversationRunUrl(projectId: string, conversationId: string) {
+      return url(
+        `/api/projects/${encodeURIComponent(
+          projectId,
+        )}/conversations/${encodeURIComponent(conversationId)}/runs/active/stream`,
+      );
     },
   };
 }

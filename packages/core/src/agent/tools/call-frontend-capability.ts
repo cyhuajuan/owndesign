@@ -17,7 +17,7 @@ export function createCallFrontendCapabilityToolDefinition(): WorkspaceToolDefin
   CallFrontendCapabilityInput,
   {
     capability: string;
-    delivered: true;
+    delivered: boolean;
     payload: unknown;
   }
 > {
@@ -52,11 +52,11 @@ export function createCallFrontendCapabilityToolDefinition(): WorkspaceToolDefin
       }
 
       const payload = await normalizePayload(input.capability, input.payload, context);
-      sendCapabilityCommand(input.capability, payload, context);
+      const result = sendCapabilityCommand(input.capability, payload, context);
 
       return {
         capability: input.capability,
-        delivered: true,
+        delivered: result?.delivered ?? false,
         payload,
       };
     },
@@ -103,16 +103,15 @@ function sendCapabilityCommand(
   context: ProjectWorkspaceToolContext,
 ) {
   if (capability === "preview.refresh") {
-    sendFrontendCommand({
+    return sendFrontendCommand({
       capability,
       frontendTabId: context.frontendTabId ?? "",
       payload: payload as FrontendCapabilityPayloads["preview.refresh"],
       projectId: context.projectId,
     });
-    return;
   }
 
-  sendFrontendCommand({
+  return sendFrontendCommand({
     capability,
     frontendTabId: context.frontendTabId ?? "",
     payload: payload as FrontendCapabilityPayloads["preview.switchHtml"],

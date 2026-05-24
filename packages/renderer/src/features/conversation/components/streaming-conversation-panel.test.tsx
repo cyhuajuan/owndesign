@@ -39,13 +39,17 @@ vi.mock("ai", async () => {
   class MockDefaultChatTransport {
     api: string;
     body: Record<string, unknown> | (() => Record<string, unknown>);
+    prepareReconnectToStreamRequest?: () => { api: string };
 
     constructor(options: {
       api: string;
       body: Record<string, unknown> | (() => Record<string, unknown>);
+      prepareReconnectToStreamRequest?: () => { api: string };
     }) {
       this.api = options.api;
       this.body = options.body;
+      this.prepareReconnectToStreamRequest =
+        options.prepareReconnectToStreamRequest;
     }
   }
 
@@ -860,6 +864,88 @@ describe("MessageParts", () => {
         projectId: "project-1",
       }),
     );
+  });
+
+  it("configures stream resume for the current conversation active run", () => {
+    vi.mocked(useChat).mockReturnValue({
+      addToolApprovalResponse: vi.fn(),
+      error: undefined,
+      messages: [],
+      sendMessage: vi.fn(),
+      status: "ready",
+      stop: vi.fn(),
+    } as unknown as ReturnType<typeof useChat>);
+
+    render(
+      <StreamingConversationPanel
+        conversationId="conversation-1"
+        conversationTitle="新建会话"
+        initialMessages={[]}
+        projectActiveRun={{
+          conversationId: "conversation-1",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          projectId: "project-1",
+          runId: "run-1",
+          status: "running",
+        }}
+        projectId="project-1"
+      />,
+    );
+
+    const useChatOptions = vi.mocked(useChat).mock.calls.at(-1)?.[0] as
+      | {
+          resume: boolean;
+          transport: {
+            prepareReconnectToStreamRequest?: () => { api: string };
+          };
+        }
+      | undefined;
+
+    expect(useChatOptions?.resume).toBe(true);
+    expect(
+      useChatOptions?.transport.prepareReconnectToStreamRequest?.().api,
+    ).toBe(
+      "/api/projects/project-1/conversations/conversation-1/runs/active/stream",
+    );
+  });
+
+  it("disables input when another conversation in the project is running", async () => {
+    const user = userEvent.setup();
+    const sendMessage = vi.fn();
+
+    vi.mocked(useChat).mockReturnValue({
+      addToolApprovalResponse: vi.fn(),
+      error: undefined,
+      messages: [],
+      sendMessage,
+      status: "ready",
+      stop: vi.fn(),
+    } as unknown as ReturnType<typeof useChat>);
+
+    render(
+      <StreamingConversationPanel
+        conversationId="conversation-2"
+        conversationTitle="新建会话"
+        initialMessages={[]}
+        projectActiveRun={{
+          conversationId: "conversation-1",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          projectId: "project-1",
+          runId: "run-1",
+          status: "running",
+        }}
+        projectId="project-1"
+      />,
+    );
+
+    expect(screen.getByPlaceholderText(/输入消息/)).toBeDisabled();
+    expect(
+      screen.getByText("当前项目已有任务正在执行，完成或停止后才能继续输入。"),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "停止" }));
+
+    expect(sendMessage).not.toHaveBeenCalled();
   });
 
   it("stops streaming generation from the composer submit button", async () => {

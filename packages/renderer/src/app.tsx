@@ -80,6 +80,20 @@ function WorkspaceRoute() {
     };
   }, [api, conversationId, projectId, refreshKey]);
 
+  useEffect(() => {
+    if (!state?.activeRun) {
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      refresh();
+    }, 2_000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [refresh, state?.activeRun]);
+
   const actions = useMemo(() => {
     const activeProjectId = state?.activeProject?.id;
 
@@ -148,6 +162,7 @@ function WorkspaceRoute() {
     <WorkspaceShell
       activeConversationId={state.activeConversationId}
       activeProject={state.activeProject}
+      activeRun={state.activeRun}
       conversations={state.conversations}
       key={state.activeProject?.id ?? "empty-workspace"}
       projects={state.projects}

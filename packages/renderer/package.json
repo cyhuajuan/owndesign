@@ -1,0 +1,41 @@
+{
+  "name": "@owndesign/renderer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/app.tsx",
+    "./*": "./src/*"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@ai-sdk/react": "latest",
+    "@base-ui/react": "latest",
+    "@owndesign/core": "workspace:*",
+    "@radix-ui/react-use-controllable-state": "latest",
+    "@streamdown/cjk": "latest",
+    "@streamdown/code": "latest",
+    "@streamdown/math": "latest",
+    "@streamdown/mermaid": "latest",
+    "ai": "latest",
+    "class-variance-authority": "latest",
+    "clsx": "latest",
+    "cmdk": "latest",
+    "lucide-react": "latest",
+    "nanoid": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "react-router": "latest",
+    "shiki": "latest",
+    "streamdown": "latest",
+    "tailwind-merge": "latest",
+    "tw-animate-css": "latest",
+    "use-stick-to-bottom": "latest"
+  }
+}

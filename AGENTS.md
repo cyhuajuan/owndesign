@@ -1,7 +1,3 @@
-# CLAUDE.md
-
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
 ## Project Overview
 
 OwnDesign is an AI-powered design prototyping tool. Users describe what they want, and an AI agent creates and iterates on HTML pages displayed in a live preview. The UI is primarily in Chinese.

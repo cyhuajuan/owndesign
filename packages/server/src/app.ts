@@ -433,9 +433,14 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
   app.get(
     "/api/projects/:projectId/conversations/:conversationId/runs/active/stream",
     async (context) => {
+      const afterChunkIndex = Number.parseInt(
+        context.req.query("after") ?? "0",
+        10,
+      );
       const stream = chatRunManager.subscribeActiveRun(
         context.req.param("projectId"),
         context.req.param("conversationId"),
+        Number.isFinite(afterChunkIndex) ? afterChunkIndex : 0,
       );
 
       if (!stream) {
@@ -443,6 +448,22 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
       }
 
       return createChatRunStreamResponse(stream);
+    },
+  );
+
+  app.get(
+    "/api/projects/:projectId/conversations/:conversationId/runs/active/snapshot",
+    async (context) => {
+      const snapshot = chatRunManager.getActiveRunSnapshot(
+        context.req.param("projectId"),
+        context.req.param("conversationId"),
+      );
+
+      if (!snapshot) {
+        return new Response(null, { status: 204 });
+      }
+
+      return context.json(snapshot);
     },
   );
 

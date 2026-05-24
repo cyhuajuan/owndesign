@@ -3,7 +3,7 @@
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import { AlertCircleIcon } from "lucide-react";
-import { memo, useCallback, useEffect, useMemo, useRef } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   Conversation,
@@ -34,7 +34,7 @@ import { getDeepSeekThinkingMode } from "@/features/conversation/utils/model-sel
 import { FRONTEND_TAB_ID } from "@/features/preview/components/frontend-capability-bridge";
 import { useApiClient } from "@/api/context";
 import { getCurrentPreviewPath } from "@/features/preview/preview-path";
-import type { ActiveRun } from "@/api/client";
+import type { ActiveRun, ActiveRunSnapshot } from "@/api/client";
 
 type StreamingConversationPanelProps = {
   conversationId: string;
@@ -70,13 +70,27 @@ export function StreamingConversationPanel({
   const { handleModelSelect, selectedModel, selectedModelId, settings } =
     useConversationSettings();
   const previousStatusRef = useRef("ready");
+  const reconnectState = useMemo(() => ({ afterChunkIndex: 0 }), []);
+  const [localSubmitStarted, setLocalSubmitStarted] = useState(false);
+  const [resumeSnapshot, setResumeSnapshot] = useState<
+    | {
+        nextChunkIndex: number;
+        runId: string;
+      }
+    | undefined
+  >();
   const selectedDeepSeekThinkingMode =
     selectedModel?.provider === "deepseek"
       ? getDeepSeekThinkingMode(selectedModel)
       : undefined;
   const hasProjectActiveRun = projectActiveRun?.status === "running";
+  const activeRunId = projectActiveRun?.runId;
   const activeRunBelongsToConversation =
     hasProjectActiveRun && projectActiveRun.conversationId === conversationId;
+  const shouldResumeFromSnapshot =
+    activeRunBelongsToConversation &&
+    !localSubmitStarted &&
+    resumeSnapshot?.runId === activeRunId;
   const transport = useMemo(
     () =>
       new DefaultChatTransport({
@@ -96,21 +110,24 @@ export function StreamingConversationPanel({
             : {}),
         }),
         prepareReconnectToStreamRequest: () => ({
-          api: api.streamConversationRunUrl(projectId, conversationId),
+          api: api.streamConversationRunUrl(projectId, conversationId, {
+            after: reconnectState.afterChunkIndex,
+          }),
         }),
       }),
     [
       conversationId,
       api,
       projectId,
+      reconnectState,
       selectedDeepSeekThinkingMode,
       selectedModelId,
     ],
   );
-  const { error, messages, sendMessage, status, stop } = useChat({
+  const { error, messages, sendMessage, setMessages, status, stop } = useChat({
     id: conversationId,
     messages: initialMessages,
-    resume: activeRunBelongsToConversation,
+    resume: shouldResumeFromSnapshot,
     transport,
     onError: () => {
       void api.getActiveRun(projectId).then(async (response) => {
@@ -137,10 +154,69 @@ export function StreamingConversationPanel({
   const handleStop = useCallback(() => {
     void api.cancelActiveRun(projectId).finally(() => {
       stop();
+      setLocalSubmitStarted(false);
+      setResumeSnapshot(undefined);
       onProjectRunChange?.(undefined);
       window.dispatchEvent(new Event("owndesign:workspace-refresh"));
     });
-  }, [api, onProjectRunChange, projectId, stop]);
+  }, [api, onProjectRunChange, projectId, setResumeSnapshot, stop]);
+
+  useEffect(() => {
+    if (
+      !activeRunBelongsToConversation ||
+      !activeRunId ||
+      localSubmitStarted
+    ) {
+      return;
+    }
+
+    let isActive = true;
+
+    void api
+      .getActiveConversationRunSnapshot(projectId, conversationId)
+      .then(async (response) => {
+        if (!isActive) {
+          return;
+        }
+
+        if (response.status === 204) {
+          onProjectRunChange?.(undefined);
+          return;
+        }
+
+        if (!response.ok) {
+          return;
+        }
+
+        const snapshot = (await response.json()) as ActiveRunSnapshot;
+
+        if (!isActive || snapshot.activeRun.runId !== activeRunId) {
+          return;
+        }
+
+        reconnectState.afterChunkIndex = snapshot.nextChunkIndex;
+        setMessages(snapshot.messages);
+        setResumeSnapshot({
+          nextChunkIndex: snapshot.nextChunkIndex,
+          runId: snapshot.activeRun.runId,
+        });
+        onProjectRunChange?.(snapshot.activeRun);
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [
+    activeRunBelongsToConversation,
+    activeRunId,
+    api,
+    conversationId,
+    localSubmitStarted,
+    onProjectRunChange,
+    projectId,
+    reconnectState,
+    setMessages,
+  ]);
 
   useEffect(() => {
     const previousStatus = previousStatusRef.current;
@@ -162,6 +238,8 @@ export function StreamingConversationPanel({
         }),
         updatedAt: timestamp,
       });
+      setLocalSubmitStarted(false);
+      setResumeSnapshot(undefined);
       onProjectRunChange?.(undefined);
       window.dispatchEvent(new Event("owndesign:workspace-refresh"));
     }
@@ -211,19 +289,15 @@ export function StreamingConversationPanel({
               </MessageContent>
             </Message>
           ) : null}
-          {isProjectBusy ? (
-            <Message from="assistant">
-              <MessageContent className="w-full">
-                <div className="rounded-md border border-border bg-muted px-3 py-2 text-muted-foreground text-sm">
-                  {busyMessage}
-                </div>
-              </MessageContent>
-            </Message>
-          ) : null}
         </ConversationContent>
       </Conversation>
 
       <div className="border-t border-border bg-card px-3 pb-3">
+        {isProjectBusy ? (
+          <div className="mt-3 rounded-md border border-border bg-muted px-3 py-2 text-muted-foreground text-sm">
+            {busyMessage}
+          </div>
+        ) : null}
         <PromptInput
           className="pt-3"
           maxFileSize={10 * 1024 * 1024}
@@ -236,7 +310,9 @@ export function StreamingConversationPanel({
               return;
             }
 
+            setLocalSubmitStarted(true);
             onProjectRunChange?.({
+              chunkCount: 0,
               conversationId,
               createdAt: new Date().toISOString(),
               projectId,

@@ -24,11 +24,18 @@ export type WorkspaceState = {
 };
 
 export type ActiveRun = {
+  chunkCount: number;
   conversationId: string;
   createdAt: string;
   projectId: string;
   runId: string;
   status: "running" | "completed" | "failed" | "cancelled";
+};
+
+export type ActiveRunSnapshot = {
+  activeRun: ActiveRun;
+  messages: UIMessage[];
+  nextChunkIndex: number;
 };
 
 export type ApiClient = ReturnType<typeof createApiClient>;
@@ -96,6 +103,17 @@ export function createApiClient(baseUrl = "") {
     },
     getActiveRun(projectId: string) {
       return fetch(url(`/api/projects/${encodeURIComponent(projectId)}/runs/active`));
+    },
+    getActiveConversationRunSnapshot(projectId: string, conversationId: string) {
+      return fetch(
+        url(
+          `/api/projects/${encodeURIComponent(
+            projectId,
+          )}/conversations/${encodeURIComponent(
+            conversationId,
+          )}/runs/active/snapshot`,
+        ),
+      );
     },
     loadSettings() {
       return requestJson<PublicAppSettings>("/api/settings");
@@ -194,11 +212,23 @@ export function createApiClient(baseUrl = "") {
     streamChatUrl() {
       return url("/api/chat");
     },
-    streamConversationRunUrl(projectId: string, conversationId: string) {
+    streamConversationRunUrl(
+      projectId: string,
+      conversationId: string,
+      options?: { after?: number },
+    ) {
+      const params = new URLSearchParams();
+
+      if (options?.after !== undefined) {
+        params.set("after", String(options.after));
+      }
+
       return url(
         `/api/projects/${encodeURIComponent(
           projectId,
-        )}/conversations/${encodeURIComponent(conversationId)}/runs/active/stream`,
+        )}/conversations/${encodeURIComponent(
+          conversationId,
+        )}/runs/active/stream${params.size > 0 ? `?${params.toString()}` : ""}`,
       );
     },
   };

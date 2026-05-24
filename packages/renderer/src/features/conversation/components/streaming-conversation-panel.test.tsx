@@ -866,12 +866,49 @@ describe("MessageParts", () => {
     );
   });
 
-  it("configures stream resume for the current conversation active run", () => {
+  it("configures stream resume for the current conversation active run", async () => {
+    const setMessages = vi.fn();
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+
+        if (url.includes("/runs/active/snapshot")) {
+          return Response.json({
+            activeRun: {
+              chunkCount: 2,
+              conversationId: "conversation-1",
+              createdAt: "2026-01-01T00:00:00.000Z",
+              projectId: "project-1",
+              runId: "run-1",
+              status: "running",
+            },
+            messages: [
+              {
+                id: "user-1",
+                parts: [{ text: "生成页面", type: "text" }],
+                role: "user",
+              },
+            ],
+            nextChunkIndex: 2,
+          });
+        }
+
+        return Response.json({
+          defaultModelId: "model-1",
+          interfaceLanguage: "zh-CN",
+          modelConfigurations: [],
+        });
+      }),
+    );
+
     vi.mocked(useChat).mockReturnValue({
       addToolApprovalResponse: vi.fn(),
       error: undefined,
       messages: [],
       sendMessage: vi.fn(),
+      setMessages,
       status: "ready",
       stop: vi.fn(),
     } as unknown as ReturnType<typeof useChat>);
@@ -882,6 +919,7 @@ describe("MessageParts", () => {
         conversationTitle="新建会话"
         initialMessages={[]}
         projectActiveRun={{
+          chunkCount: 1,
           conversationId: "conversation-1",
           createdAt: "2026-01-01T00:00:00.000Z",
           projectId: "project-1",
@@ -901,12 +939,32 @@ describe("MessageParts", () => {
         }
       | undefined;
 
-    expect(useChatOptions?.resume).toBe(true);
-    expect(
-      useChatOptions?.transport.prepareReconnectToStreamRequest?.().api,
-    ).toBe(
-      "/api/projects/project-1/conversations/conversation-1/runs/active/stream",
-    );
+    expect(useChatOptions?.resume).toBe(false);
+
+    await waitFor(() => {
+      const latestUseChatOptions = vi.mocked(useChat).mock.calls.at(-1)?.[0] as
+        | {
+            resume: boolean;
+            transport: {
+              prepareReconnectToStreamRequest?: () => { api: string };
+            };
+          }
+        | undefined;
+
+      expect(latestUseChatOptions?.resume).toBe(true);
+      expect(
+        latestUseChatOptions?.transport.prepareReconnectToStreamRequest?.().api,
+      ).toBe(
+        "/api/projects/project-1/conversations/conversation-1/runs/active/stream?after=2",
+      );
+    });
+    expect(setMessages).toHaveBeenCalledWith([
+      {
+        id: "user-1",
+        parts: [{ text: "生成页面", type: "text" }],
+        role: "user",
+      },
+    ]);
   });
 
   it("disables input when another conversation in the project is running", async () => {
@@ -928,6 +986,7 @@ describe("MessageParts", () => {
         conversationTitle="新建会话"
         initialMessages={[]}
         projectActiveRun={{
+          chunkCount: 1,
           conversationId: "conversation-1",
           createdAt: "2026-01-01T00:00:00.000Z",
           projectId: "project-1",

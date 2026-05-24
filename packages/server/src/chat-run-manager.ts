@@ -8,6 +8,7 @@ import {
 export type ChatRunStatus = "running" | "completed" | "failed" | "cancelled";
 
 export type ChatRunSummary = {
+  chunkCount: number;
   conversationId: string;
   createdAt: string;
   projectId: string;
@@ -15,7 +16,13 @@ export type ChatRunSummary = {
   status: ChatRunStatus;
 };
 
-type ChatRun = ChatRunSummary & {
+export type ChatRunSnapshot = {
+  activeRun: ChatRunSummary;
+  messages: UIMessage[];
+  nextChunkIndex: number;
+};
+
+type ChatRun = Omit<ChatRunSummary, "chunkCount"> & {
   abortController: AbortController;
   chunks: UIMessageChunk[];
   completedAt?: string;
@@ -91,14 +98,32 @@ export class ChatRunManager {
     return run?.status === "running" ? summarizeRun(run) : undefined;
   }
 
-  subscribeActiveRun(projectId: string, conversationId: string) {
+  getActiveRunSnapshot(projectId: string, conversationId: string) {
     const run = this.activeRunsByProjectId.get(projectId);
 
     if (!run || run.status !== "running" || run.conversationId !== conversationId) {
       return undefined;
     }
 
-    return this.subscribe(run);
+    return {
+      activeRun: summarizeRun(run),
+      messages: run.latestMessages,
+      nextChunkIndex: run.chunks.length,
+    } satisfies ChatRunSnapshot;
+  }
+
+  subscribeActiveRun(
+    projectId: string,
+    conversationId: string,
+    afterChunkIndex = 0,
+  ) {
+    const run = this.activeRunsByProjectId.get(projectId);
+
+    if (!run || run.status !== "running" || run.conversationId !== conversationId) {
+      return undefined;
+    }
+
+    return this.subscribe(run, afterChunkIndex);
   }
 
   cancelActiveRun(projectId: string) {
@@ -193,7 +218,7 @@ export class ChatRunManager {
     }
   }
 
-  private subscribe(run: ChatRun) {
+  private subscribe(run: ChatRun, afterChunkIndex = 0) {
     let controllerRef:
       | ReadableStreamDefaultController<UIMessageChunk>
       | undefined;
@@ -201,8 +226,9 @@ export class ChatRunManager {
     return new ReadableStream<UIMessageChunk>({
       start: (controller) => {
         controllerRef = controller;
+        const startIndex = Math.max(0, afterChunkIndex);
 
-        for (const chunk of run.chunks) {
+        for (const chunk of run.chunks.slice(startIndex)) {
           controller.enqueue(chunk);
         }
 
@@ -266,6 +292,7 @@ export function createChatRunStreamResponse(
 
 function summarizeRun(run: ChatRun): ChatRunSummary {
   return {
+    chunkCount: run.chunks.length,
     conversationId: run.conversationId,
     createdAt: run.createdAt,
     projectId: run.projectId,

@@ -114,6 +114,96 @@ describe("ChatRunManager", () => {
     await reader.cancel();
   });
 
+  it("returns an active run snapshot with latest messages and next chunk index", async () => {
+    const manager = new ChatRunManager();
+    const source = createControlledStream();
+    const result = manager.startRun({
+      conversationId: "conversation-1",
+      createStream: () => Promise.resolve(source.stream),
+      initialMessages: createUserMessages(),
+      onFinish: vi.fn(),
+      projectId: "project-1",
+    });
+
+    expect(result.ok).toBe(true);
+    source.enqueue({ messageId: "assistant-1", type: "start" });
+    source.enqueue({ id: "text-1", type: "text-start" });
+    source.enqueue({ delta: "完成", id: "text-1", type: "text-delta" });
+    source.enqueue({ id: "text-1", type: "text-end" });
+
+    await vi.waitFor(() => {
+      const snapshot = manager.getActiveRunSnapshot(
+        "project-1",
+        "conversation-1",
+      );
+
+      expect(snapshot?.activeRun.chunkCount).toBe(4);
+      expect(snapshot?.nextChunkIndex).toBe(4);
+      expect(snapshot?.messages).toHaveLength(2);
+    });
+  });
+
+  it("replays only chunks after the requested chunk index", async () => {
+    const manager = new ChatRunManager();
+    const source = createControlledStream();
+    const result = manager.startRun({
+      conversationId: "conversation-1",
+      createStream: () => Promise.resolve(source.stream),
+      initialMessages: createUserMessages(),
+      onFinish: vi.fn(),
+      projectId: "project-1",
+    });
+
+    expect(result.ok).toBe(true);
+    source.enqueue({ messageId: "assistant-1", type: "start" });
+    source.enqueue({ id: "text-1", type: "text-start" });
+
+    await vi.waitFor(() => {
+      expect(
+        manager.getActiveRunSnapshot("project-1", "conversation-1")
+          ?.nextChunkIndex,
+      ).toBe(2);
+    });
+
+    const replay = manager.subscribeActiveRun("project-1", "conversation-1", 1);
+    expect(replay).toBeDefined();
+
+    const reader = replay!.getReader();
+    await expect(reader.read()).resolves.toEqual({
+      done: false,
+      value: { id: "text-1", type: "text-start" },
+    });
+    await reader.cancel();
+  });
+
+  it("waits for live chunks when the requested chunk index is beyond the cache", async () => {
+    const manager = new ChatRunManager();
+    const source = createControlledStream();
+    const result = manager.startRun({
+      conversationId: "conversation-1",
+      createStream: () => Promise.resolve(source.stream),
+      initialMessages: createUserMessages(),
+      onFinish: vi.fn(),
+      projectId: "project-1",
+    });
+
+    expect(result.ok).toBe(true);
+
+    const stream = manager.subscribeActiveRun("project-1", "conversation-1", 10);
+    expect(stream).toBeDefined();
+
+    const reader = stream!.getReader();
+    const readPromise = reader.read();
+
+    source.enqueue({ messageId: "assistant-1", type: "start" });
+
+    await expect(readPromise).resolves.toEqual({
+      done: false,
+      value: { messageId: "assistant-1", type: "start" },
+    });
+    await reader.cancel();
+  });
+
   it("cancels the active run and releases the project lock", async () => {
     const manager = new ChatRunManager();
     const onFinish = vi.fn();

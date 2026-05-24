@@ -19,6 +19,7 @@ import { AiSettingsSection } from "@/features/settings/components/ai-settings-se
 import { GeneralSettingsSection } from "@/features/settings/components/general-settings-section";
 import { ResourceSettingsSection } from "@/features/settings/components/resource-settings-section";
 import { saveSettings, loadSettings } from "@/features/settings/client";
+import { useApiClient } from "@/api/context";
 import type {
   InterfaceLanguage,
   ModelConfigurationForm,
@@ -82,6 +83,7 @@ function SettingsPanel({
   >([]);
   const [resources, setResources] =
     useState<ResourceSettings>(DEFAULT_RESOURCES);
+  const api = useApiClient();
 
   useEffect(() => {
     if (!isOpen) {
@@ -90,7 +92,7 @@ function SettingsPanel({
 
     let isMounted = true;
 
-    void loadSettings()
+    void loadSettings(api)
       .then((settings) => {
         if (!isMounted) {
           return;
@@ -116,7 +118,7 @@ function SettingsPanel({
     return () => {
       isMounted = false;
     };
-  }, [isOpen]);
+  }, [api, isOpen]);
 
   if (!isOpen) {
     return null;
@@ -189,7 +191,7 @@ function SettingsPanel({
             <button
               className="rounded-[6px] bg-[#6c5ce7] px-[18px] py-[7px] text-[13px] font-medium text-white transition-all duration-150 hover:bg-[#7d6ff0]"
               onClick={async () => {
-                const saved = await saveSettings({
+                const saved = await saveSettings(api, {
                   defaultModelId,
                   interfaceLanguage,
                   modelConfigurations,
@@ -219,4 +221,3 @@ function navItemClass(active: boolean) {
       "bg-[rgba(108,92,231,0.15)] text-[#6c5ce7] before:absolute before:left-0 before:top-1 before:bottom-1 before:w-[3px] before:rounded-r-sm before:bg-[#6c5ce7] hover:bg-[rgba(108,92,231,0.15)] hover:text-[#6c5ce7]",
   );
 }
-

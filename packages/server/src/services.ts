@@ -5,6 +5,7 @@ import { createSettingsService } from "@owndesign/core/settings/settings-service
 import { WorkspaceStore } from "@owndesign/core/workspace-store";
 
 export type OwnDesignServerOptions = {
+  corsOrigin?: string | string[];
   settingsPath?: string;
   workspaceRoot?: string;
 };

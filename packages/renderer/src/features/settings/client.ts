@@ -1,13 +1,11 @@
-import { createApiClient } from "@/api/client";
+import type { ApiClient } from "@/api/client";
 import type {
   InterfaceLanguage,
   ModelConfigurationForm,
   ResourceSettings,
 } from "@/features/settings/types";
 
-const api = createApiClient();
-
-export async function saveSettings(settings: {
+export async function saveSettings(api: ApiClient, settings: {
   defaultModelId: string | null;
   interfaceLanguage: InterfaceLanguage;
   modelConfigurations: ModelConfigurationForm[];
@@ -22,6 +20,6 @@ export async function saveSettings(settings: {
   }
 }
 
-export function loadSettings() {
+export function loadSettings(api: ApiClient) {
   return api.loadSettings();
 }

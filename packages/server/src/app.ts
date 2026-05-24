@@ -3,6 +3,7 @@ import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
+import { cors } from "hono/cors";
 import { stream } from "hono/streaming";
 import { Hono } from "hono";
 import { ZipFile } from "yazl";
@@ -48,6 +49,16 @@ type DesignPageUIMessage = InferAgentUIMessage<
 
 export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
   const app = new Hono();
+
+  app.use(
+    "/api/*",
+    cors({
+      allowHeaders: ["Content-Type"],
+      allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+      exposeHeaders: ["Content-Disposition", "Content-Length", "Content-Type"],
+      origin: options.corsOrigin ?? "*",
+    }),
+  );
 
   app.get("/api/workspace", async (context) => {
     const services = createOwnDesignServices(options);

@@ -3,8 +3,6 @@ import path from "node:path";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
-const apiTarget = process.env.OWNDESIGN_SERVER_URL ?? "http://127.0.0.1:3711";
-
 export default defineConfig({
   plugins: [react()],
   resolve: {
@@ -29,10 +27,5 @@ export default defineConfig({
         replacement: path.resolve(__dirname, "../../packages/renderer/src"),
       },
     ],
-  },
-  server: {
-    proxy: {
-      "/api": apiTarget,
-    },
   },
 });

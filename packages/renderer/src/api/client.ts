@@ -25,7 +25,8 @@ export type WorkspaceState = {
 export type ApiClient = ReturnType<typeof createApiClient>;
 
 export function createApiClient(baseUrl = "") {
-  const url = (path: string) => `${baseUrl}${path}`;
+  const normalizedBaseUrl = baseUrl.replace(/\/$/, "");
+  const url = (path: string) => `${normalizedBaseUrl}${path}`;
 
   async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
     const response = await fetch(url(path), init);

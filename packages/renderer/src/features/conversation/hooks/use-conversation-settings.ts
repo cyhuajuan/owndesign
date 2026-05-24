@@ -8,8 +8,11 @@ import type {
   PublicSettings,
 } from "@/features/conversation/types";
 import { updateDefaultModel } from "@/features/conversation/utils/model-selection";
+import { useApiClient } from "@/api/context";
+import type { ApiClient } from "@/api/client";
 
 export function useConversationSettings() {
+  const api = useApiClient();
   const [settings, setSettings] = useState<PublicSettings>();
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const selectedModel = settings?.modelConfigurations.find(
@@ -25,16 +28,15 @@ export function useConversationSettings() {
 
       setSelectedModelId(modelId);
       setSettings(nextSettings);
-      await saveSettings(nextSettings);
+      await saveSettings(api, nextSettings);
     },
-    [settings],
+    [api, settings],
   );
 
   useEffect(() => {
     let isMounted = true;
     const loadSettings = async () => {
-      const response = await fetch("/api/settings");
-      const nextSettings = (await response.json()) as PublicSettings;
+      const nextSettings = await api.loadSettings();
 
       if (!isMounted) {
         return;
@@ -55,7 +57,7 @@ export function useConversationSettings() {
       isMounted = false;
       window.removeEventListener(SETTINGS_UPDATED_EVENT, loadSettings);
     };
-  }, []);
+  }, [api]);
 
   return {
     handleModelSelect,
@@ -65,21 +67,23 @@ export function useConversationSettings() {
   };
 }
 
-async function saveSettings(settings: PublicSettings) {
-  await fetch("/api/settings", {
-    body: JSON.stringify({
-      ...settings,
-      modelConfigurations: settings.modelConfigurations.map((configuration) => ({
-        id: configuration.id,
-        provider: configuration.provider,
-        model: configuration.model,
-        baseUrl: configuration.baseUrl,
-        contextSizeK: configuration.contextSizeK,
-        providerOptions: configuration.providerOptions,
-        apiKey: "",
-      })),
-    }),
-    headers: { "Content-Type": "application/json" },
-    method: "PUT",
+async function saveSettings(
+  api: ApiClient,
+  settings: PublicSettings,
+) {
+  await api.saveSettings({
+    defaultModelId: settings.defaultModelId,
+    interfaceLanguage: settings.interfaceLanguage,
+    resources: settings.resources,
+    modelConfigurations: settings.modelConfigurations.map((configuration) => ({
+      id: configuration.id,
+      provider: configuration.provider,
+      model: configuration.model,
+      baseUrl: configuration.baseUrl,
+      contextSizeK: String(configuration.contextSizeK),
+      providerOptions: configuration.providerOptions,
+      apiKey: "",
+      collapsed: true,
+    })),
   });
 }

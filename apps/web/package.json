@@ -13,13 +13,13 @@
   },
   "dependencies": {
     "@owndesign/renderer": "workspace:*",
-    "@vitejs/plugin-react": "latest",
-    "react": "latest",
-    "react-dom": "latest",
-    "tailwindcss": "latest",
-    "vite": "latest"
+    "@vitejs/plugin-react": "^6.0.2",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "tailwindcss": "^4.3.0",
+    "vite": "^8.0.14"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "latest"
+    "@tailwindcss/postcss": "^4.3.0"
   }
 }

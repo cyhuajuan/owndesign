@@ -16,10 +16,10 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@hono/node-server": "latest",
+    "@hono/node-server": "^2.0.4",
     "@owndesign/core": "workspace:*",
-    "ai": "latest",
-    "hono": "latest",
-    "yazl": "latest"
+    "ai": "^6.0.191",
+    "hono": "^4.12.22",
+    "yazl": "^3.3.1"
   }
 }

@@ -3,7 +3,6 @@
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import { AlertCircleIcon } from "lucide-react";
-import { useAppSearchParams } from "@/lib/router";
 import { memo, useEffect, useMemo, useRef } from "react";
 
 import {
@@ -34,6 +33,7 @@ import { deriveConversationTitle } from "@/features/conversation/utils/conversat
 import { getDeepSeekThinkingMode } from "@/features/conversation/utils/model-selection";
 import { FRONTEND_TAB_ID } from "@/features/preview/components/frontend-capability-bridge";
 import { useApiClient } from "@/api/context";
+import { getCurrentPreviewPath } from "@/features/preview/preview-path";
 
 type StreamingConversationPanelProps = {
   conversationId: string;
@@ -62,8 +62,6 @@ export function StreamingConversationPanel({
   titleManuallySet = false,
 }: StreamingConversationPanelProps) {
   const api = useApiClient();
-  const [searchParams] = useAppSearchParams();
-  const selectedPreviewPath = searchParams.get("previewPath") ?? undefined;
   const { handleModelSelect, selectedModel, selectedModelId, settings } =
     useConversationSettings();
   const previousStatusRef = useRef("ready");
@@ -75,11 +73,11 @@ export function StreamingConversationPanel({
     () =>
       new DefaultChatTransport({
         api: api.streamChatUrl(),
-        body: {
+        body: () => ({
           conversationId,
           frontendTabId: FRONTEND_TAB_ID,
           modelConfigurationId: selectedModelId,
-          previewPath: selectedPreviewPath,
+          previewPath: getCurrentPreviewPath(),
           projectId,
           ...(selectedDeepSeekThinkingMode
             ? {
@@ -88,7 +86,7 @@ export function StreamingConversationPanel({
                 },
               }
             : {}),
-        },
+        }),
       }),
     [
       conversationId,
@@ -96,7 +94,6 @@ export function StreamingConversationPanel({
       projectId,
       selectedDeepSeekThinkingMode,
       selectedModelId,
-      selectedPreviewPath,
     ],
   );
   const { error, messages, sendMessage, status, stop } = useChat({

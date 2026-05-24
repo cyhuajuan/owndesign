@@ -1,17 +1,13 @@
 "use client";
 
 import { useEffect } from "react";
-import {
-  useAppLocation,
-  useAppNavigate,
-  useAppSearchParams,
-} from "@/lib/router";
 
 import {
   isFrontendCapabilityId,
   type FrontendCommand,
 } from "@owndesign/core/realtime/frontend-capabilities";
 import { useApiClient } from "@/api/context";
+import { usePreviewPath } from "@/features/preview/preview-path";
 
 export const FRONTEND_TAB_ID = createFrontendTabId();
 
@@ -26,9 +22,7 @@ export function FrontendCapabilityBridge({
   projectId,
 }: FrontendCapabilityBridgeProps) {
   const api = useApiClient();
-  const { pathname } = useAppLocation();
-  const navigate = useAppNavigate();
-  const [searchParams] = useAppSearchParams();
+  const [, setPreviewPath] = usePreviewPath();
 
   useEffect(() => {
     if (!projectId) {
@@ -57,12 +51,7 @@ export function FrontendCapabilityBridge({
         return;
       }
 
-      const params = new URLSearchParams(searchParams.toString());
-      params.set("previewPath", command.payload.path);
-      navigate(`${pathname}?${params.toString()}`, {
-        preventScrollReset: true,
-        replace: true,
-      });
+      setPreviewPath(command.payload.path);
       window.dispatchEvent(
         new CustomEvent(PROJECT_OUTPUT_UPDATED_EVENT, {
           detail: { projectId },
@@ -73,7 +62,7 @@ export function FrontendCapabilityBridge({
     return () => {
       eventSource.close();
     };
-  }, [api, navigate, pathname, projectId, searchParams]);
+  }, [api, projectId, setPreviewPath]);
 
   return null;
 }

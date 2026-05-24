@@ -2,11 +2,7 @@
 
 import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import {
-  useAppLocation,
-  useAppNavigate,
-  useAppSearchParams,
-} from "@/lib/router";
+import { useAppNavigate } from "@/lib/router";
 import {
   DownloadIcon,
   ExternalLinkIcon,
@@ -111,9 +107,7 @@ export function ChatShell({
   previewStatus = "ready",
 }: ChatShellProps) {
   const api = useApiClient();
-  const { pathname } = useAppLocation();
   const navigate = useAppNavigate();
-  const [searchParams] = useAppSearchParams();
   const [sessionPreviewHref, setSessionPreviewHref] = useState<string>();
   const [previewFiles, setPreviewFiles] = useState<string[]>([]);
   const [activePreviewPath, setActivePreviewPath] = useState("index.html");
@@ -186,9 +180,9 @@ export function ChatShell({
       return;
     }
 
-    const params = new URLSearchParams(searchParams.toString());
+    const params = new URLSearchParams(window.location.search);
     params.set("previewPath", nextPath);
-    navigate(`${pathname}?${params.toString()}`, {
+    navigate(`${window.location.pathname}?${params.toString()}`, {
       preventScrollReset: true,
       replace: true,
     });

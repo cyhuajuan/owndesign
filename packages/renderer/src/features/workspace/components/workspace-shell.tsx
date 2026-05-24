@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import { FolderIcon, MessageSquareIcon, PlusIcon } from "lucide-react";
 
 import {
@@ -55,7 +55,7 @@ type WorkspaceShellProps = {
   projects: ProjectRecord[];
 };
 
-export function WorkspaceShell({
+export const WorkspaceShell = memo(function WorkspaceShell({
   activeConversationId,
   activeProject,
   conversations,
@@ -179,7 +179,7 @@ export function WorkspaceShell({
       [update.id]: update,
     }));
   }
-}
+});
 
 function sortConversations(conversations: ConversationRecord[]) {
   return [...conversations].sort((left, right) => {

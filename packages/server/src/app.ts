@@ -23,8 +23,8 @@ import { registerFrontendConnection } from "@owndesign/core/realtime/frontend-co
 import {
   parseDeepSeekThinkingMode,
 } from "@owndesign/core/settings/settings-service";
+import { buildWorkspaceHref } from "@owndesign/core/navigation";
 
-import { buildWorkspaceHref } from "./navigation";
 import {
   createConversationService,
   createOwnDesignServices,
@@ -135,7 +135,10 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
     });
 
     return context.json({
-      href: buildWorkspaceHref(result.project.id, result.conversation.id),
+      href: buildWorkspaceHref({
+        conversationId: result.conversation.id,
+        projectId: result.project.id,
+      }),
     });
   });
 
@@ -153,7 +156,10 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
     });
 
     return context.json({
-      href: buildWorkspaceHref(result.project.id, result.conversation.id),
+      href: buildWorkspaceHref({
+        conversationId: result.conversation.id,
+        projectId: result.project.id,
+      }),
     });
   });
 
@@ -188,7 +194,10 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
       : undefined;
 
     return context.json({
-      href: buildWorkspaceHref(fallbackProject?.id, fallbackConversation?.id),
+      href: buildWorkspaceHref({
+        conversationId: fallbackConversation?.id,
+        projectId: fallbackProject?.id,
+      }),
     });
   });
 
@@ -199,7 +208,10 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
     const activeConversation = conversationState.conversations[0];
 
     return context.json({
-      href: buildWorkspaceHref(projectId, activeConversation?.id),
+      href: buildWorkspaceHref({
+        conversationId: activeConversation?.id,
+        projectId,
+      }),
     });
   });
 
@@ -209,7 +221,10 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
       await createConversationService(options).createConversation(projectId);
 
     return context.json({
-      href: buildWorkspaceHref(projectId, conversation.id),
+      href: buildWorkspaceHref({
+        conversationId: conversation.id,
+        projectId,
+      }),
     });
   });
 
@@ -225,7 +240,10 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
       );
 
       return context.json({
-        href: buildWorkspaceHref(projectId, conversationId),
+        href: buildWorkspaceHref({
+          conversationId,
+          projectId,
+        }),
       });
     },
   );
@@ -269,7 +287,10 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
           : currentConversationId;
 
       return context.json({
-        href: buildWorkspaceHref(projectId, nextConversationId),
+        href: buildWorkspaceHref({
+          conversationId: nextConversationId,
+          projectId,
+        }),
       });
     },
   );

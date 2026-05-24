@@ -19,6 +19,7 @@ import type {
   ConversationRecord,
   ProjectRecord,
 } from "@owndesign/core/workspace-store";
+import { getWorkspaceProjectId } from "@owndesign/core/navigation";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -555,11 +556,32 @@ export function ControlBar({
     const result = await actionResult;
 
     if (result?.href) {
-      navigate(result.href);
+      navigate(getNavigationHref(result.href));
       window.dispatchEvent(new Event("owndesign:workspace-refresh"));
       return;
     }
 
     window.dispatchEvent(new Event("owndesign:workspace-refresh"));
+  }
+
+  function getNavigationHref(href: string) {
+    const nextProjectId = getWorkspaceProjectId(href);
+
+    if (!nextProjectId || nextProjectId !== activeProjectId) {
+      return href;
+    }
+
+    const previewPath = new URLSearchParams(window.location.search).get(
+      "previewPath",
+    );
+
+    if (!previewPath) {
+      return href;
+    }
+
+    const url = new URL(href, window.location.origin);
+    url.searchParams.set("previewPath", previewPath);
+
+    return `${url.pathname}${url.search}`;
   }
 }

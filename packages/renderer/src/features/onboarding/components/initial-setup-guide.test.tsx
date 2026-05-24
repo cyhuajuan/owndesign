@@ -45,7 +45,7 @@ describe("InitialSetupGuide", () => {
   it("completes setup and navigates to returned href", async () => {
     const user = userEvent.setup();
     const onComplete = vi.fn().mockResolvedValue({
-      href: "/?projectId=project-1&conversationId=conversation-1",
+      href: "/projects/project-1/conversations/conversation-1",
     });
 
     render(<InitialSetupGuide onComplete={onComplete} />);
@@ -72,8 +72,8 @@ describe("InitialSetupGuide", () => {
 
     await waitFor(
       () => {
-        expect(window.location.search).toBe(
-          "?projectId=project-1&conversationId=conversation-1",
+        expect(window.location.pathname).toBe(
+          "/projects/project-1/conversations/conversation-1",
         );
       },
       { timeout: 2000 },

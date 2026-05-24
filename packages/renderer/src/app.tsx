@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   BrowserRouter,
-  useLocation,
   useNavigate,
-  useSearchParams,
+  useParams,
+  Routes,
+  Route,
 } from "react-router";
 
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -17,7 +18,15 @@ export function OwnDesignApp({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
     <ApiClientProvider baseUrl={apiBaseUrl}>
       <BrowserRouter>
         <TooltipProvider>
-          <WorkspaceRoute />
+          <Routes>
+            <Route path="/" element={<WorkspaceRoute />} />
+            <Route path="/projects/:projectId" element={<WorkspaceRoute />} />
+            <Route
+              path="/projects/:projectId/conversations/:conversationId"
+              element={<WorkspaceRoute />}
+            />
+            <Route path="*" element={<WorkspaceRoute />} />
+          </Routes>
         </TooltipProvider>
       </BrowserRouter>
     </ApiClientProvider>
@@ -26,14 +35,13 @@ export function OwnDesignApp({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
 
 function WorkspaceRoute() {
   const api = useApiClient();
-  const location = useLocation();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const params = useParams();
   const [state, setState] = useState<WorkspaceState>();
   const [error, setError] = useState<string>();
   const [refreshKey, setRefreshKey] = useState(0);
-  const projectId = searchParams.get("projectId") ?? undefined;
-  const conversationId = searchParams.get("conversationId") ?? undefined;
+  const projectId = params.projectId;
+  const conversationId = params.conversationId;
   const refresh = useCallback(() => setRefreshKey((value) => value + 1), []);
 
   useEffect(() => {
@@ -72,36 +80,34 @@ function WorkspaceRoute() {
     };
   }, [api, conversationId, projectId, refreshKey]);
 
-  const actions = {
-    onCreateConversation: () =>
-      state?.activeProject
-        ? api.createConversation(state.activeProject.id)
-        : undefined,
-    onCreateProject: api.createProject,
-    onDeleteConversation: (targetConversationId: string) =>
-      state?.activeProject
-        ? api.deleteConversation(
-            state.activeProject.id,
-            targetConversationId,
-            state.activeConversationId,
-          )
-        : undefined,
-    onDeleteProject: api.deleteProject,
-    onRenameConversation: (targetConversationId: string, title: string) =>
-      state?.activeProject
-        ? api.renameConversation(
-            state.activeProject.id,
-            targetConversationId,
-            title,
-          )
-        : undefined,
-    onRenameProject: api.renameProject,
-    onSelectConversation: (targetConversationId: string) =>
-      state?.activeProject
-        ? api.selectConversation(state.activeProject.id, targetConversationId)
-        : undefined,
-    onSelectProject: api.selectProject,
-  };
+  const actions = useMemo(() => {
+    const activeProjectId = state?.activeProject?.id;
+
+    return {
+      onCreateConversation: () =>
+        activeProjectId ? api.createConversation(activeProjectId) : undefined,
+      onCreateProject: api.createProject,
+      onDeleteConversation: (targetConversationId: string) =>
+        activeProjectId
+          ? api.deleteConversation(
+              activeProjectId,
+              targetConversationId,
+              state?.activeConversationId,
+            )
+          : undefined,
+      onDeleteProject: api.deleteProject,
+      onRenameConversation: (targetConversationId: string, title: string) =>
+        activeProjectId
+          ? api.renameConversation(activeProjectId, targetConversationId, title)
+          : undefined,
+      onRenameProject: api.renameProject,
+      onSelectConversation: (targetConversationId: string) =>
+        activeProjectId
+          ? api.selectConversation(activeProjectId, targetConversationId)
+          : undefined,
+      onSelectProject: api.selectProject,
+    };
+  }, [api, state?.activeConversationId, state?.activeProject?.id]);
 
   if (error) {
     return (
@@ -143,7 +149,7 @@ function WorkspaceRoute() {
       activeConversationId={state.activeConversationId}
       activeProject={state.activeProject}
       conversations={state.conversations}
-      key={location.key}
+      key={state.activeProject?.id ?? "empty-workspace"}
       projects={state.projects}
       {...actions}
     />

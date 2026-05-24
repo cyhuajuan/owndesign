@@ -7,6 +7,7 @@ import {
   MessageParts,
   StreamingConversationPanel,
 } from "./streaming-conversation-panel";
+import { setCurrentPreviewPath } from "@/features/preview/preview-path";
 
 function hasTextContent(text: string) {
   return (_: string, node: Element | null) => node?.textContent?.includes(text) ?? false;
@@ -37,9 +38,12 @@ vi.mock("ai", async () => {
 
   class MockDefaultChatTransport {
     api: string;
-    body: Record<string, unknown>;
+    body: Record<string, unknown> | (() => Record<string, unknown>);
 
-    constructor(options: { api: string; body: Record<string, unknown> }) {
+    constructor(options: {
+      api: string;
+      body: Record<string, unknown> | (() => Record<string, unknown>);
+    }) {
       this.api = options.api;
       this.body = options.body;
     }
@@ -63,6 +67,7 @@ vi.mock("ai", async () => {
 
 beforeEach(() => {
   window.history.replaceState(null, "", "/");
+  setCurrentPreviewPath(undefined);
   Object.defineProperty(URL, "createObjectURL", {
     configurable: true,
     value: vi.fn((file: File) => `blob:${file.name}`),
@@ -821,7 +826,7 @@ describe("MessageParts", () => {
   });
 
   it("includes current preview path in the chat transport body", () => {
-    window.history.replaceState(null, "", "/?previewPath=dashboard.html");
+    setCurrentPreviewPath("dashboard.html");
     vi.mocked(useChat).mockReturnValue({
       addToolApprovalResponse: vi.fn(),
       error: undefined,
@@ -840,17 +845,19 @@ describe("MessageParts", () => {
       />,
     );
 
-    expect(useChat).toHaveBeenCalledWith(
+    const useChatOptions = vi.mocked(useChat).mock.calls.at(-1)?.[0] as
+      | { transport: { api: string; body: () => Record<string, unknown> } }
+      | undefined;
+    const transport = useChatOptions?.transport;
+
+    expect(transport).toBeDefined();
+    expect(transport?.api).toBe("/api/chat");
+    expect(transport?.body()).toEqual(
       expect.objectContaining({
-        transport: expect.objectContaining({
-          api: "/api/chat",
-        body: expect.objectContaining({
-          conversationId: "conversation-1",
-          frontendTabId: "tab-1",
-          previewPath: "dashboard.html",
-          projectId: "project-1",
-          }),
-        }),
+        conversationId: "conversation-1",
+        frontendTabId: "tab-1",
+        previewPath: "dashboard.html",
+        projectId: "project-1",
       }),
     );
   });

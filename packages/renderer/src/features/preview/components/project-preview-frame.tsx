@@ -2,14 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LoaderCircleIcon } from "lucide-react";
-import {
-  useAppLocation,
-  useAppNavigate,
-  useAppSearchParams,
-} from "@/lib/router";
 
 import { PreviewEmptyState } from "@/features/preview/components/preview-empty-state";
 import { useApiClient } from "@/api/context";
+import {
+  setCurrentPreviewPath,
+  usePreviewPath,
+} from "@/features/preview/preview-path";
 
 type ProjectPreviewFrameProps = {
   initialUpdatedAt: string;
@@ -34,10 +33,7 @@ export function ProjectPreviewFrame({
 }: ProjectPreviewFrameProps) {
   const api = useApiClient();
   const clientId = useRef(createClientId());
-  const { pathname } = useAppLocation();
-  const navigate = useAppNavigate();
-  const [searchParams] = useAppSearchParams();
-  const selectedPreviewPath = searchParams.get("previewPath") ?? undefined;
+  const [selectedPreviewPath, setPreviewPath] = usePreviewPath();
   const pendingRouteSyncPathRef = useRef<string | undefined>(undefined);
   const previewUrlRef = useRef<string | undefined>(undefined);
   const [previewUrl, setPreviewUrl] = useState<string>();
@@ -57,6 +53,10 @@ export function ProjectPreviewFrame({
     },
     [],
   );
+
+  useEffect(() => {
+    setCurrentPreviewPath(selectedPreviewPath);
+  }, [selectedPreviewPath]);
 
   useEffect(() => {
     let isActive = true;
@@ -191,13 +191,8 @@ export function ProjectPreviewFrame({
       const currentPath = selectedPreviewPath ?? "index.html";
 
       if (session.activePath !== currentPath) {
-        const params = new URLSearchParams(searchParams.toString());
-        params.set("previewPath", session.activePath);
         pendingRouteSyncPathRef.current = session.activePath;
-        navigate(`${pathname}?${params.toString()}`, {
-          preventScrollReset: true,
-          replace: true,
-        });
+        setPreviewPath(session.activePath);
       }
     } catch {
       setPreviewUrl(undefined);
@@ -211,6 +206,7 @@ export function ProjectPreviewFrame({
     const currentClientId = clientId.current;
 
     return () => {
+      setCurrentPreviewPath(undefined);
       publishPreviewHref(undefined);
       publishPreviewFiles([], "index.html");
       void fetch(

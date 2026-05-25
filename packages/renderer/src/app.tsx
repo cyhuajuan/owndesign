@@ -1,0 +1,172 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  BrowserRouter,
+  useNavigate,
+  useParams,
+  Routes,
+  Route,
+} from "react-router";
+
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { ApiClientProvider, useApiClient } from "@/api/context";
+import { InitialSetupGuide } from "@/features/onboarding/components/initial-setup-guide";
+import { WorkspaceShell } from "@/features/workspace/components/workspace-shell";
+import type { WorkspaceState } from "@/api/client";
+
+export function OwnDesignApp({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
+  return (
+    <ApiClientProvider baseUrl={apiBaseUrl}>
+      <BrowserRouter>
+        <TooltipProvider>
+          <Routes>
+            <Route path="/" element={<WorkspaceRoute />} />
+            <Route path="/projects/:projectId" element={<WorkspaceRoute />} />
+            <Route
+              path="/projects/:projectId/conversations/:conversationId"
+              element={<WorkspaceRoute />}
+            />
+            <Route path="*" element={<WorkspaceRoute />} />
+          </Routes>
+        </TooltipProvider>
+      </BrowserRouter>
+    </ApiClientProvider>
+  );
+}
+
+function WorkspaceRoute() {
+  const api = useApiClient();
+  const navigate = useNavigate();
+  const params = useParams();
+  const [state, setState] = useState<WorkspaceState>();
+  const [error, setError] = useState<string>();
+  const [refreshKey, setRefreshKey] = useState(0);
+  const projectId = params.projectId;
+  const conversationId = params.conversationId;
+  const refresh = useCallback(() => setRefreshKey((value) => value + 1), []);
+
+  useEffect(() => {
+    const handleRefresh = () => refresh();
+
+    window.addEventListener("owndesign:workspace-refresh", handleRefresh);
+
+    return () => {
+      window.removeEventListener("owndesign:workspace-refresh", handleRefresh);
+    };
+  }, [refresh]);
+
+  useEffect(() => {
+    let isActive = true;
+
+    api
+      .loadWorkspace(projectId, conversationId)
+      .then((workspaceState) => {
+        if (isActive) {
+          setState(workspaceState);
+          setError(undefined);
+        }
+      })
+      .catch((loadError: unknown) => {
+        if (isActive) {
+          setError(
+            loadError instanceof Error
+              ? loadError.message
+              : "Workspace load failed.",
+          );
+        }
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [api, conversationId, projectId, refreshKey]);
+
+  useEffect(() => {
+    if (!state?.activeRun) {
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      refresh();
+    }, 2_000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [refresh, state?.activeRun]);
+
+  const actions = useMemo(() => {
+    const activeProjectId = state?.activeProject?.id;
+
+    return {
+      onCreateConversation: () =>
+        activeProjectId ? api.createConversation(activeProjectId) : undefined,
+      onCreateProject: api.createProject,
+      onDeleteConversation: (targetConversationId: string) =>
+        activeProjectId
+          ? api.deleteConversation(
+              activeProjectId,
+              targetConversationId,
+              state?.activeConversationId,
+            )
+          : undefined,
+      onDeleteProject: api.deleteProject,
+      onRenameConversation: (targetConversationId: string, title: string) =>
+        activeProjectId
+          ? api.renameConversation(activeProjectId, targetConversationId, title)
+          : undefined,
+      onRenameProject: api.renameProject,
+      onSelectConversation: (targetConversationId: string) =>
+        activeProjectId
+          ? api.selectConversation(activeProjectId, targetConversationId)
+          : undefined,
+      onSelectProject: api.selectProject,
+    };
+  }, [api, state?.activeConversationId, state?.activeProject?.id]);
+
+  if (error) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background p-8 text-destructive">
+        {error}
+      </div>
+    );
+  }
+
+  if (!state) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background text-muted-foreground">
+        加载中...
+      </div>
+    );
+  }
+
+  if (
+    state.projects.length === 0 &&
+    state.settings.modelConfigurations.length === 0
+  ) {
+    return (
+      <InitialSetupGuide
+        onComplete={async (input) => {
+          const result = await api.sendInitialSetup(input);
+
+          if (result?.href) {
+            navigate(result.href);
+          } else {
+            refresh();
+          }
+        }}
+      />
+    );
+  }
+
+  return (
+    <WorkspaceShell
+      activeConversationId={state.activeConversationId}
+      activeProject={state.activeProject}
+      activeRun={state.activeRun}
+      conversations={state.conversations}
+      key={state.activeProject?.id ?? "empty-workspace"}
+      projects={state.projects}
+      {...actions}
+    />
+  );
+}

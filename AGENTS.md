@@ -1,74 +1,101 @@
 ## Project Overview
 
-OwnDesign is a Chinese-language AI-powered design tool. Users converse with an AI agent (powered by DeepSeek or OpenAI-compatible models) to generate and iterate on HTML page designs, previewed live in an iframe. The UI defaults to `zh-CN`.
+OwnDesign is an AI-powered design prototyping tool. Users describe what they want, and an AI agent creates and iterates on HTML pages displayed in a live preview. The UI is primarily in Chinese.
 
 ## Commands
 
 ```bash
-pnpm dev          # Start dev server on port 3710
-pnpm build        # Production build
-pnpm lint         # ESLint (flat config, eslint.config.mjs)
-pnpm typecheck    # tsc --noEmit
-pnpm test         # Vitest (jsdom, single run)
-pnpm test:watch   # Vitest in watch mode
+pnpm dev          # Start both server (3711) and web (3710) in parallel
+pnpm build        # Build all packages
+pnpm lint         # Lint all packages
+pnpm typecheck    # Type-check all packages
+pnpm test         # Run all tests
+pnpm test:watch   # Run tests in watch mode (all packages)
 ```
 
-Single test: `pnpm vitest run src/path/to/file.test.ts`
+Run a single package's tests: `pnpm --filter @owndesign/core test`
+Run a single test file: `pnpm --filter @owndesign/core exec vitest run src/agent/design-page-agent.test.ts`
 
 ## Architecture
 
-### Two-Layer Structure
+pnpm monorepo with three packages and one app:
 
-- **Feature layer** (`src/features/`): Client-facing React components organized by domain — `conversation`, `onboarding`, `preview`, `projects`, `settings`, `workspace`. Components here are "use client" and compose the UI shell.
-- **Server layer** (`src/server/`): Pure backend logic — no React. Services are instantiated per-request via factory functions in `src/server/owndesign.ts`.
+- **`packages/core`** (`@owndesign/core`) — Domain logic, no UI. AI agent, workspace storage, project/conversation services, preview server management, settings.
+- **`packages/renderer`** (`@owndesign/renderer`) — React UI. Chat panel, workspace shell, preview frame, settings, onboarding.
+- **`packages/server`** (`@owndesign/server`) — Hono HTTP server. REST API + SSE for chat streaming and frontend commands.
+- **`apps/web`** (`@owndesign/web`) — Vite app entry point. Mounts `<OwnDesignApp>` from renderer.
 
-### Data Persistence
+### Data flow
 
-- `WorkspaceStore` (`src/server/workspace-store/`): File-system store rooted at `~/.owndesign/`. Projects live at `~/.owndesign/projects/{id}/`, conversations at `{id}/conversations/{id}.json`. Workspace files (the AI generates HTML here) are at `{id}/workspace/`.
-- `SettingsService` (`src/server/settings/settings-service.ts`): Reads/writes `~/.owndesign/settings.json` with an mtime-based cache. Holds model provider configs (DeepSeek, OpenAI-compatible) and font/icon CDN resource libraries.
-- Preview servers (`src/server/preview/preview-server-manager.ts`): Each project gets a Fastify static file server on a random port. Lease-based lifecycle with 90s TTL and keepalive.
+`WorkspaceStore` (filesystem JSON at `~/.owndesign/`) → Hono REST API → fetch client (`renderer/src/api/client.ts`) → React components. Chat uses SSE via `ai` SDK's `createAgentUIStreamResponse` → `useChat` hook on the frontend.
 
-### AI Agent Flow
+### Path aliases
 
-1. User sends message via `StreamingConversationPanel` (uses Vercel AI SDK `useChat`)
-2. `POST /api/chat` creates a `ToolLoopAgent` from `src/server/agent/design-page-agent.ts`
-3. Agent system prompt assembled from `design-page.agent.md` + runtime sections (page target protocol, resource policy, frontend capabilities)
-4. Agent tools (`src/server/agent/tools/`) operate on WorkspaceStore: `read`, `edit`, `write`, `patch`, `createHtml`, `delete`, `glob`, `grep`, `callFrontendCapability`
-5. `callFrontendCapability` sends SSE commands to the preview iframe via `FrontendCommandBus` (server-push, `POST /api/projects/{id}/frontend-capabilities/stream`)
-6. On finish, messages saved via `ConversationService.saveUIMessageStream`
+Configured in both `apps/web/vite.config.ts` and `apps/web/tsconfig.json`:
 
-### Agent Tool CDN Guard
+- `@owndesign/renderer` → `packages/renderer/src/app.tsx`
+- `@owndesign/renderer/*` → `packages/renderer/src/*`
+- `@owndesign/core/*` → `packages/core/src/*`
+- `@` → `packages/renderer/src`
 
-`cdn-guard.ts` validates that HTML written through `write`, `edit`, and `patch` tools only uses CDN URLs configured in settings. This is enforced at the tool level, not at the agent prompt level.
+### Key domain concepts
 
-### Frontend Capability Bridge
+- **Project** — Container for a design task. Has workspace directory with HTML files. Output type is always `"html"`.
+- **Conversation** — Chat thread within a project. Messages streamed via AI SDK agent.
+- **DesignPageAgent** — The AI agent (`core/src/agent/design-page-agent.ts`). Uses `ToolLoopAgent` from `ai` SDK v6 with 10 workspace tools (read, write, edit, patch, glob, grep, delete, create-html, call-frontend-capability, cdn-guard).
+- **PreviewServerManager** — Dynamic Fastify servers per project/client with TTL-based lease (90s default) and heartbeat renewal.
+- **FrontendCommandBus** — SSE-based command delivery from server to frontend for preview refresh/switch commands.
+- **CDN guard** — HTML files can only reference CDN URLs configured in settings. Unapproved references rejected at tool level.
 
-`src/features/preview/components/frontend-capability-bridge.tsx` — client component that opens an SSE connection per project to receive preview commands (`preview.refresh`, `preview.switchHtml`). Dispatches custom DOM events.
+### API routes (server/src/app.ts)
 
-### Key Types
+All routes prefixed `/api/`. Key endpoints:
+- `GET /workspace` — Full workspace state
+- `POST /chat` — AI chat (SSE stream)
+- `POST /projects`, `PATCH /projects/:id`, `DELETE /projects/:id` — Project CRUD
+- `POST /projects/:id/conversations`, etc. — Conversation CRUD
+- `GET/PUT /settings` — Settings CRUD
+- `POST /initial-setup` — First-run setup
+- `POST /projects/:id/preview-session` — Acquire preview server
+- `DELETE /projects/:id/preview-session` — Release preview server
+- `POST /projects/:id/preview-session/heartbeat` — Keep preview alive
+- `GET /projects/:id/frontend-capabilities/stream` — SSE for frontend commands
+- `GET /projects/:id/download` — Download HTML or ZIP
 
-- `ProjectRecord`, `ConversationRecord`, `WorkspaceEntry` etc. — defined in `src/server/workspace-store/store.ts`
-- `ProjectOutputType` is currently `"html"` only
-- `DesignPageAgent` interface in `src/server/agent/design-page-agent.ts` — `AiSdkDesignPageAgent` is the production implementation; `MockReplyEngine` in `src/lib/mock-reply-engine.ts` exists for testing
+### Component architecture (renderer)
 
-### Component Libraries
+- `ai-elements/` — Custom AI chat components (message, conversation, prompt-input, code-block, reasoning, tool, confirmation)
+- `ui/` — ~25 base UI components built on `@base-ui/react` (shadcn-style)
+- `features/conversation/` — Chat panel with streaming, model selection, context usage
+- `features/workspace/` — Main layout (sidebar + preview pane)
+- `features/preview/` — iframe preview with session management and capability bridge
+- `features/onboarding/` — Initial setup wizard
+- `features/settings/` — Settings dialog (model config, resources, general)
 
-- **shadcn/ui** (base-nova style) — components in `src/components/ui/`
-- **AI Elements** — components in `src/components/ai-elements/` (conversation, message, prompt-input, etc.), sourced from `@ai-elements` registry. These are excluded from ESLint (see `eslint.config.mjs`).
+## Tech Stack
 
-### Path Aliases
+- **Runtime**: Node.js, TypeScript 6, ESM (`"type": "module"`)
+- **Frontend**: React 19, React Router v7, Tailwind CSS v4, Vite 8
+- **Backend**: Hono v4 (server), Fastify (preview servers)
+- **AI**: Vercel AI SDK v6 (agent, streaming, `useChat`), DeepSeek + OpenAI-compatible providers
+- **Testing**: Vitest 4, Testing Library (React + jest-dom + user-event)
+- **Monorepo**: pnpm workspaces, shared config in `packages/config/`
 
-`@/*` maps to `./src/*` (configured in both `tsconfig.json` and `vitest.config.ts`).
+## Conventions
 
-### Test Setup
+- All packages use `"type": "module"` and ESM imports
+- Core package exports via `"./*": "./src/*"` pattern — import as `@owndesign/core/agent/design-page-agent`
+- Renderer exports: `"."` → `app.tsx`, `"./*"` → `src/*`
+- Server runs on port 3711, web dev server on port 3710
+- `OWNDESIGN_SERVER_PORT` and `OWNDESIGN_SERVER_HOST` env vars for server config
+- `VITE_OWNDESIGN_API_BASE_URL` env var for web app API base URL (default: `http://127.0.0.1:3711`)
+- Settings stored at `~/.owndesign/settings.json`
+- Project data at `~/.owndesign/projects/<id>/`
 
-`vitest.setup.ts` mocks `next/navigation` and polyfills `ResizeObserver`, `getAnimations`, `scrollIntoView`. Uses `@testing-library/react` and `@testing-library/jest-dom/vitest`.
+## Skills
 
-## Important Conventions
+The `.agents/skills/` directory contains two skill definitions:
+- **ai-elements** — Component library reference for AI chat UI components
+- **ai-sdk** — AI SDK v6 patterns and `ToolLoopAgent` usage
 
-- The project uses pnpm (not npm/yarn). `pnpm-workspace.yaml` exists but is minimal.
-- Language is TypeScript with strict mode. React 19, Next.js 16 (App Router).
-- All server state is file-based — no database. The `~/.owndesign/` directory is the data root.
-- The agent's system prompt is the single source of behavioral truth. Modifications to how the agent decides what to do belong in `design-page.agent.md` or the prompt builder functions in `design-page-agent.ts`.
-- Frontend custom events use the `owndesign:` prefix (e.g., `owndesign:preview-refresh`, `owndesign:preview-href-updated`).
-- Global singletons for `PreviewServerManager` and `FrontendCommandBus` are stored on `globalThis` to survive HMR in development.
+Consult these when modifying agent behavior or chat UI components.

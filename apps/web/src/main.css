@@ -1,0 +1,5 @@
+@import "tailwindcss";
+@import "@owndesign/renderer/globals.css";
+
+@source "./";
+@source "../../../packages/renderer/src";

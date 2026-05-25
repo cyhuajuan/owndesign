@@ -143,6 +143,73 @@ describe("ChatRunManager", () => {
     });
   });
 
+  it("returns a resumable snapshot before an active tool input stream", async () => {
+    const manager = new ChatRunManager();
+    const source = createControlledStream();
+    const result = manager.startRun({
+      conversationId: "conversation-1",
+      createStream: () => Promise.resolve(source.stream),
+      initialMessages: createUserMessages(),
+      onFinish: vi.fn(),
+      projectId: "project-1",
+    });
+
+    expect(result.ok).toBe(true);
+    source.enqueue({ messageId: "assistant-1", type: "start" });
+    source.enqueue({
+      toolCallId: "call-1",
+      toolName: "write",
+      type: "tool-input-start",
+    });
+    source.enqueue({
+      inputTextDelta: "{\"path\"",
+      toolCallId: "call-1",
+      type: "tool-input-delta",
+    });
+
+    await vi.waitFor(() => {
+      expect(manager.getActiveRun("project-1")?.chunkCount).toBe(3);
+    });
+
+    const snapshot = manager.getActiveRunSnapshot(
+      "project-1",
+      "conversation-1",
+    );
+
+    expect(snapshot?.nextChunkIndex).toBe(0);
+    expect(snapshot?.messages).toHaveLength(1);
+
+    const replay = manager.subscribeActiveRun(
+      "project-1",
+      "conversation-1",
+      snapshot?.nextChunkIndex,
+    );
+    expect(replay).toBeDefined();
+
+    const reader = replay!.getReader();
+    await expect(reader.read()).resolves.toEqual({
+      done: false,
+      value: { messageId: "assistant-1", type: "start" },
+    });
+    await expect(reader.read()).resolves.toEqual({
+      done: false,
+      value: {
+        toolCallId: "call-1",
+        toolName: "write",
+        type: "tool-input-start",
+      },
+    });
+    await expect(reader.read()).resolves.toEqual({
+      done: false,
+      value: {
+        inputTextDelta: "{\"path\"",
+        toolCallId: "call-1",
+        type: "tool-input-delta",
+      },
+    });
+    await reader.cancel();
+  });
+
   it("replays only chunks after the requested chunk index", async () => {
     const manager = new ChatRunManager();
     const source = createControlledStream();
@@ -159,10 +226,7 @@ describe("ChatRunManager", () => {
     source.enqueue({ id: "text-1", type: "text-start" });
 
     await vi.waitFor(() => {
-      expect(
-        manager.getActiveRunSnapshot("project-1", "conversation-1")
-          ?.nextChunkIndex,
-      ).toBe(2);
+      expect(manager.getActiveRun("project-1")?.chunkCount).toBe(2);
     });
 
     const replay = manager.subscribeActiveRun("project-1", "conversation-1", 1);

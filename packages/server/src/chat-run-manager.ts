@@ -30,7 +30,17 @@ type ChatRun = Omit<ChatRunSummary, "chunkCount"> & {
   initialMessages: UIMessage[];
   latestMessages: UIMessage[];
   pendingLiveChunks: UIMessageChunk[];
+  safeMessages: UIMessage[];
+  safeResumeChunkIndex: number;
+  safeSnapshotChunkIndex: number;
+  streamState: ResumableStreamState;
   subscribers: Set<ReadableStreamDefaultController<UIMessageChunk>>;
+};
+
+type ResumableStreamState = {
+  reasoningPartIds: Set<string>;
+  textPartIds: Set<string>;
+  toolInputCallIds: Set<string>;
 };
 
 type StartChatRunInput = {
@@ -83,7 +93,11 @@ export class ChatRunManager {
       pendingLiveChunks: [],
       projectId: input.projectId,
       runId: createRunId(),
+      safeMessages: input.initialMessages,
+      safeResumeChunkIndex: 0,
+      safeSnapshotChunkIndex: 0,
       status: "running",
+      streamState: createResumableStreamState(),
       subscribers: new Set(),
     };
 
@@ -112,8 +126,8 @@ export class ChatRunManager {
 
     return {
       activeRun: summarizeRun(run),
-      messages: run.latestMessages,
-      nextChunkIndex: run.chunks.length,
+      messages: run.safeMessages,
+      nextChunkIndex: run.safeSnapshotChunkIndex,
     } satisfies ChatRunSnapshot;
   }
 
@@ -223,6 +237,11 @@ export class ChatRunManager {
         run.initialMessages,
         responseMessage,
       );
+
+      if (isRunAtResumableBoundary(run)) {
+        run.safeMessages = run.latestMessages;
+        run.safeSnapshotChunkIndex = run.safeResumeChunkIndex;
+      }
     }
   }
 
@@ -260,6 +279,7 @@ export class ChatRunManager {
     options: { immediate?: boolean } = {},
   ) {
     run.chunks.push(chunk);
+    updateResumableStreamState(run, chunk);
     run.pendingLiveChunks.push(chunk);
 
     if (options.immediate) {
@@ -347,6 +367,54 @@ function summarizeRun(run: ChatRun): ChatRunSummary {
     runId: run.runId,
     status: run.status,
   };
+}
+
+function createResumableStreamState(): ResumableStreamState {
+  return {
+    reasoningPartIds: new Set(),
+    textPartIds: new Set(),
+    toolInputCallIds: new Set(),
+  };
+}
+
+function updateResumableStreamState(run: ChatRun, chunk: UIMessageChunk) {
+  switch (chunk.type) {
+    case "text-start":
+      run.streamState.textPartIds.add(chunk.id);
+      break;
+    case "text-end":
+      run.streamState.textPartIds.delete(chunk.id);
+      break;
+    case "reasoning-start":
+      run.streamState.reasoningPartIds.add(chunk.id);
+      break;
+    case "reasoning-end":
+      run.streamState.reasoningPartIds.delete(chunk.id);
+      break;
+    case "tool-input-start":
+      run.streamState.toolInputCallIds.add(chunk.toolCallId);
+      break;
+    case "tool-input-available":
+    case "tool-input-error":
+      run.streamState.toolInputCallIds.delete(chunk.toolCallId);
+      break;
+    case "finish-step":
+      run.streamState.textPartIds.clear();
+      run.streamState.reasoningPartIds.clear();
+      break;
+  }
+
+  if (isRunAtResumableBoundary(run)) {
+    run.safeResumeChunkIndex = run.chunks.length;
+  }
+}
+
+function isRunAtResumableBoundary(run: ChatRun) {
+  return (
+    run.streamState.textPartIds.size === 0 &&
+    run.streamState.reasoningPartIds.size === 0 &&
+    run.streamState.toolInputCallIds.size === 0
+  );
 }
 
 function createRunId() {

@@ -1002,6 +1002,10 @@ describe("MessageParts", () => {
       | undefined;
 
     expect(useChatOptions?.resume).toBe(false);
+    expect(screen.queryByText("运行中")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("当前会话正在生成，刷新或切换回来会继续显示进度。"),
+    ).not.toBeInTheDocument();
 
     await waitFor(() => {
       const latestUseChatOptions = vi.mocked(useChat).mock.calls.at(-1)?.[0] as

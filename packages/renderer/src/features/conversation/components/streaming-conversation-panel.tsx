@@ -148,9 +148,7 @@ export function StreamingConversationPanel({
   const isProjectBusy = Boolean(hasProjectActiveRun);
   const canSend = Boolean(selectedModel) && !isGenerating && !isProjectBusy;
   const submitStatus = isProjectBusy && !isGenerating ? "streaming" : status;
-  const busyMessage = activeRunBelongsToConversation
-    ? "当前会话正在生成，刷新或切换回来会继续显示进度。"
-    : "当前项目已有任务正在执行，完成或停止后才能继续输入。";
+  const busyMessage = "当前项目已有任务正在执行，完成或停止后才能继续输入。";
   const handleStop = useCallback(() => {
     void api.cancelActiveRun(projectId).finally(() => {
       stop();
@@ -293,7 +291,7 @@ export function StreamingConversationPanel({
       </Conversation>
 
       <div className="border-t border-border bg-card px-3 pb-3">
-        {isProjectBusy ? (
+        {isProjectBusy && !activeRunBelongsToConversation ? (
           <div className="mt-3 rounded-md border border-border bg-muted px-3 py-2 text-muted-foreground text-sm">
             {busyMessage}
           </div>

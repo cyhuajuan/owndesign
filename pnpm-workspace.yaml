@@ -10,3 +10,4 @@ allowBuilds:
 ignoredBuiltDependencies:
   - sharp
   - unrs-resolver
+minimumReleaseAge: 0

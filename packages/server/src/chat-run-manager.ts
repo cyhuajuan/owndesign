@@ -26,8 +26,10 @@ type ChatRun = Omit<ChatRunSummary, "chunkCount"> & {
   abortController: AbortController;
   chunks: UIMessageChunk[];
   completedAt?: string;
+  flushTimer?: ReturnType<typeof setTimeout>;
   initialMessages: UIMessage[];
   latestMessages: UIMessage[];
+  pendingLiveChunks: UIMessageChunk[];
   subscribers: Set<ReadableStreamDefaultController<UIMessageChunk>>;
 };
 
@@ -56,6 +58,8 @@ declare global {
     | undefined;
 }
 
+const LIVE_BROADCAST_INTERVAL_MS = 100;
+
 export class ChatRunManager {
   private readonly activeRunsByProjectId = new Map<string, ChatRun>();
 
@@ -76,6 +80,7 @@ export class ChatRunManager {
       createdAt: new Date().toISOString(),
       initialMessages: input.initialMessages,
       latestMessages: input.initialMessages,
+      pendingLiveChunks: [],
       projectId: input.projectId,
       runId: createRunId(),
       status: "running",
@@ -136,7 +141,8 @@ export class ChatRunManager {
     run.status = "cancelled";
     run.completedAt = new Date().toISOString();
     run.abortController.abort("cancelled");
-    this.publish(run, { type: "abort", reason: "cancelled" });
+    this.flushPendingLiveChunks(run);
+    this.publish(run, { type: "abort", reason: "cancelled" }, { immediate: true });
     this.closeSubscribers(run);
 
     return summarizeRun(run);
@@ -183,11 +189,12 @@ export class ChatRunManager {
         // Explicit cancellation is handled by cancelActiveRun.
       } else {
         run.status = "failed";
+        this.flushPendingLiveChunks(run);
         this.publish(run, {
           errorText:
             error instanceof Error ? error.message : "生成失败：Unknown error",
           type: "error",
-        });
+        }, { immediate: true });
       }
     } finally {
       run.completedAt = run.completedAt ?? new Date().toISOString();
@@ -195,6 +202,7 @@ export class ChatRunManager {
       try {
         await input.onFinish(run.latestMessages, run.status);
       } finally {
+        this.flushPendingLiveChunks(run);
         this.closeSubscribers(run);
         if (this.activeRunsByProjectId.get(run.projectId) === run) {
           this.activeRunsByProjectId.delete(run.projectId);
@@ -246,19 +254,59 @@ export class ChatRunManager {
     });
   }
 
-  private publish(run: ChatRun, chunk: UIMessageChunk) {
+  private publish(
+    run: ChatRun,
+    chunk: UIMessageChunk,
+    options: { immediate?: boolean } = {},
+  ) {
     run.chunks.push(chunk);
+    run.pendingLiveChunks.push(chunk);
 
+    if (options.immediate) {
+      this.flushPendingLiveChunks(run);
+      return;
+    }
+
+    this.scheduleLiveFlush(run);
+  }
+
+  private scheduleLiveFlush(run: ChatRun) {
+    if (run.flushTimer) {
+      return;
+    }
+
+    run.flushTimer = setTimeout(() => {
+      run.flushTimer = undefined;
+      this.flushPendingLiveChunks(run);
+    }, LIVE_BROADCAST_INTERVAL_MS);
+  }
+
+  private flushPendingLiveChunks(run: ChatRun) {
+    if (run.flushTimer) {
+      clearTimeout(run.flushTimer);
+      run.flushTimer = undefined;
+    }
+
+    if (run.pendingLiveChunks.length === 0) {
+      return;
+    }
+
+    const chunks = run.pendingLiveChunks.splice(0);
     for (const subscriber of Array.from(run.subscribers)) {
-      try {
-        subscriber.enqueue(chunk);
-      } catch {
-        run.subscribers.delete(subscriber);
+      for (const chunk of chunks) {
+        try {
+          subscriber.enqueue(chunk);
+        } catch {
+          run.subscribers.delete(subscriber);
+          break;
+        }
       }
     }
   }
 
   private closeSubscribers(run: ChatRun) {
+    this.flushPendingLiveChunks(run);
+
     for (const subscriber of Array.from(run.subscribers)) {
       try {
         subscriber.close();

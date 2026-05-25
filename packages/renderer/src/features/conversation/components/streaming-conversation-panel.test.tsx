@@ -203,6 +203,68 @@ describe("MessageParts", () => {
     );
   });
 
+  it("renders the streaming assistant text part without markdown parsing", () => {
+    const { container } = render(
+      <MessageParts
+        isLastMessage
+        isStreaming
+        message={{
+          id: "assistant-1",
+          parts: [{ text: "第一行\n第二行", type: "text" }],
+          role: "assistant",
+        }}
+      />,
+    );
+
+    const streamingText = container.querySelector('[data-streaming-text="true"]');
+
+    expect(streamingText?.textContent).toBe("第一行\n第二行");
+    expect(streamingText).toHaveClass("whitespace-pre-wrap");
+  });
+
+  it("uses full markdown rendering after assistant streaming finishes", () => {
+    const { container } = render(
+      <MessageParts
+        isLastMessage
+        isStreaming={false}
+        message={{
+          id: "assistant-1",
+          parts: [{ text: "**完成**", type: "text" }],
+          role: "assistant",
+        }}
+      />,
+    );
+
+    expect(
+      container.querySelector('[data-streaming-text="true"]'),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders streaming reasoning content as lightweight text", () => {
+    const { container } = render(
+      <MessageParts
+        isLastMessage
+        isStreaming
+        message={{
+          id: "assistant-1",
+          parts: [
+            {
+              state: "streaming",
+              text: "分析中\n继续分析",
+              type: "reasoning",
+            },
+          ],
+          role: "assistant",
+        }}
+      />,
+    );
+
+    const streamingText = container.querySelector('[data-streaming-text="true"]');
+
+    expect(streamingText?.textContent).toBe("分析中\n继续分析");
+    expect(streamingText).toHaveClass("whitespace-pre-wrap");
+  });
+
   it("auto-closes reasoning after streaming finishes", () => {
     vi.useFakeTimers();
 

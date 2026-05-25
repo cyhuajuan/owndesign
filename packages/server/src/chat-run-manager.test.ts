@@ -204,6 +204,48 @@ describe("ChatRunManager", () => {
     await reader.cancel();
   });
 
+  it("batches live subscriber chunks without merging the run cache", async () => {
+    const manager = new ChatRunManager();
+    const source = createControlledStream();
+    const result = manager.startRun({
+      conversationId: "conversation-1",
+      createStream: () => Promise.resolve(source.stream),
+      initialMessages: createUserMessages(),
+      onFinish: vi.fn(),
+      projectId: "project-1",
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    const reader = result.stream.getReader();
+    const firstRead = reader.read();
+
+    await delay(0);
+    source.enqueue({ messageId: "assistant-1", type: "start" });
+    source.enqueue({ id: "text-1", type: "text-start" });
+
+    let resolvedBeforeFlush = false;
+    firstRead.then(() => {
+      resolvedBeforeFlush = true;
+    });
+    await delay(50);
+    expect(manager.getActiveRun("project-1")?.chunkCount).toBe(2);
+    expect(resolvedBeforeFlush).toBe(false);
+
+    await expect(firstRead).resolves.toEqual({
+      done: false,
+      value: { messageId: "assistant-1", type: "start" },
+    });
+    await expect(reader.read()).resolves.toEqual({
+      done: false,
+      value: { id: "text-1", type: "text-start" },
+    });
+    await reader.cancel();
+  });
+
   it("cancels the active run and releases the project lock", async () => {
     const manager = new ChatRunManager();
     const onFinish = vi.fn();
@@ -279,4 +321,8 @@ function createAbortableStream(signal: AbortSignal) {
     });
     resolve(stream);
   });
+}
+
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

@@ -7,6 +7,7 @@ import { MessageResponse } from "@/components/ai-elements/message";
 import {
   Reasoning,
   ReasoningContent,
+  ReasoningPlainTextContent,
   ReasoningTrigger,
 } from "@/components/ai-elements/reasoning";
 import {
@@ -28,6 +29,8 @@ export function MessageParts({
     isLastMessage && isStreaming && lastPart?.type === "reasoning"
       ? message.parts.length - 1
       : -1;
+  const useStreamingText =
+    isLastMessage && isStreaming && message.role === "assistant";
 
   return (
     <>
@@ -35,6 +38,7 @@ export function MessageParts({
         <MessagePart
           key={`${message.id}-${index}-${part.type}`}
           isReasoningStreaming={index === streamingReasoningPartIndex}
+          useStreamingText={useStreamingText}
           part={part}
         />
       ))}
@@ -45,11 +49,17 @@ export function MessageParts({
 function MessagePart({
   isReasoningStreaming,
   part,
+  useStreamingText,
 }: {
   isReasoningStreaming: boolean;
   part: UIMessage["parts"][number];
+  useStreamingText: boolean;
 }) {
   if (part.type === "text") {
+    if (useStreamingText) {
+      return <StreamingTextResponse>{part.text}</StreamingTextResponse>;
+    }
+
     return <MessageResponse>{part.text}</MessageResponse>;
   }
 
@@ -63,7 +73,13 @@ function MessagePart({
           className="font-medium"
           getThinkingMessage={getReasoningLabel}
         />
-        <ReasoningContent className="mt-2">{part.text}</ReasoningContent>
+        {useStreamingText ? (
+          <ReasoningPlainTextContent className="mt-2">
+            {part.text}
+          </ReasoningPlainTextContent>
+        ) : (
+          <ReasoningContent className="mt-2">{part.text}</ReasoningContent>
+        )}
       </Reasoning>
     );
   }
@@ -77,4 +93,15 @@ function MessagePart({
 
 function getReasoningLabel(): ReactNode {
   return <span>思考过程</span>;
+}
+
+function StreamingTextResponse({ children }: { children: string }) {
+  return (
+    <div
+      className="size-full whitespace-pre-wrap break-words"
+      data-streaming-text="true"
+    >
+      {children}
+    </div>
+  );
 }

@@ -5,20 +5,20 @@ OwnDesign is an AI-powered design prototyping tool. Users describe what they wan
 ## Commands
 
 ```bash
-pnpm dev          # Start both server (3711) and web (3710) in parallel
-pnpm build        # Build all packages
-pnpm lint         # Lint all packages
-pnpm typecheck    # Type-check all packages
-pnpm test         # Run all tests
-pnpm test:watch   # Run tests in watch mode (all packages)
+bun run dev          # Start both server (3711) and web (3710) in parallel
+bun run build        # Build all packages
+bun run lint         # Lint all packages
+bun run typecheck    # Type-check all packages
+bun run test         # Run all tests
+bun run test:watch   # Run tests in watch mode (all packages)
 ```
 
-Run a single package's tests: `pnpm --filter @owndesign/core test`
-Run a single test file: `pnpm --filter @owndesign/core exec vitest run src/agent/design-page-agent.test.ts`
+Run a single package's tests: `bun run --filter @owndesign/core test`
+Run a single test file: `bun run --filter @owndesign/core test src/agent/design-page-agent.test.ts`
 
 ## Architecture
 
-pnpm monorepo with three packages and one app:
+Bun monorepo with three packages and one app:
 
 - **`packages/core`** (`@owndesign/core`) — Domain logic, no UI. AI agent, workspace storage, project/conversation services, preview server management, settings.
 - **`packages/renderer`** (`@owndesign/renderer`) — React UI. Chat panel, workspace shell, preview frame, settings, onboarding.
@@ -79,7 +79,7 @@ All routes prefixed `/api/`. Key endpoints:
 - **Backend**: Hono v4 (server), Fastify (preview servers)
 - **AI**: Vercel AI SDK v6 (agent, streaming, `useChat`), DeepSeek + OpenAI-compatible providers
 - **Testing**: Vitest 4, Testing Library (React + jest-dom + user-event)
-- **Monorepo**: pnpm workspaces, shared config in `packages/config/`
+- **Monorepo**: Bun workspaces, shared config in `packages/config/`
 
 ## Conventions
 

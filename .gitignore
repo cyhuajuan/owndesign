@@ -21,6 +21,7 @@ node_modules
 /build
 /dist
 apps/*/dist
+packages/*/dist
 
 # misc
 .DS_Store

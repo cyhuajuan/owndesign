@@ -7,6 +7,7 @@ import { WorkspaceStore } from "@owndesign/core/workspace-store";
 export type OwnDesignServerOptions = {
   corsOrigin?: string | string[];
   settingsPath?: string;
+  staticRoot?: string;
   workspaceRoot?: string;
 };
 

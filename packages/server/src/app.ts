@@ -1,8 +1,9 @@
-import { createWriteStream } from "node:fs";
+import { createWriteStream, statSync } from "node:fs";
 import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
+import { serveStatic } from "@hono/node-server/serve-static";
 import { cors } from "hono/cors";
 import { stream } from "hono/streaming";
 import { Hono } from "hono";
@@ -585,7 +586,84 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
     return context.text("Invalid download request.", 400);
   });
 
+  registerStaticHosting(app, options.staticRoot);
+
   return app;
+}
+
+function registerStaticHosting(
+  app: Hono,
+  staticRoot: string | undefined,
+) {
+  const indexPath = resolveStaticIndexPath(staticRoot);
+
+  if (!indexPath || !staticRoot) {
+    return;
+  }
+
+  const serveStaticFile = serveStatic({ root: staticRoot });
+
+  app.use("*", async (context, next) => {
+    if (isApiPath(context.req.path)) {
+      return next();
+    }
+
+    const staticResponse = await serveStaticFile(context, async () => {});
+
+    if (staticResponse || context.finalized) {
+      return staticResponse;
+    }
+
+    if (!shouldServeSpaIndex(context.req.raw, context.req.path)) {
+      return next();
+    }
+
+    return htmlResponse(await readFile(indexPath, "utf8"));
+  });
+}
+
+function resolveStaticIndexPath(staticRoot: string | undefined) {
+  if (!staticRoot) {
+    return undefined;
+  }
+
+  try {
+    const rootStats = statSync(staticRoot);
+    const indexPath = path.join(staticRoot, "index.html");
+    const indexStats = statSync(indexPath);
+
+    if (!rootStats.isDirectory() || !indexStats.isFile()) {
+      return undefined;
+    }
+
+    return indexPath;
+  } catch {
+    return undefined;
+  }
+}
+
+function isApiPath(requestPath: string) {
+  return requestPath === "/api" || requestPath.startsWith("/api/");
+}
+
+function shouldServeSpaIndex(request: Request, requestPath: string) {
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    return false;
+  }
+
+  if (path.extname(requestPath)) {
+    return false;
+  }
+
+  const accept = request.headers.get("Accept");
+
+  return !accept || accept.includes("text/html") || accept.includes("*/*");
+}
+
+function htmlResponse(html: string) {
+  return new Response(html, {
+    headers: { "Content-Type": "text/html; charset=utf-8" },
+  });
 }
 
 async function downloadCurrentHtml(

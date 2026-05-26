@@ -5,6 +5,14 @@ import { defineConfig } from "vite";
 
 export default defineConfig({
   plugins: [react()],
+  server: {
+    proxy: {
+      "/api": {
+        changeOrigin: true,
+        target: "http://127.0.0.1:3711",
+      },
+    },
+  },
   resolve: {
     alias: [
       {

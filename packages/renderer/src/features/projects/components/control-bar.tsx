@@ -557,7 +557,6 @@ export function ControlBar({
 
     if (result?.href) {
       navigate(getNavigationHref(result.href));
-      window.dispatchEvent(new Event("owndesign:workspace-refresh"));
       return;
     }
 

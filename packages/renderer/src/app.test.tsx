@@ -12,9 +12,11 @@ vi.mock("@/features/workspace/components/workspace-shell", async () => {
     WorkspaceShell({
       activeConversationId,
       activeProject,
+      onSelectProject,
     }: {
       activeConversationId?: string;
       activeProject?: { id: string };
+      onSelectProject: (projectId: string) => Promise<{ href?: string }>;
     }) {
       const navigate = useNavigate();
 
@@ -43,6 +45,18 @@ vi.mock("@/features/workspace/components/workspace-shell", async () => {
             type="button"
           >
             Switch conversation
+          </button>
+          <button
+            onClick={async () => {
+              const result = await onSelectProject("project-2");
+
+              if (result.href) {
+                navigate(result.href);
+              }
+            }}
+            type="button"
+          >
+            Switch project
           </button>
         </div>
       );
@@ -99,6 +113,13 @@ describe("OwnDesignApp routing", () => {
                 outputType: "html",
                 updatedAt: "2026-05-24T00:00:00.000Z",
               },
+              {
+                createdAt: "2026-05-24T00:00:00.000Z",
+                id: "project-2",
+                name: "Project 2",
+                outputType: "html",
+                updatedAt: "2026-05-24T00:00:00.000Z",
+              },
             ],
             settings: {
               defaultModelId: null,
@@ -106,6 +127,12 @@ describe("OwnDesignApp routing", () => {
               modelConfigurations: [{ id: "model-1" }],
               resources: { fontLibraries: [], iconLibraries: [] },
             },
+          });
+        }
+
+        if (url.pathname === "/api/projects/project-2/select") {
+          return Response.json({
+            href: "/projects/project-2/conversations/conversation-1",
           });
         }
 
@@ -143,6 +170,26 @@ describe("OwnDesignApp routing", () => {
     expect(workspaceRequests).toEqual([
       "/api/workspace?projectId=project-1&conversationId=conversation-1",
       "/api/workspace?projectId=project-1&conversationId=conversation-2",
+    ]);
+  });
+
+  it("does not reload workspace twice when switching projects", async () => {
+    const user = userEvent.setup();
+
+    render(<OwnDesignApp />);
+
+    expect(
+      await screen.findByText("project-1:conversation-1"),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Switch project" }));
+
+    expect(
+      await screen.findByText("project-2:conversation-1"),
+    ).toBeInTheDocument();
+    expect(workspaceRequests).toEqual([
+      "/api/workspace?projectId=project-1&conversationId=conversation-1",
+      "/api/workspace?projectId=project-2&conversationId=conversation-1",
     ]);
   });
 });

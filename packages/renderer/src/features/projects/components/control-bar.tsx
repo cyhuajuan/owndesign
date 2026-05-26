@@ -130,6 +130,7 @@ export function ControlBar({
   const [isProjectCreateOpen, setIsProjectCreateOpen] = useState(false);
   const [renameTarget, setRenameTarget] = useState<RenameTarget>(null);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null);
+  const [optimisticProjectId, setOptimisticProjectId] = useState<string>();
   const [projectQuery, setProjectQuery] = useState("");
   const [conversationQuery, setConversationQuery] = useState("");
   const [projectName, setProjectName] = useState("");
@@ -142,9 +143,18 @@ export function ControlBar({
   const deferredConversationQuery = useDeferredValue(conversationQuery);
 
   const activeProject = projects.find((project) => project.id === activeProjectId);
-  const activeConversation = conversations.find(
-    (conversation) => conversation.id === activeConversationId,
+  const effectiveOptimisticProjectId =
+    optimisticProjectId === activeProjectId ? undefined : optimisticProjectId;
+  const optimisticProject = projects.find(
+    (project) => project.id === effectiveOptimisticProjectId,
   );
+  const displayedProject = optimisticProject ?? activeProject;
+  const isProjectSwitchPending = Boolean(effectiveOptimisticProjectId);
+  const activeConversation = isProjectSwitchPending
+    ? undefined
+    : conversations.find(
+        (conversation) => conversation.id === activeConversationId,
+      );
   const filteredProjects = useMemo(
     () => filterByQuery(projects, deferredProjectQuery, (project) => project.name),
     [deferredProjectQuery, projects],
@@ -152,11 +162,11 @@ export function ControlBar({
   const filteredConversations = useMemo(
     () =>
       filterByQuery(
-        conversations,
+        isProjectSwitchPending ? [] : conversations,
         deferredConversationQuery,
         (conversation) => conversation.title,
       ),
-    [conversations, deferredConversationQuery],
+    [conversations, deferredConversationQuery, isProjectSwitchPending],
   );
 
   return (
@@ -173,7 +183,7 @@ export function ControlBar({
         <PopoverTrigger
           render={
             <Button
-              aria-label={`项目切换器 ${activeProject?.name ?? "暂无当前项目"}`}
+              aria-label={`项目切换器 ${displayedProject?.name ?? "暂无当前项目"}`}
               className="h-7 max-w-[220px] justify-start gap-1.5 px-2 text-xs"
               type="button"
               variant="ghost"
@@ -182,7 +192,7 @@ export function ControlBar({
         >
           <span className="size-1.5 shrink-0 rounded-full bg-primary" />
           <span className="truncate text-foreground">
-            {activeProject?.name ?? "选择项目"}
+            {displayedProject?.name ?? "选择项目"}
           </span>
           <ChevronDownIcon data-icon="inline-end" />
         </PopoverTrigger>
@@ -210,12 +220,16 @@ export function ControlBar({
                     aria-label={project.name}
                     className={cn(
                       "group/item mb-1 gap-2 last:mb-0",
-                      project.id === activeProjectId &&
+                      project.id ===
+                        (effectiveOptimisticProjectId ?? activeProjectId) &&
                         "bg-primary/15 text-primary data-[selected=true]:bg-primary/15 data-[selected=true]:text-primary",
                     )}
                     key={project.id}
                     onSelect={() => {
                       setOpenMenu(null);
+                      if (project.id !== activeProjectId) {
+                        setOptimisticProjectId(project.id);
+                      }
                       startTransition(() => {
                         void runAction(onSelectProject(project.id));
                       });
@@ -274,9 +288,13 @@ export function ControlBar({
         <PopoverTrigger
           render={
             <Button
-              aria-label={`会话切换器 ${activeConversation?.title ?? "暂无当前会话"}`}
+              aria-label={`会话切换器 ${
+                isProjectSwitchPending
+                  ? "加载会话..."
+                  : activeConversation?.title ?? "暂无当前会话"
+              }`}
               className="h-7 max-w-[220px] justify-start gap-1.5 px-2 text-xs"
-              disabled={!activeProject}
+              disabled={!activeProject || isProjectSwitchPending}
               type="button"
               variant="ghost"
             />
@@ -284,7 +302,9 @@ export function ControlBar({
         >
           <span className="size-1.5 shrink-0 rounded-full bg-[var(--status-ready)]" />
           <span className="truncate text-foreground">
-            {activeConversation?.title ?? "选择会话"}
+            {isProjectSwitchPending
+              ? "加载会话..."
+              : activeConversation?.title ?? "选择会话"}
           </span>
           <ChevronDownIcon data-icon="inline-end" />
         </PopoverTrigger>
@@ -348,7 +368,7 @@ export function ControlBar({
               <CommandGroup>
                 <CommandItem
                   className="mb-1 last:mb-0"
-                  disabled={!activeProject}
+                  disabled={!activeProject || isProjectSwitchPending}
                   onSelect={() => {
                     setOpenMenu(null);
                     startTransition(() => {

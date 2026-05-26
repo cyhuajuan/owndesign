@@ -203,12 +203,6 @@ export function createApiClient(baseUrl = "") {
         { method: "POST" },
       );
     },
-    selectProject(projectId: string) {
-      return requestJson<ActionResult>(
-        `/api/projects/${encodeURIComponent(projectId)}/select`,
-        { method: "POST" },
-      );
-    },
     streamChatUrl() {
       return url("/api/chat");
     },

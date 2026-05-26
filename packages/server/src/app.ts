@@ -68,8 +68,10 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
 
   app.get("/api/workspace", async (context) => {
     const services = createOwnDesignServices(options);
-    const projectState = await services.projectService.getProjectState();
-    const settings = await services.settingsService.getPublicSettings();
+    const [projectState, settings] = await Promise.all([
+      services.projectService.getProjectState(),
+      services.settingsService.getPublicSettings(),
+    ]);
     const requestedProjectId = context.req.query("projectId");
     const requestedConversationId = context.req.query("conversationId");
     const activeProject =
@@ -206,20 +208,6 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
       href: buildWorkspaceHref({
         conversationId: fallbackConversation?.id,
         projectId: fallbackProject?.id,
-      }),
-    });
-  });
-
-  app.post("/api/projects/:projectId/select", async (context) => {
-    const projectId = context.req.param("projectId");
-    const conversationState =
-      await createConversationService(options).getConversationState(projectId);
-    const activeConversation = conversationState.conversations[0];
-
-    return context.json({
-      href: buildWorkspaceHref({
-        conversationId: activeConversation?.id,
-        projectId,
       }),
     });
   });

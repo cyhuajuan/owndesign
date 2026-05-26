@@ -65,6 +65,18 @@ describe("createOwnDesignApp static hosting", () => {
     expect(body).toHaveProperty("settings");
   });
 
+  it("does not expose the removed project select route", async () => {
+    const { app } = await createAppWithTempOptions();
+
+    const response = await app.fetch(
+      new Request("http://localhost/api/projects/project-1/select", {
+        method: "POST",
+      }),
+    );
+
+    expect(response.status).toBe(404);
+  });
+
   it("starts without static hosting when the static root is missing", async () => {
     const { app, root } = await createAppWithTempOptions();
 

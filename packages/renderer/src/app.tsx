@@ -12,6 +12,7 @@ import { ApiClientProvider, useApiClient } from "@/api/context";
 import { InitialSetupGuide } from "@/features/onboarding/components/initial-setup-guide";
 import { WorkspaceShell } from "@/features/workspace/components/workspace-shell";
 import type { WorkspaceState } from "@/api/client";
+import { buildWorkspaceHref } from "@owndesign/core/navigation";
 
 export function OwnDesignApp({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
   return (
@@ -119,7 +120,9 @@ function WorkspaceRoute() {
         activeProjectId
           ? api.selectConversation(activeProjectId, targetConversationId)
           : undefined,
-      onSelectProject: api.selectProject,
+      onSelectProject: (targetProjectId: string) => ({
+        href: buildWorkspaceHref({ projectId: targetProjectId }),
+      }),
     };
   }, [api, state?.activeConversationId, state?.activeProject?.id]);
 

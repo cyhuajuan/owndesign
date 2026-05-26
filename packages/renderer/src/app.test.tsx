@@ -16,7 +16,9 @@ vi.mock("@/features/workspace/components/workspace-shell", async () => {
     }: {
       activeConversationId?: string;
       activeProject?: { id: string };
-      onSelectProject: (projectId: string) => Promise<{ href?: string }>;
+      onSelectProject: (projectId: string) =>
+        | Promise<{ href?: string }>
+        | { href?: string };
     }) {
       const navigate = useNavigate();
 
@@ -48,7 +50,7 @@ vi.mock("@/features/workspace/components/workspace-shell", async () => {
           </button>
           <button
             onClick={async () => {
-              const result = await onSelectProject("project-2");
+              const result = await Promise.resolve(onSelectProject("project-2"));
 
               if (result.href) {
                 navigate(result.href);
@@ -65,9 +67,11 @@ vi.mock("@/features/workspace/components/workspace-shell", async () => {
 });
 
 describe("OwnDesignApp routing", () => {
+  const requests: string[] = [];
   const workspaceRequests: string[] = [];
 
   beforeEach(() => {
+    requests.length = 0;
     workspaceRequests.length = 0;
     window.history.replaceState(
       null,
@@ -78,6 +82,7 @@ describe("OwnDesignApp routing", () => {
       "fetch",
       vi.fn(async (input: RequestInfo | URL) => {
         const url = new URL(String(input), window.location.origin);
+        requests.push(`${url.pathname}${url.search}`);
 
         if (url.pathname === "/api/workspace") {
           workspaceRequests.push(`${url.pathname}${url.search}`);
@@ -127,12 +132,6 @@ describe("OwnDesignApp routing", () => {
               modelConfigurations: [{ id: "model-1" }],
               resources: { fontLibraries: [], iconLibraries: [] },
             },
-          });
-        }
-
-        if (url.pathname === "/api/projects/project-2/select") {
-          return Response.json({
-            href: "/projects/project-2/conversations/conversation-1",
           });
         }
 
@@ -189,7 +188,8 @@ describe("OwnDesignApp routing", () => {
     ).toBeInTheDocument();
     expect(workspaceRequests).toEqual([
       "/api/workspace?projectId=project-1&conversationId=conversation-1",
-      "/api/workspace?projectId=project-2&conversationId=conversation-1",
+      "/api/workspace?projectId=project-2",
     ]);
+    expect(requests).not.toContain("/api/projects/project-2/select");
   });
 });

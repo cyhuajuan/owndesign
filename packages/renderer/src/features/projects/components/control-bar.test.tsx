@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
@@ -36,6 +36,111 @@ describe("ControlBar", () => {
         name: "会话切换器 Navigation audit",
       }),
     ).toBeInTheDocument();
+  });
+
+  it("shows optimistic project and hides stale conversations while switching", async () => {
+    const user = userEvent.setup();
+    const projects = [
+      {
+        id: "project-alpha",
+        name: "Alpha Website",
+        outputType: "html" as const,
+        createdAt: "2026-05-14T10:00:00.000Z",
+        updatedAt: "2026-05-14T10:00:00.000Z",
+      },
+      {
+        id: "project-beta",
+        name: "Mobile App Refresh",
+        outputType: "html" as const,
+        createdAt: "2026-05-14T11:00:00.000Z",
+        updatedAt: "2026-05-14T11:00:00.000Z",
+      },
+    ];
+    const alphaConversations = [
+      {
+        id: "conversation-alpha-1",
+        projectId: "project-alpha",
+        title: "Landing page polish",
+        createdAt: "2026-05-14T10:00:00.000Z",
+        updatedAt: "2026-05-14T10:00:00.000Z",
+        messages: [],
+      },
+    ];
+    const betaConversations = [
+      {
+        id: "conversation-beta-1",
+        projectId: "project-beta",
+        title: "Navigation audit",
+        createdAt: "2026-05-14T11:00:00.000Z",
+        updatedAt: "2026-05-14T11:00:00.000Z",
+        messages: [],
+      },
+    ];
+    const pendingProjectSelect = new Promise<void>(() => {});
+    const { rerender } = render(
+      <ControlBar
+        activeConversationId="conversation-alpha-1"
+        activeProjectId="project-alpha"
+        conversations={alphaConversations}
+        onCreateConversation={() => undefined}
+        onCreateProject={() => undefined}
+        onDeleteConversation={() => undefined}
+        onDeleteProject={() => undefined}
+        onRenameConversation={() => undefined}
+        onRenameProject={() => undefined}
+        onSelectConversation={() => undefined}
+        onSelectProject={() => pendingProjectSelect}
+        projects={projects}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "项目切换器 Alpha Website",
+      }),
+    );
+    await user.click(
+      screen.getByRole("option", { name: "Mobile App Refresh" }),
+    );
+
+    expect(
+      screen.getByRole("button", {
+        name: "项目切换器 Mobile App Refresh",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "会话切换器 加载会话..." }),
+    ).toBeDisabled();
+    expect(
+      screen.queryByRole("button", {
+        name: "会话切换器 Landing page polish",
+      }),
+    ).not.toBeInTheDocument();
+
+    rerender(
+      <ControlBar
+        activeConversationId="conversation-beta-1"
+        activeProjectId="project-beta"
+        conversations={betaConversations}
+        onCreateConversation={() => undefined}
+        onCreateProject={() => undefined}
+        onDeleteConversation={() => undefined}
+        onDeleteProject={() => undefined}
+        onRenameConversation={() => undefined}
+        onRenameProject={() => undefined}
+        onSelectConversation={() => undefined}
+        onSelectProject={() => pendingProjectSelect}
+        projects={projects}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", {
+          name: "会话切换器 Navigation audit",
+        }),
+      ).toBeInTheDocument(),
+    );
   });
 
   it("switches Conversation through searchable switcher", async () => {

@@ -6,5 +6,5 @@ name = "owndesign"
 script = '''
 cd $CODEX_WORKTREE_PATH
 
-pnpm install
+bun install
 '''

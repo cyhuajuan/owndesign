@@ -1,8 +1,9 @@
 import { access, readFile } from "node:fs/promises";
 import path from "node:path";
 
-import fastifyStatic from "@fastify/static";
-import Fastify, { type FastifyInstance } from "fastify";
+import { serve, type ServerType } from "@hono/node-server";
+import { serveStatic } from "@hono/node-server/serve-static";
+import { Hono } from "hono";
 
 import { WorkspaceStore } from "@owndesign/core/workspace-store";
 
@@ -15,11 +16,11 @@ type PreviewServerManagerOptions = {
 
 type PreviewServerEntry = {
   activePath: string;
-  app: FastifyInstance;
   baseUrl: string;
   expiresAt: number;
   key: string;
   projectId: string;
+  server?: ServerType;
 };
 
 const DEFAULT_CLEANUP_INTERVAL_MS = 30_000;
@@ -154,36 +155,31 @@ export class PreviewServerManager {
 
     const workspaceDirectory =
       this.workspaceStore.getProjectWorkspaceDirectory(projectId);
-    const app = Fastify({ logger: false });
+    const app = new Hono();
     const entry: PreviewServerEntry = {
       activePath: "index.html",
-      app,
       baseUrl: "",
       expiresAt: this.now() + this.leaseTtlMs,
       key,
       projectId,
     };
 
-    app.get("/", async (_request, reply) =>
-      reply.type("text/html; charset=utf-8").send(
-        await readIndexHtmlOrEmptyPreview(workspaceDirectory, entry),
-      ),
+    app.get("/", async () =>
+      htmlResponse(await readIndexHtmlOrEmptyPreview(workspaceDirectory, entry)),
     );
-    app.get("/index.html", async (_request, reply) =>
-      reply.type("text/html; charset=utf-8").send(
-        await readIndexHtmlOrEmptyPreview(workspaceDirectory, entry),
-      ),
+    app.get("/index.html", async () =>
+      htmlResponse(await readIndexHtmlOrEmptyPreview(workspaceDirectory, entry)),
     );
-    await app.register(fastifyStatic, {
-      decorateReply: false,
-      root: workspaceDirectory,
-      setHeaders: (_response, filePath) => {
-        recordServedHtmlPath(entry, workspaceDirectory, filePath);
+    app.use("*", serveStatic({
+      onFound: (filePath) => {
+        recordServedStaticPath(entry, workspaceDirectory, filePath);
       },
-    });
+      root: workspaceDirectory,
+    }));
 
-    const address = await app.listen({ host: PREVIEW_HOST, port: 0 });
-    entry.baseUrl = address.replace(/\/$/, "");
+    const server = await listenOnRandomPort(app);
+    entry.server = server.server;
+    entry.baseUrl = server.baseUrl;
 
     this.entries.set(key, entry);
 
@@ -196,7 +192,7 @@ export class PreviewServerManager {
 
   private async closeEntry(entry: PreviewServerEntry) {
     this.entries.delete(entry.key);
-    await entry.app.close();
+    await closeServer(entry.server);
 
     if (this.entries.size === 0) {
       this.clearCleanupTimer();
@@ -222,6 +218,49 @@ export class PreviewServerManager {
     clearInterval(this.cleanupTimer);
     this.cleanupTimer = undefined;
   }
+}
+
+function htmlResponse(html: string) {
+  return new Response(html, {
+    headers: {
+      "Content-Type": "text/html; charset=utf-8",
+    },
+  });
+}
+
+function listenOnRandomPort(app: Hono) {
+  return new Promise<{ baseUrl: string; server: ServerType }>((resolve) => {
+    const server = serve(
+      {
+        fetch: app.fetch,
+        hostname: PREVIEW_HOST,
+        port: 0,
+      },
+      (info) => {
+        resolve({
+          baseUrl: `http://${PREVIEW_HOST}:${info.port}`,
+          server,
+        });
+      },
+    );
+  });
+}
+
+function closeServer(server: ServerType | undefined) {
+  if (!server) {
+    return Promise.resolve();
+  }
+
+  return new Promise<void>((resolve, reject) => {
+    server.close((error) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+
+      resolve();
+    });
+  });
 }
 
 export function getPreviewServerManager(workspaceStore: WorkspaceStore) {
@@ -387,4 +426,16 @@ function recordServedHtmlPath(
   }
 
   entry.activePath = relativePath;
+}
+
+function recordServedStaticPath(
+  entry: PreviewServerEntry,
+  workspaceDirectory: string,
+  servedPath: string,
+) {
+  const filePath = path.isAbsolute(servedPath)
+    ? servedPath
+    : path.join(workspaceDirectory, servedPath.replace(/^[/\\]+/, ""));
+
+  recordServedHtmlPath(entry, workspaceDirectory, filePath);
 }

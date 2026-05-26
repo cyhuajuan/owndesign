@@ -6,7 +6,7 @@ import "./main.css";
 
 const root = document.getElementById("root");
 const apiBaseUrl =
-  import.meta.env.VITE_OWNDESIGN_API_BASE_URL ?? "http://127.0.0.1:3711";
+  import.meta.env.VITE_OWNDESIGN_API_BASE_URL ?? "";
 
 if (!root) {
   throw new Error("Root element not found.");

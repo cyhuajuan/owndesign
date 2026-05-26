@@ -1,0 +1,121 @@
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+
+import { afterEach, describe, expect, it } from "vitest";
+
+import { createOwnDesignApp } from "./app";
+
+const tempRoots: string[] = [];
+
+afterEach(async () => {
+  await Promise.all(
+    tempRoots.splice(0).map((tempRoot) =>
+      rm(tempRoot, { force: true, recursive: true }),
+    ),
+  );
+});
+
+describe("createOwnDesignApp static hosting", () => {
+  it("serves index and static assets from the configured static root", async () => {
+    const { app } = await createAppWithStaticRoot();
+
+    const indexResponse = await app.fetch(new Request("http://localhost/"));
+    const assetResponse = await app.fetch(
+      new Request("http://localhost/assets/app.js"),
+    );
+
+    expect(indexResponse.status).toBe(200);
+    expect(indexResponse.headers.get("Content-Type")).toContain("text/html");
+    expect(await indexResponse.text()).toContain("OwnDesign static shell");
+    expect(assetResponse.status).toBe(200);
+    expect(await assetResponse.text()).toBe('console.log("asset");');
+  });
+
+  it("falls back to index for HTML navigation routes", async () => {
+    const { app } = await createAppWithStaticRoot();
+
+    const response = await app.fetch(
+      new Request("http://localhost/workspace/project-1", {
+        headers: { Accept: "text/html" },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain("OwnDesign static shell");
+  });
+
+  it("returns 404 for missing static assets", async () => {
+    const { app } = await createAppWithStaticRoot();
+
+    const response = await app.fetch(
+      new Request("http://localhost/assets/missing.js"),
+    );
+
+    expect(response.status).toBe(404);
+  });
+
+  it("keeps API routes ahead of static hosting", async () => {
+    const { app } = await createAppWithStaticRoot();
+
+    const response = await app.fetch(new Request("http://localhost/api/workspace"));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toHaveProperty("settings");
+  });
+
+  it("starts without static hosting when the static root is missing", async () => {
+    const { app, root } = await createAppWithTempOptions();
+
+    const response = await app.fetch(new Request("http://localhost/api/settings"));
+    const staticResponse = await app.fetch(
+      new Request("http://localhost/workspace/project-1"),
+    );
+
+    expect(root).toBeDefined();
+    expect(response.status).toBe(200);
+    expect(staticResponse.status).toBe(404);
+  });
+});
+
+async function createAppWithStaticRoot() {
+  const root = await createTempRoot();
+  const staticRoot = path.join(root, "web");
+
+  await mkdir(path.join(staticRoot, "assets"), { recursive: true });
+  await writeFile(
+    path.join(staticRoot, "index.html"),
+    "<!doctype html><html><body>OwnDesign static shell</body></html>",
+  );
+  await writeFile(path.join(staticRoot, "assets", "app.js"), 'console.log("asset");');
+
+  return {
+    app: createOwnDesignApp({
+      settingsPath: path.join(root, "settings.json"),
+      staticRoot,
+      workspaceRoot: path.join(root, "workspace"),
+    }),
+    root,
+  };
+}
+
+async function createAppWithTempOptions() {
+  const root = await createTempRoot();
+
+  return {
+    app: createOwnDesignApp({
+      settingsPath: path.join(root, "settings.json"),
+      staticRoot: path.join(root, "missing-web"),
+      workspaceRoot: path.join(root, "workspace"),
+    }),
+    root,
+  };
+}
+
+async function createTempRoot() {
+  const root = await mkdtemp(path.join(os.tmpdir(), "owndesign-server-test-"));
+  tempRoots.push(root);
+
+  return root;
+}

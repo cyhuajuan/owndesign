@@ -10,6 +10,8 @@
   ],
   "scripts": {
     "dev": "bun run --parallel --filter @owndesign/server --filter @owndesign/web dev",
+    "desktop:dev": "bun run --filter @owndesign/desktop dev",
+    "desktop:build": "bun run --filter @owndesign/desktop build",
     "build": "bun run --workspaces --sequential build",
     "lint": "bun run --workspaces --sequential lint",
     "typecheck": "bun run --workspaces --sequential typecheck",

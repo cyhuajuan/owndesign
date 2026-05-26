@@ -22,6 +22,8 @@ node_modules
 /dist
 apps/*/dist
 packages/*/dist
+apps/desktop/src-tauri/resources
+apps/desktop/src-tauri/target
 
 # misc
 .DS_Store

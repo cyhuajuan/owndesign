@@ -1,0 +1,25 @@
+{
+  "name": "owndesign",
+  "version": "0.1.0",
+  "private": false,
+  "type": "module",
+  "bin": {
+    "owndesign": "./dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "bun run --filter @owndesign/server build && bun run --filter @owndesign/web build && node scripts/build.mjs",
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run --passWithNoTests",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.0"
+  }
+}

@@ -57,6 +57,20 @@ describe("ChatShell", () => {
     expect(screen.getByRole("region", { name: "预览面板" })).toBeInTheDocument();
   });
 
+  it("renders optional top bar shell slots", () => {
+    render(
+      <ChatShell
+        shellSlots={{
+          topBarDragRegion: <div data-testid="topbar-drag-region" />,
+          topBarTrailing: <button type="button">窗口关闭</button>,
+        }}
+      />,
+    );
+
+    expect(screen.getByTestId("topbar-drag-region")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "窗口关闭" })).toBeInTheDocument();
+  });
+
   it("collapses and re-expands the conversation workflow from the preview header toggle", async () => {
     const user = userEvent.setup();
 

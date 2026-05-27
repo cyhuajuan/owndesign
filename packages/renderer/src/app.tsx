@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import {
   BrowserRouter,
   useNavigate,
@@ -6,27 +7,41 @@ import {
   Routes,
   Route,
 } from "react-router";
+import { LayersIcon } from "lucide-react";
 
+import { Separator } from "@/components/ui/separator";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ApiClientProvider, useApiClient } from "@/api/context";
 import { InitialSetupGuide } from "@/features/onboarding/components/initial-setup-guide";
 import { WorkspaceShell } from "@/features/workspace/components/workspace-shell";
+import type { WorkspaceShellSlots } from "@/features/workspace/components/workspace-shell";
 import type { WorkspaceState } from "@/api/client";
 import { buildWorkspaceHref } from "@owndesign/core/navigation";
 
-export function OwnDesignApp({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
+export type OwnDesignAppProps = {
+  apiBaseUrl?: string;
+  shellSlots?: WorkspaceShellSlots;
+};
+
+export function OwnDesignApp({
+  apiBaseUrl = "",
+  shellSlots,
+}: OwnDesignAppProps) {
   return (
     <ApiClientProvider baseUrl={apiBaseUrl}>
       <BrowserRouter>
         <TooltipProvider>
           <Routes>
-            <Route path="/" element={<WorkspaceRoute />} />
-            <Route path="/projects/:projectId" element={<WorkspaceRoute />} />
+            <Route path="/" element={<WorkspaceRoute shellSlots={shellSlots} />} />
+            <Route
+              path="/projects/:projectId"
+              element={<WorkspaceRoute shellSlots={shellSlots} />}
+            />
             <Route
               path="/projects/:projectId/conversations/:conversationId"
-              element={<WorkspaceRoute />}
+              element={<WorkspaceRoute shellSlots={shellSlots} />}
             />
-            <Route path="*" element={<WorkspaceRoute />} />
+            <Route path="*" element={<WorkspaceRoute shellSlots={shellSlots} />} />
           </Routes>
         </TooltipProvider>
       </BrowserRouter>
@@ -34,7 +49,7 @@ export function OwnDesignApp({ apiBaseUrl = "" }: { apiBaseUrl?: string }) {
   );
 }
 
-function WorkspaceRoute() {
+function WorkspaceRoute({ shellSlots }: { shellSlots?: WorkspaceShellSlots }) {
   const api = useApiClient();
   const navigate = useNavigate();
   const params = useParams();
@@ -127,18 +142,20 @@ function WorkspaceRoute() {
   }, [api, state?.activeConversationId, state?.activeProject?.id]);
 
   if (error) {
-    return (
+    return renderStandaloneRouteContent(
       <div className="flex min-h-screen items-center justify-center bg-background p-8 text-destructive">
         {error}
-      </div>
+      </div>,
+      shellSlots,
     );
   }
 
   if (!state) {
-    return (
+    return renderStandaloneRouteContent(
       <div className="flex min-h-screen items-center justify-center bg-background text-muted-foreground">
         加载中...
-      </div>
+      </div>,
+      shellSlots,
     );
   }
 
@@ -146,7 +163,7 @@ function WorkspaceRoute() {
     state.projects.length === 0 &&
     state.settings.modelConfigurations.length === 0
   ) {
-    return (
+    return renderStandaloneRouteContent(
       <InitialSetupGuide
         onComplete={async (input) => {
           const result = await api.sendInitialSetup(input);
@@ -157,7 +174,8 @@ function WorkspaceRoute() {
             refresh();
           }
         }}
-      />
+      />,
+      shellSlots,
     );
   }
 
@@ -169,7 +187,32 @@ function WorkspaceRoute() {
       conversations={state.conversations}
       key={state.activeProject?.id ?? "empty-workspace"}
       projects={state.projects}
+      shellSlots={shellSlots}
       {...actions}
     />
+  );
+}
+
+function renderStandaloneRouteContent(
+  content: ReactNode,
+  shellSlots?: WorkspaceShellSlots,
+) {
+  if (!shellSlots) {
+    return content;
+  }
+
+  return (
+    <div className="flex h-screen w-full flex-col overflow-hidden bg-background text-foreground">
+      <header className="flex h-11 shrink-0 items-center gap-2 border-b border-border bg-card py-0 pl-3 pr-0">
+        <div className="flex shrink-0 items-center gap-2 font-semibold text-primary">
+          <LayersIcon className="size-5" />
+          <span className="text-[15px] tracking-normal">OwnDesign</span>
+        </div>
+        <Separator orientation="vertical" className="h-5" />
+        {shellSlots.topBarDragRegion ?? <div className="flex-1" />}
+        {shellSlots.topBarTrailing}
+      </header>
+      <div className="min-h-0 flex-1 overflow-auto">{content}</div>
+    </div>
   );
 }

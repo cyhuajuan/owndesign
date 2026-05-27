@@ -6,8 +6,76 @@ body,
   min-height: 100%;
 }
 
-.desktop-startup-shell {
+.desktop-window-shell {
   min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #0a0a0b;
+  color: #f0f0f2;
+}
+
+.desktop-window-titlebar {
+  height: 44px;
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  border-bottom: 1px solid #2a2a2e;
+  background: #141416;
+}
+
+.desktop-window-brand {
+  padding: 0 14px;
+  color: #f0f0f2;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.desktop-titlebar-drag-region {
+  min-width: 24px;
+  align-self: stretch;
+  flex: 1;
+}
+
+.desktop-window-controls {
+  align-self: stretch;
+  display: flex;
+  margin-left: 4px;
+}
+
+.desktop-window-control {
+  width: 46px;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #a0a0ab;
+  cursor: default;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+}
+
+.desktop-window-control svg {
+  width: 13px;
+  height: 13px;
+  stroke-width: 1.8;
+}
+
+.desktop-window-control:hover {
+  background: #252528;
+  color: #f0f0f2;
+}
+
+.desktop-window-control-close:hover {
+  background: #c42b1c;
+  color: #ffffff;
+}
+
+.desktop-startup-shell {
+  min-height: 0;
+  flex: 1;
   display: grid;
   place-items: center;
   background: #0a0a0b;

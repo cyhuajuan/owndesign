@@ -75,6 +75,11 @@ const demoMessages = [
 
 type PreviewStatus = "ready" | "loading" | "error";
 
+export type ChatShellSlots = {
+  topBarDragRegion?: ReactNode;
+  topBarTrailing?: ReactNode;
+};
+
 type ChatShellProps = {
   composer?: ReactNode;
   conversationBody?: ReactNode;
@@ -86,6 +91,7 @@ type ChatShellProps = {
   previewHref?: string;
   previewProjectId?: string;
   previewStatus?: PreviewStatus;
+  shellSlots?: ChatShellSlots;
 };
 
 const statusLabels: Record<PreviewStatus, string> = {
@@ -105,6 +111,7 @@ export function ChatShell({
   previewHref,
   previewProjectId,
   previewStatus = "ready",
+  shellSlots,
 }: ChatShellProps) {
   const api = useApiClient();
   const navigate = useAppNavigate();
@@ -221,7 +228,12 @@ export function ChatShell({
     >
       <FrontendCapabilityBridge projectId={previewProjectId} />
       <div className="flex h-screen w-full flex-col overflow-hidden bg-background">
-        <header className="flex h-11 shrink-0 items-center gap-2 border-b border-border bg-card px-3">
+        <header
+          className={cn(
+            "flex h-11 shrink-0 items-center gap-2 border-b border-border bg-card py-0 pl-3",
+            shellSlots?.topBarTrailing ? "pr-0" : "pr-3",
+          )}
+        >
           <div className="flex shrink-0 items-center gap-2 font-semibold text-primary">
             <LayersIcon className="size-5" />
             <span className="text-[15px] tracking-normal">OwnDesign</span>
@@ -232,8 +244,9 @@ export function ChatShell({
               {controlBar}
             </div>
           ) : null}
-          <div className="flex-1" />
+          {shellSlots?.topBarDragRegion ?? <div className="flex-1" />}
           <SettingsControl />
+          {shellSlots?.topBarTrailing}
         </header>
 
         <div className="flex min-h-0 flex-1 overflow-hidden">

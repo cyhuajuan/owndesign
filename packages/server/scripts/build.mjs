@@ -1,10 +1,11 @@
-import { mkdir, rm } from "node:fs/promises";
+import { cp, mkdir, rm } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { build } from "esbuild";
 
 const packageRoot = path.resolve(fileURLToPath(import.meta.url), "../..");
+const repoRoot = path.resolve(packageRoot, "../..");
 const distDir = path.join(packageRoot, "dist");
 
 await rm(distDir, { force: true, recursive: true });
@@ -24,3 +25,9 @@ await build({
   platform: "node",
   target: "node22",
 });
+
+await cp(
+  path.join(repoRoot, "packages/core/src/prompts"),
+  path.join(distDir, "prompts"),
+  { recursive: true },
+);

@@ -11,6 +11,7 @@ import {
 } from "./design-page-agent";
 import { createWorkspaceToolRegistry } from "./tools/core";
 import { createProjectWorkspaceToolDefinitions } from "./tools/project-workspace-tools";
+import { loadPrompt } from "@owndesign/core/prompts";
 import { WorkspaceStore } from "@owndesign/core/workspace-store";
 
 const aiMocks = vi.hoisted(() => {
@@ -125,6 +126,10 @@ afterEach(async () => {
 });
 
 describe("AiSdkDesignPageAgent", () => {
+  it("loads design page prompt from the prompt registry", () => {
+    expect(loadPrompt("agents/design-page")).toContain("# Design Page Agent");
+  });
+
   it("writes Project Workspace files when the model calls write", async () => {
     const workspaceStore = await createWorkspaceStore();
     await createProject(workspaceStore);

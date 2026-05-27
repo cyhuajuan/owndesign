@@ -1,0 +1,35 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "OwnDesign",
+  "version": "0.1.0",
+  "identifier": "com.owndesign.desktop",
+  "build": {
+    "beforeDevCommand": "vite --host 127.0.0.1 --port 3712 --strictPort",
+    "devUrl": "http://127.0.0.1:3712",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "security": {
+      "csp": null
+    },
+    "windows": [
+      {
+        "title": "OwnDesign",
+        "width": 1280,
+        "height": 820,
+        "minWidth": 960,
+        "minHeight": 640,
+        "decorations": false,
+        "resizable": true
+      }
+    ]
+  },
+  "bundle": {
+    "active": true,
+    "category": "DeveloperTool",
+    "resources": {
+      "resources/server": "server"
+    },
+    "targets": ["nsis"]
+  }
+}

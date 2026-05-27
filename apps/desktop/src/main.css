@@ -1,0 +1,164 @@
+@import "../../web/src/main.css";
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+.desktop-window-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #0a0a0b;
+  color: #f0f0f2;
+}
+
+.desktop-window-titlebar {
+  height: 44px;
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  border-bottom: 1px solid #2a2a2e;
+  background: #141416;
+}
+
+.desktop-window-brand {
+  padding: 0 14px;
+  color: #f0f0f2;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.desktop-titlebar-drag-region {
+  min-width: 24px;
+  align-self: stretch;
+  flex: 1;
+}
+
+.desktop-window-controls {
+  align-self: stretch;
+  display: flex;
+  margin-left: 4px;
+}
+
+.desktop-window-control {
+  width: 46px;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #a0a0ab;
+  cursor: default;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+}
+
+.desktop-window-control svg {
+  width: 13px;
+  height: 13px;
+  stroke-width: 1.8;
+}
+
+.desktop-window-control:hover {
+  background: #252528;
+  color: #f0f0f2;
+}
+
+.desktop-window-control-close:hover {
+  background: #c42b1c;
+  color: #ffffff;
+}
+
+.desktop-startup-shell {
+  min-height: 0;
+  flex: 1;
+  display: grid;
+  place-items: center;
+  background: #0a0a0b;
+  color: #f0f0f2;
+  padding: 32px;
+}
+
+.desktop-startup-panel {
+  width: min(620px, 100%);
+  display: grid;
+  gap: 16px;
+  border: 1px solid #2a2a2e;
+  border-radius: 8px;
+  background: #141416;
+  padding: 28px;
+  box-shadow: 0 24px 80px rgb(0 0 0 / 32%);
+}
+
+.desktop-startup-panel h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.desktop-startup-panel p {
+  margin: 0;
+  color: #a0a0ab;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.desktop-startup-panel pre {
+  max-height: 280px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  border: 1px solid #2a2a2e;
+  border-radius: 6px;
+  background: #0f0f11;
+  color: #f0f0f2;
+  margin: 4px 0 0;
+  padding: 14px;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.desktop-startup-panel button {
+  justify-self: start;
+  border: 1px solid #3c3c44;
+  border-radius: 6px;
+  background: #f0f0f2;
+  color: #0a0a0b;
+  padding: 9px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.desktop-startup-panel button:hover {
+  background: #ffffff;
+}
+
+.desktop-startup-mark,
+.desktop-startup-error-icon {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+}
+
+.desktop-startup-mark {
+  background: #6c5ce7;
+  box-shadow: 0 0 0 6px rgb(108 92 231 / 18%);
+}
+
+.desktop-startup-error-icon {
+  background: #e74c3c;
+  box-shadow: 0 0 0 6px rgb(231 76 60 / 16%);
+}
+
+.desktop-startup-panel-error {
+  border-color: rgb(231 76 60 / 38%);
+}

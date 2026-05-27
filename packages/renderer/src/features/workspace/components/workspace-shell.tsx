@@ -7,6 +7,7 @@ import {
   ConversationEmptyState,
 } from "@/components/ai-elements/conversation";
 import { ChatShell } from "@/features/workspace/components/chat-shell";
+import type { ChatShellSlots } from "@/features/workspace/components/chat-shell";
 import { ControlBar } from "@/features/projects/components/control-bar";
 import { PreviewEmptyState } from "@/features/preview/components/preview-empty-state";
 import { ProjectPreviewFrame } from "@/features/preview/components/project-preview-frame";
@@ -22,6 +23,8 @@ import type {
 } from "@owndesign/core/workspace-store";
 
 type ActionResult = { href?: string } | undefined | void;
+
+export type WorkspaceShellSlots = ChatShellSlots;
 
 type WorkspaceShellProps = {
   activeConversationId?: string;
@@ -55,6 +58,7 @@ type WorkspaceShellProps = {
     projectId: string,
   ) => Promise<ActionResult> | ActionResult;
   projects: ProjectRecord[];
+  shellSlots?: WorkspaceShellSlots;
 };
 
 export const WorkspaceShell = memo(function WorkspaceShell({
@@ -71,6 +75,7 @@ export const WorkspaceShell = memo(function WorkspaceShell({
   onSelectConversation,
   onSelectProject,
   projects,
+  shellSlots,
 }: WorkspaceShellProps) {
   const [conversationUpdates, setConversationUpdates] = useState<
     Record<string, ConversationPanelUpdate>
@@ -184,6 +189,7 @@ export const WorkspaceShell = memo(function WorkspaceShell({
         )
       }
       previewProjectId={activeProject?.id}
+      shellSlots={shellSlots}
     />
   );
 

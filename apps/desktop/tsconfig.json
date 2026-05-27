@@ -1,0 +1,14 @@
+{
+  "extends": "../../packages/config/tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@owndesign/renderer": ["../../packages/renderer/src/app.tsx"],
+      "@owndesign/renderer/*": ["../../packages/renderer/src/*"],
+      "@owndesign/core/*": ["../../packages/core/src/*"],
+      "@/*": ["../../packages/renderer/src/*"]
+    },
+    "types": ["vite/client", "node", "@testing-library/jest-dom"]
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts", "vitest.config.ts"]
+}

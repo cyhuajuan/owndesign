@@ -193,7 +193,13 @@ function DesktopTitlebarDragRegion() {
       return;
     }
 
-    void getCurrentWindow().startDragging();
+    const appWindow = getCurrentWindow();
+
+    void appWindow.isMaximized().then((isMaximized) => {
+      if (!isMaximized) {
+        void appWindow.startDragging();
+      }
+    });
   }, []);
 
   const toggleMaximize = useCallback(() => {

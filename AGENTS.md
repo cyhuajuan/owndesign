@@ -1,101 +1,86 @@
 ## Project Overview
 
-OwnDesign is an AI-powered design prototyping tool. Users describe what they want, and an AI agent creates and iterates on HTML pages displayed in a live preview. The UI is primarily in Chinese.
+OwnDesign is a monorepo for an AI-powered web design tool. Users describe UI ideas in natural language; an AI agent generates and iterates on HTML prototypes displayed in a live preview. It ships as a browser SPA, a Tauri v2 desktop app, and an npm CLI package.
 
 ## Commands
 
 ```bash
-bun run dev          # Start both server (3711) and web (3710) in parallel
-bun run build        # Build all packages
-bun run lint         # Lint all packages
-bun run typecheck    # Type-check all packages
-bun run test         # Run all tests
-bun run test:watch   # Run tests in watch mode (all packages)
+bun install                  # Install all workspace dependencies
+bun dev                      # Run web app + server in parallel (web:3710, server:3711)
+bun run desktop:dev          # Run desktop app (builds server first, launches Tauri)
+bun run desktop:build        # Build desktop app for production
+bun run build                # Build all workspaces sequentially
+bun run lint                  # Lint all workspaces
+bun run typecheck             # Type-check all workspaces
+bun run test                  # Run all tests
+bun run test:watch            # Run tests in watch mode (parallel)
 ```
 
-Run a single package's tests: `bun run --filter @owndesign/core test`
-Run a single test file: `bun run --filter @owndesign/core test src/agent/design-page-agent.test.ts`
+Run a single workspace's tests: `bun run --filter @owndesign/core test`
 
 ## Architecture
 
-Bun monorepo with three packages and one app:
+### Monorepo Structure
 
-- **`packages/core`** (`@owndesign/core`) — Domain logic, no UI. AI agent, workspace storage, project/conversation services, preview server management, settings.
-- **`packages/renderer`** (`@owndesign/renderer`) — React UI. Chat panel, workspace shell, preview frame, settings, onboarding.
-- **`packages/server`** (`@owndesign/server`) — Hono HTTP server. REST API + SSE for chat streaming and frontend commands.
-- **`apps/web`** (`@owndesign/web`) — Vite app entry point. Mounts `<OwnDesignApp>` from renderer.
+```
+apps/web        → @owndesign/web      Browser SPA (Vite, port 3710, proxies /api → 3711)
+apps/desktop    → @owndesign/desktop   Tauri v2 desktop app (Rust backend, frameless window)
+packages/core   → @owndesign/core      Business logic, AI agent, workspace storage
+packages/server → @owndesign/server    Hono HTTP server (port 3711), REST API + SSE
+packages/renderer → @owndesign/renderer React UI library (consumed by both apps)
+packages/cli    → owndesign            Published npm CLI package (bundles server + web)
+packages/config → @owndesign/config    Shared tsconfig, eslint, vitest setup
+```
 
-### Data flow
+### Dependency Graph
 
-`WorkspaceStore` (filesystem JSON at `~/.owndesign/`) → Hono REST API → fetch client (`renderer/src/api/client.ts`) → React components. Chat uses SSE via `ai` SDK's `createAgentUIStreamResponse` → `useChat` hook on the frontend.
+```
+web ──→ renderer ──→ core
+desktop ──→ renderer ──→ core    (also depends on @tauri-apps/api)
+server ──→ core
+cli ──→ (bundles server + web at build time)
+```
 
-### Path aliases
+`core` has zero workspace dependencies. `renderer` is the sole UI package consumed by both app shells.
 
-Configured in both `apps/web/vite.config.ts` and `apps/web/tsconfig.json`:
+### Key Flows
 
-- `@owndesign/renderer` → `packages/renderer/src/app.tsx`
-- `@owndesign/renderer/*` → `packages/renderer/src/*`
-- `@owndesign/core/*` → `packages/core/src/*`
-- `@` → `packages/renderer/src`
+**AI Chat Flow:** User prompt → `POST /api/chat` → `DesignPageAgent` (Vercel AI SDK `ToolLoopAgent`) → workspace tools (read/write/edit/glob/grep/createHtml) + `FrontendCommandBus` (SSE to frontend) → streaming response back. Agent limited to 50 steps (`stepCountIs(50)`).
 
-### Key domain concepts
+**Preview Flow:** Agent writes HTML to workspace → calls `callFrontendCapability` tool → `FrontendCommandBus` pushes SSE event → `FrontendCapabilityBridge` in renderer refreshes/switches the preview iframe.
 
-- **Project** — Container for a design task. Has workspace directory with HTML files. Output type is always `"html"`.
-- **Conversation** — Chat thread within a project. Messages streamed via AI SDK agent.
-- **DesignPageAgent** — The AI agent (`core/src/agent/design-page-agent.ts`). Uses `ToolLoopAgent` from `ai` SDK v6 with 10 workspace tools (read, write, edit, patch, glob, grep, delete, create-html, call-frontend-capability, cdn-guard).
-- **PreviewServerManager** — Dynamic Fastify servers per project/client with TTL-based lease (90s default) and heartbeat renewal.
-- **FrontendCommandBus** — SSE-based command delivery from server to frontend for preview refresh/switch commands.
-- **CDN guard** — HTML files can only reference CDN URLs configured in settings. Unapproved references rejected at tool level.
+**Workspace Storage:** `~/.owndesign/projects/<id>/` contains `project.json`, `workspace/` dir (generated files), `conversations/<id>.json`. Settings at `~/.owndesign/settings.json`.
 
-### API routes (server/src/app.ts)
+### AI Agent (packages/core/src/agent/)
 
-All routes prefixed `/api/`. Key endpoints:
-- `GET /workspace` — Full workspace state
-- `POST /chat` — AI chat (SSE stream)
-- `POST /projects`, `PATCH /projects/:id`, `DELETE /projects/:id` — Project CRUD
-- `POST /projects/:id/conversations`, etc. — Conversation CRUD
-- `GET/PUT /settings` — Settings CRUD
-- `POST /initial-setup` — First-run setup
-- `POST /projects/:id/preview-session` — Acquire preview server
-- `DELETE /projects/:id/preview-session` — Release preview server
-- `POST /projects/:id/preview-session/heartbeat` — Keep preview alive
-- `GET /projects/:id/frontend-capabilities/stream` — SSE for frontend commands
-- `GET /projects/:id/download` — Download HTML or ZIP
+- `design-page-agent.ts`: Creates `ToolLoopAgent` with prompt composed from 6 sections (core, page targeting, tool workflow, frontend capabilities, resource policy, runtime context)
+- `tools/core.ts`: Registry `createWorkspaceToolRegistry()` converts tool definitions to AI SDK `ToolSet`
+- `tools/cdn-guard.ts`: Validates that HTML only uses configured CDN resources
+- `prompts/agents/design-page.md`: Agent instructions — UI prototypes only, no real backend logic
 
-### Component architecture (renderer)
+### Desktop App (apps/desktop/)
 
-- `ai-elements/` — Custom AI chat components (message, conversation, prompt-input, code-block, reasoning, tool, confirmation)
-- `ui/` — ~25 base UI components built on `@base-ui/react` (shadcn-style)
-- `features/conversation/` — Chat panel with streaming, model selection, context usage
-- `features/workspace/` — Main layout (sidebar + preview pane)
-- `features/preview/` — iframe preview with session management and capability bridge
-- `features/onboarding/` — Initial setup wizard
-- `features/settings/` — Settings dialog (model config, resources, general)
+Tauri v2 with a Rust backend that manages the Node.js server lifecycle:
+1. On launch, resolves Node.js >= 22 (downloads if missing)
+2. Spawns `resources/server/index.js` as child process
+3. Polls `GET /api/workspace` to confirm server ready
+4. Kills process on window close
 
-## Tech Stack
+Frameless window with custom React title bar (`shellSlots` in `DesktopBootstrap`). No CSP — needed for iframe previews.
 
-- **Runtime**: Node.js, TypeScript 6, ESM (`"type": "module"`)
-- **Frontend**: React 19, React Router v7, Tailwind CSS v4, Vite 8
-- **Backend**: Hono v4 (server), Fastify (preview servers)
-- **AI**: Vercel AI SDK v6 (agent, streaming, `useChat`), DeepSeek + OpenAI-compatible providers
-- **Testing**: Vitest 4, Testing Library (React + jest-dom + user-event)
-- **Monorepo**: Bun workspaces, shared config in `packages/config/`
+### Ports
 
-## Conventions
+- 3710: Web app dev server
+- 3711: API server (dev and production)
+- 3712: Desktop app dev server (Vite)
 
-- All packages use `"type": "module"` and ESM imports
-- Core package exports via `"./*": "./src/*"` pattern — import as `@owndesign/core/agent/design-page-agent`
-- Renderer exports: `"."` → `app.tsx`, `"./*"` → `src/*`
-- Server runs on port 3711, web dev server on port 3710
-- `OWNDESIGN_SERVER_PORT` and `OWNDESIGN_SERVER_HOST` env vars for server config
-- `VITE_OWNDESIGN_API_BASE_URL` env var for web app API base URL (default: `http://127.0.0.1:3711`)
-- Settings stored at `~/.owndesign/settings.json`
-- Project data at `~/.owndesign/projects/<id>/`
+### Shared Config (packages/config/)
 
-## Skills
+- `tsconfig.base.json`: ES2022, Bundler resolution, react-jsx, strict
+- `eslint.config.mjs`: Flat config with typescript-eslint, react-hooks, react-refresh
+- `vitest.setup.ts`: testing-library/jest-dom, ResizeObserver mock
 
-The `.agents/skills/` directory contains two skill definitions:
-- **ai-elements** — Component library reference for AI chat UI components
-- **ai-sdk** — AI SDK v6 patterns and `ToolLoopAgent` usage
+### Test Environments
 
-Consult these when modifying agent behavior or chat UI components.
+- `packages/core`: `node` environment
+- `packages/renderer`, `apps/web`, `apps/desktop`: `jsdom` environment

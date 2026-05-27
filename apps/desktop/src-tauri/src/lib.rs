@@ -1,7 +1,8 @@
 use std::{
     env,
     fs::{self, File},
-    io::{self, Cursor},
+    io::{self, Cursor, Read},
+    net::TcpListener,
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     sync::Mutex,
@@ -9,8 +10,8 @@ use std::{
     time::{Duration, Instant},
 };
 
+use serde::Serialize;
 use tauri::{Manager, Runtime};
-use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
 const MIN_NODE_MAJOR: u32 = 22;
 const SERVER_HOST: &str = "127.0.0.1";
@@ -19,23 +20,42 @@ const NODE_RELEASE_INDEX: &str = "https://nodejs.org/download/release/latest-v22
 
 struct ServerProcess(Mutex<Option<Child>>);
 
+struct DesktopStartupState(Mutex<DesktopStartupStatus>);
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DesktopStartupStatus {
+    server_started: bool,
+    server_error: Option<String>,
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
         .manage(ServerProcess(Mutex::new(None)))
+        .manage(DesktopStartupState(Mutex::new(DesktopStartupStatus {
+            server_started: false,
+            server_error: None,
+        })))
+        .invoke_handler(tauri::generate_handler![get_desktop_startup_status])
         .setup(|app| {
-            if let Err(error) = start_server(app.handle()) {
-                app.dialog()
-                    .message(error)
-                    .title("OwnDesign 启动失败")
-                    .kind(MessageDialogKind::Error)
-                    .blocking_show();
+            let startup_status = match start_server(app.handle()) {
+                Ok(()) => DesktopStartupStatus {
+                    server_started: true,
+                    server_error: None,
+                },
+                Err(error) => DesktopStartupStatus {
+                    server_started: false,
+                    server_error: Some(error),
+                },
+            };
 
-                return Err(Box::<dyn std::error::Error>::from(
-                    "OwnDesign server failed to start.",
-                ));
-            }
+            let state = app.state::<DesktopStartupState>();
+            *state
+                .0
+                .lock()
+                .map_err(|_| "无法保存 desktop 启动状态。")? = startup_status;
 
             Ok(())
         })
@@ -53,6 +73,17 @@ pub fn run() {
         });
 }
 
+#[tauri::command]
+fn get_desktop_startup_status(
+    state: tauri::State<'_, DesktopStartupState>,
+) -> Result<DesktopStartupStatus, String> {
+    state
+        .0
+        .lock()
+        .map(|status| status.clone())
+        .map_err(|_| "无法读取 desktop 启动状态。".to_string())
+}
+
 fn start_server<R: Runtime>(app: &tauri::AppHandle<R>) -> Result<(), String> {
     let node = resolve_node(app)?;
     let server_entry = app
@@ -64,13 +95,15 @@ fn start_server<R: Runtime>(app: &tauri::AppHandle<R>) -> Result<(), String> {
         return Err(format!("内置 server 文件不存在：{}", server_entry.display()));
     }
 
+    ensure_server_port_available()?;
+
     let mut child = Command::new(&node)
         .arg(&server_entry)
         .env("OWNDESIGN_SERVER_HOST", SERVER_HOST)
         .env("OWNDESIGN_SERVER_PORT", SERVER_PORT)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        .stderr(Stdio::piped())
         .spawn()
         .map_err(|error| {
             format!(
@@ -90,6 +123,16 @@ fn start_server<R: Runtime>(app: &tauri::AppHandle<R>) -> Result<(), String> {
     Ok(())
 }
 
+fn ensure_server_port_available() -> Result<(), String> {
+    TcpListener::bind((SERVER_HOST, SERVER_PORT.parse::<u16>().unwrap_or(3711)))
+        .map(|_| ())
+        .map_err(|error| {
+            format!(
+                "端口 {SERVER_PORT} 当前不可用，OwnDesign server 无法启动。请确认是否已有其它程序监听 http://{SERVER_HOST}:{SERVER_PORT}。系统错误：{error}"
+            )
+        })
+}
+
 fn wait_for_server_ready(child: &mut Child) -> Result<(), String> {
     let client = reqwest::blocking::Client::builder()
         .timeout(Duration::from_millis(400))
@@ -103,30 +146,59 @@ fn wait_for_server_ready(child: &mut Child) -> Result<(), String> {
             .try_wait()
             .map_err(|error| format!("无法检查 server 进程状态：{error}"))?
         {
+            let stderr = read_child_stderr(child);
+            if !stderr.is_empty() {
+                return Err(format!(
+                    "OwnDesign server 已退出，状态：{status}。\n\nserver 错误输出：\n{stderr}"
+                ));
+            }
+
             return Err(format!(
-                "OwnDesign server 已退出，状态：{status}。请检查端口 {SERVER_PORT} 是否被占用。"
+                "OwnDesign server 已退出，状态：{status}，但没有输出错误日志。"
             ));
         }
 
-        if client
-            .get(&health_url)
-            .send()
-            .is_ok_and(|response| response.status().is_success())
-        {
-            return Ok(());
-        }
+        let health_error = match client.get(&health_url).send() {
+            Ok(response) if response.status().is_success() => return Ok(()),
+            Ok(response) => format!(
+                "健康检查返回 HTTP {}：{}",
+                response.status(),
+                response.text().unwrap_or_default()
+            ),
+            Err(error) => format!("健康检查请求失败：{error}"),
+        };
 
         if Instant::now() >= deadline {
             let _ = child.kill();
             let _ = child.wait();
+            let stderr = read_child_stderr(child);
+
+            if !stderr.is_empty() {
+                return Err(format!(
+                    "OwnDesign server 启动超时。\n\n最后一次健康检查：{health_error}\n\nserver 错误输出：\n{stderr}"
+                ));
+            }
 
             return Err(format!(
-                "OwnDesign server 启动超时。请检查端口 {SERVER_PORT} 是否可用。"
+                "OwnDesign server 启动超时。\n\n最后一次健康检查：{health_error}"
             ));
         }
 
         thread::sleep(Duration::from_millis(100));
     }
+}
+
+fn read_child_stderr(child: &mut Child) -> String {
+    let Some(mut stderr) = child.stderr.take() else {
+        return String::new();
+    };
+
+    let mut output = String::new();
+    if stderr.read_to_string(&mut output).is_err() {
+        return String::new();
+    }
+
+    output.trim().to_string()
 }
 
 fn stop_server<R: Runtime>(app: &tauri::AppHandle<R>) {

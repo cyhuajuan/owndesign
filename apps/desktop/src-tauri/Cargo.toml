@@ -15,6 +15,7 @@ tauri-build = { version = "2.6.2", features = [] }
 
 [dependencies]
 reqwest = { version = "0.12.24", default-features = false, features = ["blocking", "rustls-tls"] }
+serde = { version = "1.0.228", features = ["derive"] }
 tauri = { version = "2.11.2", features = [] }
 tauri-plugin-dialog = "2.7.1"
 tauri-plugin-shell = "2.3.5"

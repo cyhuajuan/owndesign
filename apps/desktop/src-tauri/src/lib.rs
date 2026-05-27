@@ -94,11 +94,16 @@ fn start_server<R: Runtime>(app: &tauri::AppHandle<R>) -> Result<(), String> {
     if !server_entry.is_file() {
         return Err(format!("内置 server 文件不存在：{}", server_entry.display()));
     }
+    let server_dir = server_entry
+        .parent()
+        .ok_or_else(|| format!("无法定位内置 server 目录：{}", server_entry.display()))?;
+    let server_entry_arg = node_path_argument(&server_entry);
 
     ensure_server_port_available()?;
 
     let mut child = Command::new(&node)
-        .arg(&server_entry)
+        .arg(&server_entry_arg)
+        .current_dir(server_dir)
         .env("OWNDESIGN_SERVER_HOST", SERVER_HOST)
         .env("OWNDESIGN_SERVER_PORT", SERVER_PORT)
         .stdin(Stdio::null())
@@ -107,8 +112,9 @@ fn start_server<R: Runtime>(app: &tauri::AppHandle<R>) -> Result<(), String> {
         .spawn()
         .map_err(|error| {
             format!(
-                "无法启动 OwnDesign server。Node: {}。错误：{error}",
-                node.display()
+                "无法启动 OwnDesign server。Node: {}。入口：{}。错误：{error}",
+                node.display(),
+                server_entry_arg
             )
         })?;
 
@@ -121,6 +127,23 @@ fn start_server<R: Runtime>(app: &tauri::AppHandle<R>) -> Result<(), String> {
         .map_err(|_| "无法保存 server 进程状态。".to_string())? = Some(child);
 
     Ok(())
+}
+
+fn node_path_argument(path: &Path) -> String {
+    let path = path.to_string_lossy();
+
+    #[cfg(windows)]
+    {
+        if let Some(stripped) = path.strip_prefix(r"\\?\UNC\") {
+            return format!(r"\\{stripped}");
+        }
+
+        if let Some(stripped) = path.strip_prefix(r"\\?\") {
+            return stripped.to_string();
+        }
+    }
+
+    path.to_string()
 }
 
 fn ensure_server_port_available() -> Result<(), String> {

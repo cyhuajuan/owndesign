@@ -1,6 +1,6 @@
 import { StrictMode, useCallback, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import type { ComponentType, ReactNode } from "react";
+import type { ComponentType, MouseEvent, ReactNode } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
@@ -188,6 +188,14 @@ function DesktopWindowShell({ children }: { children: ReactNode }) {
 }
 
 function DesktopTitlebarDragRegion() {
+  const startDragging = useCallback((event: MouseEvent<HTMLDivElement>) => {
+    if (event.button !== 0 || event.detail > 1) {
+      return;
+    }
+
+    void getCurrentWindow().startDragging();
+  }, []);
+
   const toggleMaximize = useCallback(() => {
     void getCurrentWindow().toggleMaximize();
   }, []);
@@ -197,6 +205,7 @@ function DesktopTitlebarDragRegion() {
       className="desktop-titlebar-drag-region"
       data-tauri-drag-region
       onDoubleClick={toggleMaximize}
+      onMouseDown={startDragging}
     />
   );
 }

@@ -414,6 +414,29 @@ describe("MessageParts", () => {
     expect(screen.queryByText("结果")).not.toBeInTheDocument();
   });
 
+  it("renders preview update tools without a file fallback suffix", () => {
+    render(
+      <MessageParts
+        message={{
+          id: "assistant-1",
+          parts: [
+            {
+              input: {},
+              output: {},
+              state: "output-available",
+              toolCallId: "call-1",
+              type: "tool-callFrontendCapability",
+            },
+          ],
+          role: "assistant",
+        }}
+      />,
+    );
+
+    expect(screen.getByText("已更新预览")).toBeInTheDocument();
+    expect(screen.queryByText("已更新预览文件")).not.toBeInTheDocument();
+  });
+
   it("renders simple tool error descriptions without error details", () => {
     render(
       <MessageParts

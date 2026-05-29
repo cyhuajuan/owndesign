@@ -24,7 +24,7 @@ function getToolDescription(part: ToolLikePart) {
   const toolName = getToolName(part);
   const target = getToolTarget(part);
   const verb = toolVerbs[toolName] ?? toolName;
-  const suffix = target ? target : "文件";
+  const suffix = target ?? (toolName === "callFrontendCapability" ? "" : "文件");
 
   if (part.state === "output-available") {
     return `已${verb}${suffix}`;

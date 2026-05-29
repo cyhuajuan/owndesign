@@ -922,10 +922,150 @@ describe("MessageParts", () => {
       expect.objectContaining({
         conversationId: "conversation-1",
         frontendTabId: "tab-1",
+        pageEditMode: "auto",
         previewPath: "dashboard.html",
         projectId: "project-1",
       }),
     );
+  });
+
+  it("renders the page edit mode select in the composer tool area", () => {
+    stubOpenAICompatibleSettings();
+    vi.mocked(useChat).mockReturnValue({
+      addToolApprovalResponse: vi.fn(),
+      error: undefined,
+      messages: [],
+      sendMessage: vi.fn(),
+      status: "ready",
+      stop: vi.fn(),
+    } as unknown as ReturnType<typeof useChat>);
+
+    render(
+      <StreamingConversationPanel
+        conversationId="conversation-1"
+        conversationTitle="新建会话"
+        initialMessages={[]}
+        projectId="project-1"
+      />,
+    );
+
+    expect(screen.getByRole("combobox", { name: "页面模式" })).toHaveTextContent(
+      "自动",
+    );
+  });
+
+  it("sends the selected page edit mode in the chat transport body", async () => {
+    const user = userEvent.setup();
+    setCurrentPreviewPath("index.html");
+    vi.mocked(useChat).mockReturnValue({
+      addToolApprovalResponse: vi.fn(),
+      error: undefined,
+      messages: [],
+      sendMessage: vi.fn(),
+      status: "ready",
+      stop: vi.fn(),
+    } as unknown as ReturnType<typeof useChat>);
+
+    render(
+      <StreamingConversationPanel
+        conversationId="conversation-1"
+        conversationTitle="新建会话"
+        initialMessages={[]}
+        projectId="project-1"
+      />,
+    );
+
+    await user.click(screen.getByRole("combobox", { name: "页面模式" }));
+    await user.click(await screen.findByRole("option", { name: "直接编辑" }));
+
+    const useChatOptions = vi.mocked(useChat).mock.calls.at(-1)?.[0] as
+      | { transport: { body: () => Record<string, unknown> } }
+      | undefined;
+
+    expect(useChatOptions?.transport.body()).toEqual(
+      expect.objectContaining({
+        pageEditMode: "direct_edit",
+      }),
+    );
+  });
+
+  it("submits the selected page edit mode in the send request body", async () => {
+    const user = userEvent.setup();
+    const sendMessage = vi.fn();
+    setCurrentPreviewPath("index.html");
+    vi.mocked(useChat).mockReturnValue({
+      addToolApprovalResponse: vi.fn(),
+      error: undefined,
+      messages: [],
+      sendMessage,
+      status: "ready",
+      stop: vi.fn(),
+    } as unknown as ReturnType<typeof useChat>);
+
+    render(
+      <StreamingConversationPanel
+        conversationId="conversation-1"
+        conversationTitle="新建会话"
+        initialMessages={[]}
+        projectId="project-1"
+      />,
+    );
+
+    await user.click(screen.getByRole("combobox", { name: "页面模式" }));
+    await user.click(await screen.findByRole("option", { name: "副本编辑" }));
+    await user.type(screen.getByPlaceholderText(/输入消息/), "移除标题");
+    await user.click(screen.getByRole("button", { name: "提交" }));
+
+    await waitFor(() => {
+      expect(sendMessage).toHaveBeenCalledTimes(1);
+    });
+    expect(sendMessage.mock.calls[0]?.[1]).toEqual({
+      body: expect.objectContaining({
+        pageEditMode: "duplicate_edit",
+        previewPath: "index.html",
+      }),
+    });
+  });
+
+  it("enables duplicate edit when the current preview path is published after render", async () => {
+    const user = userEvent.setup();
+    const sendMessage = vi.fn();
+    vi.mocked(useChat).mockReturnValue({
+      addToolApprovalResponse: vi.fn(),
+      error: undefined,
+      messages: [],
+      sendMessage,
+      status: "ready",
+      stop: vi.fn(),
+    } as unknown as ReturnType<typeof useChat>);
+
+    render(
+      <StreamingConversationPanel
+        conversationId="conversation-1"
+        conversationTitle="新建会话"
+        initialMessages={[]}
+        projectId="project-1"
+      />,
+    );
+
+    act(() => {
+      setCurrentPreviewPath("generated.html");
+    });
+
+    await user.click(screen.getByRole("combobox", { name: "页面模式" }));
+    await user.click(await screen.findByRole("option", { name: "副本编辑" }));
+    await user.type(screen.getByPlaceholderText(/输入消息/), "移除标题");
+    await user.click(screen.getByRole("button", { name: "提交" }));
+
+    await waitFor(() => {
+      expect(sendMessage).toHaveBeenCalledTimes(1);
+    });
+    expect(sendMessage.mock.calls[0]?.[1]).toEqual({
+      body: expect.objectContaining({
+        pageEditMode: "duplicate_edit",
+        previewPath: "generated.html",
+      }),
+    });
   });
 
   it("configures stream resume for the current conversation active run", async () => {
@@ -1399,16 +1539,23 @@ describe("MessageParts", () => {
     await user.click(await screen.findByRole("button", { name: "提交" }));
 
     await waitFor(() => {
-      expect(sendMessage).toHaveBeenCalledWith({
-        files: [
-          expect.objectContaining({
-            filename: "reference.png",
-            mediaType: "image/png",
-            type: "file",
+      expect(sendMessage).toHaveBeenCalledWith(
+        {
+          files: [
+            expect.objectContaining({
+              filename: "reference.png",
+              mediaType: "image/png",
+              type: "file",
+            }),
+          ],
+          text: "",
+        },
+        {
+          body: expect.objectContaining({
+            pageEditMode: "auto",
           }),
-        ],
-        text: "",
-      });
+        },
+      );
     });
   });
 

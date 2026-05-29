@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   AiSdkDesignPageAgent,
+  buildDesignPageAgentInstructions,
   createDesignPageAgentContext,
   buildProviderOptions,
 } from "./design-page-agent";
@@ -1139,6 +1140,8 @@ describe("AiSdkDesignPageAgent", () => {
     expect(config.instructions).toContain("</design_agent_core>");
     expect(config.instructions).toContain("<page_target_protocol>");
     expect(config.instructions).toContain("</page_target_protocol>");
+    expect(config.instructions).toContain("<page_edit_mode_policy>");
+    expect(config.instructions).toContain("</page_edit_mode_policy>");
     expect(config.instructions).toContain("<tool_workflow>");
     expect(config.instructions).toContain("</tool_workflow>");
     expect(config.instructions).toContain("<resource_policy>");
@@ -1242,6 +1245,164 @@ describe("AiSdkDesignPageAgent", () => {
     expect(aiMocks.generate).toHaveBeenCalledWith({
       prompt: "设计一个 CRM 仪表盘的界面",
     });
+  });
+
+  it("adds forced page edit mode instructions", async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    await workspaceStore.writeProjectWorkspaceFile(
+      "project-1",
+      "dashboard.html",
+      "<main>Dashboard</main>",
+    );
+
+    const directContext = await createDesignPageAgentContext({
+      currentPreviewPath: "dashboard.html",
+      modelConfigurationId: "model-1",
+      outputType: "html",
+      pageEditMode: "direct_edit",
+      projectId: "project-1",
+      workspaceStore,
+    });
+
+    expect(directContext.pageEditModePolicy).toEqual({
+      mode: "direct_edit",
+      targetPath: "dashboard.html",
+    });
+    expect(
+      directContext.pageEditModePolicy
+        ? buildDesignPageAgentInstructions(
+            "html",
+            defaultResources,
+            "dashboard.html",
+            directContext.pageEditModePolicy,
+          )
+        : "",
+    ).toContain("Mode: direct_edit.");
+
+    const duplicateContext = await createDesignPageAgentContext({
+      currentPreviewPath: "dashboard.html",
+      modelConfigurationId: "model-1",
+      outputType: "html",
+      pageEditMode: "duplicate_edit",
+      projectId: "project-1",
+      workspaceStore,
+    });
+
+    expect(duplicateContext.pageEditModePolicy).toEqual({
+      mode: "duplicate_edit",
+      sourcePath: "dashboard.html",
+      targetPath: "dashboard.copy.html",
+    });
+    await expect(
+      workspaceStore.readProjectWorkspaceFile("project-1", "dashboard.copy.html"),
+    ).resolves.toBe("<main>Dashboard</main>");
+  });
+
+  it("enforces forced page edit modes in workspace tools", async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    await workspaceStore.writeProjectWorkspaceFile(
+      "project-1",
+      "index.html",
+      "<main>Home</main>",
+    );
+    await workspaceStore.writeProjectWorkspaceFile(
+      "project-1",
+      "index.copy.html",
+      "<main>Home</main>",
+    );
+
+    const directTools = createWorkspaceToolRegistry(
+      createProjectWorkspaceToolDefinitions(),
+      {
+        approvedCdnUrls: [
+          "https://cdn.example.com/font.css",
+          "https://cdn.example.com/icons.js",
+        ],
+        pageEditModePolicy: {
+          mode: "direct_edit",
+          targetPath: "index.html",
+        },
+        projectId: "project-1",
+        resources: defaultResources,
+        workspaceStore,
+      },
+    ) as unknown as {
+      createHtml: { execute: (input: { path: string }) => Promise<unknown> };
+      edit: {
+        execute: (input: {
+          newString: string;
+          oldString: string;
+          path: string;
+        }) => Promise<unknown>;
+      };
+    };
+
+    await expectWorkspaceToolError(
+      directTools.createHtml.execute({ path: "login.html" }),
+      "does not allow creating new HTML pages",
+    );
+    await expectWorkspaceToolError(
+      directTools.edit.execute({
+        newString: "Copy",
+        oldString: "Home",
+        path: "index.copy.html",
+      }),
+      "can only edit index.html",
+    );
+    await expectWorkspaceToolOk(
+      directTools.edit.execute({
+        newString: "Updated",
+        oldString: "Home",
+        path: "index.html",
+      }),
+    );
+
+    const newPageTools = createWorkspaceToolRegistry(
+      createProjectWorkspaceToolDefinitions(),
+      {
+        approvedCdnUrls: [
+          "https://cdn.example.com/font.css",
+          "https://cdn.example.com/icons.js",
+        ],
+        pageEditModePolicy: {
+          currentPreviewPath: "index.html",
+          mode: "new_page",
+        },
+        projectId: "project-1",
+        resources: defaultResources,
+        workspaceStore,
+      },
+    ) as unknown as {
+      createHtml: { execute: (input: { path: string }) => Promise<unknown> };
+      edit: {
+        execute: (input: {
+          newString: string;
+          oldString: string;
+          path: string;
+        }) => Promise<unknown>;
+      };
+    };
+
+    await expectWorkspaceToolError(
+      newPageTools.edit.execute({
+        newString: "Again",
+        oldString: "Updated",
+        path: "index.html",
+      }),
+      "cannot edit the current preview page",
+    );
+    await expectWorkspaceToolOk(
+      newPageTools.createHtml.execute({ path: "landing.html" }),
+    );
+    await expectWorkspaceToolOk(
+      newPageTools.edit.execute({
+        newString: '<main id="app">Landing</main>',
+        oldString: '<main id="app"></main>',
+        path: "landing.html",
+      }),
+    );
   });
 
   it("includes the current preview page in runtime instructions", async () => {

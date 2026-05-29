@@ -19,6 +19,7 @@ import {
   createDesignPageAgent,
   createDesignPageAgentContext,
 } from "@owndesign/core/agent/design-page-agent";
+import { parsePageEditMode } from "@owndesign/core/agent/page-edit-mode";
 import { getPreviewServerManager } from "@owndesign/core/preview/preview-server-manager";
 import { registerFrontendConnection } from "@owndesign/core/realtime/frontend-command-bus";
 import {
@@ -43,6 +44,7 @@ type ChatRequestBody = {
   frontendTabId?: unknown;
   messages?: unknown;
   modelConfigurationId?: unknown;
+  pageEditMode?: unknown;
   previewPath?: unknown;
   projectId?: unknown;
   providerOptionsSelection?: unknown;
@@ -297,9 +299,14 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
     const projectId = asNonEmptyString(body.projectId);
     const conversationId = asNonEmptyString(body.conversationId);
     const previewPath = asNonEmptyString(body.previewPath);
+    const pageEditMode = parsePageEditMode(body.pageEditMode);
 
     if (!projectId || !conversationId || !Array.isArray(body.messages)) {
       return context.text("Invalid chat request.", 400);
+    }
+
+    if (!pageEditMode) {
+      return context.text("Invalid page edit mode.", 400);
     }
 
     const workspaceStore = createWorkspaceStore(options);
@@ -320,6 +327,7 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
         frontendTabId: asNonEmptyString(body.frontendTabId),
         modelConfigurationId: asNonEmptyString(body.modelConfigurationId),
         outputType: project.outputType,
+        pageEditMode,
         projectId,
         providerOptionsSelection: parseDeepSeekProviderOptionsSelection(
           body.providerOptionsSelection,

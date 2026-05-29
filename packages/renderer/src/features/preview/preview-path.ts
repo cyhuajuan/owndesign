@@ -3,16 +3,38 @@ import {
   useAppNavigate,
   useAppSearchParams,
 } from "@/lib/router";
-import { useCallback } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 
 let currentPreviewPath: string | undefined;
+const currentPreviewPathListeners = new Set<() => void>();
 
 export function getCurrentPreviewPath() {
   return currentPreviewPath;
 }
 
 export function setCurrentPreviewPath(path: string | undefined) {
+  if (currentPreviewPath === path) {
+    return;
+  }
+
   currentPreviewPath = path;
+  currentPreviewPathListeners.forEach((listener) => listener());
+}
+
+export function useCurrentPreviewPath() {
+  return useSyncExternalStore(
+    subscribeToCurrentPreviewPath,
+    getCurrentPreviewPath,
+    getCurrentPreviewPath,
+  );
+}
+
+function subscribeToCurrentPreviewPath(listener: () => void) {
+  currentPreviewPathListeners.add(listener);
+
+  return () => {
+    currentPreviewPathListeners.delete(listener);
+  };
 }
 
 export function usePreviewPath() {

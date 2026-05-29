@@ -20,6 +20,11 @@ import {
   PromptInputBody,
   PromptInputFooter,
   PromptInputHeader,
+  PromptInputSelect,
+  PromptInputSelectContent,
+  PromptInputSelectItem,
+  PromptInputSelectTrigger,
+  PromptInputSelectValue,
   PromptInputSubmit,
   PromptInputTextarea,
 } from "@/components/ai-elements/prompt-input";
@@ -33,8 +38,9 @@ import { deriveConversationTitle } from "@/features/conversation/utils/conversat
 import { getDeepSeekThinkingMode } from "@/features/conversation/utils/model-selection";
 import { FRONTEND_TAB_ID } from "@/features/preview/components/frontend-capability-bridge";
 import { useApiClient } from "@/api/context";
-import { getCurrentPreviewPath } from "@/features/preview/preview-path";
+import { useCurrentPreviewPath } from "@/features/preview/preview-path";
 import type { ActiveRun, ActiveRunSnapshot } from "@/api/client";
+import type { PageEditMode } from "@owndesign/core/agent/page-edit-mode";
 
 type StreamingConversationPanelProps = {
   conversationId: string;
@@ -55,6 +61,12 @@ export type ConversationPanelUpdate = {
   updatedAt: string;
 };
 
+const PAGE_EDIT_MODE_OPTIONS = [
+  { label: "自动", value: "auto" },
+  { label: "新页面", value: "new_page" },
+  { label: "直接编辑", value: "direct_edit" },
+  { label: "副本编辑", value: "duplicate_edit" },
+] satisfies Array<{ label: string; value: PageEditMode }>;
 
 export function StreamingConversationPanel({
   conversationId,
@@ -72,6 +84,7 @@ export function StreamingConversationPanel({
   const previousStatusRef = useRef("ready");
   const reconnectState = useMemo(() => ({ afterChunkIndex: 0 }), []);
   const [localSubmitStarted, setLocalSubmitStarted] = useState(false);
+  const [pageEditMode, setPageEditMode] = useState<PageEditMode>("auto");
   const [resumeSnapshot, setResumeSnapshot] = useState<
     | {
         nextChunkIndex: number;
@@ -83,6 +96,7 @@ export function StreamingConversationPanel({
     selectedModel?.provider === "deepseek"
       ? getDeepSeekThinkingMode(selectedModel)
       : undefined;
+  const currentPreviewPath = useCurrentPreviewPath();
   const hasProjectActiveRun = projectActiveRun?.status === "running";
   const activeRunId = projectActiveRun?.runId;
   const activeRunBelongsToConversation =
@@ -91,24 +105,36 @@ export function StreamingConversationPanel({
     activeRunBelongsToConversation &&
     !localSubmitStarted &&
     resumeSnapshot?.runId === activeRunId;
+  const buildChatRequestBody = useCallback(
+    () => ({
+      conversationId,
+      frontendTabId: FRONTEND_TAB_ID,
+      modelConfigurationId: selectedModelId,
+      pageEditMode,
+      previewPath: currentPreviewPath,
+      projectId,
+      ...(selectedDeepSeekThinkingMode
+        ? {
+            providerOptionsSelection: {
+              deepseek: selectedDeepSeekThinkingMode,
+            },
+          }
+        : {}),
+    }),
+    [
+      conversationId,
+      currentPreviewPath,
+      pageEditMode,
+      projectId,
+      selectedDeepSeekThinkingMode,
+      selectedModelId,
+    ],
+  );
   const transport = useMemo(
     () =>
       new DefaultChatTransport({
         api: api.streamChatUrl(),
-        body: () => ({
-          conversationId,
-          frontendTabId: FRONTEND_TAB_ID,
-          modelConfigurationId: selectedModelId,
-          previewPath: getCurrentPreviewPath(),
-          projectId,
-          ...(selectedDeepSeekThinkingMode
-            ? {
-                providerOptionsSelection: {
-                  deepseek: selectedDeepSeekThinkingMode,
-                },
-              }
-            : {}),
-        }),
+        body: buildChatRequestBody,
         prepareReconnectToStreamRequest: () => ({
           api: api.streamConversationRunUrl(projectId, conversationId, {
             after: reconnectState.afterChunkIndex,
@@ -118,10 +144,9 @@ export function StreamingConversationPanel({
     [
       conversationId,
       api,
+      buildChatRequestBody,
       projectId,
       reconnectState,
-      selectedDeepSeekThinkingMode,
-      selectedModelId,
     ],
   );
   const { error, messages, sendMessage, setMessages, status, stop } = useChat({
@@ -149,6 +174,8 @@ export function StreamingConversationPanel({
   const canSend = Boolean(selectedModel) && !isGenerating && !isProjectBusy;
   const submitStatus = isProjectBusy && !isGenerating ? "streaming" : status;
   const busyMessage = "当前项目已有任务正在执行，完成或停止后才能继续输入。";
+  const requiresCurrentPreview =
+    pageEditMode === "direct_edit" || pageEditMode === "duplicate_edit";
   const handleStop = useCallback(() => {
     void api.cancelActiveRun(projectId).finally(() => {
       stop();
@@ -304,7 +331,11 @@ export function StreamingConversationPanel({
           onSubmit={async ({ files, text }) => {
             const trimmedText = text.trim();
 
-            if ((!trimmedText && files.length === 0) || !canSend) {
+            if (
+              (!trimmedText && files.length === 0) ||
+              !canSend ||
+              (requiresCurrentPreview && !currentPreviewPath)
+            ) {
               return;
             }
 
@@ -317,7 +348,10 @@ export function StreamingConversationPanel({
               runId: "pending",
               status: "running",
             });
-            await sendMessage({ files, text: trimmedText });
+            await sendMessage(
+              { files, text: trimmedText },
+              { body: buildChatRequestBody() },
+            );
           }}
         >
           <PromptInputHeader>
@@ -331,7 +365,15 @@ export function StreamingConversationPanel({
             />
           </PromptInputBody>
           <PromptInputFooter className="px-2 pb-1">
-            <PromptAttachmentControls selectedModel={selectedModel} />
+            <div className="flex min-w-0 items-center gap-1">
+              <PromptAttachmentControls selectedModel={selectedModel} />
+              <PageEditModeSelect
+                disabled={isGenerating || isProjectBusy}
+                hasCurrentPreview={Boolean(currentPreviewPath)}
+                onValueChange={setPageEditMode}
+                value={pageEditMode}
+              />
+            </div>
             <div className="flex min-w-0 items-center gap-1">
               <ModelContextUsage
                 configuration={selectedModel}
@@ -353,6 +395,60 @@ export function StreamingConversationPanel({
         </PromptInput>
       </div>
     </>
+  );
+}
+
+function PageEditModeSelect({
+  disabled,
+  hasCurrentPreview,
+  onValueChange,
+  value,
+}: {
+  disabled: boolean;
+  hasCurrentPreview: boolean;
+  onValueChange: (value: PageEditMode) => void;
+  value: PageEditMode;
+}) {
+  return (
+    <PromptInputSelect
+      onValueChange={(nextValue) => onValueChange(nextValue as PageEditMode)}
+      value={value}
+    >
+      <PromptInputSelectTrigger
+        aria-label="页面模式"
+        className="h-7 max-w-24 px-2 text-xs"
+        disabled={disabled}
+        size="sm"
+      >
+        <PromptInputSelectValue>
+          {getPageEditModeLabel(value)}
+        </PromptInputSelectValue>
+      </PromptInputSelectTrigger>
+      <PromptInputSelectContent side="top" sideOffset={6}>
+        {PAGE_EDIT_MODE_OPTIONS.map((option) => {
+          const optionRequiresPreview =
+            option.value === "direct_edit" ||
+            option.value === "duplicate_edit";
+
+          return (
+            <PromptInputSelectItem
+              disabled={optionRequiresPreview && !hasCurrentPreview}
+              key={option.value}
+              value={option.value}
+            >
+              {option.label}
+            </PromptInputSelectItem>
+          );
+        })}
+      </PromptInputSelectContent>
+    </PromptInputSelect>
+  );
+}
+
+function getPageEditModeLabel(value: PageEditMode) {
+  return (
+    PAGE_EDIT_MODE_OPTIONS.find((option) => option.value === value)?.label ??
+    "自动"
   );
 }
 

@@ -2,11 +2,16 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ProjectPreviewFrame } from "./project-preview-frame";
+import {
+  getCurrentPreviewPath,
+  setCurrentPreviewPath,
+} from "@/features/preview/preview-path";
 
 describe("ProjectPreviewFrame", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     window.history.replaceState(null, "", "/");
+    setCurrentPreviewPath(undefined);
     vi.stubGlobal(
       "fetch",
       vi.fn(() => new Promise(() => {})) as typeof fetch,
@@ -50,6 +55,24 @@ describe("ProjectPreviewFrame", () => {
     expect(parseBody(getSessionPosts(fetchMock)[0])).toMatchObject({
       previewPath: "dashboard.html",
     });
+  });
+
+  it("publishes the active preview path returned by the initial preview session", async () => {
+    const fetchMock = mockPreviewFetch("generated.html");
+
+    render(
+      <ProjectPreviewFrame
+        initialUpdatedAt="2026-05-15T00:00:00.000Z"
+        projectId="project-1"
+        projectName="Project One"
+      />,
+    );
+
+    await screen.findByTitle("Project One HTML 预览");
+
+    expect(getSessionPosts(fetchMock)).toHaveLength(1);
+    expect(window.location.search).toBe("");
+    expect(getCurrentPreviewPath()).toBe("generated.html");
   });
 
   it("does not release the preview session when only the preview path changes", async () => {
@@ -233,7 +256,7 @@ describe("ProjectPreviewFrame", () => {
   });
 });
 
-function mockPreviewFetch() {
+function mockPreviewFetch(defaultActivePath = "index.html") {
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     if (init?.method === "DELETE") {
       return new Response(null, { status: 204 });
@@ -242,7 +265,7 @@ function mockPreviewFetch() {
     const body = JSON.parse(String(init?.body ?? "{}")) as {
       previewPath?: string;
     };
-    const activePath = body.previewPath ?? "index.html";
+    const activePath = body.previewPath ?? defaultActivePath;
 
     return Response.json({
       activePath,

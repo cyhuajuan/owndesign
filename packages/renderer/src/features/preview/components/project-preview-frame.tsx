@@ -44,6 +44,7 @@ export function ProjectPreviewFrame({
       { updateFrameSrc }: { updateFrameSrc: boolean },
     ) => {
       previewUrlRef.current = session.url;
+      setCurrentPreviewPath(session.activePath);
       publishPreviewHref(session.url);
       publishPreviewFiles(session.files, session.activePath);
 

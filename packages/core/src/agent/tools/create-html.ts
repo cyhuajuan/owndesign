@@ -1,6 +1,10 @@
 import type { ResourceLibrary } from "@owndesign/core/settings/settings-service";
 
 import {
+  assertCreateHtmlAllowed,
+  markCreatedHtmlPath,
+} from "@owndesign/core/agent/page-edit-mode";
+import {
   buildCdnTag,
   isHtmlPath,
   normalizeToolPath,
@@ -51,8 +55,14 @@ export function createCreateHtmlToolDefinition(): WorkspaceToolDefinition<
     },
     name: "createHtml",
     parallelSafe: false,
-    execute: async (input, { projectId, resources, workspaceStore }) => {
+    execute: async (input, {
+      pageEditModePolicy,
+      projectId,
+      resources,
+      workspaceStore,
+    }) => {
       const targetPath = normalizeToolPath(input.path);
+      assertCreateHtmlAllowed(pageEditModePolicy, targetPath);
 
       if (!isHtmlPath(targetPath)) {
         throw new Error(`HTML initialization target must end with .html: ${targetPath}`);
@@ -85,6 +95,7 @@ export function createCreateHtmlToolDefinition(): WorkspaceToolDefinition<
       });
 
       await workspaceStore.writeProjectWorkspaceFile(projectId, targetPath, html);
+      markCreatedHtmlPath(pageEditModePolicy, targetPath);
 
       return {
         fontLibrary: formatSelectedLibrary(fontLibrary),

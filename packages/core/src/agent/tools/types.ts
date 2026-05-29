@@ -1,9 +1,11 @@
 import type { WorkspaceStore } from "@owndesign/core/workspace-store";
 import type { ResourceSettings } from "@owndesign/core/settings/settings-service";
+import type { PageEditModePolicy } from "@owndesign/core/agent/page-edit-mode";
 
 export type ProjectWorkspaceToolContext = {
   approvedCdnUrls?: string[];
   frontendTabId?: string;
+  pageEditModePolicy?: PageEditModePolicy;
   projectId: string;
   resources: ResourceSettings;
   workspaceStore: WorkspaceStore;

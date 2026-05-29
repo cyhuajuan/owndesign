@@ -77,6 +77,71 @@ describe("createOwnDesignApp static hosting", () => {
     expect(response.status).toBe(404);
   });
 
+  it("rejects invalid page edit mode in chat requests", async () => {
+    const { app } = await createAppWithTempOptions();
+
+    const response = await app.fetch(
+      new Request("http://localhost/api/chat", {
+        body: JSON.stringify({
+          conversationId: "conversation-1",
+          messages: [],
+          pageEditMode: "replace_everything",
+          projectId: "project-1",
+        }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.text()).toBe("Invalid page edit mode.");
+  });
+
+  it("rejects direct page edit mode without a current preview page", async () => {
+    const { app } = await createAppWithTempOptions();
+    const setupResponse = await app.fetch(
+      new Request("http://localhost/api/initial-setup", {
+        body: JSON.stringify({
+          interfaceLanguage: "zh-CN",
+          modelConfigurations: [
+            {
+              apiKey: "secret",
+              baseUrl: "https://example.test/v1",
+              contextSizeK: 1000,
+              id: "model-1",
+              model: "mock-model",
+              provider: "openai-compatible",
+            },
+          ],
+        }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      }),
+    );
+    const setupBody = (await setupResponse.json()) as { href: string };
+    const match = /\/projects\/([^/]+)\/conversations\/([^/?]+)/.exec(
+      setupBody.href,
+    );
+
+    const response = await app.fetch(
+      new Request("http://localhost/api/chat", {
+        body: JSON.stringify({
+          conversationId: match?.[2],
+          messages: [],
+          pageEditMode: "direct_edit",
+          projectId: match?.[1],
+        }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.text()).toContain(
+      'Page edit mode "direct_edit" requires a current preview page.',
+    );
+  });
+
   it("starts without static hosting when the static root is missing", async () => {
     const { app, root } = await createAppWithTempOptions();
 

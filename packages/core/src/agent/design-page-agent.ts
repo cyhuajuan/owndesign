@@ -20,6 +20,12 @@ import { WorkspaceStore } from "@owndesign/core/workspace-store";
 import { createProjectWorkspaceTools } from "@owndesign/core/agent/tools/project-workspace-tools";
 import { loadPrompt } from "@owndesign/core/prompts";
 import { buildFrontendCapabilityPrompt } from "@owndesign/core/realtime/frontend-capabilities";
+import {
+  buildPageEditModePolicy,
+  buildPageEditModePolicyPrompt,
+  type PageEditMode,
+  type PageEditModePolicy,
+} from "@owndesign/core/agent/page-edit-mode";
 
 export type DesignPageAgentInput = {
   content: string;
@@ -42,6 +48,8 @@ type CreateDesignPageAgentInput = {
   frontendTabId?: string;
   model: LanguageModel;
   outputType: ProjectOutputType;
+  pageEditMode?: PageEditMode;
+  pageEditModePolicy?: PageEditModePolicy;
   providerOptions?: ToolLoopAgentSettings["providerOptions"];
   projectId: string;
   resources: ResourceSettings;
@@ -60,6 +68,7 @@ type CreateDesignPageAgentContextInput = {
   frontendTabId?: string;
   modelConfigurationId?: string;
   outputType: ProjectOutputType;
+  pageEditMode?: PageEditMode;
   projectId: string;
   providerOptionsSelection?: DeepSeekThinkingMode;
   workspaceStore: WorkspaceStore;
@@ -95,6 +104,7 @@ export async function createDesignPageAgentContext({
   frontendTabId,
   modelConfigurationId,
   outputType,
+  pageEditMode = "auto",
   projectId,
   providerOptionsSelection,
   workspaceStore,
@@ -109,11 +119,20 @@ export async function createDesignPageAgentContext({
     settingsService.resolveModelConfiguration(modelConfigurationId),
   ]);
 
+  const pageEditModePolicy = await buildPageEditModePolicy({
+    currentPreviewPath,
+    mode: pageEditMode,
+    projectId,
+    workspaceStore,
+  });
+
   return {
     currentPreviewPath,
     frontendTabId,
     model: buildLanguageModel(modelConfiguration),
     outputType,
+    pageEditMode,
+    pageEditModePolicy,
     providerOptions: buildProviderOptions(
       modelConfiguration,
       providerOptionsSelection,
@@ -141,10 +160,12 @@ export function createDesignPageWorkspaceTools({
   resources,
   workspaceStore,
   frontendTabId,
+  pageEditModePolicy,
 }: DesignAgentContext) {
   return createProjectWorkspaceTools({
     approvedCdnUrls: buildApprovedCdnUrls(resources),
     frontendTabId,
+    pageEditModePolicy,
     projectId,
     resources,
     workspaceStore,
@@ -154,12 +175,14 @@ export function createDesignPageWorkspaceTools({
 export function buildDesignPageInstructions({
   currentPreviewPath,
   outputType,
+  pageEditModePolicy,
   resources,
 }: DesignAgentContext) {
   return buildDesignPageAgentInstructions(
     outputType,
     resources,
     currentPreviewPath,
+    pageEditModePolicy,
   );
 }
 
@@ -213,6 +236,7 @@ export function buildDesignPageAgentInstructions(
   outputType: ProjectOutputType,
   resources?: ResourceSettings,
   currentPreviewPath?: string,
+  pageEditModePolicy: PageEditModePolicy = { mode: "auto" },
 ) {
   const sections: DesignPromptSection[] = [
     {
@@ -222,6 +246,10 @@ export function buildDesignPageAgentInstructions(
     {
       tag: "page_target_protocol",
       content: buildPageTargetProtocolPrompt(),
+    },
+    {
+      tag: "page_edit_mode_policy",
+      content: buildPageEditModePolicyPrompt(pageEditModePolicy),
     },
     {
       tag: "tool_workflow",

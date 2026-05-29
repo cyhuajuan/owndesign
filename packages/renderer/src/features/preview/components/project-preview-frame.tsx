@@ -35,6 +35,7 @@ export function ProjectPreviewFrame({
   const clientId = useRef(createClientId());
   const [selectedPreviewPath, setPreviewPath] = usePreviewPath();
   const pendingRouteSyncPathRef = useRef<string | undefined>(undefined);
+  const previewProjectIdRef = useRef<string | undefined>(undefined);
   const previewUrlRef = useRef<string | undefined>(undefined);
   const [previewUrl, setPreviewUrl] = useState<string>();
   const [refreshKey, setRefreshKey] = useState(initialUpdatedAt);
@@ -43,6 +44,7 @@ export function ProjectPreviewFrame({
       session: PreviewSessionResponse,
       { updateFrameSrc }: { updateFrameSrc: boolean },
     ) => {
+      previewProjectIdRef.current = projectId;
       previewUrlRef.current = session.url;
       setCurrentPreviewPath(session.activePath);
       publishPreviewHref(session.url);
@@ -52,7 +54,7 @@ export function ProjectPreviewFrame({
         setPreviewUrl(session.url);
       }
     },
-    [],
+    [projectId],
   );
 
   useEffect(() => {
@@ -102,9 +104,15 @@ export function ProjectPreviewFrame({
     }
 
     async function acquirePreviewSession() {
-      setPreviewUrl(undefined);
-      previewUrlRef.current = undefined;
-      publishPreviewHref(undefined);
+      const canKeepCurrentPreview =
+        previewProjectIdRef.current === projectId &&
+        Boolean(previewUrlRef.current);
+
+      if (!canKeepCurrentPreview) {
+        setPreviewUrl(undefined);
+        previewUrlRef.current = undefined;
+        publishPreviewHref(undefined);
+      }
 
       try {
         const session = await requestPreviewSession(
@@ -120,7 +128,7 @@ export function ProjectPreviewFrame({
 
         applyPreviewSession(session, { updateFrameSrc: true });
       } catch {
-        if (isActive) {
+        if (isActive && !canKeepCurrentPreview) {
           setPreviewUrl(undefined);
           previewUrlRef.current = undefined;
           publishPreviewHref(undefined);

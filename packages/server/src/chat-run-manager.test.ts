@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { UIMessage, UIMessageChunk } from "ai";
+import { uiMessageChunkSchema, type UIMessage, type UIMessageChunk } from "ai";
 
 import { ChatRunManager } from "./chat-run-manager";
 
@@ -199,15 +199,242 @@ describe("ChatRunManager", () => {
         type: "tool-input-start",
       },
     });
+    await reader.cancel();
+  });
+
+  it("sanitizes live and replayed chunks for frontend subscribers", async () => {
+    const manager = new ChatRunManager();
+    const source = createControlledStream();
+    const result = manager.startRun({
+      conversationId: "conversation-1",
+      createStream: () => Promise.resolve(source.stream),
+      initialMessages: createUserMessages(),
+      onFinish: vi.fn(),
+      projectId: "project-1",
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    const reader = result.stream.getReader();
+    source.enqueue({ messageId: "assistant-1", type: "start" });
+    source.enqueue({ id: "reasoning-1", type: "reasoning-start" });
+    source.enqueue({
+      delta: "private thought",
+      id: "reasoning-1",
+      type: "reasoning-delta",
+    });
+    source.enqueue({ id: "reasoning-1", type: "reasoning-end" });
+    source.enqueue({
+      toolCallId: "call-1",
+      toolName: "edit",
+      type: "tool-input-start",
+    });
+    source.enqueue({
+      inputTextDelta: "{\"path\":\"index.html\",\"replace\":\"secret\"}",
+      toolCallId: "call-1",
+      type: "tool-input-delta",
+    });
+    source.enqueue({
+      input: { path: "index.html", replace: "secret" },
+      toolCallId: "call-1",
+      toolName: "edit",
+      type: "tool-input-available",
+    });
+    source.enqueue({
+      output: { path: "index.html", content: "secret output" },
+      toolCallId: "call-1",
+      type: "tool-output-available",
+    });
+
+    await expect(reader.read()).resolves.toEqual({
+      done: false,
+      value: { messageId: "assistant-1", type: "start" },
+    });
+    await expect(reader.read()).resolves.toEqual({
+      done: false,
+      value: { id: "reasoning-1", type: "reasoning-start" },
+    });
+    await expect(reader.read()).resolves.toEqual({
+      done: false,
+      value: { id: "reasoning-1", type: "reasoning-end" },
+    });
     await expect(reader.read()).resolves.toEqual({
       done: false,
       value: {
-        inputTextDelta: "{\"path\"",
         toolCallId: "call-1",
-        type: "tool-input-delta",
+        toolName: "edit",
+        type: "tool-input-start",
+      },
+    });
+    await expect(reader.read()).resolves.toEqual({
+      done: false,
+      value: {
+        input: { path: "index.html" },
+        toolCallId: "call-1",
+        toolName: "edit",
+        type: "tool-input-available",
+      },
+    });
+    await expect(reader.read()).resolves.toEqual({
+      done: false,
+      value: {
+        output: { path: "index.html" },
+        toolCallId: "call-1",
+        type: "tool-output-available",
       },
     });
     await reader.cancel();
+
+    const replay = manager.subscribeActiveRun("project-1", "conversation-1");
+    expect(replay).toBeDefined();
+
+    const replayReader = replay!.getReader();
+    await expect(replayReader.read()).resolves.toEqual({
+      done: false,
+      value: { messageId: "assistant-1", type: "start" },
+    });
+    await expect(replayReader.read()).resolves.toEqual({
+      done: false,
+      value: { id: "reasoning-1", type: "reasoning-start" },
+    });
+    await expect(replayReader.read()).resolves.toEqual({
+      done: false,
+      value: { id: "reasoning-1", type: "reasoning-end" },
+    });
+    await expect(replayReader.read()).resolves.toEqual({
+      done: false,
+      value: {
+        toolCallId: "call-1",
+        toolName: "edit",
+        type: "tool-input-start",
+      },
+    });
+    await expect(replayReader.read()).resolves.toEqual({
+      done: false,
+      value: {
+        input: { path: "index.html" },
+        toolCallId: "call-1",
+        toolName: "edit",
+        type: "tool-input-available",
+      },
+    });
+    await expect(replayReader.read()).resolves.toEqual({
+      done: false,
+      value: {
+        output: { path: "index.html" },
+        toolCallId: "call-1",
+        type: "tool-output-available",
+      },
+    });
+    await replayReader.cancel();
+  });
+
+  it("emits sanitized chunks that still match the AI SDK stream schema", async () => {
+    const manager = new ChatRunManager();
+    const source = createControlledStream();
+    const result = manager.startRun({
+      conversationId: "conversation-1",
+      createStream: () => Promise.resolve(source.stream),
+      initialMessages: createUserMessages(),
+      onFinish: vi.fn(),
+      projectId: "project-1",
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    const reader = result.stream.getReader();
+    source.enqueue({ id: "reasoning-1", type: "reasoning-start" });
+    source.enqueue({ id: "reasoning-1", type: "reasoning-end" });
+    source.enqueue({
+      input: { path: "index.html", secret: true },
+      toolCallId: "call-1",
+      toolName: "edit",
+      type: "tool-input-available",
+    });
+    source.enqueue({
+      errorText: "private input error",
+      input: { path: "broken.html", secret: true },
+      toolCallId: "call-2",
+      toolName: "read",
+      type: "tool-input-error",
+    });
+    source.enqueue({
+      output: { path: "index.html", secret: true },
+      toolCallId: "call-1",
+      type: "tool-output-available",
+    });
+    source.enqueue({
+      errorText: "private output error",
+      toolCallId: "call-3",
+      type: "tool-output-error",
+    });
+    source.enqueue({
+      toolCallId: "call-4",
+      type: "tool-output-denied",
+    });
+
+    for (let index = 0; index < 7; index += 1) {
+      const result = await reader.read();
+
+      expect(result.done).toBe(false);
+      await expect(uiMessageChunkSchema().validate?.(result.value)).resolves.toEqual({
+        success: true,
+        value: result.value,
+      });
+    }
+
+    await reader.cancel();
+  });
+
+  it("sanitizes active run snapshots while keeping internal messages complete", async () => {
+    const manager = new ChatRunManager();
+    const initialMessages: UIMessage[] = [
+      ...createUserMessages(),
+      {
+        id: "assistant-1",
+        parts: [
+          { text: "secret thought", type: "reasoning" },
+          {
+            input: { path: "index.html", replace: "secret input" },
+            output: { content: "secret output", path: "index.html" },
+            state: "output-available",
+            toolCallId: "call-1",
+            type: "tool-edit",
+          },
+        ],
+        role: "assistant",
+      },
+    ];
+    const result = manager.startRun({
+      conversationId: "conversation-1",
+      createStream: () => Promise.resolve(createPendingStream()),
+      initialMessages,
+      onFinish: vi.fn(),
+      projectId: "project-1",
+    });
+
+    expect(result.ok).toBe(true);
+
+    const snapshot = manager.getActiveRunSnapshot(
+      "project-1",
+      "conversation-1",
+    );
+
+    expect(snapshot?.messages.at(1)?.parts).toEqual([
+      {
+        input: { path: "index.html" },
+        output: { path: "index.html" },
+        state: "output-available",
+        toolCallId: "call-1",
+        type: "tool-edit",
+      },
+    ]);
   });
 
   it("replays only chunks after the requested chunk index", async () => {

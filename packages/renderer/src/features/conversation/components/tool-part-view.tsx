@@ -5,48 +5,19 @@ import {
   type DynamicToolUIPart,
   type ToolUIPart,
 } from "ai";
-import { useState } from "react";
 
-import {
-  Tool,
-  ToolContent,
-  ToolHeader,
-  ToolInput,
-  ToolOutput,
-} from "@/components/ai-elements/tool";
+import { Shimmer } from "@/components/ai-elements/shimmer";
 
-export function ToolPartView({
-  part,
-}: {
-  part: ToolLikePart;
-}) {
-  const [isOpen, setIsOpen] = useState(false);
+export function ToolPartView({ part }: { part: ToolLikePart }) {
+  const description = getToolDescription(part);
 
   return (
-    <div className="w-full space-y-2">
-      <Tool
-        className="mb-0 w-full bg-background text-sm"
-        onOpenChange={setIsOpen}
-        open={isOpen}
-      >
-        {part.type === "dynamic-tool" ? (
-          <ToolHeader
-            state={part.state}
-            toolName={part.toolName}
-            type={part.type}
-          />
-        ) : (
-          <ToolHeader state={part.state} type={part.type} />
-        )}
-        {isOpen ? (
-          <ToolContent>
-            <ToolInput input={part.input} />
-            {part.output !== undefined || part.errorText ? (
-              <ToolOutput errorText={part.errorText} output={part.output} />
-            ) : null}
-          </ToolContent>
-        ) : null}
-      </Tool>
+    <div className="w-full text-muted-foreground text-sm">
+      {isPendingToolPart(part) ? (
+        <Shimmer as="span">{description}</Shimmer>
+      ) : (
+        description
+      )}
     </div>
   );
 }
@@ -56,3 +27,68 @@ export function isToolPart(part: unknown): part is ToolLikePart {
 }
 
 export type ToolLikePart = ToolUIPart | DynamicToolUIPart;
+
+function getToolDescription(part: ToolLikePart) {
+  const toolName = getToolName(part);
+  const target = getToolTarget(part);
+  const verb = toolVerbs[toolName] ?? toolName;
+  const suffix = target ?? (toolName === "callFrontendCapability" ? "" : "文件");
+
+  if (part.state === "output-available") {
+    return `已${verb}${suffix}`;
+  }
+
+  if (part.state === "output-error") {
+    return `${verb}${suffix}失败`;
+  }
+
+  if (part.state === "output-denied") {
+    return `已取消${verb}${suffix}`;
+  }
+
+  return `正在${verb}${suffix}`;
+}
+
+function isPendingToolPart(part: ToolLikePart) {
+  return (
+    part.state !== "output-available" &&
+    part.state !== "output-error" &&
+    part.state !== "output-denied"
+  );
+}
+
+function getToolName(part: ToolLikePart) {
+  return part.type === "dynamic-tool"
+    ? part.toolName
+    : part.type.split("-").slice(1).join("-");
+}
+
+function getToolTarget(part: ToolLikePart) {
+  return (
+    getPathFromValue(part.output) ??
+    getPathFromValue(part.input) ??
+    getPathFromValue(part)
+  );
+}
+
+function getPathFromValue(value: unknown): string | undefined {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+
+  const path = "path" in value ? value.path : undefined;
+
+  return typeof path === "string" && path.length > 0 ? path : undefined;
+}
+
+const toolVerbs: Record<string, string> = {
+  callFrontendCapability: "更新预览",
+  createHtml: "创建",
+  delete: "删除",
+  edit: "编辑",
+  glob: "查找",
+  grep: "搜索",
+  patch: "修改",
+  read: "查看",
+  write: "写入",
+};

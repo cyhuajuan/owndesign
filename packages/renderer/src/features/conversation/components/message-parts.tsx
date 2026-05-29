@@ -1,15 +1,9 @@
 "use client";
 
 import type { UIMessage } from "ai";
-import type { ReactNode } from "react";
 
+import { Shimmer } from "@/components/ai-elements/shimmer";
 import { MessageResponse } from "@/components/ai-elements/message";
-import {
-  Reasoning,
-  ReasoningContent,
-  ReasoningPlainTextContent,
-  ReasoningTrigger,
-} from "@/components/ai-elements/reasoning";
 import {
   isToolPart,
   ToolPartView,
@@ -64,24 +58,7 @@ function MessagePart({
   }
 
   if (part.type === "reasoning") {
-    return (
-      <Reasoning
-        className="w-full rounded-md border border-border bg-background px-3 py-2"
-        isStreaming={isReasoningStreaming}
-      >
-        <ReasoningTrigger
-          className="font-medium"
-          getThinkingMessage={getReasoningLabel}
-        />
-        {useStreamingText ? (
-          <ReasoningPlainTextContent className="mt-2">
-            {part.text}
-          </ReasoningPlainTextContent>
-        ) : (
-          <ReasoningContent className="mt-2">{part.text}</ReasoningContent>
-        )}
-      </Reasoning>
-    );
+    return isReasoningStreaming ? <ReasoningPendingIndicator /> : null;
   }
 
   if (isToolPart(part)) {
@@ -91,8 +68,12 @@ function MessagePart({
   return null;
 }
 
-function getReasoningLabel(): ReactNode {
-  return <span>思考过程</span>;
+function ReasoningPendingIndicator() {
+  return (
+    <div className="w-full font-medium text-muted-foreground text-sm">
+      <Shimmer as="span">正在思考</Shimmer>
+    </div>
+  );
 }
 
 function StreamingTextResponse({ children }: { children: string }) {

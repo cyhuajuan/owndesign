@@ -12,6 +12,7 @@ import {
   createAgentUIStream,
   type InferAgentUIMessage,
   type LanguageModelUsage,
+  type UIMessage,
 } from "ai";
 
 import { normalizeConversationMessages } from "@owndesign/core/conversations/chat-messages";
@@ -38,6 +39,7 @@ import {
   createChatRunStreamResponse,
   getChatRunManager,
 } from "./chat-run-manager";
+import { sanitizePublicConversation } from "./sanitize-ui-message";
 
 type ChatRequestBody = {
   conversationId?: unknown;
@@ -93,7 +95,9 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
       activeRun: activeProject
         ? chatRunManager.getActiveRun(activeProject.id)
         : undefined,
-      conversations: conversationState.conversations,
+      conversations: conversationState.conversations.map(
+        sanitizePublicConversation,
+      ),
       projects: projectState.projects,
       settings,
     });
@@ -316,8 +320,15 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
       return context.text("当前项目已有任务正在执行。", 409);
     }
 
-    const messages = normalizeConversationMessages(
+    const incomingMessages = normalizeConversationMessages(
       body.messages,
+    ) as DesignPageUIMessage[];
+    const storedMessages = normalizeConversationMessages(
+      (await workspaceStore.getConversation(projectId, conversationId)).messages,
+    ) as DesignPageUIMessage[];
+    const messages = mergeStoredAndIncomingMessages(
+      storedMessages,
+      incomingMessages,
     ) as DesignPageUIMessage[];
     let agentContext;
 
@@ -843,6 +854,22 @@ async function readJson(request: Request) {
   } catch {
     return undefined;
   }
+}
+
+export function mergeStoredAndIncomingMessages(
+  storedMessages: UIMessage[],
+  incomingMessages: UIMessage[],
+) {
+  if (storedMessages.length === 0) {
+    return incomingMessages;
+  }
+
+  const storedIds = new Set(storedMessages.map((message) => message.id));
+
+  return [
+    ...storedMessages,
+    ...incomingMessages.filter((message) => !storedIds.has(message.id)),
+  ];
 }
 
 function asNonEmptyString(value: unknown) {

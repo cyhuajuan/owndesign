@@ -110,6 +110,42 @@ describe("ProjectPreviewFrame", () => {
     });
   });
 
+  it("keeps the current iframe visible while switching preview paths", async () => {
+    window.history.replaceState(null, "", "/?previewPath=index.html");
+    const fetchMock = mockPreviewFetch();
+
+    const { rerender } = render(
+      <ProjectPreviewFrame
+        initialUpdatedAt="2026-05-15T00:00:00.000Z"
+        projectId="project-1"
+        projectName="Project One"
+      />,
+    );
+
+    const iframe = await screen.findByTitle("Project One HTML 预览");
+    expect(screen.queryByText("预览服务启动中")).not.toBeInTheDocument();
+
+    fetchMock.mockImplementation(
+      () => new Promise(() => {}) as Promise<Response>,
+    );
+
+    window.history.replaceState(null, "", "/?previewPath=dashboard.html");
+    rerender(
+      <ProjectPreviewFrame
+        initialUpdatedAt="2026-05-15T00:00:00.000Z"
+        projectId="project-1"
+        projectName="Project One"
+      />,
+    );
+
+    await waitFor(() => {
+      expect(getSessionPosts(fetchMock)).toHaveLength(2);
+    });
+
+    expect(screen.getByTitle("Project One HTML 预览")).toBe(iframe);
+    expect(screen.queryByText("预览服务启动中")).not.toBeInTheDocument();
+  });
+
   it("releases the preview session when the frame unmounts", async () => {
     const fetchMock = mockPreviewFetch();
 

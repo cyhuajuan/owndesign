@@ -3,8 +3,10 @@ import os from "node:os";
 import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
+import type { UIMessage } from "ai";
 
-import { createOwnDesignApp } from "./app";
+import { createOwnDesignApp, mergeStoredAndIncomingMessages } from "./app";
+import { createWorkspaceStore } from "./services";
 
 const tempRoots: string[] = [];
 
@@ -142,6 +144,102 @@ describe("createOwnDesignApp static hosting", () => {
     );
   });
 
+  it("sanitizes conversation messages in workspace responses without changing local records", async () => {
+    const { app, root } = await createAppWithTempOptions();
+    const workspaceRoot = path.join(root, "workspace");
+    const setupResponse = await app.fetch(
+      new Request("http://localhost/api/initial-setup", {
+        body: JSON.stringify({
+          interfaceLanguage: "zh-CN",
+          modelConfigurations: [
+            {
+              apiKey: "secret",
+              baseUrl: "https://example.test/v1",
+              contextSizeK: 1000,
+              id: "model-1",
+              model: "mock-model",
+              provider: "openai-compatible",
+            },
+          ],
+        }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      }),
+    );
+    const setupBody = (await setupResponse.json()) as { href: string };
+    const match = /\/projects\/([^/]+)\/conversations\/([^/?]+)/.exec(
+      setupBody.href,
+    );
+    const projectId = match?.[1] ?? "";
+    const conversationId = match?.[2] ?? "";
+    const workspaceStore = createWorkspaceStore({ workspaceRoot });
+    const conversation = await workspaceStore.getConversation(
+      projectId,
+      conversationId,
+    );
+
+    await workspaceStore.updateConversation(projectId, conversationId, {
+      ...conversation,
+      messages: [
+        {
+          id: "assistant-1",
+          parts: [
+            { text: "private reasoning", type: "reasoning" },
+            {
+              input: { path: "index.html", replace: "private input" },
+              output: { content: "private output", path: "index.html" },
+              state: "output-available",
+              toolCallId: "call-1",
+              type: "tool-edit",
+            },
+          ],
+          role: "assistant",
+        },
+      ],
+    });
+
+    const response = await app.fetch(
+      new Request(
+        `http://localhost/api/workspace?projectId=${projectId}&conversationId=${conversationId}`,
+      ),
+    );
+    const body = (await response.json()) as {
+      conversations: Array<{ messages: Array<{ parts: unknown[] }> }>;
+    };
+
+    expect(body.conversations[0]?.messages[0]?.parts).toEqual([
+      {
+        input: { path: "index.html" },
+        output: { path: "index.html" },
+        state: "output-available",
+        toolCallId: "call-1",
+        type: "tool-edit",
+      },
+    ]);
+
+    const storedConversation = await workspaceStore.getConversation(
+      projectId,
+      conversationId,
+    );
+
+    expect(storedConversation.messages).toEqual([
+      {
+        id: "assistant-1",
+        parts: [
+          { text: "private reasoning", type: "reasoning" },
+          {
+            input: { path: "index.html", replace: "private input" },
+            output: { content: "private output", path: "index.html" },
+            state: "output-available",
+            toolCallId: "call-1",
+            type: "tool-edit",
+          },
+        ],
+        role: "assistant",
+      },
+    ]);
+  });
+
   it("starts without static hosting when the static root is missing", async () => {
     const { app, root } = await createAppWithTempOptions();
 
@@ -153,6 +251,51 @@ describe("createOwnDesignApp static hosting", () => {
     expect(root).toBeDefined();
     expect(response.status).toBe(200);
     expect(staticResponse.status).toBe(404);
+  });
+});
+
+describe("mergeStoredAndIncomingMessages", () => {
+  it("keeps complete stored messages when the frontend sends sanitized history", () => {
+    const storedMessages: UIMessage[] = [
+      {
+        id: "assistant-1",
+        parts: [
+          { text: "private reasoning", type: "reasoning" },
+          {
+            input: { path: "index.html", replace: "private input" },
+            output: { content: "private output", path: "index.html" },
+            state: "output-available",
+            toolCallId: "call-1",
+            type: "tool-edit",
+          },
+        ],
+        role: "assistant",
+      },
+    ];
+    const incomingMessages: UIMessage[] = [
+      {
+        id: "assistant-1",
+        parts: [
+          {
+            input: { path: "index.html" },
+            output: { path: "index.html" },
+            state: "output-available",
+            toolCallId: "call-1",
+            type: "tool-edit",
+          },
+        ],
+        role: "assistant",
+      },
+      {
+        id: "user-2",
+        parts: [{ text: "继续修改", type: "text" }],
+        role: "user",
+      },
+    ];
+
+    expect(
+      mergeStoredAndIncomingMessages(storedMessages, incomingMessages),
+    ).toEqual([...storedMessages, incomingMessages[1]]);
   });
 });
 

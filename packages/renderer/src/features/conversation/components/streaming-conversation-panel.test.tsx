@@ -9,16 +9,6 @@ import {
 } from "./streaming-conversation-panel";
 import { setCurrentPreviewPath } from "@/features/preview/preview-path";
 
-function hasTextContent(text: string) {
-  return (_: string, node: Element | null) => node?.textContent?.includes(text) ?? false;
-}
-
-const TOOL_DISPLAY_STRING_LIMIT = 100;
-
-function buildLongString(prefix: string, tail = "-hidden-tail") {
-  return prefix.repeat(TOOL_DISPLAY_STRING_LIMIT) + tail;
-}
-
 function getProjectOutputUpdatedEvents(dispatchEventSpy: ReturnType<typeof vi.spyOn>) {
   return dispatchEventSpy.mock.calls.filter(
     ([event]: [Event]) => event.type === "owndesign:project-output-updated",
@@ -131,7 +121,7 @@ function stubOpenAICompatibleSettings() {
 }
 
 describe("MessageParts", () => {
-  it("renders reasoning parts", () => {
+  it("hides completed reasoning parts", () => {
     render(
       <MessageParts
         message={{
@@ -148,22 +138,20 @@ describe("MessageParts", () => {
       />,
     );
 
-    expect(screen.getByRole("button", { name: /思考过程/ })).toHaveAttribute(
-      "aria-expanded",
-      "false",
-    );
+    expect(screen.queryByText("思考过程")).not.toBeInTheDocument();
+    expect(screen.queryByText("需要先判断信息架构。")).not.toBeInTheDocument();
   });
 
-  it("shows reasoning content after expanding", async () => {
-    const user = userEvent.setup();
-
+  it("shows only a pending label for streaming reasoning", () => {
     render(
       <MessageParts
+        isLastMessage
+        isStreaming
         message={{
           id: "assistant-1",
           parts: [
             {
-              state: "done",
+              state: "streaming",
               text: "需要先判断信息架构。",
               type: "reasoning",
             },
@@ -173,12 +161,11 @@ describe("MessageParts", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: /思考过程/ }));
-
-    expect(screen.getByText("需要先判断信息架构。")).toBeInTheDocument();
+    expect(screen.getByText("正在思考")).toBeInTheDocument();
+    expect(screen.queryByText("需要先判断信息架构。")).not.toBeInTheDocument();
   });
 
-  it("opens the currently streaming reasoning by default", () => {
+  it("does not show reasoning content while streaming", () => {
     render(
       <MessageParts
         isLastMessage
@@ -197,10 +184,8 @@ describe("MessageParts", () => {
       />,
     );
 
-    expect(screen.getByRole("button", { name: /思考过程/ })).toHaveAttribute(
-      "aria-expanded",
-      "true",
-    );
+    expect(screen.getByText("正在思考")).toBeInTheDocument();
+    expect(screen.queryByText("还在分析布局。")).not.toBeInTheDocument();
   });
 
   it("renders the streaming assistant text part without markdown parsing", () => {
@@ -240,7 +225,7 @@ describe("MessageParts", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("renders streaming reasoning content as lightweight text", () => {
+  it("does not render streaming reasoning text", () => {
     const { container } = render(
       <MessageParts
         isLastMessage
@@ -261,13 +246,12 @@ describe("MessageParts", () => {
 
     const streamingText = container.querySelector('[data-streaming-text="true"]');
 
-    expect(streamingText?.textContent).toBe("分析中\n继续分析");
-    expect(streamingText).toHaveClass("whitespace-pre-wrap");
+    expect(screen.getByText("正在思考")).toBeInTheDocument();
+    expect(streamingText).not.toBeInTheDocument();
+    expect(screen.queryByText("分析中\n继续分析")).not.toBeInTheDocument();
   });
 
-  it("auto-closes reasoning after streaming finishes", () => {
-    vi.useFakeTimers();
-
+  it("hides reasoning indicator after streaming finishes", () => {
     const message = {
       id: "assistant-1",
       parts: [
@@ -284,21 +268,14 @@ describe("MessageParts", () => {
       <MessageParts isLastMessage isStreaming message={message} />,
     );
 
-    const trigger = screen.getByRole("button", { name: /思考过程/ });
-    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("正在思考")).toBeInTheDocument();
 
     rerender(<MessageParts isLastMessage isStreaming={false} message={message} />);
 
-    act(() => {
-      vi.advanceTimersByTime(1000);
-    });
-
-    expect(trigger).toHaveAttribute("aria-expanded", "false");
-
-    vi.useRealTimers();
+    expect(screen.queryByText("正在思考")).not.toBeInTheDocument();
   });
 
-  it("keeps earlier reasoning collapsed when a later reasoning part streams", () => {
+  it("shows only the latest streaming reasoning indicator", () => {
     render(
       <MessageParts
         isLastMessage
@@ -322,17 +299,12 @@ describe("MessageParts", () => {
       />,
     );
 
-    const reasoningTriggers = screen.getAllByRole("button", {
-      name: /思考过程/,
-    });
-
-    expect(reasoningTriggers[0]).toHaveAttribute("aria-expanded", "false");
-    expect(reasoningTriggers[1]).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getAllByText("正在思考")).toHaveLength(1);
+    expect(screen.queryByText("第一段思考已完成。")).not.toBeInTheDocument();
+    expect(screen.queryByText("第二段思考还在输出。")).not.toBeInTheDocument();
   });
 
-  it("renders multiple reasoning parts as separate blocks", async () => {
-    const user = userEvent.setup();
-
+  it("hides multiple completed reasoning parts", () => {
     render(
       <MessageParts
         message={{
@@ -354,35 +326,24 @@ describe("MessageParts", () => {
       />,
     );
 
-    expect(screen.getAllByText("思考过程")).toHaveLength(2);
-    await user.click(screen.getAllByRole("button", { name: /思考过程/ })[0]);
-    await user.click(screen.getAllByRole("button", { name: /思考过程/ })[1]);
-
-    expect(screen.getByText("第一步：判断信息架构。")).toBeInTheDocument();
-    expect(screen.getByText("第二步：组织首屏层级。")).toBeInTheDocument();
+    expect(screen.queryByText("思考过程")).not.toBeInTheDocument();
+    expect(screen.queryByText("正在思考")).not.toBeInTheDocument();
+    expect(screen.queryByText("第一步：判断信息架构。")).not.toBeInTheDocument();
+    expect(screen.queryByText("第二步：组织首屏层级。")).not.toBeInTheDocument();
   });
 
-  it("renders completed tool calls collapsed by default and expands on click", async () => {
-    const content = "<!doctype html><html><body><main>Secret Detail</main></body></html>";
-    const user = userEvent.setup();
-
+  it("renders a simple completed edit tool description", () => {
     render(
       <MessageParts
         message={{
           id: "assistant-1",
           parts: [
             {
-              input: {
-                content,
-                path: "index.html",
-              },
-              output: {
-                bytesWritten: content.length,
-                path: "index.html",
-              },
+              input: { path: "index.html", search: "old", replace: "new" },
+              output: { path: "index.html", replacements: 1 },
               state: "output-available",
               toolCallId: "call-1",
-              type: "tool-write",
+              type: "tool-edit",
             },
           ],
           role: "assistant",
@@ -390,33 +351,93 @@ describe("MessageParts", () => {
       />,
     );
 
-    const trigger = screen.getByRole("button", { name: /write/ });
-    expect(trigger).toHaveAttribute(
-      "aria-expanded",
-      "false",
-    );
-    expect(screen.getByText("已完成")).toBeInTheDocument();
+    expect(screen.getByText("已编辑index.html")).toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
     expect(screen.queryByText("参数")).not.toBeInTheDocument();
-
-    await user.click(trigger);
-
-    expect(trigger).toHaveAttribute(
-      "aria-expanded",
-      "true",
-    );
-    expect(screen.getByText("参数")).toBeInTheDocument();
-    expect(screen.getByText("结果")).toBeInTheDocument();
-    expect(
-      screen.queryAllByText(hasTextContent('"path": "index.html"')).length,
-    ).toBeGreaterThan(0);
-    expect(
-      screen.queryAllByText(hasTextContent("Secret Detail")).length,
-    ).toBeGreaterThan(0);
+    expect(screen.queryByText("结果")).not.toBeInTheDocument();
+    expect(screen.queryByText("old")).not.toBeInTheDocument();
+    expect(screen.queryByText("new")).not.toBeInTheDocument();
   });
 
-  it("renders tool errors collapsed by default and expands on click", async () => {
-    const user = userEvent.setup();
+  it("renders a simple running edit tool description", () => {
+    render(
+      <MessageParts
+        message={{
+          id: "assistant-1",
+          parts: [
+            {
+              input: { path: "index.html", search: "old", replace: "new" },
+              state: "input-available",
+              toolCallId: "call-1",
+              type: "tool-edit",
+            },
+          ],
+          role: "assistant",
+        }}
+      />,
+    );
 
+    expect(screen.getByText("正在编辑index.html")).toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.queryByText("参数")).not.toBeInTheDocument();
+  });
+
+  it("renders simple read tool descriptions without output content", () => {
+    render(
+      <MessageParts
+        message={{
+          id: "assistant-1",
+          parts: [
+            {
+              input: { path: "pending.html" },
+              state: "input-available",
+              toolCallId: "call-1",
+              type: "tool-read",
+            },
+            {
+              input: { path: "done.html" },
+              output: { content: "Secret Detail", path: "done.html" },
+              state: "output-available",
+              toolCallId: "call-2",
+              type: "tool-read",
+            },
+          ],
+          role: "assistant",
+        }}
+      />,
+    );
+
+    expect(screen.getByText("正在查看pending.html")).toBeInTheDocument();
+    expect(screen.getByText("已查看done.html")).toBeInTheDocument();
+    expect(screen.queryByText("Secret Detail")).not.toBeInTheDocument();
+    expect(screen.queryByText("参数")).not.toBeInTheDocument();
+    expect(screen.queryByText("结果")).not.toBeInTheDocument();
+  });
+
+  it("renders preview update tools without a file fallback suffix", () => {
+    render(
+      <MessageParts
+        message={{
+          id: "assistant-1",
+          parts: [
+            {
+              input: {},
+              output: {},
+              state: "output-available",
+              toolCallId: "call-1",
+              type: "tool-callFrontendCapability",
+            },
+          ],
+          role: "assistant",
+        }}
+      />,
+    );
+
+    expect(screen.getByText("已更新预览")).toBeInTheDocument();
+    expect(screen.queryByText("已更新预览文件")).not.toBeInTheDocument();
+  });
+
+  it("renders simple tool error descriptions without error details", () => {
     render(
       <MessageParts
         message={{
@@ -436,210 +457,9 @@ describe("MessageParts", () => {
       />,
     );
 
-    const trigger = screen.getByRole("button", { name: /write/ });
-    expect(trigger).toHaveAttribute(
-      "aria-expanded",
-      "false",
-    );
-    expect(screen.getByText("失败")).toBeInTheDocument();
+    expect(screen.getByText("写入index.html失败")).toBeInTheDocument();
+    expect(screen.queryByText("权限不足")).not.toBeInTheDocument();
     expect(screen.queryByText("错误")).not.toBeInTheDocument();
-
-    await user.click(trigger);
-
-    expect(trigger).toHaveAttribute(
-      "aria-expanded",
-      "true",
-    );
-    expect(screen.getByText("错误")).toBeInTheDocument();
-    expect(screen.getByText("权限不足")).toBeInTheDocument();
-  });
-
-  it("renders input-only tool calls without crashing", async () => {
-    const user = userEvent.setup();
-
-    render(
-      <MessageParts
-        message={{
-          id: "assistant-1",
-          parts: [
-            {
-              input: { path: "index.html", pattern: "hero" },
-              state: "input-available",
-              toolCallId: "call-1",
-              type: "tool-grep",
-            },
-          ],
-          role: "assistant",
-        }}
-      />,
-    );
-
-    const trigger = screen.getByRole("button", { name: /grep/ });
-    expect(trigger).toHaveAttribute("aria-expanded", "false");
-    expect(screen.getByText("准备调用")).toBeInTheDocument();
-
-    await user.click(trigger);
-
-    expect(screen.getByText("参数")).toBeInTheDocument();
-    expect(
-      screen.queryAllByText(hasTextContent('"path": "index.html"')).length,
-    ).toBeGreaterThan(0);
-    expect(screen.queryByText("结果")).not.toBeInTheDocument();
-  });
-
-  it("truncates tool input strings before rendering JSON", async () => {
-    const longContent = buildLongString("a");
-    const nestedContent = buildLongString("b", "-nested-tail");
-    const listContent = buildLongString("c", "-list-tail");
-    const user = userEvent.setup();
-
-    render(
-      <MessageParts
-        message={{
-          id: "assistant-1",
-          parts: [
-            {
-              input: {
-                content: longContent,
-                nested: {
-                  body: nestedContent,
-                  enabled: true,
-                  none: null,
-                  revisions: 2,
-                },
-                path: "index.html",
-                snippets: [listContent, 7],
-              },
-              state: "input-available",
-              toolCallId: "call-1",
-              type: "tool-write",
-            },
-          ],
-          role: "assistant",
-        }}
-      />,
-    );
-
-    await user.click(screen.getByRole("button", { name: /write/ }));
-
-    expect(
-      screen.queryAllByText(hasTextContent(`"content": "${"a".repeat(100)}`))
-        .length,
-    ).toBeGreaterThan(0);
-    expect(
-      screen.queryAllByText(hasTextContent(`"body": "${"b".repeat(100)}`))
-        .length,
-    ).toBeGreaterThan(0);
-    expect(
-      screen.queryAllByText(hasTextContent(`"${"c".repeat(100)}`)).length,
-    ).toBeGreaterThan(0);
-    expect(
-      screen.queryAllByText(hasTextContent("-hidden-tail")),
-    ).toHaveLength(0);
-    expect(
-      screen.queryAllByText(hasTextContent("-nested-tail")),
-    ).toHaveLength(0);
-    expect(screen.queryAllByText(hasTextContent("-list-tail"))).toHaveLength(0);
-    expect(
-      screen.queryAllByText(hasTextContent('"path": "index.html"')).length,
-    ).toBeGreaterThan(0);
-    expect(
-      screen.queryAllByText(hasTextContent('"enabled": true')).length,
-    ).toBeGreaterThan(0);
-    expect(
-      screen.queryAllByText(hasTextContent('"none": null')).length,
-    ).toBeGreaterThan(0);
-    expect(
-      screen.queryAllByText(hasTextContent('"revisions": 2')).length,
-    ).toBeGreaterThan(0);
-  });
-
-  it("truncates tool output strings before rendering", async () => {
-    const longObjectOutput = buildLongString("o", "-object-output-tail");
-    const longStringOutput = buildLongString("s", "-string-output-tail");
-    const user = userEvent.setup();
-
-    render(
-      <MessageParts
-        message={{
-          id: "assistant-1",
-          parts: [
-            {
-              input: { path: "object-output.html" },
-              output: {
-                content: longObjectOutput,
-                ok: true,
-              },
-              state: "output-available",
-              toolCallId: "call-1",
-              type: "tool-read",
-            },
-            {
-              input: { path: "string-output.html" },
-              output: longStringOutput,
-              state: "output-available",
-              toolCallId: "call-2",
-              type: "tool-read",
-            },
-          ],
-          role: "assistant",
-        }}
-      />,
-    );
-
-    const triggers = screen.getAllByRole("button", { name: /read/ });
-    await user.click(triggers[0]);
-    await user.click(triggers[1]);
-
-    expect(
-      screen.queryAllByText(hasTextContent(`"content": "${"o".repeat(100)}`))
-        .length,
-    ).toBeGreaterThan(0);
-    expect(
-      screen.queryAllByText(hasTextContent("s".repeat(100))).length,
-    ).toBeGreaterThan(0);
-    expect(
-      screen.queryAllByText(hasTextContent("-object-output-tail")),
-    ).toHaveLength(0);
-    expect(
-      screen.queryAllByText(hasTextContent("-string-output-tail")),
-    ).toHaveLength(0);
-    expect(
-      screen.queryAllByText(hasTextContent('"ok": true')).length,
-    ).toBeGreaterThan(0);
-  });
-
-  it("renders long tool error text without truncation", async () => {
-    const longError = buildLongString("e", "-error-tail");
-    const user = userEvent.setup();
-
-    render(
-      <MessageParts
-        message={{
-          id: "assistant-1",
-          parts: [
-            {
-              errorText: longError,
-              input: { path: "index.html" },
-              output: undefined,
-              state: "output-error",
-              toolCallId: "call-1",
-              type: "tool-write",
-            },
-          ],
-          role: "assistant",
-        }}
-      />,
-    );
-
-    await user.click(screen.getByRole("button", { name: /write/ }));
-
-    expect(
-      screen.queryAllByText(hasTextContent("e".repeat(100))).length,
-    ).toBeGreaterThan(0);
-    expect(
-      screen.queryAllByText(hasTextContent("-error-tail")).length,
-    ).toBeGreaterThan(0);
   });
 
   it("does not dispatch preview refresh after mutation tool output completes", () => {
@@ -759,7 +579,7 @@ describe("MessageParts", () => {
     });
   });
 
-  it("marks only the last message reasoning as streaming while chat streams", () => {
+  it("shows only the last message reasoning indicator while chat streams", () => {
     vi.mocked(useChat).mockReturnValue({
       addToolApprovalResponse: vi.fn(),
       error: undefined,
@@ -769,7 +589,7 @@ describe("MessageParts", () => {
           parts: [
             {
               state: "streaming",
-              text: "第一条思考不应因全局 streaming 展开。",
+              text: "第一条思考不应因全局 streaming 显示。",
               type: "reasoning",
             },
           ],
@@ -780,7 +600,7 @@ describe("MessageParts", () => {
           parts: [
             {
               state: "streaming",
-              text: "最后一条思考应展开。",
+              text: "最后一条思考应显示。",
               type: "reasoning",
             },
           ],
@@ -801,15 +621,14 @@ describe("MessageParts", () => {
       />,
     );
 
-    const reasoningTriggers = screen.getAllByRole("button", {
-      name: /思考过程/,
-    });
-
-    expect(reasoningTriggers[0]).toHaveAttribute("aria-expanded", "false");
-    expect(reasoningTriggers[1]).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getAllByText("正在思考")).toHaveLength(1);
+    expect(
+      screen.queryByText("第一条思考不应因全局 streaming 显示。"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("最后一条思考应显示。")).not.toBeInTheDocument();
   });
 
-  it("keeps earlier reasoning collapsed when a later non-reasoning message streams", () => {
+  it("hides earlier reasoning when a later non-reasoning message streams", () => {
     vi.mocked(useChat).mockReturnValue({
       addToolApprovalResponse: vi.fn(),
       error: undefined,
@@ -819,7 +638,7 @@ describe("MessageParts", () => {
           parts: [
             {
               state: "streaming",
-              text: "历史思考不应展开。",
+              text: "历史思考不应显示。",
               type: "reasoning",
             },
           ],
@@ -845,10 +664,8 @@ describe("MessageParts", () => {
       />,
     );
 
-    expect(screen.getByRole("button", { name: /思考过程/ })).toHaveAttribute(
-      "aria-expanded",
-      "false",
-    );
+    expect(screen.queryByText("正在思考")).not.toBeInTheDocument();
+    expect(screen.queryByText("历史思考不应显示。")).not.toBeInTheDocument();
   });
 
   it("does not dispatch preview refresh after createHtml output completes", () => {

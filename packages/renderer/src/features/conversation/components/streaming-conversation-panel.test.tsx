@@ -9,16 +9,6 @@ import {
 } from "./streaming-conversation-panel";
 import { setCurrentPreviewPath } from "@/features/preview/preview-path";
 
-function hasTextContent(text: string) {
-  return (_: string, node: Element | null) => node?.textContent?.includes(text) ?? false;
-}
-
-const TOOL_DISPLAY_STRING_LIMIT = 100;
-
-function buildLongString(prefix: string, tail = "-hidden-tail") {
-  return prefix.repeat(TOOL_DISPLAY_STRING_LIMIT) + tail;
-}
-
 function getProjectOutputUpdatedEvents(dispatchEventSpy: ReturnType<typeof vi.spyOn>) {
   return dispatchEventSpy.mock.calls.filter(
     ([event]: [Event]) => event.type === "owndesign:project-output-updated",
@@ -342,27 +332,18 @@ describe("MessageParts", () => {
     expect(screen.queryByText("第二步：组织首屏层级。")).not.toBeInTheDocument();
   });
 
-  it("renders completed tool calls collapsed by default and expands on click", async () => {
-    const content = "<!doctype html><html><body><main>Secret Detail</main></body></html>";
-    const user = userEvent.setup();
-
+  it("renders a simple completed edit tool description", () => {
     render(
       <MessageParts
         message={{
           id: "assistant-1",
           parts: [
             {
-              input: {
-                content,
-                path: "index.html",
-              },
-              output: {
-                bytesWritten: content.length,
-                path: "index.html",
-              },
+              input: { path: "index.html", search: "old", replace: "new" },
+              output: { path: "index.html", replacements: 1 },
               state: "output-available",
               toolCallId: "call-1",
-              type: "tool-write",
+              type: "tool-edit",
             },
           ],
           role: "assistant",
@@ -370,33 +351,70 @@ describe("MessageParts", () => {
       />,
     );
 
-    const trigger = screen.getByRole("button", { name: /write/ });
-    expect(trigger).toHaveAttribute(
-      "aria-expanded",
-      "false",
-    );
-    expect(screen.getByText("已完成")).toBeInTheDocument();
+    expect(screen.getByText("已编辑index.html")).toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
     expect(screen.queryByText("参数")).not.toBeInTheDocument();
-
-    await user.click(trigger);
-
-    expect(trigger).toHaveAttribute(
-      "aria-expanded",
-      "true",
-    );
-    expect(screen.getByText("参数")).toBeInTheDocument();
-    expect(screen.getByText("结果")).toBeInTheDocument();
-    expect(
-      screen.queryAllByText(hasTextContent('"path": "index.html"')).length,
-    ).toBeGreaterThan(0);
-    expect(
-      screen.queryAllByText(hasTextContent("Secret Detail")).length,
-    ).toBeGreaterThan(0);
+    expect(screen.queryByText("结果")).not.toBeInTheDocument();
+    expect(screen.queryByText("old")).not.toBeInTheDocument();
+    expect(screen.queryByText("new")).not.toBeInTheDocument();
   });
 
-  it("renders tool errors collapsed by default and expands on click", async () => {
-    const user = userEvent.setup();
+  it("renders a simple running edit tool description", () => {
+    render(
+      <MessageParts
+        message={{
+          id: "assistant-1",
+          parts: [
+            {
+              input: { path: "index.html", search: "old", replace: "new" },
+              state: "input-available",
+              toolCallId: "call-1",
+              type: "tool-edit",
+            },
+          ],
+          role: "assistant",
+        }}
+      />,
+    );
 
+    expect(screen.getByText("正在编辑index.html")).toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.queryByText("参数")).not.toBeInTheDocument();
+  });
+
+  it("renders simple read tool descriptions without output content", () => {
+    render(
+      <MessageParts
+        message={{
+          id: "assistant-1",
+          parts: [
+            {
+              input: { path: "pending.html" },
+              state: "input-available",
+              toolCallId: "call-1",
+              type: "tool-read",
+            },
+            {
+              input: { path: "done.html" },
+              output: { content: "Secret Detail", path: "done.html" },
+              state: "output-available",
+              toolCallId: "call-2",
+              type: "tool-read",
+            },
+          ],
+          role: "assistant",
+        }}
+      />,
+    );
+
+    expect(screen.getByText("正在查看pending.html")).toBeInTheDocument();
+    expect(screen.getByText("已查看done.html")).toBeInTheDocument();
+    expect(screen.queryByText("Secret Detail")).not.toBeInTheDocument();
+    expect(screen.queryByText("参数")).not.toBeInTheDocument();
+    expect(screen.queryByText("结果")).not.toBeInTheDocument();
+  });
+
+  it("renders simple tool error descriptions without error details", () => {
     render(
       <MessageParts
         message={{
@@ -416,210 +434,9 @@ describe("MessageParts", () => {
       />,
     );
 
-    const trigger = screen.getByRole("button", { name: /write/ });
-    expect(trigger).toHaveAttribute(
-      "aria-expanded",
-      "false",
-    );
-    expect(screen.getByText("失败")).toBeInTheDocument();
+    expect(screen.getByText("写入index.html失败")).toBeInTheDocument();
+    expect(screen.queryByText("权限不足")).not.toBeInTheDocument();
     expect(screen.queryByText("错误")).not.toBeInTheDocument();
-
-    await user.click(trigger);
-
-    expect(trigger).toHaveAttribute(
-      "aria-expanded",
-      "true",
-    );
-    expect(screen.getByText("错误")).toBeInTheDocument();
-    expect(screen.getByText("权限不足")).toBeInTheDocument();
-  });
-
-  it("renders input-only tool calls without crashing", async () => {
-    const user = userEvent.setup();
-
-    render(
-      <MessageParts
-        message={{
-          id: "assistant-1",
-          parts: [
-            {
-              input: { path: "index.html", pattern: "hero" },
-              state: "input-available",
-              toolCallId: "call-1",
-              type: "tool-grep",
-            },
-          ],
-          role: "assistant",
-        }}
-      />,
-    );
-
-    const trigger = screen.getByRole("button", { name: /grep/ });
-    expect(trigger).toHaveAttribute("aria-expanded", "false");
-    expect(screen.getByText("准备调用")).toBeInTheDocument();
-
-    await user.click(trigger);
-
-    expect(screen.getByText("参数")).toBeInTheDocument();
-    expect(
-      screen.queryAllByText(hasTextContent('"path": "index.html"')).length,
-    ).toBeGreaterThan(0);
-    expect(screen.queryByText("结果")).not.toBeInTheDocument();
-  });
-
-  it("truncates tool input strings before rendering JSON", async () => {
-    const longContent = buildLongString("a");
-    const nestedContent = buildLongString("b", "-nested-tail");
-    const listContent = buildLongString("c", "-list-tail");
-    const user = userEvent.setup();
-
-    render(
-      <MessageParts
-        message={{
-          id: "assistant-1",
-          parts: [
-            {
-              input: {
-                content: longContent,
-                nested: {
-                  body: nestedContent,
-                  enabled: true,
-                  none: null,
-                  revisions: 2,
-                },
-                path: "index.html",
-                snippets: [listContent, 7],
-              },
-              state: "input-available",
-              toolCallId: "call-1",
-              type: "tool-write",
-            },
-          ],
-          role: "assistant",
-        }}
-      />,
-    );
-
-    await user.click(screen.getByRole("button", { name: /write/ }));
-
-    expect(
-      screen.queryAllByText(hasTextContent(`"content": "${"a".repeat(100)}`))
-        .length,
-    ).toBeGreaterThan(0);
-    expect(
-      screen.queryAllByText(hasTextContent(`"body": "${"b".repeat(100)}`))
-        .length,
-    ).toBeGreaterThan(0);
-    expect(
-      screen.queryAllByText(hasTextContent(`"${"c".repeat(100)}`)).length,
-    ).toBeGreaterThan(0);
-    expect(
-      screen.queryAllByText(hasTextContent("-hidden-tail")),
-    ).toHaveLength(0);
-    expect(
-      screen.queryAllByText(hasTextContent("-nested-tail")),
-    ).toHaveLength(0);
-    expect(screen.queryAllByText(hasTextContent("-list-tail"))).toHaveLength(0);
-    expect(
-      screen.queryAllByText(hasTextContent('"path": "index.html"')).length,
-    ).toBeGreaterThan(0);
-    expect(
-      screen.queryAllByText(hasTextContent('"enabled": true')).length,
-    ).toBeGreaterThan(0);
-    expect(
-      screen.queryAllByText(hasTextContent('"none": null')).length,
-    ).toBeGreaterThan(0);
-    expect(
-      screen.queryAllByText(hasTextContent('"revisions": 2')).length,
-    ).toBeGreaterThan(0);
-  });
-
-  it("truncates tool output strings before rendering", async () => {
-    const longObjectOutput = buildLongString("o", "-object-output-tail");
-    const longStringOutput = buildLongString("s", "-string-output-tail");
-    const user = userEvent.setup();
-
-    render(
-      <MessageParts
-        message={{
-          id: "assistant-1",
-          parts: [
-            {
-              input: { path: "object-output.html" },
-              output: {
-                content: longObjectOutput,
-                ok: true,
-              },
-              state: "output-available",
-              toolCallId: "call-1",
-              type: "tool-read",
-            },
-            {
-              input: { path: "string-output.html" },
-              output: longStringOutput,
-              state: "output-available",
-              toolCallId: "call-2",
-              type: "tool-read",
-            },
-          ],
-          role: "assistant",
-        }}
-      />,
-    );
-
-    const triggers = screen.getAllByRole("button", { name: /read/ });
-    await user.click(triggers[0]);
-    await user.click(triggers[1]);
-
-    expect(
-      screen.queryAllByText(hasTextContent(`"content": "${"o".repeat(100)}`))
-        .length,
-    ).toBeGreaterThan(0);
-    expect(
-      screen.queryAllByText(hasTextContent("s".repeat(100))).length,
-    ).toBeGreaterThan(0);
-    expect(
-      screen.queryAllByText(hasTextContent("-object-output-tail")),
-    ).toHaveLength(0);
-    expect(
-      screen.queryAllByText(hasTextContent("-string-output-tail")),
-    ).toHaveLength(0);
-    expect(
-      screen.queryAllByText(hasTextContent('"ok": true')).length,
-    ).toBeGreaterThan(0);
-  });
-
-  it("renders long tool error text without truncation", async () => {
-    const longError = buildLongString("e", "-error-tail");
-    const user = userEvent.setup();
-
-    render(
-      <MessageParts
-        message={{
-          id: "assistant-1",
-          parts: [
-            {
-              errorText: longError,
-              input: { path: "index.html" },
-              output: undefined,
-              state: "output-error",
-              toolCallId: "call-1",
-              type: "tool-write",
-            },
-          ],
-          role: "assistant",
-        }}
-      />,
-    );
-
-    await user.click(screen.getByRole("button", { name: /write/ }));
-
-    expect(
-      screen.queryAllByText(hasTextContent("e".repeat(100))).length,
-    ).toBeGreaterThan(0);
-    expect(
-      screen.queryAllByText(hasTextContent("-error-tail")).length,
-    ).toBeGreaterThan(0);
   });
 
   it("does not dispatch preview refresh after mutation tool output completes", () => {

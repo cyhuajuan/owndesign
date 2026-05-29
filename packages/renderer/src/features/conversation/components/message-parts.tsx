@@ -2,6 +2,7 @@
 
 import type { UIMessage } from "ai";
 
+import { Shimmer } from "@/components/ai-elements/shimmer";
 import { MessageResponse } from "@/components/ai-elements/message";
 import {
   isToolPart,
@@ -70,7 +71,7 @@ function MessagePart({
 function ReasoningPendingIndicator() {
   return (
     <div className="w-full rounded-md border border-border bg-background px-3 py-2 font-medium text-muted-foreground text-sm">
-      正在思考
+      <Shimmer as="span">正在思考</Shimmer>
     </div>
   );
 }

@@ -6,10 +6,18 @@ import {
   type ToolUIPart,
 } from "ai";
 
+import { Shimmer } from "@/components/ai-elements/shimmer";
+
 export function ToolPartView({ part }: { part: ToolLikePart }) {
+  const description = getToolDescription(part);
+
   return (
     <div className="w-full rounded-md border border-border bg-background px-3 py-2 text-muted-foreground text-sm">
-      {getToolDescription(part)}
+      {isPendingToolPart(part) ? (
+        <Shimmer as="span">{description}</Shimmer>
+      ) : (
+        description
+      )}
     </div>
   );
 }
@@ -39,6 +47,14 @@ function getToolDescription(part: ToolLikePart) {
   }
 
   return `正在${verb}${suffix}`;
+}
+
+function isPendingToolPart(part: ToolLikePart) {
+  return (
+    part.state !== "output-available" &&
+    part.state !== "output-error" &&
+    part.state !== "output-denied"
+  );
 }
 
 function getToolName(part: ToolLikePart) {

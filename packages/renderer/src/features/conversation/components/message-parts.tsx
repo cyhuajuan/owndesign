@@ -70,7 +70,7 @@ function MessagePart({
 
 function ReasoningPendingIndicator() {
   return (
-    <div className="w-full rounded-md border border-border bg-background px-3 py-2 font-medium text-muted-foreground text-sm">
+    <div className="w-full font-medium text-muted-foreground text-sm">
       <Shimmer as="span">正在思考</Shimmer>
     </div>
   );

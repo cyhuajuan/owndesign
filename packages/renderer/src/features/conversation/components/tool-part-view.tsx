@@ -12,7 +12,7 @@ export function ToolPartView({ part }: { part: ToolLikePart }) {
   const description = getToolDescription(part);
 
   return (
-    <div className="w-full rounded-md border border-border bg-background px-3 py-2 text-muted-foreground text-sm">
+    <div className="w-full text-muted-foreground text-sm">
       {isPendingToolPart(part) ? (
         <Shimmer as="span">{description}</Shimmer>
       ) : (

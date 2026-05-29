@@ -3,20 +3,20 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "packageManager": "bun@1.3.14",
+  "packageManager": "pnpm@11.3.0",
   "workspaces": [
     "apps/*",
     "packages/*"
   ],
   "scripts": {
-    "dev": "bun run --parallel --filter @owndesign/server --filter @owndesign/web dev",
-    "desktop:dev": "bun run --filter @owndesign/desktop dev",
-    "desktop:build": "bun run --filter @owndesign/desktop build",
-    "build": "bun run --workspaces --sequential build",
-    "lint": "bun run --workspaces --sequential lint",
-    "typecheck": "bun run --workspaces --sequential typecheck",
-    "test": "bun run --workspaces --sequential test",
-    "test:watch": "bun run --workspaces --parallel test:watch"
+    "dev": "pnpm --parallel --filter @owndesign/server --filter @owndesign/web dev",
+    "desktop:dev": "pnpm --filter @owndesign/desktop dev",
+    "desktop:build": "pnpm --filter @owndesign/desktop build",
+    "build": "pnpm -r --workspace-concurrency=1 build",
+    "lint": "pnpm -r --workspace-concurrency=1 lint",
+    "typecheck": "pnpm -r --workspace-concurrency=1 typecheck",
+    "test": "pnpm -r --workspace-concurrency=1 test",
+    "test:watch": "pnpm -r --parallel test:watch"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

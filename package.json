@@ -9,34 +9,35 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "pnpm --parallel --filter @owndesign/server --filter @owndesign/web dev",
+    "dev": "concurrently --raw -k \"pnpm --filter @owndesign/server dev\" \"pnpm --filter @owndesign/web dev\"",
     "desktop:dev": "pnpm --filter @owndesign/desktop dev",
     "desktop:build": "pnpm --filter @owndesign/desktop build",
-    "build": "pnpm -r --workspace-concurrency=1 build",
-    "lint": "pnpm -r --workspace-concurrency=1 lint",
-    "typecheck": "pnpm -r --workspace-concurrency=1 typecheck",
-    "test": "pnpm -r --workspace-concurrency=1 test",
-    "test:watch": "pnpm -r --parallel test:watch"
+    "build": "concurrently -n core,renderer,server,web -c blue,green,magenta,cyan \"pnpm --filter @owndesign/core build\" \"pnpm --filter @owndesign/renderer build\" \"pnpm --filter @owndesign/server build\" \"pnpm --filter @owndesign/web build\" && pnpm --filter @owndesign/desktop build && pnpm --filter owndesign build",
+    "lint": "concurrently -n core,renderer,server,web,desktop,cli -c blue,green,magenta,cyan,yellow,red \"pnpm --filter @owndesign/core lint\" \"pnpm --filter @owndesign/renderer lint\" \"pnpm --filter @owndesign/server lint\" \"pnpm --filter @owndesign/web lint\" \"pnpm --filter @owndesign/desktop lint\" \"pnpm --filter owndesign lint\"",
+    "typecheck": "concurrently -n core,renderer,server,web,desktop,cli -c blue,green,magenta,cyan,yellow,red \"pnpm --filter @owndesign/core typecheck\" \"pnpm --filter @owndesign/renderer typecheck\" \"pnpm --filter @owndesign/server typecheck\" \"pnpm --filter @owndesign/web typecheck\" \"pnpm --filter @owndesign/desktop typecheck\" \"pnpm --filter owndesign typecheck\"",
+    "test": "concurrently -n core,renderer,server,web,desktop,cli -c blue,green,magenta,cyan,yellow,red \"pnpm --filter @owndesign/core test\" \"pnpm --filter @owndesign/renderer test\" \"pnpm --filter @owndesign/server test\" \"pnpm --filter @owndesign/web test\" \"pnpm --filter @owndesign/desktop test\" \"pnpm --filter owndesign test\"",
+    "test:watch": "concurrently -k -n core,renderer,server,web,desktop,cli -c blue,green,magenta,cyan,yellow,red \"pnpm --filter @owndesign/core test:watch\" \"pnpm --filter @owndesign/renderer test:watch\" \"pnpm --filter @owndesign/server test:watch\" \"pnpm --filter @owndesign/web test:watch\" \"pnpm --filter @owndesign/desktop test:watch\" \"pnpm --filter owndesign test:watch\""
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@tailwindcss/postcss": "^4.3.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
-    "@tailwindcss/postcss": "^4.3.0",
     "@types/node": "^24",
     "@types/react": "^19.2.15",
     "@types/react-dom": "^19.2.3",
     "@types/yazl": "^3.3.1",
     "@vitejs/plugin-react": "^6.0.2",
+    "concurrently": "^9.2.1",
     "eslint": "^10.4.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.6.0",
     "jsdom": "^29.1.1",
     "tsx": "^4.22.3",
-    "typescript-eslint": "^8.59.4",
     "typescript": "^6.0.3",
+    "typescript-eslint": "^8.59.4",
     "vite": "^8.0.14",
     "vitest": "^4.1.7"
   }

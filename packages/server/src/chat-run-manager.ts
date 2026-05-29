@@ -5,6 +5,11 @@ import {
   type UIMessageChunk,
 } from "ai";
 
+import {
+  sanitizePublicUIMessage,
+  sanitizePublicUIMessageChunk,
+} from "./sanitize-ui-message";
+
 export type ChatRunStatus = "running" | "completed" | "failed" | "cancelled";
 
 export type ChatRunSummary = {
@@ -126,7 +131,7 @@ export class ChatRunManager {
 
     return {
       activeRun: summarizeRun(run),
-      messages: run.safeMessages,
+      messages: run.safeMessages.map(sanitizePublicUIMessage),
       nextChunkIndex: run.safeSnapshotChunkIndex,
     } satisfies ChatRunSnapshot;
   }
@@ -256,7 +261,11 @@ export class ChatRunManager {
         const startIndex = Math.max(0, afterChunkIndex);
 
         for (const chunk of run.chunks.slice(startIndex)) {
-          controller.enqueue(chunk);
+          const publicChunk = sanitizePublicUIMessageChunk(chunk);
+
+          if (publicChunk) {
+            controller.enqueue(publicChunk);
+          }
         }
 
         if (run.status === "running") {
@@ -314,8 +323,14 @@ export class ChatRunManager {
     const chunks = run.pendingLiveChunks.splice(0);
     for (const subscriber of Array.from(run.subscribers)) {
       for (const chunk of chunks) {
+        const publicChunk = sanitizePublicUIMessageChunk(chunk);
+
+        if (!publicChunk) {
+          continue;
+        }
+
         try {
-          subscriber.enqueue(chunk);
+          subscriber.enqueue(publicChunk);
         } catch {
           run.subscribers.delete(subscriber);
           break;

@@ -38,7 +38,7 @@ export function sanitizePublicUIMessage(message: UIMessage): UIMessage {
 export function sanitizePublicUIMessageChunk(
   chunk: UIMessageChunk,
 ): UIMessageChunk | undefined {
-  if (chunk.type.startsWith("reasoning-")) {
+  if (chunk.type === "reasoning-delta") {
     return undefined;
   }
 

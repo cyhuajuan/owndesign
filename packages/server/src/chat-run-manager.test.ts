@@ -255,6 +255,14 @@ describe("ChatRunManager", () => {
     });
     await expect(reader.read()).resolves.toEqual({
       done: false,
+      value: { id: "reasoning-1", type: "reasoning-start" },
+    });
+    await expect(reader.read()).resolves.toEqual({
+      done: false,
+      value: { id: "reasoning-1", type: "reasoning-end" },
+    });
+    await expect(reader.read()).resolves.toEqual({
+      done: false,
       value: {
         toolCallId: "call-1",
         toolName: "edit",
@@ -287,6 +295,14 @@ describe("ChatRunManager", () => {
     await expect(replayReader.read()).resolves.toEqual({
       done: false,
       value: { messageId: "assistant-1", type: "start" },
+    });
+    await expect(replayReader.read()).resolves.toEqual({
+      done: false,
+      value: { id: "reasoning-1", type: "reasoning-start" },
+    });
+    await expect(replayReader.read()).resolves.toEqual({
+      done: false,
+      value: { id: "reasoning-1", type: "reasoning-end" },
     });
     await expect(replayReader.read()).resolves.toEqual({
       done: false,
@@ -333,6 +349,8 @@ describe("ChatRunManager", () => {
     }
 
     const reader = result.stream.getReader();
+    source.enqueue({ id: "reasoning-1", type: "reasoning-start" });
+    source.enqueue({ id: "reasoning-1", type: "reasoning-end" });
     source.enqueue({
       input: { path: "index.html", secret: true },
       toolCallId: "call-1",
@@ -361,7 +379,7 @@ describe("ChatRunManager", () => {
       type: "tool-output-denied",
     });
 
-    for (let index = 0; index < 5; index += 1) {
+    for (let index = 0; index < 7; index += 1) {
       const result = await reader.read();
 
       expect(result.done).toBe(false);

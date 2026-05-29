@@ -5,18 +5,18 @@ OwnDesign is a monorepo for an AI-powered web design tool. Users describe UI ide
 ## Commands
 
 ```bash
-bun install                  # Install all workspace dependencies
-bun dev                      # Run web app + server in parallel (web:3710, server:3711)
-bun run desktop:dev          # Run desktop app (builds server first, launches Tauri)
-bun run desktop:build        # Build desktop app for production
-bun run build                # Build all workspaces sequentially
-bun run lint                  # Lint all workspaces
-bun run typecheck             # Type-check all workspaces
-bun run test                  # Run all tests
-bun run test:watch            # Run tests in watch mode (parallel)
+pnpm install                 # Install all workspace dependencies
+pnpm dev                     # Run web app + server in parallel (web:3710, server:3711)
+pnpm desktop:dev             # Run desktop app (builds server first, launches Tauri)
+pnpm desktop:build           # Build desktop app for production
+pnpm build                   # Build all workspaces sequentially
+pnpm lint                    # Lint all workspaces
+pnpm typecheck               # Type-check all workspaces
+pnpm test                    # Run all tests
+pnpm test:watch              # Run tests in watch mode (parallel)
 ```
 
-Run a single workspace's tests: `bun run --filter @owndesign/core test`
+Run a single workspace's tests: `pnpm --filter @owndesign/core test`
 
 ## Architecture
 

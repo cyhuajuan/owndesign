@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun run --filter @owndesign/server build && node scripts/prepare-server.mjs && bunx tauri dev",
-    "build": "bun run --filter @owndesign/server build && node scripts/prepare-server.mjs && vite build && bunx tauri build",
+    "dev": "pnpm --filter @owndesign/server build && node scripts/prepare-server.mjs && pnpm exec tauri dev",
+    "build": "pnpm --filter @owndesign/server build && node scripts/prepare-server.mjs && vite build && pnpm exec tauri build",
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run --passWithNoTests",

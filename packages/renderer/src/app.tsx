@@ -125,7 +125,16 @@ function WorkspaceRoute({ shellSlots }: { shellSlots?: WorkspaceShellSlots }) {
               state?.activeConversationId,
             )
           : undefined,
-      onDeleteProject: api.deleteProject,
+      onDeleteProject: async (targetProjectId: string) => {
+        const result = await api.deleteProject(targetProjectId);
+
+        if (targetProjectId !== activeProjectId) {
+          refresh();
+          return undefined;
+        }
+
+        return result;
+      },
       onRenameConversation: (targetConversationId: string, title: string) =>
         activeProjectId
           ? api.renameConversation(activeProjectId, targetConversationId, title)
@@ -139,7 +148,7 @@ function WorkspaceRoute({ shellSlots }: { shellSlots?: WorkspaceShellSlots }) {
         href: buildWorkspaceHref({ projectId: targetProjectId }),
       }),
     };
-  }, [api, state?.activeConversationId, state?.activeProject?.id]);
+  }, [api, refresh, state?.activeConversationId, state?.activeProject?.id]);
 
   if (error) {
     return renderStandaloneRouteContent(

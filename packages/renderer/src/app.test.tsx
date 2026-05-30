@@ -12,10 +12,14 @@ vi.mock("@/features/workspace/components/workspace-shell", async () => {
     WorkspaceShell({
       activeConversationId,
       activeProject,
+      onDeleteProject,
       onSelectProject,
     }: {
       activeConversationId?: string;
       activeProject?: { id: string };
+      onDeleteProject: (projectId: string) =>
+        | Promise<{ href?: string }>
+        | { href?: string };
       onSelectProject: (projectId: string) =>
         | Promise<{ href?: string }>
         | { href?: string };
@@ -60,6 +64,18 @@ vi.mock("@/features/workspace/components/workspace-shell", async () => {
           >
             Switch project
           </button>
+          <button
+            onClick={async () => {
+              const result = await Promise.resolve(onDeleteProject("project-2"));
+
+              if (result?.href) {
+                navigate(result.href);
+              }
+            }}
+            type="button"
+          >
+            Delete inactive project
+          </button>
         </div>
       );
     },
@@ -69,10 +85,12 @@ vi.mock("@/features/workspace/components/workspace-shell", async () => {
 describe("OwnDesignApp routing", () => {
   const requests: string[] = [];
   const workspaceRequests: string[] = [];
+  let isProject2Deleted = false;
 
   beforeEach(() => {
     requests.length = 0;
     workspaceRequests.length = 0;
+    isProject2Deleted = false;
     window.history.replaceState(
       null,
       "",
@@ -80,8 +98,9 @@ describe("OwnDesignApp routing", () => {
     );
     vi.stubGlobal(
       "fetch",
-      vi.fn(async (input: RequestInfo | URL) => {
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = new URL(String(input), window.location.origin);
+        const method = input instanceof Request ? input.method : init?.method;
         requests.push(`${url.pathname}${url.search}`);
 
         if (url.pathname === "/api/workspace") {
@@ -118,13 +137,17 @@ describe("OwnDesignApp routing", () => {
                 outputType: "html",
                 updatedAt: "2026-05-24T00:00:00.000Z",
               },
-              {
-                createdAt: "2026-05-24T00:00:00.000Z",
-                id: "project-2",
-                name: "Project 2",
-                outputType: "html",
-                updatedAt: "2026-05-24T00:00:00.000Z",
-              },
+              ...(isProject2Deleted
+                ? []
+                : [
+                    {
+                      createdAt: "2026-05-24T00:00:00.000Z",
+                      id: "project-2",
+                      name: "Project 2",
+                      outputType: "html" as const,
+                      updatedAt: "2026-05-24T00:00:00.000Z",
+                    },
+                  ]),
             ],
             settings: {
               defaultModelId: null,
@@ -133,6 +156,14 @@ describe("OwnDesignApp routing", () => {
               resources: { fontLibraries: [], iconLibraries: [] },
             },
           });
+        }
+
+        if (
+          url.pathname === "/api/projects/project-2" &&
+          method === "DELETE"
+        ) {
+          isProject2Deleted = true;
+          return Response.json({ href: "/projects/project-1" });
         }
 
         return Response.json({});
@@ -191,5 +222,29 @@ describe("OwnDesignApp routing", () => {
       "/api/workspace?projectId=project-2",
     ]);
     expect(requests).not.toContain("/api/projects/project-2/select");
+  });
+
+  it("reloads the current workspace when deleting an inactive project", async () => {
+    const user = userEvent.setup();
+
+    render(<OwnDesignApp />);
+
+    expect(
+      await screen.findByText("project-1:conversation-1"),
+    ).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: "Delete inactive project" }),
+    );
+
+    await waitFor(() => expect(workspaceRequests).toHaveLength(2));
+
+    expect(window.location.pathname).toBe(
+      "/projects/project-1/conversations/conversation-1",
+    );
+    expect(workspaceRequests).toEqual([
+      "/api/workspace?projectId=project-1&conversationId=conversation-1",
+      "/api/workspace?projectId=project-1&conversationId=conversation-1",
+    ]);
   });
 });

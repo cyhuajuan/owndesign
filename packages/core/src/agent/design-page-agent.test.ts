@@ -1391,7 +1391,7 @@ describe("AiSdkDesignPageAgent", () => {
         oldString: "Updated",
         path: "index.html",
       }),
-      "cannot edit the current preview page",
+      "must create a new HTML page before edit",
     );
     await expectWorkspaceToolOk(
       newPageTools.createHtml.execute({ path: "landing.html" }),
@@ -1403,6 +1403,294 @@ describe("AiSdkDesignPageAgent", () => {
         path: "landing.html",
       }),
     );
+  });
+
+  it("isolates duplicate edit mode to the copied HTML page", async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    await workspaceStore.writeProjectWorkspaceFile(
+      "project-1",
+      "index.html",
+      "<main>Home</main>",
+    );
+    await workspaceStore.writeProjectWorkspaceFile(
+      "project-1",
+      "index.copy.html",
+      "<main>Home</main>",
+    );
+    await workspaceStore.writeProjectWorkspaceFile(
+      "project-1",
+      "notes.txt",
+      "Home notes",
+    );
+
+    const tools = createWorkspaceToolRegistry(
+      createProjectWorkspaceToolDefinitions(),
+      {
+        approvedCdnUrls: [
+          "https://cdn.example.com/font.css",
+          "https://cdn.example.com/icons.js",
+        ],
+        frontendTabId: "tab-1",
+        pageEditModePolicy: {
+          mode: "duplicate_edit",
+          sourcePath: "index.html",
+          targetPath: "index.copy.html",
+        },
+        projectId: "project-1",
+        resources: defaultResources,
+        workspaceStore,
+      },
+    ) as unknown as {
+      callFrontendCapability: {
+        execute: (input: {
+          capability: string;
+          payload: unknown;
+        }) => Promise<unknown>;
+      };
+      delete: { execute: (input: { path: string }) => Promise<unknown> };
+      edit: {
+        execute: (input: {
+          newString: string;
+          oldString: string;
+          path: string;
+        }) => Promise<unknown>;
+      };
+      glob: { execute: (input: { pattern: string }) => Promise<unknown> };
+      grep: {
+        execute: (input: {
+          include?: string;
+          pattern: string;
+        }) => Promise<unknown>;
+      };
+      patch: {
+        execute: (input: {
+          changes: Array<{
+            content?: string;
+            newString?: string;
+            oldString?: string;
+            operation: "delete" | "edit" | "write";
+            path: string;
+          }>;
+        }) => Promise<unknown>;
+      };
+      read: { execute: (input: { path: string }) => Promise<unknown> };
+      write: {
+        execute: (input: { content: string; path: string }) => Promise<unknown>;
+      };
+    };
+
+    await expectWorkspaceToolError(
+      tools.read.execute({ path: "index.html" }),
+      "can only read index.copy.html",
+    );
+    await expectWorkspaceToolError(
+      tools.write.execute({ content: "<main>Original</main>", path: "index.html" }),
+      "can only edit index.copy.html",
+    );
+    await expectWorkspaceToolError(
+      tools.patch.execute({
+        changes: [{ operation: "delete", path: "index.html" }],
+      }),
+      "can only delete index.copy.html",
+    );
+    await expectWorkspaceToolError(
+      tools.delete.execute({ path: "index.html" }),
+      "can only delete index.copy.html",
+    );
+    await expectWorkspaceToolError(
+      tools.callFrontendCapability.execute({
+        capability: "preview.switchHtml",
+        payload: { path: "index.html" },
+      }),
+      "can only preview index.copy.html",
+    );
+
+    await expectWorkspaceToolOk(tools.read.execute({ path: "index.copy.html" }));
+    await expectWorkspaceToolOk(
+      tools.write.execute({
+        content: "<main>Duplicate</main>",
+        path: "index.copy.html",
+      }),
+    );
+    await expectWorkspaceToolOk(
+      tools.edit.execute({
+        newString: "Updated",
+        oldString: "Duplicate",
+        path: "index.copy.html",
+      }),
+    );
+    await expect(
+      expectWorkspaceToolOk<{ matches: Array<{ path: string }> }>(
+        tools.glob.execute({ pattern: "**/*.html" }),
+      ),
+    ).resolves.toMatchObject({
+      matches: [{ path: "index.copy.html" }],
+    });
+    await expect(
+      expectWorkspaceToolOk<{ matches: Array<{ path: string }> }>(
+        tools.grep.execute({ include: "*.html", pattern: "Home|Updated" }),
+      ),
+    ).resolves.toMatchObject({
+      matches: [{ path: "index.copy.html" }],
+    });
+    await expect(
+      expectWorkspaceToolOk(
+        tools.callFrontendCapability.execute({
+          capability: "preview.switchHtml",
+          payload: { path: "index.copy.html" },
+        }),
+      ),
+    ).resolves.toMatchObject({
+      payload: { path: "index.copy.html" },
+    });
+    await expectWorkspaceToolOk(tools.delete.execute({ path: "index.copy.html" }));
+    await expect(
+      workspaceStore.readProjectWorkspaceFile("project-1", "index.html"),
+    ).resolves.toBe("<main>Home</main>");
+  });
+
+  it("isolates new page mode before and after the first HTML creation", async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    await workspaceStore.writeProjectWorkspaceFile(
+      "project-1",
+      "index.html",
+      "<main>Home</main>",
+    );
+    await workspaceStore.writeProjectWorkspaceFile(
+      "project-1",
+      "notes.txt",
+      "Landing notes",
+    );
+
+    const pageEditModePolicy = {
+      currentPreviewPath: "index.html",
+      mode: "new_page" as const,
+    };
+    const tools = createWorkspaceToolRegistry(
+      createProjectWorkspaceToolDefinitions(),
+      {
+        approvedCdnUrls: [
+          "https://cdn.example.com/font.css",
+          "https://cdn.example.com/icons.js",
+        ],
+        frontendTabId: "tab-1",
+        pageEditModePolicy,
+        projectId: "project-1",
+        resources: defaultResources,
+        workspaceStore,
+      },
+    ) as unknown as {
+      callFrontendCapability: {
+        execute: (input: {
+          capability: string;
+          payload: unknown;
+        }) => Promise<unknown>;
+      };
+      createHtml: { execute: (input: { path: string }) => Promise<unknown> };
+      edit: {
+        execute: (input: {
+          newString: string;
+          oldString: string;
+          path: string;
+        }) => Promise<unknown>;
+      };
+      glob: { execute: (input: { pattern: string }) => Promise<unknown> };
+      grep: {
+        execute: (input: {
+          include?: string;
+          pattern: string;
+        }) => Promise<unknown>;
+      };
+      read: { execute: (input: { path: string }) => Promise<unknown> };
+      write: {
+        execute: (input: { content: string; path: string }) => Promise<unknown>;
+      };
+    };
+
+    await expectWorkspaceToolError(
+      tools.read.execute({ path: "index.html" }),
+      "must create a new HTML page before read",
+    );
+    await expectWorkspaceToolError(
+      tools.write.execute({ content: "<main>Early</main>", path: "landing.html" }),
+      "must create a new HTML page before edit",
+    );
+    await expectWorkspaceToolError(
+      tools.createHtml.execute({ path: "index.html" }),
+      "not overwrite the current preview page",
+    );
+    await expect(
+      expectWorkspaceToolOk<{ matches: Array<{ path: string }> }>(
+        tools.glob.execute({ pattern: "**/*.html" }),
+      ),
+    ).resolves.toMatchObject({
+      matches: [],
+    });
+    await expect(
+      expectWorkspaceToolOk<{ matches: Array<{ path: string }> }>(
+        tools.grep.execute({ include: "*.html", pattern: "Home" }),
+      ),
+    ).resolves.toMatchObject({
+      matches: [],
+    });
+
+    await expectWorkspaceToolOk(tools.createHtml.execute({ path: "landing.html" }));
+
+    await expectWorkspaceToolError(
+      tools.createHtml.execute({ path: "other.html" }),
+      "already created landing.html",
+    );
+    await expectWorkspaceToolError(
+      tools.read.execute({ path: "index.html" }),
+      "can only read the newly created page: landing.html",
+    );
+    await expectWorkspaceToolOk(
+      tools.write.execute({
+        content: "<main>Landing</main>",
+        path: "landing.html",
+      }),
+    );
+    await expectWorkspaceToolOk(tools.read.execute({ path: "landing.html" }));
+    await expectWorkspaceToolOk(
+      tools.edit.execute({
+        newString: "Published",
+        oldString: "Landing",
+        path: "landing.html",
+      }),
+    );
+    await expectWorkspaceToolError(
+      tools.callFrontendCapability.execute({
+        capability: "preview.switchHtml",
+        payload: { path: "index.html" },
+      }),
+      "can only preview the newly created page: landing.html",
+    );
+    await expect(
+      expectWorkspaceToolOk(
+        tools.callFrontendCapability.execute({
+          capability: "preview.switchHtml",
+          payload: { path: "landing.html" },
+        }),
+      ),
+    ).resolves.toMatchObject({
+      payload: { path: "landing.html" },
+    });
+    await expect(
+      expectWorkspaceToolOk<{ matches: Array<{ path: string }> }>(
+        tools.glob.execute({ pattern: "**/*.html" }),
+      ),
+    ).resolves.toMatchObject({
+      matches: [{ path: "landing.html" }],
+    });
+    await expect(
+      expectWorkspaceToolOk<{ matches: Array<{ path: string }> }>(
+        tools.grep.execute({ include: "*.html", pattern: "Home|Published" }),
+      ),
+    ).resolves.toMatchObject({
+      matches: [{ path: "landing.html" }],
+    });
   });
 
   it("includes the current preview page in runtime instructions", async () => {

@@ -248,6 +248,11 @@ describe("ChatRunManager", () => {
       toolCallId: "call-1",
       type: "tool-output-available",
     });
+    source.enqueue({
+      output: { error: "secret failure", ok: false, wallTimeMs: 1 },
+      toolCallId: "call-2",
+      type: "tool-output-available",
+    });
 
     await expect(reader.read()).resolves.toEqual({
       done: false,
@@ -283,6 +288,14 @@ describe("ChatRunManager", () => {
       value: {
         output: { path: "index.html" },
         toolCallId: "call-1",
+        type: "tool-output-available",
+      },
+    });
+    await expect(reader.read()).resolves.toEqual({
+      done: false,
+      value: {
+        output: { ok: false },
+        toolCallId: "call-2",
         type: "tool-output-available",
       },
     });
@@ -326,6 +339,14 @@ describe("ChatRunManager", () => {
       value: {
         output: { path: "index.html" },
         toolCallId: "call-1",
+        type: "tool-output-available",
+      },
+    });
+    await expect(replayReader.read()).resolves.toEqual({
+      done: false,
+      value: {
+        output: { ok: false },
+        toolCallId: "call-2",
         type: "tool-output-available",
       },
     });

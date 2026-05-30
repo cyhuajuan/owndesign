@@ -192,6 +192,17 @@ describe("createOwnDesignApp static hosting", () => {
               toolCallId: "call-1",
               type: "tool-edit",
             },
+            {
+              input: { path: "broken.html", replace: "private input" },
+              output: {
+                error: "private output error",
+                ok: false,
+                wallTimeMs: 1,
+              },
+              state: "output-available",
+              toolCallId: "call-2",
+              type: "tool-write",
+            },
           ],
           role: "assistant",
         },
@@ -215,6 +226,13 @@ describe("createOwnDesignApp static hosting", () => {
         toolCallId: "call-1",
         type: "tool-edit",
       },
+      {
+        input: { path: "broken.html" },
+        output: { ok: false },
+        state: "output-available",
+        toolCallId: "call-2",
+        type: "tool-write",
+      },
     ]);
 
     const storedConversation = await workspaceStore.getConversation(
@@ -233,6 +251,17 @@ describe("createOwnDesignApp static hosting", () => {
             state: "output-available",
             toolCallId: "call-1",
             type: "tool-edit",
+          },
+          {
+            input: { path: "broken.html", replace: "private input" },
+            output: {
+              error: "private output error",
+              ok: false,
+              wallTimeMs: 1,
+            },
+            state: "output-available",
+            toolCallId: "call-2",
+            type: "tool-write",
           },
         ],
         role: "assistant",

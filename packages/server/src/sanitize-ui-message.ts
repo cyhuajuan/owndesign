@@ -68,14 +68,14 @@ function sanitizeToolLikePart(part: Record<string, unknown>) {
   }
 
   const inputPath = getPathFromValue(part.input);
-  const outputPath = getPathFromValue(part.output);
+  const output = getSanitizedToolOutput(part.output);
 
   if (inputPath) {
     sanitized.input = { path: inputPath };
   }
 
-  if (outputPath) {
-    sanitized.output = { path: outputPath };
+  if (output) {
+    sanitized.output = output;
   }
 
   return sanitized;
@@ -92,7 +92,7 @@ function sanitizeToolChunk(chunk: Record<string, unknown>) {
   }
 
   const inputPath = getPathFromValue(chunk.input);
-  const outputPath = getPathFromValue(chunk.output);
+  const output = getSanitizedToolOutput(chunk.output);
 
   if (chunk.type === "tool-input-available" || chunk.type === "tool-input-error") {
     sanitized.input = inputPath ? { path: inputPath } : {};
@@ -103,7 +103,7 @@ function sanitizeToolChunk(chunk: Record<string, unknown>) {
   }
 
   if (chunk.type === "tool-output-available") {
-    sanitized.output = outputPath ? { path: outputPath } : {};
+    sanitized.output = output ?? {};
   }
 
   if (chunk.type === "tool-output-error") {
@@ -130,5 +130,35 @@ function getPathFromValue(value: unknown): string | undefined {
 
   const path = "path" in value ? value.path : undefined;
 
-  return typeof path === "string" && path.length > 0 ? path : undefined;
+  if (typeof path === "string" && path.length > 0) {
+    return path;
+  }
+
+  const nestedOutput = "output" in value ? value.output : undefined;
+
+  if (nestedOutput && typeof nestedOutput === "object") {
+    return getPathFromValue(nestedOutput);
+  }
+
+  return undefined;
+}
+
+function getSanitizedToolOutput(value: unknown) {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+
+  const ok = "ok" in value && typeof value.ok === "boolean"
+    ? value.ok
+    : undefined;
+  const path = getPathFromValue(value);
+
+  if (ok === undefined && !path) {
+    return undefined;
+  }
+
+  return {
+    ...(ok !== undefined ? { ok } : {}),
+    ...(path ? { path } : {}),
+  };
 }

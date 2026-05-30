@@ -462,6 +462,38 @@ describe("MessageParts", () => {
     expect(screen.queryByText("错误")).not.toBeInTheDocument();
   });
 
+  it("renders failed workspace tool results as failures", () => {
+    render(
+      <MessageParts
+        message={{
+          id: "assistant-1",
+          parts: [
+            {
+              input: { path: "index.html" },
+              output: { ok: false },
+              state: "output-available",
+              toolCallId: "call-1",
+              type: "tool-write",
+            },
+            {
+              input: { path: "index.html" },
+              output: { ok: false },
+              state: "output-available",
+              toolCallId: "call-2",
+              type: "tool-read",
+            },
+          ],
+          role: "assistant",
+        }}
+      />,
+    );
+
+    expect(screen.getByText("写入index.html失败")).toBeInTheDocument();
+    expect(screen.getByText("查看index.html失败")).toBeInTheDocument();
+    expect(screen.queryByText("已写入index.html")).not.toBeInTheDocument();
+    expect(screen.queryByText("已查看index.html")).not.toBeInTheDocument();
+  });
+
   it("does not dispatch preview refresh after mutation tool output completes", () => {
     const dispatchEventSpy = vi.spyOn(window, "dispatchEvent");
     vi.mocked(useChat).mockReturnValue({

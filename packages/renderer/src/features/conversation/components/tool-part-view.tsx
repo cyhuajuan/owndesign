@@ -34,16 +34,16 @@ function getToolDescription(part: ToolLikePart) {
   const verb = toolVerbs[toolName] ?? toolName;
   const suffix = target ?? (toolName === "callFrontendCapability" ? "" : "文件");
 
-  if (part.state === "output-available") {
-    return `已${verb}${suffix}`;
-  }
-
-  if (part.state === "output-error") {
+  if (isFailedToolPart(part)) {
     return `${verb}${suffix}失败`;
   }
 
   if (part.state === "output-denied") {
     return `已取消${verb}${suffix}`;
+  }
+
+  if (part.state === "output-available") {
+    return `已${verb}${suffix}`;
   }
 
   return `正在${verb}${suffix}`;
@@ -55,6 +55,10 @@ function isPendingToolPart(part: ToolLikePart) {
     part.state !== "output-error" &&
     part.state !== "output-denied"
   );
+}
+
+function isFailedToolPart(part: ToolLikePart) {
+  return part.state === "output-error" || getToolOutputOk(part) === false;
 }
 
 function getToolName(part: ToolLikePart) {
@@ -78,7 +82,27 @@ function getPathFromValue(value: unknown): string | undefined {
 
   const path = "path" in value ? value.path : undefined;
 
-  return typeof path === "string" && path.length > 0 ? path : undefined;
+  if (typeof path === "string" && path.length > 0) {
+    return path;
+  }
+
+  const nestedOutput = "output" in value ? value.output : undefined;
+
+  if (nestedOutput && typeof nestedOutput === "object") {
+    return getPathFromValue(nestedOutput);
+  }
+
+  return undefined;
+}
+
+function getToolOutputOk(part: ToolLikePart) {
+  const output = part.output;
+
+  if (!output || typeof output !== "object" || !("ok" in output)) {
+    return undefined;
+  }
+
+  return typeof output.ok === "boolean" ? output.ok : undefined;
 }
 
 const toolVerbs: Record<string, string> = {

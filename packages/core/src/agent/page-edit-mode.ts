@@ -29,6 +29,13 @@ export type PageEditModePolicy =
       targetPath: string;
     };
 
+export type HtmlPathOperation =
+  | "create"
+  | "delete"
+  | "mutate"
+  | "preview"
+  | "read";
+
 export function parsePageEditMode(value: unknown): PageEditMode | undefined {
   if (value === undefined || value === null || value === "") {
     return "auto";
@@ -96,31 +103,7 @@ export function assertCreateHtmlAllowed(
   policy: PageEditModePolicy | undefined,
   relativePath: string,
 ) {
-  if (!policy || policy.mode === "auto") {
-    return;
-  }
-
-  const targetPath = normalizeToolPath(relativePath);
-
-  if (policy.mode === "new_page") {
-    if (policy.currentPreviewPath && targetPath === policy.currentPreviewPath) {
-      throw new Error(
-        `Page edit mode "new_page" must create a new HTML page, not overwrite the current preview page: ${targetPath}`,
-      );
-    }
-
-    if (policy.createdHtmlPath && targetPath !== policy.createdHtmlPath) {
-      throw new Error(
-        `Page edit mode "new_page" already created ${policy.createdHtmlPath}; continue editing that page.`,
-      );
-    }
-
-    return;
-  }
-
-  throw new Error(
-    `Page edit mode "${policy.mode}" does not allow creating new HTML pages.`,
-  );
+  assertHtmlPathOperationAllowed(policy, "create", relativePath);
 }
 
 export function markCreatedHtmlPath(
@@ -136,28 +119,56 @@ export function assertHtmlMutationAllowed(
   policy: PageEditModePolicy | undefined,
   relativePath: string,
 ) {
-  if (!policy || policy.mode === "auto" || !isHtmlPath(relativePath)) {
+  assertHtmlPathOperationAllowed(policy, "mutate", relativePath);
+}
+
+export function assertHtmlPathOperationAllowed(
+  policy: PageEditModePolicy | undefined,
+  operation: HtmlPathOperation,
+  relativePath: string,
+) {
+  if (!policy || policy.mode === "auto") {
     return;
   }
 
   const targetPath = normalizeToolPath(relativePath);
 
-  if (policy.mode === "new_page") {
-    if (policy.currentPreviewPath && targetPath === policy.currentPreviewPath) {
-      throw new Error(
-        `Page edit mode "new_page" cannot edit the current preview page: ${targetPath}`,
-      );
+  if (!isHtmlPath(targetPath)) {
+    return;
+  }
+
+  if (operation === "create") {
+    if (policy.mode === "new_page") {
+      if (policy.currentPreviewPath && targetPath === policy.currentPreviewPath) {
+        throw new Error(
+          `Page edit mode "new_page" must create a new HTML page, not overwrite the current preview page: ${targetPath}`,
+        );
+      }
+
+      if (policy.createdHtmlPath) {
+        throw new Error(
+          `Page edit mode "new_page" already created ${policy.createdHtmlPath}; continue editing that page.`,
+        );
+      }
+
+      return;
     }
 
+    throw new Error(
+      `Page edit mode "${policy.mode}" does not allow creating new HTML pages.`,
+    );
+  }
+
+  if (policy.mode === "new_page") {
     if (!policy.createdHtmlPath) {
       throw new Error(
-        'Page edit mode "new_page" must call createHtml before editing an HTML page.',
+        `Page edit mode "new_page" must create a new HTML page before ${formatHtmlOperation(operation)} an HTML page.`,
       );
     }
 
     if (targetPath !== policy.createdHtmlPath) {
       throw new Error(
-        `Page edit mode "new_page" can only edit the newly created page: ${policy.createdHtmlPath}`,
+        `Page edit mode "new_page" can only ${formatHtmlOperation(operation)} the newly created page: ${policy.createdHtmlPath}; attempted ${targetPath}.`,
       );
     }
 
@@ -166,9 +177,38 @@ export function assertHtmlMutationAllowed(
 
   if (targetPath !== policy.targetPath) {
     throw new Error(
-      `Page edit mode "${policy.mode}" can only edit ${policy.targetPath}; attempted ${targetPath}.`,
+      `Page edit mode "${policy.mode}" can only ${formatHtmlOperation(operation)} ${policy.targetPath}; attempted ${targetPath}.`,
     );
   }
+}
+
+export function filterHtmlPathsForPageEditModePolicy<
+  Item extends { path: string },
+>(policy: PageEditModePolicy | undefined, items: Item[]) {
+  if (!policy || policy.mode === "auto") {
+    return items;
+  }
+
+  const allowedHtmlPath = getAllowedHtmlPath(policy);
+
+  return items.filter(
+    (item) =>
+      !isHtmlPath(item.path) ||
+      (allowedHtmlPath !== undefined &&
+        normalizeToolPath(item.path) === allowedHtmlPath),
+  );
+}
+
+export function getAllowedHtmlPath(policy: PageEditModePolicy | undefined) {
+  if (!policy || policy.mode === "auto") {
+    return undefined;
+  }
+
+  if (policy.mode === "new_page") {
+    return policy.createdHtmlPath;
+  }
+
+  return policy.targetPath;
 }
 
 export function buildPageEditModePolicyPrompt(
@@ -186,12 +226,14 @@ export function buildPageEditModePolicyPrompt(
     return [
       "## Page Edit Mode Policy",
       "Mode: new_page.",
+      "This policy overrides the runtime current preview page and all page-target defaults.",
       "The user's mode selection overrides conflicting prompt wording.",
       "You must create a new HTML page with `createHtml`, even if the user asks to modify the current page.",
       policy.currentPreviewPath
         ? `Current preview page ${policy.currentPreviewPath} must not be edited as the target.`
         : "No current preview page is required for this mode.",
-      "After creating the new page, continue editing only that new page and switch the preview to it.",
+      "Before creating the new page, do not read, write, edit, patch, delete, or switch preview to any HTML page.",
+      "After creating the new page, read, write, edit, patch, delete, and switch preview only for that new page.",
     ].join("\n");
   }
 
@@ -209,12 +251,28 @@ export function buildPageEditModePolicyPrompt(
   return [
     "## Page Edit Mode Policy",
     "Mode: duplicate_edit.",
+    "This policy overrides the runtime current preview page and all page-target defaults.",
     "The user's mode selection overrides conflicting prompt wording.",
     `The current preview page has already been copied from ${policy.sourcePath} to ${policy.targetPath}.`,
-    `You must edit only the copied page: ${policy.targetPath}.`,
-    "Do not edit the original source page.",
+    `Treat the copied page as the current working page: ${policy.targetPath}.`,
+    "Do not read, write, edit, patch, delete, or switch preview to the original source page.",
     "After the changes, switch the preview to the copied page.",
   ].join("\n");
+}
+
+function formatHtmlOperation(operation: HtmlPathOperation) {
+  switch (operation) {
+    case "create":
+      return "create";
+    case "delete":
+      return "delete";
+    case "mutate":
+      return "edit";
+    case "preview":
+      return "preview";
+    case "read":
+      return "read";
+  }
 }
 
 function normalizeRequiredHtmlPath(

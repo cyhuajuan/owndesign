@@ -1,4 +1,8 @@
 import type { WorkspaceGrepResult } from "@owndesign/core/workspace-store";
+import {
+  assertHtmlPathOperationAllowed,
+  filterHtmlPathsForPageEditModePolicy,
+} from "@owndesign/core/agent/page-edit-mode";
 
 import type { WorkspaceToolDefinition } from "./core";
 import type { GrepInput } from "./types";
@@ -33,10 +37,35 @@ export function createGrepToolDefinition(): WorkspaceToolDefinition<
     },
     name: "grep",
     parallelSafe: true,
-    execute: async ({ include, path, pattern }, { projectId, workspaceStore }) =>
-      workspaceStore.grepProjectWorkspace(projectId, pattern, {
+    execute: async ({ include, path, pattern }, {
+      pageEditModePolicy,
+      projectId,
+      workspaceStore,
+    }) => {
+      if (path) {
+        assertHtmlPathOperationAllowed(pageEditModePolicy, "read", path);
+      }
+
+      const result = await workspaceStore.grepProjectWorkspace(projectId, pattern, {
         include,
         path,
-      }),
+      });
+      const matches = filterHtmlPathsForPageEditModePolicy(
+        pageEditModePolicy,
+        result.matches,
+      );
+      const skippedFiles = filterHtmlPathsForPageEditModePolicy(
+        pageEditModePolicy,
+        result.skippedFiles,
+      );
+
+      return {
+        ...result,
+        matches,
+        skippedFiles,
+        totalMatches: matches.length,
+        truncated: false,
+      };
+    },
   };
 }

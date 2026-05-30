@@ -1,3 +1,5 @@
+import { assertHtmlPathOperationAllowed } from "@owndesign/core/agent/page-edit-mode";
+
 import type { WorkspaceToolDefinition } from "./core";
 import type { DeleteInput } from "./types";
 
@@ -22,7 +24,14 @@ export function createDeleteToolDefinition(): WorkspaceToolDefinition<
     },
     name: "delete",
     parallelSafe: false,
-    execute: async ({ path }, { projectId, workspaceStore }) =>
-      workspaceStore.deleteProjectWorkspacePath(projectId, path),
+    execute: async ({ path }, {
+      pageEditModePolicy,
+      projectId,
+      workspaceStore,
+    }) => {
+      assertHtmlPathOperationAllowed(pageEditModePolicy, "delete", path);
+
+      return workspaceStore.deleteProjectWorkspacePath(projectId, path);
+    },
   };
 }

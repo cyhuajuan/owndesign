@@ -476,7 +476,7 @@ describe("MessageParts", () => {
               type: "tool-write",
             },
             {
-              input: { path: "index.html" },
+              input: { path: "missing.txt" },
               output: { ok: false },
               state: "output-available",
               toolCallId: "call-2",
@@ -489,8 +489,31 @@ describe("MessageParts", () => {
     );
 
     expect(screen.getByText("写入index.html失败")).toBeInTheDocument();
-    expect(screen.getByText("查看index.html失败")).toBeInTheDocument();
+    expect(screen.getByText("查看missing.txt失败")).toBeInTheDocument();
     expect(screen.queryByText("已写入index.html")).not.toBeInTheDocument();
+    expect(screen.queryByText("已查看missing.txt")).not.toBeInTheDocument();
+  });
+
+  it("uses sanitized output paths before tool input paths", () => {
+    render(
+      <MessageParts
+        message={{
+          id: "assistant-1",
+          parts: [
+            {
+              input: { path: "index.html" },
+              output: { ok: true, path: "index.copy.html" },
+              state: "output-available",
+              toolCallId: "call-1",
+              type: "tool-read",
+            },
+          ],
+          role: "assistant",
+        }}
+      />,
+    );
+
+    expect(screen.getByText("已查看index.copy.html")).toBeInTheDocument();
     expect(screen.queryByText("已查看index.html")).not.toBeInTheDocument();
   });
 

@@ -1,4 +1,4 @@
-import { assertHtmlPathOperationAllowed } from "@owndesign/core/agent/page-edit-mode";
+import { resolveHtmlOperationPathForPageEditModePolicy } from "@owndesign/core/agent/page-edit-mode";
 
 import { applyProjectWorkspacePatchWithCdnGuard } from "./cdn-guard";
 import type { WorkspaceToolDefinition } from "./core";
@@ -63,18 +63,19 @@ export function createPatchToolDefinition(): WorkspaceToolDefinition<
       { changes },
       { approvedCdnUrls, pageEditModePolicy, projectId, workspaceStore },
     ) => {
-      for (const change of changes) {
-        assertHtmlPathOperationAllowed(
+      const resolvedChanges = changes.map((change) => ({
+        ...change,
+        path: resolveHtmlOperationPathForPageEditModePolicy(
           pageEditModePolicy,
           change.operation === "delete" ? "delete" : "mutate",
           change.path,
-        );
-      }
+        ),
+      })) as PatchInput["changes"];
 
       return applyProjectWorkspacePatchWithCdnGuard(
         workspaceStore,
         projectId,
-        changes,
+        resolvedChanges,
         approvedCdnUrls,
       );
     },

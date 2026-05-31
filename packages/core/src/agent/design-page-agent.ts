@@ -248,10 +248,6 @@ export function buildDesignPageAgentInstructions(
       content: buildPageTargetProtocolPrompt(),
     },
     {
-      tag: "page_edit_mode_policy",
-      content: buildPageEditModePolicyPrompt(pageEditModePolicy),
-    },
-    {
       tag: "tool_workflow",
       content: buildToolWorkflowPrompt(),
     },
@@ -270,6 +266,10 @@ export function buildDesignPageAgentInstructions(
     {
       tag: "runtime_context",
       content: buildProjectOutputPrompt(outputType, currentPreviewPath),
+    },
+    {
+      tag: "page_edit_mode_policy",
+      content: buildPageEditModePolicyPrompt(pageEditModePolicy),
     },
   ];
 

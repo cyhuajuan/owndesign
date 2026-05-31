@@ -1,7 +1,7 @@
 import type { WorkspaceGrepResult } from "@owndesign/core/workspace-store";
 import {
-  assertHtmlPathOperationAllowed,
   filterHtmlPathsForPageEditModePolicy,
+  resolveHtmlReadPathForPageEditModePolicy,
 } from "@owndesign/core/agent/page-edit-mode";
 
 import type { WorkspaceToolDefinition } from "./core";
@@ -42,13 +42,13 @@ export function createGrepToolDefinition(): WorkspaceToolDefinition<
       projectId,
       workspaceStore,
     }) => {
-      if (path) {
-        assertHtmlPathOperationAllowed(pageEditModePolicy, "read", path);
-      }
+      const searchPath = path
+        ? resolveHtmlReadPathForPageEditModePolicy(pageEditModePolicy, path)
+        : undefined;
 
       const result = await workspaceStore.grepProjectWorkspace(projectId, pattern, {
         include,
-        path,
+        path: searchPath,
       });
       const matches = filterHtmlPathsForPageEditModePolicy(
         pageEditModePolicy,

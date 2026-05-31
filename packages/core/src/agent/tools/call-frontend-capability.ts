@@ -5,7 +5,7 @@ import {
   type FrontendCapabilityPayloads,
 } from "@owndesign/core/realtime/frontend-capabilities";
 import { sendFrontendCommand } from "@owndesign/core/realtime/frontend-command-bus";
-import { assertHtmlPathOperationAllowed } from "@owndesign/core/agent/page-edit-mode";
+import { resolveHtmlOperationPathForPageEditModePolicy } from "@owndesign/core/agent/page-edit-mode";
 
 import { isHtmlPath, normalizeToolPath } from "./cdn-guard";
 import type { WorkspaceToolDefinition } from "./core";
@@ -85,7 +85,7 @@ async function normalizePayload<Capability extends keyof FrontendCapabilityPaylo
     throw new Error(`Preview switch target must end with .html: ${targetPath}`);
   }
 
-  assertHtmlPathOperationAllowed(
+  const previewPath = resolveHtmlOperationPathForPageEditModePolicy(
     context.pageEditModePolicy,
     "preview",
     targetPath,
@@ -95,12 +95,12 @@ async function normalizePayload<Capability extends keyof FrontendCapabilityPaylo
     context.projectId,
   );
 
-  if (!htmlFiles.includes(targetPath)) {
-    throw new Error(`Project Workspace HTML file was not found: ${targetPath}`);
+  if (!htmlFiles.includes(previewPath)) {
+    throw new Error(`Project Workspace HTML file was not found: ${previewPath}`);
   }
 
   return {
-    path: targetPath,
+    path: previewPath,
   } as FrontendCapabilityPayloads[Capability];
 }
 

@@ -1,6 +1,6 @@
 import {
-  assertHtmlPathOperationAllowed,
   filterHtmlPathsForPageEditModePolicy,
+  resolveHtmlReadPathForPageEditModePolicy,
 } from "@owndesign/core/agent/page-edit-mode";
 
 import type { WorkspaceToolDefinition } from "./core";
@@ -42,12 +42,19 @@ export function createReadToolDefinition(): WorkspaceToolDefinition<
       projectId,
       workspaceStore,
     }) => {
-      assertHtmlPathOperationAllowed(pageEditModePolicy, "read", path);
+      const readPath = resolveHtmlReadPathForPageEditModePolicy(
+        pageEditModePolicy,
+        path,
+      );
 
-      const result = await workspaceStore.readProjectWorkspaceEntry(projectId, path, {
-        limit,
-        offset,
-      });
+      const result = await workspaceStore.readProjectWorkspaceEntry(
+        projectId,
+        readPath,
+        {
+          limit,
+          offset,
+        },
+      );
 
       if (result.type !== "directory") {
         return result;

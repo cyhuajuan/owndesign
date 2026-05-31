@@ -122,6 +122,35 @@ export function assertHtmlMutationAllowed(
   assertHtmlPathOperationAllowed(policy, "mutate", relativePath);
 }
 
+export function resolveHtmlOperationPathForPageEditModePolicy(
+  policy: PageEditModePolicy | undefined,
+  operation: HtmlPathOperation,
+  relativePath: string,
+) {
+  if (!policy || policy.mode === "auto") {
+    return relativePath;
+  }
+
+  const targetPath = normalizeToolPath(relativePath);
+
+  if (!isHtmlPath(targetPath)) {
+    return relativePath;
+  }
+
+  if (
+    policy.mode === "duplicate_edit" &&
+    targetPath === policy.sourcePath &&
+    operation !== "create" &&
+    operation !== "delete"
+  ) {
+    return policy.targetPath;
+  }
+
+  assertHtmlPathOperationAllowed(policy, operation, targetPath);
+
+  return targetPath;
+}
+
 export function assertHtmlPathOperationAllowed(
   policy: PageEditModePolicy | undefined,
   operation: HtmlPathOperation,
@@ -180,6 +209,17 @@ export function assertHtmlPathOperationAllowed(
       `Page edit mode "${policy.mode}" can only ${formatHtmlOperation(operation)} ${policy.targetPath}; attempted ${targetPath}.`,
     );
   }
+}
+
+export function resolveHtmlReadPathForPageEditModePolicy(
+  policy: PageEditModePolicy | undefined,
+  relativePath: string,
+) {
+  return resolveHtmlOperationPathForPageEditModePolicy(
+    policy,
+    "read",
+    relativePath,
+  );
 }
 
 export function filterHtmlPathsForPageEditModePolicy<
@@ -255,6 +295,7 @@ export function buildPageEditModePolicyPrompt(
     "The user's mode selection overrides conflicting prompt wording.",
     `The current preview page has already been copied from ${policy.sourcePath} to ${policy.targetPath}.`,
     `Treat the copied page as the current working page: ${policy.targetPath}.`,
+    `For any HTML inspection, read the copied page ${policy.targetPath}, not the original source page ${policy.sourcePath}.`,
     "Do not read, write, edit, patch, delete, or switch preview to the original source page.",
     "After the changes, switch the preview to the copied page.",
   ].join("\n");

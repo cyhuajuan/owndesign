@@ -1148,6 +1148,9 @@ describe("AiSdkDesignPageAgent", () => {
     expect(config.instructions).toContain("</resource_policy>");
     expect(config.instructions).toContain("<runtime_context>");
     expect(config.instructions).toContain("</runtime_context>");
+    expect(config.instructions.indexOf("<runtime_context>")).toBeLessThan(
+      config.instructions.indexOf("<page_edit_mode_policy>"),
+    );
     expect(config.instructions).toContain(
       "You design and build previewable product pages",
     );
@@ -1460,6 +1463,7 @@ describe("AiSdkDesignPageAgent", () => {
       grep: {
         execute: (input: {
           include?: string;
+          path?: string;
           pattern: string;
         }) => Promise<unknown>;
       };
@@ -1480,14 +1484,68 @@ describe("AiSdkDesignPageAgent", () => {
       };
     };
 
-    await expectWorkspaceToolError(
-      tools.read.execute({ path: "index.html" }),
-      "can only read index.copy.html",
-    );
-    await expectWorkspaceToolError(
-      tools.write.execute({ content: "<main>Original</main>", path: "index.html" }),
-      "can only edit index.copy.html",
-    );
+    await expect(
+      expectWorkspaceToolOk<{ content: string; path: string; type: string }>(
+        tools.read.execute({ path: "index.html" }),
+      ),
+    ).resolves.toMatchObject({
+      content: expect.stringContaining("Home"),
+      path: "index.copy.html",
+      type: "file",
+    });
+    await expect(
+      expectWorkspaceToolOk<{ path: string }>(
+        tools.write.execute({
+          content: "<main>Duplicate</main>",
+          path: "index.html",
+        }),
+      ),
+    ).resolves.toMatchObject({
+      path: "index.copy.html",
+    });
+    await expect(
+      workspaceStore.readProjectWorkspaceFile("project-1", "index.html"),
+    ).resolves.toBe("<main>Home</main>");
+    await expect(
+      workspaceStore.readProjectWorkspaceFile("project-1", "index.copy.html"),
+    ).resolves.toBe("<main>Duplicate</main>");
+    await expect(
+      expectWorkspaceToolOk<{ path: string; replacements: number }>(
+        tools.edit.execute({
+          newString: "Updated",
+          oldString: "Duplicate",
+          path: "index.html",
+        }),
+      ),
+    ).resolves.toMatchObject({
+      path: "index.copy.html",
+      replacements: 1,
+    });
+    await expect(
+      expectWorkspaceToolOk<{
+        results: Array<{
+          operation: string;
+          result: { path: string };
+        }>;
+      }>(
+        tools.patch.execute({
+          changes: [
+            {
+              content: "<main>Patched</main>",
+              operation: "write",
+              path: "index.html",
+            },
+          ],
+        }),
+      ),
+    ).resolves.toMatchObject({
+      results: [
+        {
+          operation: "write",
+          result: { path: "index.copy.html" },
+        },
+      ],
+    });
     await expectWorkspaceToolError(
       tools.patch.execute({
         changes: [{ operation: "delete", path: "index.html" }],
@@ -1498,28 +1556,34 @@ describe("AiSdkDesignPageAgent", () => {
       tools.delete.execute({ path: "index.html" }),
       "can only delete index.copy.html",
     );
-    await expectWorkspaceToolError(
-      tools.callFrontendCapability.execute({
-        capability: "preview.switchHtml",
-        payload: { path: "index.html" },
-      }),
-      "can only preview index.copy.html",
-    );
+    await expect(
+      expectWorkspaceToolOk(
+        tools.callFrontendCapability.execute({
+          capability: "preview.switchHtml",
+          payload: { path: "index.html" },
+        }),
+      ),
+    ).resolves.toMatchObject({
+      payload: { path: "index.copy.html" },
+    });
 
     await expectWorkspaceToolOk(tools.read.execute({ path: "index.copy.html" }));
-    await expectWorkspaceToolOk(
-      tools.write.execute({
-        content: "<main>Duplicate</main>",
-        path: "index.copy.html",
-      }),
-    );
-    await expectWorkspaceToolOk(
-      tools.edit.execute({
-        newString: "Updated",
-        oldString: "Duplicate",
-        path: "index.copy.html",
-      }),
-    );
+    await expect(
+      expectWorkspaceToolOk<{ content: string; path: string; type: string }>(
+        tools.read.execute({ path: "index.html" }),
+      ),
+    ).resolves.toMatchObject({
+      content: expect.stringContaining("Patched"),
+      path: "index.copy.html",
+      type: "file",
+    });
+    await expect(
+      expectWorkspaceToolOk<{ matches: Array<{ path: string }> }>(
+        tools.grep.execute({ path: "index.html", pattern: "Patched" }),
+      ),
+    ).resolves.toMatchObject({
+      matches: [{ path: "index.copy.html" }],
+    });
     await expect(
       expectWorkspaceToolOk<{ matches: Array<{ path: string }> }>(
         tools.glob.execute({ pattern: "**/*.html" }),
@@ -1529,7 +1593,7 @@ describe("AiSdkDesignPageAgent", () => {
     });
     await expect(
       expectWorkspaceToolOk<{ matches: Array<{ path: string }> }>(
-        tools.grep.execute({ include: "*.html", pattern: "Home|Updated" }),
+        tools.grep.execute({ include: "*.html", pattern: "Home|Patched" }),
       ),
     ).resolves.toMatchObject({
       matches: [{ path: "index.copy.html" }],

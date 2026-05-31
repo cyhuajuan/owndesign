@@ -1,4 +1,4 @@
-import { assertHtmlMutationAllowed } from "@owndesign/core/agent/page-edit-mode";
+import { resolveHtmlOperationPathForPageEditModePolicy } from "@owndesign/core/agent/page-edit-mode";
 
 import { editProjectWorkspaceFileWithCdnGuard } from "./cdn-guard";
 import type { WorkspaceToolDefinition } from "./core";
@@ -43,12 +43,16 @@ export function createEditToolDefinition(): WorkspaceToolDefinition<
       projectId,
       workspaceStore,
     }) => {
-      assertHtmlMutationAllowed(pageEditModePolicy, path);
+      const editPath = resolveHtmlOperationPathForPageEditModePolicy(
+        pageEditModePolicy,
+        "mutate",
+        path,
+      );
 
       return editProjectWorkspaceFileWithCdnGuard(
         workspaceStore,
         projectId,
-        path,
+        editPath,
         oldString,
         newString,
         replaceAll,

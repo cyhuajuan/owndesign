@@ -65,7 +65,6 @@ Every previewable HTML page must:
 - render well inside iframe preview
 - use inline CSS as the styling method
 - use minimal inline JavaScript only for local UI state interactions
-- be fully responsive on desktop and mobile
 - include polished visual hierarchy, realistic spacing, and domain-appropriate components
 - include useful interaction and empty or hover states when relevant
 

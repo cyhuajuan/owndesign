@@ -1223,12 +1223,12 @@ describe("AiSdkDesignPageAgent", () => {
       "If the target HTML file exists, use `read` first",
     );
     expect(config.instructions).toContain(
-      "tool rejects HTML because of CDN guard rules",
+      "will reject HTML with unlisted CDN tags",
     );
     expect(config.instructions).toContain("semantic filename");
     expect(config.instructions).toContain("Do not overwrite `index.html`");
     expect(config.instructions).toContain(
-      "Only use resource CDNs that already exist in settings",
+      "Only use CDNs already listed in resource settings",
     );
     expect(config.instructions).toContain("Configured Font");
     expect(config.instructions).toContain("Configured Icons");

@@ -238,6 +238,14 @@ describe("createOwnDesignApp static hosting", () => {
     expect(conversation.agentInstructions).not.toContain(
       "<page_edit_mode_policy>",
     );
+    expect(conversation.turnContexts).toHaveLength(1);
+    expect(conversation.turnContexts?.[0]).toMatchObject({
+      messageId: "user-1",
+      outputType: "html",
+      pageEditMode: "auto",
+      pageEditModePolicy: { mode: "auto" },
+      previewPath: "dashboard.html",
+    });
     expect(conversation.messages).toEqual([userMessage]);
     expect(streamInput.originalMessages).toEqual([userMessage]);
     expect(streamInput.uiMessages).toHaveLength(2);
@@ -296,11 +304,137 @@ describe("createOwnDesignApp static hosting", () => {
     };
 
     expect(storedConversation.agentInstructions).toBe("persisted instructions");
+    expect(storedConversation.turnContexts).toHaveLength(1);
+    expect(storedConversation.turnContexts?.[0]).toMatchObject({
+      messageId: "user-1",
+      outputType: "html",
+      pageEditMode: "auto",
+      pageEditModePolicy: { mode: "auto" },
+      previewPath: "settings.html",
+    });
     expect(agentConfig.instructions).toBe("persisted instructions");
     expect(getMessageText(streamInput.uiMessages[0])).toContain(
       "Current preview page: settings.html.",
     );
     expect(storedConversation.messages).toEqual([userMessage]);
+  });
+
+  it("appends turn contexts without sending historical runtime contexts to the model", async () => {
+    const { app, root } = await createAppWithTempOptions();
+    const workspaceRoot = path.join(root, "workspace");
+    const { conversationId, projectId } = await setupProject(app);
+    const workspaceStore = createWorkspaceStore({ workspaceRoot });
+    const conversation = await workspaceStore.getConversation(
+      projectId,
+      conversationId,
+    );
+    const previousUserMessage = createUserMessage("user-1", "上一轮");
+    const nextUserMessage = createUserMessage("user-2", "继续修改");
+
+    await workspaceStore.updateConversation(projectId, conversationId, {
+      ...conversation,
+      agentInstructions: "persisted instructions",
+      agentPromptVersion: 1,
+      messages: [previousUserMessage],
+      turnContexts: [
+        {
+          createdAt: "2026-05-14T10:00:00.000Z",
+          id: "turn-context-1",
+          messageId: "user-1",
+          outputType: "html",
+          pageEditMode: "auto",
+          pageEditModePolicy: { mode: "auto" },
+          previewPath: "first.html",
+        },
+      ],
+    });
+
+    const response = await app.fetch(
+      new Request("http://localhost/api/chat", {
+        body: JSON.stringify({
+          conversationId,
+          messages: [previousUserMessage, nextUserMessage],
+          pageEditMode: "auto",
+          previewPath: "second.html",
+          projectId,
+        }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      }),
+    );
+    await response.text();
+
+    expect(response.status).toBe(200);
+    await waitFor(() => expect(aiMocks.createAgentUIStream).toHaveBeenCalled());
+
+    const storedConversation = await workspaceStore.getConversation(
+      projectId,
+      conversationId,
+    );
+    const streamInput = aiMocks.createAgentUIStream.mock.calls[0]?.[0] as {
+      uiMessages: UIMessage[];
+    };
+    const modelInputText = streamInput.uiMessages
+      .map((message) => getMessageText(message))
+      .join("\n");
+
+    expect(storedConversation.turnContexts).toHaveLength(2);
+    expect(storedConversation.turnContexts?.[1]).toMatchObject({
+      messageId: "user-2",
+      pageEditMode: "auto",
+      pageEditModePolicy: { mode: "auto" },
+      previewPath: "second.html",
+    });
+    expect(modelInputText).toContain("Current preview page: second.html.");
+    expect(modelInputText).not.toContain("first.html");
+  });
+
+  it("records duplicate edit page edit policy in turn contexts", async () => {
+    const { app, root } = await createAppWithTempOptions();
+    const workspaceRoot = path.join(root, "workspace");
+    const { conversationId, projectId } = await setupProject(app);
+    const workspaceStore = createWorkspaceStore({ workspaceRoot });
+
+    await workspaceStore.writeProjectWorkspaceFile(
+      projectId,
+      "dashboard.html",
+      "<main>Dashboard</main>",
+    );
+
+    const userMessage = createUserMessage("user-1", "复制后修改");
+    const response = await app.fetch(
+      new Request("http://localhost/api/chat", {
+        body: JSON.stringify({
+          conversationId,
+          messages: [userMessage],
+          pageEditMode: "duplicate_edit",
+          previewPath: "dashboard.html",
+          projectId,
+        }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      }),
+    );
+    await response.text();
+
+    expect(response.status).toBe(200);
+    await waitFor(() => expect(aiMocks.createAgentUIStream).toHaveBeenCalled());
+
+    const conversation = await workspaceStore.getConversation(
+      projectId,
+      conversationId,
+    );
+
+    expect(conversation.turnContexts?.[0]).toMatchObject({
+      messageId: "user-1",
+      pageEditMode: "duplicate_edit",
+      pageEditModePolicy: {
+        mode: "duplicate_edit",
+        sourcePath: "dashboard.html",
+        targetPath: "dashboard.copy.html",
+      },
+      previewPath: "dashboard.html",
+    });
   });
 
   it("sanitizes conversation messages in workspace responses without changing local records", async () => {

@@ -30,6 +30,10 @@ import {
   parseDeepSeekThinkingMode,
 } from "@owndesign/core/settings/settings-service";
 import { buildWorkspaceHref } from "@owndesign/core/navigation";
+import type {
+  ConversationRecord,
+  ConversationTurnContextRecord,
+} from "@owndesign/core/workspace-store";
 
 import {
   createConversationService,
@@ -380,6 +384,18 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
       outputType: project.outputType,
       pageEditModePolicy: agentContext.pageEditModePolicy ?? { mode: "auto" },
     });
+    const turnContext = createConversationTurnContext({
+      messageId: getLastUserMessageId(messages),
+      outputType: project.outputType,
+      pageEditMode,
+      pageEditModePolicy: agentContext.pageEditModePolicy ?? { mode: "auto" },
+      previewPath,
+    });
+    await workspaceStore.updateConversation(
+      projectId,
+      conversationId,
+      appendConversationTurnContext(conversation, turnContext),
+    );
     let latestStepUsage: LanguageModelUsage | undefined;
 
     const run = chatRunManager.startRun({
@@ -900,6 +916,46 @@ export function mergeStoredAndIncomingMessages(
     ...storedMessages,
     ...incomingMessages.filter((message) => !storedIds.has(message.id)),
   ];
+}
+
+function createConversationTurnContext({
+  messageId,
+  outputType,
+  pageEditMode,
+  pageEditModePolicy,
+  previewPath,
+}: Omit<ConversationTurnContextRecord, "createdAt" | "id">): ConversationTurnContextRecord {
+  return {
+    createdAt: new Date().toISOString(),
+    id: crypto.randomUUID(),
+    messageId,
+    outputType,
+    pageEditMode,
+    pageEditModePolicy,
+    ...(previewPath ? { previewPath } : {}),
+  };
+}
+
+function appendConversationTurnContext(
+  conversation: ConversationRecord,
+  turnContext: ConversationTurnContextRecord,
+): ConversationRecord {
+  return {
+    ...conversation,
+    turnContexts: [...(conversation.turnContexts ?? []), turnContext],
+  };
+}
+
+function getLastUserMessageId(messages: UIMessage[]) {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+
+    if (message?.role === "user") {
+      return message.id;
+    }
+  }
+
+  return undefined;
 }
 
 function createTurnRuntimeContextMessages({

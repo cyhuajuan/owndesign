@@ -17,6 +17,10 @@ import { isMissingPathError, normalizeWorkspaceRelativePath } from "./paths";
 import { globToRegExp } from "./search";
 import { applyTextEdit, normalizePositiveInteger, truncateLineMiddle } from "./text";
 import { movePathToTrash, runWindowsRecycleCommand } from "./trash";
+import type {
+  PageEditMode,
+  PageEditModePolicy,
+} from "@owndesign/core/agent/page-edit-mode";
 
 const DEFAULT_READ_LIMIT = 2000;
 const MAX_READ_BYTES = 50 * 1024;
@@ -34,6 +38,16 @@ export type ProjectRecord = {
 
 export type ProjectOutputType = "html";
 
+export type ConversationTurnContextRecord = {
+  id: string;
+  messageId?: string;
+  createdAt: string;
+  previewPath?: string;
+  outputType: ProjectOutputType;
+  pageEditMode: PageEditMode;
+  pageEditModePolicy: PageEditModePolicy;
+};
+
 export type ConversationRecord = {
   agentInstructions?: string;
   agentPromptVersion?: number;
@@ -45,6 +59,7 @@ export type ConversationRecord = {
   lastMessageAt?: string;
   messages: unknown[];
   titleManuallySet?: boolean;
+  turnContexts?: ConversationTurnContextRecord[];
 };
 
 export type WorkspaceEntry = {

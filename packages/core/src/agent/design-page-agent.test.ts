@@ -202,6 +202,7 @@ describe("AiSdkDesignPageAgent", () => {
     });
     expect(aiMocks.toolLoopAgent).toHaveBeenCalledWith(
       expect.objectContaining({
+        allowSystemInMessages: true,
         instructions: expect.stringContaining(
           "Ask a follow-up question only when the target page remains ambiguous",
         ),

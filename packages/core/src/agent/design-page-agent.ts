@@ -150,6 +150,7 @@ export function createDesignPageAgent(context: DesignAgentContext) {
   const { agentInstructions, model, providerOptions } = context;
 
   return new ToolLoopAgent({
+    allowSystemInMessages: true,
     model,
     instructions: agentInstructions ?? buildDesignPageInstructions(context),
     providerOptions,

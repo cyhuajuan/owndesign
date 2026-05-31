@@ -2,21 +2,74 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { UIMessage } from "ai";
 
-import { createOwnDesignApp, mergeStoredAndIncomingMessages } from "./app";
+const aiMocks = vi.hoisted(() => ({
+  createAgentUIStream: vi.fn(),
+  toolLoopAgent: vi.fn(function (
+    this: { config?: unknown; stream?: unknown },
+    config: unknown,
+  ) {
+    this.config = config;
+    this.stream = vi.fn();
+  }),
+}));
+
+vi.mock("ai", () => ({
+  createAgentUIStream: aiMocks.createAgentUIStream,
+  createUIMessageStreamResponse: vi.fn(() => new Response("")),
+  jsonSchema: vi.fn((schema: unknown) => schema),
+  readUIMessageStream: vi.fn(async function* () {}),
+  stepCountIs: vi.fn((count: number) => ({ count, type: "stepCountIs" })),
+  tool: vi.fn((config: unknown) => config),
+  ToolLoopAgent: aiMocks.toolLoopAgent,
+}));
+
+vi.mock("@ai-sdk/deepseek", () => ({
+  createDeepSeek: vi.fn(() =>
+    vi.fn((modelId: string) => ({ modelId, provider: "deepseek" })),
+  ),
+}));
+
+vi.mock("@ai-sdk/openai-compatible", () => ({
+  createOpenAICompatible: vi.fn(() =>
+    vi.fn((modelId: string) => ({
+      modelId,
+      provider: "openai-compatible",
+    })),
+  ),
+}));
+
+import {
+  createOwnDesignApp,
+  injectTransientMessagesBeforeLastUserMessage,
+  mergeStoredAndIncomingMessages,
+} from "./app";
 import { createWorkspaceStore } from "./services";
 
 const tempRoots: string[] = [];
 
 afterEach(async () => {
+  aiMocks.createAgentUIStream.mockReset();
+  aiMocks.createAgentUIStream.mockResolvedValue(new ReadableStream({
+    start(controller) {
+      controller.close();
+    },
+  }));
+  aiMocks.toolLoopAgent.mockClear();
   await Promise.all(
     tempRoots.splice(0).map((tempRoot) =>
       rm(tempRoot, { force: true, recursive: true }),
     ),
   );
 });
+
+aiMocks.createAgentUIStream.mockResolvedValue(new ReadableStream({
+  start(controller) {
+    controller.close();
+  },
+}));
 
 describe("createOwnDesignApp static hosting", () => {
   it("serves index and static assets from the configured static root", async () => {
@@ -142,6 +195,112 @@ describe("createOwnDesignApp static hosting", () => {
     expect(await response.text()).toContain(
       'Page edit mode "direct_edit" requires a current preview page.',
     );
+  });
+
+  it("persists conversation instructions on first chat and sends runtime context transiently", async () => {
+    const { app, root } = await createAppWithTempOptions();
+    const workspaceRoot = path.join(root, "workspace");
+    const { conversationId, projectId } = await setupProject(app);
+    const userMessage = createUserMessage("user-1", "设计一个 CRM 仪表盘");
+
+    const response = await app.fetch(
+      new Request("http://localhost/api/chat", {
+        body: JSON.stringify({
+          conversationId,
+          messages: [userMessage],
+          pageEditMode: "auto",
+          previewPath: "dashboard.html",
+          projectId,
+        }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      }),
+    );
+    await response.text();
+
+    expect(response.status).toBe(200);
+    await waitFor(() => expect(aiMocks.createAgentUIStream).toHaveBeenCalled());
+
+    const workspaceStore = createWorkspaceStore({ workspaceRoot });
+    const conversation = await workspaceStore.getConversation(
+      projectId,
+      conversationId,
+    );
+    const streamInput = aiMocks.createAgentUIStream.mock.calls[0]?.[0] as {
+      originalMessages: UIMessage[];
+      uiMessages: UIMessage[];
+    };
+
+    expect(conversation.agentPromptVersion).toBe(1);
+    expect(conversation.agentInstructions).toContain("<design_agent_core>");
+    expect(conversation.agentInstructions).toContain("<resource_policy>");
+    expect(conversation.agentInstructions).not.toContain("<runtime_context>");
+    expect(conversation.agentInstructions).not.toContain(
+      "<page_edit_mode_policy>",
+    );
+    expect(conversation.messages).toEqual([userMessage]);
+    expect(streamInput.originalMessages).toEqual([userMessage]);
+    expect(streamInput.uiMessages).toHaveLength(2);
+    expect(streamInput.uiMessages[0]).toMatchObject({ role: "system" });
+    expect(getMessageText(streamInput.uiMessages[0])).toContain(
+      "Current preview page: dashboard.html.",
+    );
+    expect(getMessageText(streamInput.uiMessages[0])).toContain("Mode: auto.");
+    expect(streamInput.uiMessages[1]).toEqual(userMessage);
+  });
+
+  it("reuses persisted conversation instructions on later chats while refreshing runtime context", async () => {
+    const { app, root } = await createAppWithTempOptions();
+    const workspaceRoot = path.join(root, "workspace");
+    const { conversationId, projectId } = await setupProject(app);
+    const workspaceStore = createWorkspaceStore({ workspaceRoot });
+    const conversation = await workspaceStore.getConversation(
+      projectId,
+      conversationId,
+    );
+
+    await workspaceStore.updateConversation(projectId, conversationId, {
+      ...conversation,
+      agentInstructions: "persisted instructions",
+      agentPromptVersion: 1,
+    });
+
+    const userMessage = createUserMessage("user-1", "改当前页顶部");
+    const response = await app.fetch(
+      new Request("http://localhost/api/chat", {
+        body: JSON.stringify({
+          conversationId,
+          messages: [userMessage],
+          pageEditMode: "auto",
+          previewPath: "settings.html",
+          projectId,
+        }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      }),
+    );
+    await response.text();
+
+    expect(response.status).toBe(200);
+    await waitFor(() => expect(aiMocks.createAgentUIStream).toHaveBeenCalled());
+
+    const storedConversation = await workspaceStore.getConversation(
+      projectId,
+      conversationId,
+    );
+    const agentConfig = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
+      instructions: string;
+    };
+    const streamInput = aiMocks.createAgentUIStream.mock.calls[0]?.[0] as {
+      uiMessages: UIMessage[];
+    };
+
+    expect(storedConversation.agentInstructions).toBe("persisted instructions");
+    expect(agentConfig.instructions).toBe("persisted instructions");
+    expect(getMessageText(streamInput.uiMessages[0])).toContain(
+      "Current preview page: settings.html.",
+    );
+    expect(storedConversation.messages).toEqual([userMessage]);
   });
 
   it("sanitizes conversation messages in workspace responses without changing local records", async () => {
@@ -328,6 +487,29 @@ describe("mergeStoredAndIncomingMessages", () => {
   });
 });
 
+describe("injectTransientMessagesBeforeLastUserMessage", () => {
+  it("keeps transient context out of persisted message order inputs", () => {
+    const assistantMessage: UIMessage = {
+      id: "assistant-1",
+      parts: [{ text: "上一轮", type: "text" }],
+      role: "assistant",
+    };
+    const userMessage = createUserMessage("user-2", "继续");
+    const transientMessage: UIMessage = {
+      id: "runtime",
+      parts: [{ text: "runtime", type: "text" }],
+      role: "system",
+    };
+
+    expect(
+      injectTransientMessagesBeforeLastUserMessage(
+        [assistantMessage, userMessage],
+        [transientMessage],
+      ),
+    ).toEqual([assistantMessage, transientMessage, userMessage]);
+  });
+});
+
 async function createAppWithStaticRoot() {
   const root = await createTempRoot();
   const staticRoot = path.join(root, "web");
@@ -367,4 +549,66 @@ async function createTempRoot() {
   tempRoots.push(root);
 
   return root;
+}
+
+async function setupProject(app: ReturnType<typeof createOwnDesignApp>) {
+  const setupResponse = await app.fetch(
+    new Request("http://localhost/api/initial-setup", {
+      body: JSON.stringify({
+        interfaceLanguage: "zh-CN",
+        modelConfigurations: [
+          {
+            apiKey: "secret",
+            baseUrl: "https://example.test/v1",
+            contextSizeK: 1000,
+            id: "model-1",
+            model: "mock-model",
+            provider: "openai-compatible",
+          },
+        ],
+      }),
+      headers: { "Content-Type": "application/json" },
+      method: "POST",
+    }),
+  );
+  const setupBody = (await setupResponse.json()) as { href: string };
+  const match = /\/projects\/([^/]+)\/conversations\/([^/?]+)/.exec(
+    setupBody.href,
+  );
+
+  return {
+    conversationId: match?.[2] ?? "",
+    projectId: match?.[1] ?? "",
+  };
+}
+
+function createUserMessage(id: string, text: string): UIMessage {
+  return {
+    id,
+    parts: [{ text, type: "text" }],
+    role: "user",
+  };
+}
+
+function getMessageText(message: UIMessage | undefined) {
+  return message?.parts
+    .filter((part) => part.type === "text")
+    .map((part) => part.text)
+    .join("") ?? "";
+}
+
+async function waitFor(assertion: () => void) {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    try {
+      assertion();
+      return;
+    } catch (error) {
+      lastError = error;
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+  }
+
+  throw lastError;
 }

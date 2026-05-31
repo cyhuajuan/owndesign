@@ -35,6 +35,8 @@ export type ProjectRecord = {
 export type ProjectOutputType = "html";
 
 export type ConversationRecord = {
+  agentInstructions?: string;
+  agentPromptVersion?: number;
   id: string;
   projectId: string;
   title: string;

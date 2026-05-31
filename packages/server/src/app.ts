@@ -17,8 +17,11 @@ import {
 
 import { normalizeConversationMessages } from "@owndesign/core/conversations/chat-messages";
 import {
+  buildDesignPageConversationInstructions,
+  buildDesignPageTurnRuntimeContext,
   createDesignPageAgent,
   createDesignPageAgentContext,
+  DESIGN_PAGE_AGENT_PROMPT_VERSION,
 } from "@owndesign/core/agent/design-page-agent";
 import { parsePageEditMode } from "@owndesign/core/agent/page-edit-mode";
 import { getPreviewServerManager } from "@owndesign/core/preview/preview-server-manager";
@@ -323,8 +326,12 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
     const incomingMessages = normalizeConversationMessages(
       body.messages,
     ) as DesignPageUIMessage[];
+    let conversation = await workspaceStore.getConversation(
+      projectId,
+      conversationId,
+    );
     const storedMessages = normalizeConversationMessages(
-      (await workspaceStore.getConversation(projectId, conversationId)).messages,
+      conversation.messages,
     ) as DesignPageUIMessage[];
     const messages = mergeStoredAndIncomingMessages(
       storedMessages,
@@ -352,7 +359,27 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
       );
     }
 
+    if (!conversation.agentInstructions) {
+      conversation = await workspaceStore.updateConversation(
+        projectId,
+        conversationId,
+        {
+          ...conversation,
+          agentInstructions: buildDesignPageConversationInstructions(
+            agentContext.resources,
+          ),
+          agentPromptVersion: DESIGN_PAGE_AGENT_PROMPT_VERSION,
+        },
+      );
+    }
+
+    agentContext.agentInstructions = conversation.agentInstructions;
     const agent = createDesignPageAgent(agentContext);
+    const runtimeContextMessages = createTurnRuntimeContextMessages({
+      currentPreviewPath: previewPath,
+      outputType: project.outputType,
+      pageEditModePolicy: agentContext.pageEditModePolicy ?? { mode: "auto" },
+    });
     let latestStepUsage: LanguageModelUsage | undefined;
 
     const run = chatRunManager.startRun({
@@ -367,7 +394,10 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
         return createAgentUIStream({
           abortSignal,
           agent,
-          uiMessages: messages,
+          uiMessages: injectTransientMessagesBeforeLastUserMessage(
+            messages,
+            runtimeContextMessages,
+          ),
           originalMessages: messages,
           sendReasoning: true,
           onStepFinish: (step) => {
@@ -869,6 +899,56 @@ export function mergeStoredAndIncomingMessages(
   return [
     ...storedMessages,
     ...incomingMessages.filter((message) => !storedIds.has(message.id)),
+  ];
+}
+
+function createTurnRuntimeContextMessages({
+  currentPreviewPath,
+  outputType,
+  pageEditModePolicy,
+}: Parameters<typeof buildDesignPageTurnRuntimeContext>[0]): DesignPageUIMessage[] {
+  return [
+    {
+      id: "owndesign-turn-runtime-context",
+      parts: [
+        {
+          text: buildDesignPageTurnRuntimeContext({
+            currentPreviewPath,
+            outputType,
+            pageEditModePolicy,
+          }),
+          type: "text",
+        },
+      ],
+      role: "system",
+    },
+  ];
+}
+
+export function injectTransientMessagesBeforeLastUserMessage(
+  messages: UIMessage[],
+  transientMessages: UIMessage[],
+) {
+  if (transientMessages.length === 0) {
+    return messages;
+  }
+
+  let lastUserMessageIndex = -1;
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index]?.role === "user") {
+      lastUserMessageIndex = index;
+      break;
+    }
+  }
+
+  if (lastUserMessageIndex < 0) {
+    return [...messages, ...transientMessages];
+  }
+
+  return [
+    ...messages.slice(0, lastUserMessageIndex),
+    ...transientMessages,
+    ...messages.slice(lastUserMessageIndex),
   ];
 }
 

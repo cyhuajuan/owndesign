@@ -27,6 +27,8 @@ import {
   type PageEditModePolicy,
 } from "@owndesign/core/agent/page-edit-mode";
 
+export const DESIGN_PAGE_AGENT_PROMPT_VERSION = 1;
+
 export type DesignPageAgentInput = {
   content: string;
   projectId: string;
@@ -44,6 +46,7 @@ export type DesignPageAgent = {
 };
 
 type CreateDesignPageAgentInput = {
+  agentInstructions?: string;
   currentPreviewPath?: string;
   frontendTabId?: string;
   model: LanguageModel;
@@ -144,11 +147,11 @@ export async function createDesignPageAgentContext({
 }
 
 export function createDesignPageAgent(context: DesignAgentContext) {
-  const { model, providerOptions } = context;
+  const { agentInstructions, model, providerOptions } = context;
 
   return new ToolLoopAgent({
     model,
-    instructions: buildDesignPageInstructions(context),
+    instructions: agentInstructions ?? buildDesignPageInstructions(context),
     providerOptions,
     stopWhen: stepCountIs(50),
     tools: createDesignPageWorkspaceTools(context),
@@ -173,17 +176,9 @@ export function createDesignPageWorkspaceTools({
 }
 
 export function buildDesignPageInstructions({
-  currentPreviewPath,
-  outputType,
-  pageEditModePolicy,
   resources,
 }: DesignAgentContext) {
-  return buildDesignPageAgentInstructions(
-    outputType,
-    resources,
-    currentPreviewPath,
-    pageEditModePolicy,
-  );
+  return buildDesignPageConversationInstructions(resources);
 }
 
 export function buildLanguageModel(
@@ -233,10 +228,13 @@ export function buildProviderOptions(
 }
 
 export function buildDesignPageAgentInstructions(
-  outputType: ProjectOutputType,
   resources?: ResourceSettings,
-  currentPreviewPath?: string,
-  pageEditModePolicy: PageEditModePolicy = { mode: "auto" },
+) {
+  return buildDesignPageConversationInstructions(resources);
+}
+
+export function buildDesignPageConversationInstructions(
+  resources?: ResourceSettings,
 ) {
   const sections: DesignPromptSection[] = [
     {
@@ -263,6 +261,21 @@ export function buildDesignPageAgentInstructions(
           },
         ]
       : []),
+  ];
+
+  return renderDesignPromptSections(sections);
+}
+
+export function buildDesignPageTurnRuntimeContext({
+  currentPreviewPath,
+  outputType,
+  pageEditModePolicy,
+}: {
+  currentPreviewPath?: string;
+  outputType: ProjectOutputType;
+  pageEditModePolicy: PageEditModePolicy;
+}) {
+  const sections: DesignPromptSection[] = [
     {
       tag: "runtime_context",
       content: buildProjectOutputPrompt(outputType, currentPreviewPath),

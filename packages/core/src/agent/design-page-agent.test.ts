@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   AiSdkDesignPageAgent,
   buildDesignPageAgentInstructions,
+  buildDesignPageTurnRuntimeContext,
   createDesignPageAgentContext,
   buildProviderOptions,
 } from "./design-page-agent";
@@ -1124,7 +1125,7 @@ describe("AiSdkDesignPageAgent", () => {
     });
   });
 
-  it("builds structured instructions from core markdown and dynamic prompt sections", async () => {
+  it("builds structured conversation instructions from core markdown and stable prompt sections", async () => {
     const workspaceStore = await createWorkspaceStore();
     await createProject(workspaceStore);
     const agent = new AiSdkDesignPageAgent(workspaceStore);
@@ -1140,22 +1141,13 @@ describe("AiSdkDesignPageAgent", () => {
     expect(config.instructions).toContain("</design_agent_core>");
     expect(config.instructions).toContain("<page_target_protocol>");
     expect(config.instructions).toContain("</page_target_protocol>");
-    expect(config.instructions).toContain("<page_edit_mode_policy>");
-    expect(config.instructions).toContain("</page_edit_mode_policy>");
     expect(config.instructions).toContain("<tool_workflow>");
     expect(config.instructions).toContain("</tool_workflow>");
     expect(config.instructions).toContain("<resource_policy>");
     expect(config.instructions).toContain("</resource_policy>");
-    expect(config.instructions).toContain("<runtime_context>");
-    expect(config.instructions).toContain("</runtime_context>");
-    expect(config.instructions.indexOf("<runtime_context>")).toBeLessThan(
-      config.instructions.indexOf("<page_edit_mode_policy>"),
-    );
     expect(config.instructions).toContain(
       "You design and build previewable product pages",
     );
-    expect(config.instructions).toContain("## Runtime Context");
-    expect(config.instructions).toContain("Project Output Type: html.");
     expect(config.instructions).toContain("previewable UI prototype");
     expect(config.instructions).toContain("local UI state");
     expect(config.instructions).toContain("clipboard");
@@ -1167,7 +1159,13 @@ describe("AiSdkDesignPageAgent", () => {
     expect(config.instructions).toContain("Use `callFrontendCapability`");
     expect(config.instructions).toContain("preview.switchHtml");
     expect(config.instructions).toContain("preview.refresh");
-    expect(config.instructions).toContain("Current preview page: none.");
+    expect(config.instructions).not.toContain("<runtime_context>");
+    expect(config.instructions).not.toContain("</runtime_context>");
+    expect(config.instructions).not.toContain("<page_edit_mode_policy>");
+    expect(config.instructions).not.toContain("</page_edit_mode_policy>");
+    expect(config.instructions).not.toContain("## Runtime Context");
+    expect(config.instructions).not.toContain("Project Output Type: html.");
+    expect(config.instructions).not.toContain("Current preview page:");
     expect(config.instructions).toContain(
       "Resolve target page before creating or updating",
     );
@@ -1250,6 +1248,28 @@ describe("AiSdkDesignPageAgent", () => {
     });
   });
 
+  it("builds turn runtime context from preview state and page edit mode", () => {
+    const runtimeContext = buildDesignPageTurnRuntimeContext({
+      currentPreviewPath: "dashboard.html",
+      outputType: "html",
+      pageEditModePolicy: {
+        mode: "direct_edit",
+        targetPath: "dashboard.html",
+      },
+    });
+
+    expect(runtimeContext).toContain("<runtime_context>");
+    expect(runtimeContext).toContain("</runtime_context>");
+    expect(runtimeContext).toContain("<page_edit_mode_policy>");
+    expect(runtimeContext).toContain("</page_edit_mode_policy>");
+    expect(runtimeContext).toContain("Project Output Type: html.");
+    expect(runtimeContext).toContain("Current preview page: dashboard.html.");
+    expect(runtimeContext).toContain("Mode: direct_edit.");
+    expect(runtimeContext).toContain(
+      "You must edit the current preview page directly: dashboard.html.",
+    );
+  });
+
   it("adds forced page edit mode instructions", async () => {
     const workspaceStore = await createWorkspaceStore();
     await createProject(workspaceStore);
@@ -1275,13 +1295,10 @@ describe("AiSdkDesignPageAgent", () => {
     expect(
       directContext.pageEditModePolicy
         ? buildDesignPageAgentInstructions(
-            "html",
             defaultResources,
-            "dashboard.html",
-            directContext.pageEditModePolicy,
           )
         : "",
-    ).toContain("Mode: direct_edit.");
+    ).not.toContain("Mode: direct_edit.");
 
     const duplicateContext = await createDesignPageAgentContext({
       currentPreviewPath: "dashboard.html",
@@ -1757,7 +1774,7 @@ describe("AiSdkDesignPageAgent", () => {
     });
   });
 
-  it("includes the current preview page in runtime instructions", async () => {
+  it("keeps the current preview page out of conversation instructions", async () => {
     const workspaceStore = await createWorkspaceStore();
     await createProject(workspaceStore);
     aiMocks.generate.mockResolvedValueOnce({ text: "" });
@@ -1769,7 +1786,7 @@ describe("AiSdkDesignPageAgent", () => {
     const baseConfig = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
       instructions: string;
     };
-    expect(baseConfig.instructions).toContain("Current preview page: none.");
+    expect(baseConfig.instructions).not.toContain("Current preview page:");
 
     aiMocks.generate.mockResolvedValueOnce({ text: "" });
 
@@ -1786,8 +1803,14 @@ describe("AiSdkDesignPageAgent", () => {
     const config = aiMocks.toolLoopAgent.mock.calls.at(-1)?.[0] as {
       instructions: string;
     };
-    expect(config.instructions).toContain("Current preview page: dashboard.html.");
-    expect(config.instructions).toContain(
+    expect(config.instructions).not.toContain(
+      "Current preview page: dashboard.html.",
+    );
+    expect(buildDesignPageTurnRuntimeContext({
+      currentPreviewPath: "dashboard.html",
+      outputType: "html",
+      pageEditModePolicy: { mode: "auto" },
+    })).toContain(
       "edit that page directly; do not ask which page they mean",
     );
   });

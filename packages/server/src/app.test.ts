@@ -34,6 +34,12 @@ vi.mock("@ai-sdk/deepseek", () => ({
   ),
 }));
 
+vi.mock("@ai-sdk/anthropic", () => ({
+  createAnthropic: vi.fn(() =>
+    vi.fn((modelId: string) => ({ modelId, provider: "anthropic" })),
+  ),
+}));
+
 vi.mock("@ai-sdk/openai-compatible", () => ({
   createOpenAICompatible: vi.fn(() =>
     vi.fn((modelId: string) => ({

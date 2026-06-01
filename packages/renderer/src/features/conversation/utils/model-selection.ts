@@ -1,10 +1,18 @@
 import type {
+  AnthropicEffort,
   DeepSeekThinkingMode,
   PublicModelConfiguration,
   PublicSettings,
 } from "@/features/conversation/types";
 
 export const deepSeekThinkingModes = ["disabled", "high", "max"] as const;
+export const anthropicEfforts = [
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+] as const;
 
 export function getDeepSeekThinkingMode(configuration: {
   providerOptions?: PublicModelConfiguration["providerOptions"];
@@ -14,9 +22,14 @@ export function getDeepSeekThinkingMode(configuration: {
 
 export function getSelectedModelLabel(
   configuration: PublicModelConfiguration | undefined,
+  anthropicEffort?: AnthropicEffort,
 ) {
   if (!configuration) {
     return "未配置模型";
+  }
+
+  if (configuration.provider === "anthropic") {
+    return `${configuration.model} · ${anthropicEffort ?? "high"}`;
   }
 
   if (configuration.provider !== "deepseek") {

@@ -81,7 +81,10 @@ async function saveSettings(
       model: configuration.model,
       baseUrl: configuration.baseUrl,
       contextSizeK: String(configuration.contextSizeK),
-      providerOptions: configuration.providerOptions,
+      providerOptions:
+        configuration.provider === "deepseek"
+          ? configuration.providerOptions
+          : undefined,
       apiKey: "",
       collapsed: true,
     })),

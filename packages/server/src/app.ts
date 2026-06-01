@@ -32,6 +32,7 @@ import { rewriteTurnPrompt } from "@owndesign/core/agent/turn-prompt-rewriter";
 import { getPreviewServerManager } from "@owndesign/core/preview/preview-server-manager";
 import { registerFrontendConnection } from "@owndesign/core/realtime/frontend-command-bus";
 import {
+  parseAnthropicEffort,
   parseDeepSeekThinkingMode,
 } from "@owndesign/core/settings/settings-service";
 import { buildWorkspaceHref } from "@owndesign/core/navigation";
@@ -357,7 +358,7 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
         outputType: project.outputType,
         pageEditMode,
         projectId,
-        providerOptionsSelection: parseDeepSeekProviderOptionsSelection(
+        providerOptionsSelection: parseProviderOptionsSelection(
           body.providerOptionsSelection,
         ),
         workspaceStore,
@@ -1054,10 +1055,20 @@ function asNonEmptyString(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
-function parseDeepSeekProviderOptionsSelection(value: unknown) {
-  if (!value || typeof value !== "object" || !("deepseek" in value)) {
+function parseProviderOptionsSelection(value: unknown) {
+  if (!isRecord(value)) {
     return undefined;
   }
 
-  return parseDeepSeekThinkingMode(value.deepseek);
+  const deepseek = parseDeepSeekThinkingMode(value.deepseek);
+  const anthropic = parseAnthropicEffort(value.anthropic);
+
+  if (!deepseek && !anthropic) {
+    return undefined;
+  }
+
+  return {
+    ...(anthropic ? { anthropic } : {}),
+    ...(deepseek ? { deepseek } : {}),
+  };
 }

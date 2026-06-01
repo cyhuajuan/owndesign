@@ -8,6 +8,7 @@ export {
   DEEPSEEK_MODELS,
   DEFAULT_DEEPSEEK_MODEL,
   DEFAULT_OPENAI_COMPATIBLE_CONTEXT_SIZE_K,
+  type AnthropicEffort,
   type DeepSeekThinkingMode,
   type ModelProvider,
 } from "@owndesign/core/settings/model-utils";
@@ -21,12 +22,20 @@ export function getProviderLabel(provider: ModelProvider | "") {
     return "OpenAI Compatible";
   }
 
+  if (provider === "anthropic") {
+    return "Anthropic";
+  }
+
   return "";
 }
 
 export function getBaseUrlPlaceholder(provider: ModelProvider | "") {
   if (provider === "deepseek") {
     return "https://api.deepseek.com";
+  }
+
+  if (provider === "anthropic") {
+    return "https://api.anthropic.com/v1";
   }
 
   return "";

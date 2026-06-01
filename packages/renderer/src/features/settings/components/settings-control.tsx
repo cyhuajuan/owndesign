@@ -109,7 +109,10 @@ function SettingsPanel({
             baseUrl: configuration.baseUrl,
             contextSizeK: String(configuration.contextSizeK),
             apiKey: "",
-            providerOptions: configuration.providerOptions,
+            providerOptions:
+              configuration.provider === "deepseek"
+                ? configuration.providerOptions
+                : undefined,
             collapsed: true,
           })),
         );

@@ -1,4 +1,5 @@
 import type { PublicAppSettings } from "@owndesign/core/settings/settings-service";
+import type { AnthropicEffort as CoreAnthropicEffort } from "@owndesign/core/settings/model-utils";
 
 export type PublicSettings = PublicAppSettings;
 
@@ -11,6 +12,8 @@ export type DeepSeekThinkingMode =
 
 export type PublicModelConfiguration =
   PublicSettings["modelConfigurations"][number];
+
+export type AnthropicEffort = CoreAnthropicEffort;
 
 export type ContextUsageMetadata = {
   inputTokens?: number;

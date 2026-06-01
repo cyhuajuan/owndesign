@@ -143,11 +143,20 @@ function ModelConfigCard({
                           ? configuration.model
                           : DEFAULT_DEEPSEEK_MODEL,
                         contextSizeK: String(DEEPSEEK_CONTEXT_SIZE_K),
+                        providerOptions: undefined,
                       }
                     : provider === "openai-compatible"
                       ? {
                           contextSizeK: configuration.contextSizeK,
+                          providerOptions: undefined,
                         }
+                      : provider === "anthropic"
+                        ? {
+                            contextSizeK:
+                              configuration.contextSizeK ||
+                              String(DEFAULT_OPENAI_COMPATIBLE_CONTEXT_SIZE_K),
+                            providerOptions: undefined,
+                          }
                       : {}),
                 });
               }}
@@ -156,6 +165,7 @@ function ModelConfigCard({
               <option value="">选择 Provider...</option>
               <option value="deepseek">DeepSeek</option>
               <option value="openai-compatible">OpenAI Compatible</option>
+              <option value="anthropic">Anthropic</option>
             </select>
           </ModelField>
           <ModelField label="Model" required>
@@ -187,7 +197,11 @@ function ModelConfigCard({
                 onChange={(event) =>
                   onChange({ ...configuration, model: event.target.value })
                 }
-                placeholder="例如 gpt-4o"
+                placeholder={
+                  configuration.provider === "anthropic"
+                    ? "例如 claude-sonnet-4-5"
+                    : "例如 gpt-4o"
+                }
                 type="text"
                 value={configuration.model}
               />
@@ -219,6 +233,23 @@ function ModelConfigCard({
             />
           </ModelField>
           {configuration.provider === "openai-compatible" ? (
+            <ModelField label="Context Size (K)">
+              <input
+                className={modelInputClass}
+                min={1}
+                onChange={(event) =>
+                  onChange({
+                    ...configuration,
+                    contextSizeK: event.target.value,
+                  })
+                }
+                placeholder={String(DEFAULT_OPENAI_COMPATIBLE_CONTEXT_SIZE_K)}
+                type="number"
+                value={configuration.contextSizeK}
+              />
+            </ModelField>
+          ) : null}
+          {configuration.provider === "anthropic" ? (
             <ModelField label="Context Size (K)">
               <input
                 className={modelInputClass}

@@ -30,6 +30,9 @@ const aiMocks = vi.hoisted(() => {
   });
 
   return {
+    createAnthropic: vi.fn(() =>
+      vi.fn((modelId: string) => ({ modelId, provider: "anthropic" })),
+    ),
     createDeepSeek: vi.fn(() =>
       vi.fn((modelId: string) => ({ modelId, provider: "deepseek" })),
     ),
@@ -47,6 +50,10 @@ const aiMocks = vi.hoisted(() => {
     toolLoopAgent,
   };
 });
+
+vi.mock("@ai-sdk/anthropic", () => ({
+  createAnthropic: aiMocks.createAnthropic,
+}));
 
 vi.mock("@ai-sdk/deepseek", () => ({
   createDeepSeek: aiMocks.createDeepSeek,
@@ -104,6 +111,7 @@ const defaultResources = {
 
 beforeEach(() => {
   aiMocks.createDeepSeek.mockClear();
+  aiMocks.createAnthropic.mockClear();
   aiMocks.createOpenAICompatible.mockClear();
   aiMocks.generate.mockReset();
   aiMocks.generateText.mockReset();
@@ -233,15 +241,69 @@ describe("AiSdkDesignPageAgent", () => {
       provider: "deepseek" as const,
     };
 
-    expect(buildProviderOptions(configuration, "disabled")).toEqual({
+    expect(buildProviderOptions(configuration, { deepseek: "disabled" })).toEqual({
       deepseek: {
         thinking: { type: "disabled" },
       },
     });
-    expect(buildProviderOptions(configuration, "max")).toEqual({
+    expect(buildProviderOptions(configuration, { deepseek: "max" })).toEqual({
       deepseek: {
         thinking: { type: "enabled" },
         reasoningEffort: "max",
+      },
+    });
+  });
+
+  it("maps Anthropic effort selection to provider options", () => {
+    const configuration = {
+      apiKey: "secret",
+      baseUrl: "",
+      contextSizeK: 200,
+      id: "model-1",
+      model: "claude-sonnet-4-5",
+      provider: "anthropic" as const,
+    };
+
+    expect(buildProviderOptions(configuration)).toBeUndefined();
+    expect(buildProviderOptions(configuration, { anthropic: "xhigh" })).toEqual({
+      anthropic: {
+        thinking: { type: "enabled" },
+        effort: "xhigh",
+      },
+    });
+  });
+
+  it("creates Anthropic language models with optional base URL", async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    aiMocks.resolveModelConfiguration.mockResolvedValueOnce({
+      apiKey: "anthropic-key",
+      baseUrl: "",
+      contextSizeK: 200,
+      id: "model-1",
+      model: "claude-sonnet-4-5",
+      provider: "anthropic",
+    });
+
+    const context = await createDesignPageAgentContext({
+      outputType: "html",
+      projectId: "project-1",
+      providerOptionsSelection: { anthropic: "max" },
+      workspaceStore,
+    });
+
+    expect(aiMocks.createAnthropic).toHaveBeenCalledWith({
+      apiKey: "anthropic-key",
+      baseURL: undefined,
+    });
+    expect(context.model).toEqual({
+      modelId: "claude-sonnet-4-5",
+      provider: "anthropic",
+    });
+    expect(context.providerOptions).toEqual({
+      anthropic: {
+        thinking: { type: "enabled" },
+        effort: "max",
       },
     });
   });
@@ -255,7 +317,7 @@ describe("AiSdkDesignPageAgent", () => {
       modelConfigurationId: "model-1",
       outputType: "html",
       projectId: "project-1",
-      providerOptionsSelection: "max",
+      providerOptionsSelection: { deepseek: "max" },
       workspaceStore,
     });
 

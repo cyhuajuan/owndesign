@@ -40,6 +40,7 @@ import { FRONTEND_TAB_ID } from "@/features/preview/components/frontend-capabili
 import { useApiClient } from "@/api/context";
 import { useCurrentPreviewPath } from "@/features/preview/preview-path";
 import type { ActiveRun, ActiveRunSnapshot } from "@/api/client";
+import type { AnthropicEffort } from "@/features/conversation/types";
 import type { PageEditMode } from "@owndesign/core/agent/page-edit-mode";
 
 type StreamingConversationPanelProps = {
@@ -85,6 +86,8 @@ export function StreamingConversationPanel({
   const reconnectState = useMemo(() => ({ afterChunkIndex: 0 }), []);
   const [localSubmitStarted, setLocalSubmitStarted] = useState(false);
   const [pageEditMode, setPageEditMode] = useState<PageEditMode>("auto");
+  const [selectedAnthropicEffort, setSelectedAnthropicEffort] =
+    useState<AnthropicEffort>("high");
   const [resumeSnapshot, setResumeSnapshot] = useState<
     | {
         nextChunkIndex: number;
@@ -96,6 +99,21 @@ export function StreamingConversationPanel({
     selectedModel?.provider === "deepseek"
       ? getDeepSeekThinkingMode(selectedModel)
       : undefined;
+  const selectedProviderOptionsSelection = useMemo(() => {
+    if (selectedModel?.provider === "anthropic") {
+      return { anthropic: selectedAnthropicEffort };
+    }
+
+    if (selectedDeepSeekThinkingMode) {
+      return { deepseek: selectedDeepSeekThinkingMode };
+    }
+
+    return undefined;
+  }, [
+    selectedAnthropicEffort,
+    selectedDeepSeekThinkingMode,
+    selectedModel?.provider,
+  ]);
   const currentPreviewPath = useCurrentPreviewPath();
   const hasProjectActiveRun = projectActiveRun?.status === "running";
   const activeRunId = projectActiveRun?.runId;
@@ -113,12 +131,8 @@ export function StreamingConversationPanel({
       pageEditMode,
       projectId,
       ...(currentPreviewPath ? { previewPath: currentPreviewPath } : {}),
-      ...(selectedDeepSeekThinkingMode
-        ? {
-            providerOptionsSelection: {
-              deepseek: selectedDeepSeekThinkingMode,
-            },
-          }
+      ...(selectedProviderOptionsSelection
+        ? { providerOptionsSelection: selectedProviderOptionsSelection }
         : {}),
     }),
     [
@@ -126,7 +140,7 @@ export function StreamingConversationPanel({
       currentPreviewPath,
       pageEditMode,
       projectId,
-      selectedDeepSeekThinkingMode,
+      selectedProviderOptionsSelection,
       selectedModelId,
     ],
   );
@@ -380,7 +394,11 @@ export function StreamingConversationPanel({
                 usage={contextUsage}
               />
               <ModelSelect
+                onAnthropicEffortSelect={(_, effort) =>
+                  setSelectedAnthropicEffort(effort)
+                }
                 onSelect={handleModelSelect}
+                selectedAnthropicEffort={selectedAnthropicEffort}
                 selectedModelId={selectedModelId}
                 settings={settings}
               />

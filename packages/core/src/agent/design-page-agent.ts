@@ -1,3 +1,4 @@
+import { createAnthropic } from "@ai-sdk/anthropic";
 import { createDeepSeek } from "@ai-sdk/deepseek";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import type { LanguageModelV3 } from "@ai-sdk/provider";
@@ -10,6 +11,7 @@ import {
 
 import {
   createSettingsService,
+  type AnthropicEffort,
   type DeepSeekThinkingMode,
   type ModelConfiguration,
   type ResourceLibrary,
@@ -72,8 +74,13 @@ type CreateDesignPageAgentContextInput = {
   outputType: ProjectOutputType;
   pageEditMode?: PageEditMode;
   projectId: string;
-  providerOptionsSelection?: DeepSeekThinkingMode;
+  providerOptionsSelection?: ProviderOptionsSelection;
   workspaceStore: WorkspaceStore;
+};
+
+export type ProviderOptionsSelection = {
+  anthropic?: AnthropicEffort;
+  deepseek?: DeepSeekThinkingMode;
 };
 
 export class AiSdkDesignPageAgent implements DesignPageAgent {
@@ -191,6 +198,13 @@ export function buildLanguageModel(
     })(configuration.model);
   }
 
+  if (configuration.provider === "anthropic") {
+    return createAnthropic({
+      apiKey: configuration.apiKey || undefined,
+      baseURL: configuration.baseUrl || undefined,
+    })(configuration.model);
+  }
+
   return createOpenAICompatible({
     name: "openaiCompatible",
     apiKey: configuration.apiKey || undefined,
@@ -200,14 +214,27 @@ export function buildLanguageModel(
 
 export function buildProviderOptions(
   configuration: ModelConfiguration,
-  thinkingModeOverride?: DeepSeekThinkingMode,
+  selection?: ProviderOptionsSelection,
 ): ToolLoopAgentSettings["providerOptions"] {
+  if (configuration.provider === "anthropic") {
+    if (!selection?.anthropic) {
+      return undefined;
+    }
+
+    return {
+      anthropic: {
+        thinking: { type: "enabled" },
+        effort: selection.anthropic,
+      },
+    };
+  }
+
   if (configuration.provider !== "deepseek") {
     return undefined;
   }
 
   const thinkingMode =
-    thinkingModeOverride ??
+    selection?.deepseek ??
     configuration.providerOptions?.deepseek?.thinkingMode ??
     "high";
 

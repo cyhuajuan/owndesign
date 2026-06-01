@@ -178,7 +178,10 @@ export function createApiClient(baseUrl = "") {
               id: configuration.id,
               model: configuration.model,
               contextSizeK: configuration.contextSizeK,
-              providerOptions: configuration.providerOptions,
+              providerOptions:
+                configuration.provider === "deepseek"
+                  ? configuration.providerOptions
+                  : undefined,
               provider: configuration.provider,
             }),
           ),

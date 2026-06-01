@@ -8,6 +8,7 @@ import {
   DEEPSEEK_MODELS,
   DEFAULT_DEEPSEEK_MODEL,
   DEFAULT_OPENAI_COMPATIBLE_CONTEXT_SIZE_K,
+  type AnthropicEffort,
   type DeepSeekThinkingMode,
   type ModelProvider,
 } from "@owndesign/core/settings/model-utils";
@@ -20,6 +21,7 @@ export {
   DEEPSEEK_MODELS,
   DEFAULT_DEEPSEEK_MODEL,
   DEFAULT_OPENAI_COMPATIBLE_CONTEXT_SIZE_K,
+  type AnthropicEffort,
   type DeepSeekThinkingMode,
   type ModelProvider,
 };
@@ -485,6 +487,10 @@ function parseModelProvider(value: unknown): ModelProvider | undefined {
     return "openai-compatible";
   }
 
+  if (value === "anthropic" || value === "Anthropic") {
+    return "anthropic";
+  }
+
   return undefined;
 }
 
@@ -584,6 +590,18 @@ export function parseDeepSeekThinkingMode(
   value: unknown,
 ): DeepSeekThinkingMode | undefined {
   return value === "disabled" || value === "high" || value === "max"
+    ? value
+    : undefined;
+}
+
+export function parseAnthropicEffort(
+  value: unknown,
+): AnthropicEffort | undefined {
+  return value === "low" ||
+    value === "medium" ||
+    value === "high" ||
+    value === "xhigh" ||
+    value === "max"
     ? value
     : undefined;
 }

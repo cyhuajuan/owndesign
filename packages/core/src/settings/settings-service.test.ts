@@ -345,6 +345,61 @@ describe("SettingsService", () => {
     });
   });
 
+  it("saves Anthropic models without requiring baseUrl", async () => {
+    const service = await createService();
+
+    const settings = await service.updateSettings({
+      defaultModelId: "anthropic-1",
+      interfaceLanguage: "zh-CN",
+      modelConfigurations: [
+        {
+          apiKey: "key",
+          baseUrl: "",
+          contextSizeK: "",
+          id: "anthropic-1",
+          model: "claude-sonnet-4-5",
+          provider: "anthropic",
+          providerOptions: {
+            anthropic: { effort: "max" },
+          },
+        },
+      ],
+    });
+
+    expect(settings.modelConfigurations[0]).toMatchObject({
+      baseUrl: "",
+      contextSizeK: 200,
+      model: "claude-sonnet-4-5",
+      provider: "anthropic",
+    });
+    expect(settings.modelConfigurations[0]?.providerOptions).toBeUndefined();
+  });
+
+  it("saves custom Anthropic context size", async () => {
+    const service = await createService();
+
+    const settings = await service.updateSettings({
+      defaultModelId: "anthropic-1",
+      interfaceLanguage: "zh-CN",
+      modelConfigurations: [
+        {
+          apiKey: "key",
+          baseUrl: "https://proxy.example.com/v1",
+          contextSizeK: "512",
+          id: "anthropic-1",
+          model: "claude-sonnet-4-5",
+          provider: "Anthropic",
+        },
+      ],
+    });
+
+    expect(settings.modelConfigurations[0]).toMatchObject({
+      baseUrl: "https://proxy.example.com/v1",
+      contextSizeK: 512,
+      provider: "anthropic",
+    });
+  });
+
   it("rejects invalid OpenAI Compatible context size", async () => {
     const service = await createService();
 

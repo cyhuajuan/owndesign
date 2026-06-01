@@ -73,7 +73,7 @@ Every previewable HTML page must:
 - Start from a clear aesthetic concept, not a template.
 - Use distinctive typography choices within configured font libraries or system fonts.
 - Use a cohesive color system with strong contrast and intentional accents.
-- Use text labels, CSS shapes, inline SVG, or configured icon libraries for icons; never use emoji as icons or decorative UI symbols.
+- Prefer configured icon libraries for icons. Use inline SVG only when no icon library is configured or when the configured libraries cannot provide a suitable icon. Never use emoji as icons or decorative UI symbols.
 - Add atmosphere with backgrounds, gradients, texture, borders, shadows, or layered shapes when appropriate.
 - Use motion sparingly but purposefully; prefer CSS transitions and high-impact moments over noisy effects.
 - Prefer asymmetry, rhythm, overlap, negative space, and strong composition when they support the concept.

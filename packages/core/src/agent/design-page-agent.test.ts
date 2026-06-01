@@ -1163,7 +1163,7 @@ describe("AiSdkDesignPageAgent", () => {
     expect(config.instructions).toContain("network");
     expect(config.instructions).toContain("storage");
     expect(config.instructions).toContain("real submit");
-    expect(config.instructions).toContain("never use emoji as icons");
+    expect(config.instructions).toContain("Never use emoji as icons");
     expect(config.instructions).toContain("Project Workspace tools");
     expect(config.instructions).toContain("Use `callFrontendCapability`");
     expect(config.instructions).toContain("preview.switchHtml");
@@ -1242,7 +1242,7 @@ describe("AiSdkDesignPageAgent", () => {
     expect(config.instructions).toContain("Configured Icons");
     expect(config.instructions).toContain("Only use configured font libraries or system fonts");
     expect(config.instructions).toContain(
-      "Only use configured icon libraries or inline SVG icons",
+      "Prefer configured icon libraries for icons",
     );
     expect(config.instructions).toContain(
       "Use regular inline CSS as the primary styling method",

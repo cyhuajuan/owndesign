@@ -8,6 +8,7 @@ import {
   isToolPart,
   ToolPartView,
 } from "@/features/conversation/components/tool-part-view";
+import { getOriginalUserPrompt } from "@owndesign/core/conversations/chat-messages";
 
 export function MessageParts({
   isLastMessage = false,
@@ -19,6 +20,9 @@ export function MessageParts({
   message: UIMessage;
 }) {
   const lastPart = message.parts.at(-1);
+  const originalUserPrompt = message.role === "user"
+    ? getOriginalUserPrompt(message)
+    : undefined;
   const streamingReasoningPartIndex =
     isLastMessage && isStreaming && lastPart?.type === "reasoning"
       ? message.parts.length - 1
@@ -28,7 +32,11 @@ export function MessageParts({
 
   return (
     <>
+      {originalUserPrompt ? (
+        <MessageResponse>{originalUserPrompt}</MessageResponse>
+      ) : null}
       {message.parts.map((part, index) => (
+        originalUserPrompt && part.type === "text" ? null :
         <MessagePart
           key={`${message.id}-${index}-${part.type}`}
           isReasoningStreaming={index === streamingReasoningPartIndex}

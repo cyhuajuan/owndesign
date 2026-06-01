@@ -7,6 +7,7 @@ import type { UIMessage } from "ai";
 
 const aiMocks = vi.hoisted(() => ({
   createAgentUIStream: vi.fn(),
+  generateText: vi.fn(async () => ({ text: "rewritten prompt" })),
   toolLoopAgent: vi.fn(function (
     this: { config?: unknown; stream?: unknown },
     config: unknown,
@@ -19,6 +20,7 @@ const aiMocks = vi.hoisted(() => ({
 vi.mock("ai", () => ({
   createAgentUIStream: aiMocks.createAgentUIStream,
   createUIMessageStreamResponse: vi.fn(() => new Response("")),
+  generateText: aiMocks.generateText,
   jsonSchema: vi.fn((schema: unknown) => schema),
   readUIMessageStream: vi.fn(async function* () {}),
   stepCountIs: vi.fn((count: number) => ({ count, type: "stepCountIs" })),
@@ -43,7 +45,6 @@ vi.mock("@ai-sdk/openai-compatible", () => ({
 
 import {
   createOwnDesignApp,
-  injectTransientMessagesBeforeLastUserMessage,
   mergeStoredAndIncomingMessages,
 } from "./app";
 import { createWorkspaceStore } from "./services";
@@ -52,6 +53,8 @@ const tempRoots: string[] = [];
 
 afterEach(async () => {
   aiMocks.createAgentUIStream.mockReset();
+  aiMocks.generateText.mockReset();
+  aiMocks.generateText.mockResolvedValue({ text: "rewritten prompt" });
   aiMocks.createAgentUIStream.mockResolvedValue(new ReadableStream({
     start(controller) {
       controller.close();
@@ -197,11 +200,14 @@ describe("createOwnDesignApp static hosting", () => {
     );
   });
 
-  it("persists conversation instructions on first chat and sends runtime context transiently", async () => {
+  it("persists conversation instructions and rewritten user prompt on first chat", async () => {
     const { app, root } = await createAppWithTempOptions();
     const workspaceRoot = path.join(root, "workspace");
     const { conversationId, projectId } = await setupProject(app);
     const userMessage = createUserMessage("user-1", "设计一个 CRM 仪表盘");
+    aiMocks.generateText.mockResolvedValueOnce({
+      text: "Create a CRM dashboard page.",
+    });
 
     const response = await app.fetch(
       new Request("http://localhost/api/chat", {
@@ -238,26 +244,24 @@ describe("createOwnDesignApp static hosting", () => {
     expect(conversation.agentInstructions).not.toContain(
       "<page_edit_mode_policy>",
     );
-    expect(conversation.turnContexts).toHaveLength(1);
-    expect(conversation.turnContexts?.[0]).toMatchObject({
-      messageId: "user-1",
-      outputType: "html",
-      pageEditMode: "auto",
-      pageEditModePolicy: { mode: "auto" },
-      previewPath: "dashboard.html",
-    });
-    expect(conversation.messages).toEqual([userMessage]);
-    expect(streamInput.originalMessages).toEqual([userMessage]);
-    expect(streamInput.uiMessages).toHaveLength(2);
-    expect(streamInput.uiMessages[0]).toMatchObject({ role: "system" });
-    expect(getMessageText(streamInput.uiMessages[0])).toContain(
-      "Current preview page: dashboard.html.",
+    expect(conversation).not.toHaveProperty("turnContexts");
+    expect(conversation.messages).toHaveLength(1);
+    expect(getMessageText(conversation.messages[0] as UIMessage)).toBe(
+      "Create a CRM dashboard page.",
     );
-    expect(getMessageText(streamInput.uiMessages[0])).toContain("Mode: auto.");
-    expect(streamInput.uiMessages[1]).toEqual(userMessage);
+    expect((conversation.messages[0] as UIMessage).metadata).toMatchObject({
+      originalUserPrompt: "设计一个 CRM 仪表盘",
+      promptRewrite: {
+        kind: "turn-prompt-rewriter",
+        pageEditMode: "auto",
+        previewPath: "dashboard.html",
+      },
+    });
+    expect(streamInput.originalMessages).toEqual(conversation.messages);
+    expect(streamInput.uiMessages).toEqual(conversation.messages);
   });
 
-  it("reuses persisted conversation instructions on later chats while refreshing runtime context", async () => {
+  it("reuses persisted conversation instructions on later chats while rewriting the current user prompt", async () => {
     const { app, root } = await createAppWithTempOptions();
     const workspaceRoot = path.join(root, "workspace");
     const { conversationId, projectId } = await setupProject(app);
@@ -274,6 +278,9 @@ describe("createOwnDesignApp static hosting", () => {
     });
 
     const userMessage = createUserMessage("user-1", "改当前页顶部");
+    aiMocks.generateText.mockResolvedValueOnce({
+      text: "Edit settings.html: 改当前页顶部",
+    });
     const response = await app.fetch(
       new Request("http://localhost/api/chat", {
         body: JSON.stringify({
@@ -304,22 +311,22 @@ describe("createOwnDesignApp static hosting", () => {
     };
 
     expect(storedConversation.agentInstructions).toBe("persisted instructions");
-    expect(storedConversation.turnContexts).toHaveLength(1);
-    expect(storedConversation.turnContexts?.[0]).toMatchObject({
-      messageId: "user-1",
-      outputType: "html",
-      pageEditMode: "auto",
-      pageEditModePolicy: { mode: "auto" },
-      previewPath: "settings.html",
-    });
     expect(agentConfig.instructions).toBe("persisted instructions");
-    expect(getMessageText(streamInput.uiMessages[0])).toContain(
-      "Current preview page: settings.html.",
+    expect(getMessageText(streamInput.uiMessages[0])).toBe(
+      "Edit settings.html: 改当前页顶部",
     );
-    expect(storedConversation.messages).toEqual([userMessage]);
+    expect(storedConversation.messages).toEqual(streamInput.uiMessages);
+    expect((storedConversation.messages[0] as UIMessage).metadata).toMatchObject({
+      originalUserPrompt: "改当前页顶部",
+      promptRewrite: {
+        kind: "turn-prompt-rewriter",
+        pageEditMode: "auto",
+        previewPath: "settings.html",
+      },
+    });
   });
 
-  it("appends turn contexts without sending historical runtime contexts to the model", async () => {
+  it("keeps rewritten history and rewrites only the latest unprocessed user prompt", async () => {
     const { app, root } = await createAppWithTempOptions();
     const workspaceRoot = path.join(root, "workspace");
     const { conversationId, projectId } = await setupProject(app);
@@ -328,25 +335,28 @@ describe("createOwnDesignApp static hosting", () => {
       projectId,
       conversationId,
     );
-    const previousUserMessage = createUserMessage("user-1", "上一轮");
+    const previousUserMessage = {
+      ...createUserMessage("user-1", "上一轮 rewritten"),
+      metadata: {
+        originalUserPrompt: "上一轮",
+        promptRewrite: {
+          createdAt: "2026-05-14T10:00:00.000Z",
+          kind: "turn-prompt-rewriter",
+          pageEditMode: "auto",
+          previewPath: "first.html",
+        },
+      },
+    } satisfies UIMessage;
     const nextUserMessage = createUserMessage("user-2", "继续修改");
+    aiMocks.generateText.mockResolvedValueOnce({
+      text: "Edit second.html: 继续修改",
+    });
 
     await workspaceStore.updateConversation(projectId, conversationId, {
       ...conversation,
       agentInstructions: "persisted instructions",
       agentPromptVersion: 1,
       messages: [previousUserMessage],
-      turnContexts: [
-        {
-          createdAt: "2026-05-14T10:00:00.000Z",
-          id: "turn-context-1",
-          messageId: "user-1",
-          outputType: "html",
-          pageEditMode: "auto",
-          pageEditModePolicy: { mode: "auto" },
-          previewPath: "first.html",
-        },
-      ],
     });
 
     const response = await app.fetch(
@@ -374,22 +384,23 @@ describe("createOwnDesignApp static hosting", () => {
     const streamInput = aiMocks.createAgentUIStream.mock.calls[0]?.[0] as {
       uiMessages: UIMessage[];
     };
-    const modelInputText = streamInput.uiMessages
-      .map((message) => getMessageText(message))
-      .join("\n");
-
-    expect(storedConversation.turnContexts).toHaveLength(2);
-    expect(storedConversation.turnContexts?.[1]).toMatchObject({
-      messageId: "user-2",
-      pageEditMode: "auto",
-      pageEditModePolicy: { mode: "auto" },
-      previewPath: "second.html",
+    expect(storedConversation).not.toHaveProperty("turnContexts");
+    expect(streamInput.uiMessages).toHaveLength(2);
+    expect(getMessageText(streamInput.uiMessages[0])).toBe("上一轮 rewritten");
+    expect(getMessageText(streamInput.uiMessages[1])).toBe(
+      "Edit second.html: 继续修改",
+    );
+    expect(streamInput.uiMessages[1]?.metadata).toMatchObject({
+      originalUserPrompt: "继续修改",
+      promptRewrite: {
+        kind: "turn-prompt-rewriter",
+        pageEditMode: "auto",
+        previewPath: "second.html",
+      },
     });
-    expect(modelInputText).toContain("Current preview page: second.html.");
-    expect(modelInputText).not.toContain("first.html");
   });
 
-  it("records duplicate edit page edit policy in turn contexts", async () => {
+  it("rewrites duplicate edit prompts with copy target metadata", async () => {
     const { app, root } = await createAppWithTempOptions();
     const workspaceRoot = path.join(root, "workspace");
     const { conversationId, projectId } = await setupProject(app);
@@ -402,6 +413,9 @@ describe("createOwnDesignApp static hosting", () => {
     );
 
     const userMessage = createUserMessage("user-1", "复制后修改");
+    aiMocks.generateText.mockResolvedValueOnce({
+      text: "Copy dashboard.html to dashboard.copy.html with copyFile, then apply: 复制后修改",
+    });
     const response = await app.fetch(
       new Request("http://localhost/api/chat", {
         body: JSON.stringify({
@@ -425,15 +439,18 @@ describe("createOwnDesignApp static hosting", () => {
       conversationId,
     );
 
-    expect(conversation.turnContexts?.[0]).toMatchObject({
-      messageId: "user-1",
-      pageEditMode: "duplicate_edit",
-      pageEditModePolicy: {
-        mode: "duplicate_edit",
-        sourcePath: "dashboard.html",
-        targetPath: "dashboard.copy.html",
+    expect(getMessageText(conversation.messages[0] as UIMessage)).toBe(
+      "Copy dashboard.html to dashboard.copy.html with copyFile, then apply: 复制后修改",
+    );
+    expect((conversation.messages[0] as UIMessage).metadata).toMatchObject({
+      originalUserPrompt: "复制后修改",
+      promptRewrite: {
+        duplicateSourcePath: "dashboard.html",
+        duplicateTargetPath: "dashboard.copy.html",
+        kind: "turn-prompt-rewriter",
+        pageEditMode: "duplicate_edit",
+        previewPath: "dashboard.html",
       },
-      previewPath: "dashboard.html",
     });
   });
 
@@ -618,29 +635,6 @@ describe("mergeStoredAndIncomingMessages", () => {
     expect(
       mergeStoredAndIncomingMessages(storedMessages, incomingMessages),
     ).toEqual([...storedMessages, incomingMessages[1]]);
-  });
-});
-
-describe("injectTransientMessagesBeforeLastUserMessage", () => {
-  it("keeps transient context out of persisted message order inputs", () => {
-    const assistantMessage: UIMessage = {
-      id: "assistant-1",
-      parts: [{ text: "上一轮", type: "text" }],
-      role: "assistant",
-    };
-    const userMessage = createUserMessage("user-2", "继续");
-    const transientMessage: UIMessage = {
-      id: "runtime",
-      parts: [{ text: "runtime", type: "text" }],
-      role: "system",
-    };
-
-    expect(
-      injectTransientMessagesBeforeLastUserMessage(
-        [assistantMessage, userMessage],
-        [transientMessage],
-      ),
-    ).toEqual([assistantMessage, transientMessage, userMessage]);
   });
 });
 

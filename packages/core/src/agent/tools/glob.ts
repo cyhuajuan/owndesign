@@ -1,8 +1,4 @@
 import type { WorkspaceGlobMatch } from "@owndesign/core/workspace-store";
-import {
-  filterHtmlPathsForPageEditModePolicy,
-  resolveHtmlReadPathForPageEditModePolicy,
-} from "@owndesign/core/agent/page-edit-mode";
 
 import type { WorkspaceToolDefinition } from "./core";
 import type { GlobInput } from "./types";
@@ -34,30 +30,14 @@ export function createGlobToolDefinition(): WorkspaceToolDefinition<
     name: "glob",
     parallelSafe: true,
     execute: async ({ path, pattern }, {
-      pageEditModePolicy,
       projectId,
       workspaceStore,
     }) => {
-      const searchPath = path
-        ? resolveHtmlReadPathForPageEditModePolicy(pageEditModePolicy, path)
-        : undefined;
-
-      const result = await workspaceStore.globProjectWorkspace(
+      return workspaceStore.globProjectWorkspace(
         projectId,
         pattern,
-        searchPath,
+        path,
       );
-      const matches = filterHtmlPathsForPageEditModePolicy(
-        pageEditModePolicy,
-        result.matches,
-      );
-
-      return {
-        ...result,
-        matches,
-        totalMatches: matches.length,
-        truncated: false,
-      };
     },
   };
 }

@@ -80,7 +80,11 @@ function getPathFromValue(value: unknown): string | undefined {
     return undefined;
   }
 
-  const path = "path" in value ? value.path : undefined;
+  const path = "path" in value
+    ? value.path
+    : "targetPath" in value
+      ? value.targetPath
+      : undefined;
 
   if (typeof path === "string" && path.length > 0) {
     return path;
@@ -107,6 +111,7 @@ function getToolOutputOk(part: ToolLikePart) {
 
 const toolVerbs: Record<string, string> = {
   callFrontendCapability: "更新预览",
+  copyFile: "复制",
   createHtml: "创建",
   delete: "删除",
   edit: "编辑",

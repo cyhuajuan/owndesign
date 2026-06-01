@@ -22,7 +22,6 @@ import { loadPrompt } from "@owndesign/core/prompts";
 import { buildFrontendCapabilityPrompt } from "@owndesign/core/realtime/frontend-capabilities";
 import {
   buildPageEditModePolicy,
-  buildPageEditModePolicyPrompt,
   type PageEditMode,
   type PageEditModePolicy,
 } from "@owndesign/core/agent/page-edit-mode";
@@ -267,29 +266,6 @@ export function buildDesignPageConversationInstructions(
   return renderDesignPromptSections(sections);
 }
 
-export function buildDesignPageTurnRuntimeContext({
-  currentPreviewPath,
-  outputType,
-  pageEditModePolicy,
-}: {
-  currentPreviewPath?: string;
-  outputType: ProjectOutputType;
-  pageEditModePolicy: PageEditModePolicy;
-}) {
-  const sections: DesignPromptSection[] = [
-    {
-      tag: "runtime_context",
-      content: buildProjectOutputPrompt(outputType, currentPreviewPath),
-    },
-    {
-      tag: "page_edit_mode_policy",
-      content: buildPageEditModePolicyPrompt(pageEditModePolicy),
-    },
-  ];
-
-  return renderDesignPromptSections(sections);
-}
-
 export function renderDesignPromptSections(sections: DesignPromptSection[]) {
   return sections
     .map(({ content, tag }) => {
@@ -304,34 +280,6 @@ export function loadDesignPageAgentCorePrompt() {
   return loadPrompt("agents/design-page");
 }
 
-export function buildProjectOutputPrompt(
-  outputType: ProjectOutputType,
-  currentPreviewPath?: string,
-) {
-  return buildRuntimeContextPrompt(outputType, currentPreviewPath);
-}
-
-export function buildRuntimeContextPrompt(
-  outputType: ProjectOutputType,
-  currentPreviewPath?: string,
-) {
-  if (outputType !== "html") {
-    throw new Error(`Unsupported Project Output Type: ${outputType}`);
-  }
-
-  return [
-    "## Runtime Context",
-    "Project Output Type: html.",
-    "Project Output is a previewable UI prototype, not a production app implementation.",
-    `Current preview page: ${currentPreviewPath ?? "none"}.`,
-    "If current preview page is known, treat relative references such as 'here', 'this page', 'current page', 'top', 'bottom', or similar page positions as that file.",
-    "If the user names another HTML file, path, or page type, that explicit target overrides the current preview page.",
-    "If the user only gives a relative page reference and the current preview page is known, edit that page directly; do not ask which page they mean.",
-    "Use `callFrontendCapability` with `preview.switchHtml` only when the Preview Pane should move to a different existing target HTML page after creation or updates.",
-    "When the current preview page is already the correct target page, do not call `preview.switchHtml` redundantly.",
-  ].join("\n");
-}
-
 export function buildPageTargetProtocolPrompt() {
   return [
     "## Page Target Protocol",
@@ -341,12 +289,13 @@ export function buildPageTargetProtocolPrompt() {
     "Target resolution:",
     "- All previewable pages must be relative workspace paths ending in `.html`.",
     "- If the user names a file, path, or page type, use that explicit target.",
-    "- If the user uses a relative page reference such as \"this page\", \"current page\", \"here\", \"top\", or \"bottom\", use the current preview page from runtime context when available.",
+    "- Each turn's user message has already been rewritten with the current preview page and page edit mode when those matter.",
+    "- If the user uses a relative page reference such as \"this page\", \"current page\", \"here\", \"top\", or \"bottom\", use the target page stated in the current user message when available.",
     "- If the user asks for a home, main, landing, or first page, use `index.html`.",
     "- If the user asks for a new named page, choose a semantic filename such as `login.html`, `settings.html`, or `pages/detail.html`.",
     "- If no target is specified and no multi-page structure is evident, default to `index.html`.",
     "- If multiple HTML files exist, no current preview page is available, and the target remains ambiguous after inspection, ask one concise follow-up question.",
-    "- Do not ask a follow-up question just because the request is brief; act when the target can be resolved from runtime context, an explicit filename, or the `index.html` default.",
+    "- Do not ask a follow-up question just because the request is brief; act when the target can be resolved from the current user message, an explicit filename, or the `index.html` default.",
     "",
     "Workspace inspection:",
     "- Use `glob`, `grep`, and `read` when existing files may affect the change.",
@@ -385,6 +334,7 @@ export function buildToolWorkflowPrompt() {
     "- Use `patch` for coordinated changes, repeated replacements, or multi-file edits.",
     "- Use `write` only for non-HTML files or deliberate full-file overwrites (never to create a new HTML page).",
     "- Use `delete` only after using `grep` or direct inspection to confirm the file is no longer referenced by any page or build target.",
+    "- Use `copyFile` when the current user message asks you to duplicate an existing file before editing the duplicate.",
     "",
     "For HTML pages:",
     "- Use `createHtml` when the target HTML file does not exist.",

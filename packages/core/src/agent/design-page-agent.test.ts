@@ -7,10 +7,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   AiSdkDesignPageAgent,
   buildDesignPageAgentInstructions,
-  buildDesignPageTurnRuntimeContext,
   createDesignPageAgentContext,
   buildProviderOptions,
 } from "./design-page-agent";
+import {
+  buildTurnPromptRewriterPrompt,
+  rewriteTurnPrompt,
+} from "./turn-prompt-rewriter";
 import { createWorkspaceToolRegistry } from "./tools/core";
 import { createProjectWorkspaceToolDefinitions } from "./tools/project-workspace-tools";
 import { loadPrompt } from "@owndesign/core/prompts";
@@ -37,6 +40,7 @@ const aiMocks = vi.hoisted(() => {
       })),
     ),
     generate,
+    generateText: vi.fn(),
     getSettings: vi.fn(),
     resolveModelConfiguration: vi.fn(),
     sendFrontendCommand: vi.fn(),
@@ -64,6 +68,7 @@ vi.mock("@owndesign/core/realtime/frontend-command-bus", () => ({
 }));
 
 vi.mock("ai", () => ({
+  generateText: aiMocks.generateText,
   jsonSchema: vi.fn((schema: unknown) => schema),
   stepCountIs: vi.fn((count: number) => ({ count, type: "stepCountIs" })),
   tool: vi.fn((config: unknown) => config),
@@ -101,6 +106,8 @@ beforeEach(() => {
   aiMocks.createDeepSeek.mockClear();
   aiMocks.createOpenAICompatible.mockClear();
   aiMocks.generate.mockReset();
+  aiMocks.generateText.mockReset();
+  aiMocks.generateText.mockResolvedValue({ text: "rewritten prompt" });
   aiMocks.getSettings.mockReset();
   aiMocks.getSettings.mockResolvedValue({
     resources: defaultResources,
@@ -285,6 +292,7 @@ describe("AiSdkDesignPageAgent", () => {
     };
     expect(Object.keys(config.tools).sort()).toEqual([
       "callFrontendCapability",
+      "copyFile",
       "createHtml",
       "delete",
       "edit",
@@ -1175,7 +1183,7 @@ describe("AiSdkDesignPageAgent", () => {
       "If the user names a file, path, or page type",
     );
     expect(config.instructions).toContain(
-      "use the current preview page from runtime context when available",
+      "use the target page stated in the current user message when available",
     );
     expect(config.instructions).toContain(
       "Do not ask a follow-up question just because the request is brief",
@@ -1253,31 +1261,85 @@ describe("AiSdkDesignPageAgent", () => {
     expect(config.instructions).not.toContain("Project One");
     expect(config.instructions).not.toContain("project-1");
     expect(config.instructions).not.toContain("conversation-1");
-    expect(config.instructions).toContain("Use the runtime page target protocol");
+    expect(config.instructions).toContain(
+      "Each user message may already include the current preview page",
+    );
     expect(aiMocks.generate).toHaveBeenCalledWith({
       prompt: "设计一个 CRM 仪表盘的界面",
     });
   });
 
-  it("builds turn runtime context from preview state and page edit mode", () => {
-    const runtimeContext = buildDesignPageTurnRuntimeContext({
-      currentPreviewPath: "dashboard.html",
-      outputType: "html",
+  it("builds turn prompt rewrite input from preview state and page edit mode", () => {
+    const prompt = buildTurnPromptRewriterPrompt({
+      originalUserPrompt: "精简布局",
+      pageEditMode: "duplicate_edit",
       pageEditModePolicy: {
-        mode: "direct_edit",
-        targetPath: "dashboard.html",
+        mode: "duplicate_edit",
+        sourcePath: "dashboard.html",
+        targetPath: "dashboard.copy.html",
       },
+      previewPath: "dashboard.html",
     });
 
-    expect(runtimeContext).toContain("<runtime_context>");
-    expect(runtimeContext).toContain("</runtime_context>");
-    expect(runtimeContext).toContain("<page_edit_mode_policy>");
-    expect(runtimeContext).toContain("</page_edit_mode_policy>");
-    expect(runtimeContext).toContain("Project Output Type: html.");
-    expect(runtimeContext).toContain("Current preview page: dashboard.html.");
-    expect(runtimeContext).toContain("Mode: direct_edit.");
-    expect(runtimeContext).toContain(
-      "You must edit the current preview page directly: dashboard.html.",
+    expect(prompt).toContain("currentPreviewPath: dashboard.html");
+    expect(prompt).toContain("pageEditMode: duplicate_edit");
+    expect(prompt).toContain("duplicateSourcePath: dashboard.html");
+    expect(prompt).toContain("duplicateTargetPath: dashboard.copy.html");
+    expect(prompt).toContain("use copyFile");
+    expect(prompt).toContain("精简布局");
+  });
+
+  it("builds direct and new page rewrite prompts without adding hard edit restrictions", () => {
+    const directPrompt = buildTurnPromptRewriterPrompt({
+      originalUserPrompt: "调小标题",
+      pageEditMode: "direct_edit",
+      pageEditModePolicy: {
+        mode: "direct_edit",
+        targetPath: "index.html",
+      },
+      previewPath: "index.html",
+    });
+    const newPagePrompt = buildTurnPromptRewriterPrompt({
+      originalUserPrompt: "加一个设置页",
+      pageEditMode: "new_page",
+      pageEditModePolicy: {
+        currentPreviewPath: "index.html",
+        mode: "new_page",
+      },
+      previewPath: "index.html",
+    });
+
+    expect(directPrompt).toContain("For direct_edit");
+    expect(directPrompt).toContain("targetPath: index.html");
+    expect(newPagePrompt).toContain("For new_page");
+    expect(newPagePrompt).toContain("do not forbid related edits");
+  });
+
+  it("rewrites turn prompts as plain text", async () => {
+    aiMocks.generateText.mockResolvedValueOnce({
+      text: "```text\nEdit index.html: 精简布局\n```",
+    });
+
+    await expect(
+      rewriteTurnPrompt({
+        model: { modelId: "test-model", provider: "test" } as never,
+        originalUserPrompt: "精简布局",
+        pageEditMode: "direct_edit",
+        pageEditModePolicy: {
+          mode: "direct_edit",
+          targetPath: "index.html",
+        },
+        previewPath: "index.html",
+      }),
+    ).resolves.toEqual({
+      rewrittenPrompt: "Edit index.html: 精简布局",
+    });
+    expect(aiMocks.generateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: { modelId: "test-model", provider: "test" },
+        prompt: expect.stringContaining("Original user request:\n精简布局"),
+        system: expect.stringContaining("Return only the rewritten request"),
+      }),
     );
   });
 
@@ -1327,7 +1389,7 @@ describe("AiSdkDesignPageAgent", () => {
     });
     await expect(
       workspaceStore.readProjectWorkspaceFile("project-1", "dashboard.copy.html"),
-    ).resolves.toBe("<main>Dashboard</main>");
+    ).rejects.toThrow("ENOENT");
   });
 
   it("enforces forced page edit modes in workspace tools", async () => {
@@ -1370,17 +1432,15 @@ describe("AiSdkDesignPageAgent", () => {
       };
     };
 
-    await expectWorkspaceToolError(
+    await expectWorkspaceToolOk(
       directTools.createHtml.execute({ path: "login.html" }),
-      "does not allow creating new HTML pages",
     );
-    await expectWorkspaceToolError(
+    await expectWorkspaceToolOk(
       directTools.edit.execute({
         newString: "Copy",
         oldString: "Home",
         path: "index.copy.html",
       }),
-      "can only edit index.html",
     );
     await expectWorkspaceToolOk(
       directTools.edit.execute({
@@ -1416,13 +1476,12 @@ describe("AiSdkDesignPageAgent", () => {
       };
     };
 
-    await expectWorkspaceToolError(
+    await expectWorkspaceToolOk(
       newPageTools.edit.execute({
         newString: "Again",
         oldString: "Updated",
         path: "index.html",
       }),
-      "must create a new HTML page before edit",
     );
     await expectWorkspaceToolOk(
       newPageTools.createHtml.execute({ path: "landing.html" }),
@@ -1442,11 +1501,6 @@ describe("AiSdkDesignPageAgent", () => {
     await workspaceStore.writeProjectWorkspaceFile(
       "project-1",
       "index.html",
-      "<main>Home</main>",
-    );
-    await workspaceStore.writeProjectWorkspaceFile(
-      "project-1",
-      "index.copy.html",
       "<main>Home</main>",
     );
     await workspaceStore.writeProjectWorkspaceFile(
@@ -1477,6 +1531,12 @@ describe("AiSdkDesignPageAgent", () => {
         execute: (input: {
           capability: string;
           payload: unknown;
+        }) => Promise<unknown>;
+      };
+      copyFile: {
+        execute: (input: {
+          sourcePath: string;
+          targetPath: string;
         }) => Promise<unknown>;
       };
       delete: { execute: (input: { path: string }) => Promise<unknown> };
@@ -1518,19 +1578,37 @@ describe("AiSdkDesignPageAgent", () => {
       ),
     ).resolves.toMatchObject({
       content: expect.stringContaining("Home"),
-      path: "index.copy.html",
+      path: "index.html",
       type: "file",
     });
+    await expectWorkspaceToolError(
+      tools.copyFile.execute({
+        sourcePath: "index.html",
+        targetPath: "other.html",
+      }),
+      "can only copy index.html to index.copy.html",
+    );
+    await expectWorkspaceToolOk(
+      tools.copyFile.execute({
+        sourcePath: "index.html",
+        targetPath: "index.copy.html",
+      }),
+    );
     await expect(
-      expectWorkspaceToolOk<{ path: string }>(
-        tools.write.execute({
-          content: "<main>Duplicate</main>",
-          path: "index.html",
-        }),
-      ),
+      tools.write.execute({
+        content: "<main>Duplicate</main>",
+        path: "index.html",
+      }),
     ).resolves.toMatchObject({
-      path: "index.copy.html",
+      error: expect.stringContaining("can only edit index.copy.html"),
+      ok: false,
     });
+    await expectWorkspaceToolOk(
+      tools.write.execute({
+        content: "<main>Duplicate</main>",
+        path: "index.copy.html",
+      }),
+    );
     await expect(
       workspaceStore.readProjectWorkspaceFile("project-1", "index.html"),
     ).resolves.toBe("<main>Home</main>");
@@ -1542,7 +1620,7 @@ describe("AiSdkDesignPageAgent", () => {
         tools.edit.execute({
           newString: "Updated",
           oldString: "Duplicate",
-          path: "index.html",
+          path: "index.copy.html",
         }),
       ),
     ).resolves.toMatchObject({
@@ -1561,7 +1639,7 @@ describe("AiSdkDesignPageAgent", () => {
             {
               content: "<main>Patched</main>",
               operation: "write",
-              path: "index.html",
+              path: "index.copy.html",
             },
           ],
         }),
@@ -1584,16 +1662,13 @@ describe("AiSdkDesignPageAgent", () => {
       tools.delete.execute({ path: "index.html" }),
       "can only delete index.copy.html",
     );
-    await expect(
-      expectWorkspaceToolOk(
-        tools.callFrontendCapability.execute({
-          capability: "preview.switchHtml",
-          payload: { path: "index.html" },
-        }),
-      ),
-    ).resolves.toMatchObject({
-      payload: { path: "index.copy.html" },
-    });
+    await expectWorkspaceToolError(
+      tools.callFrontendCapability.execute({
+        capability: "preview.switchHtml",
+        payload: { path: "index.html" },
+      }),
+      "can only preview index.copy.html",
+    );
 
     await expectWorkspaceToolOk(tools.read.execute({ path: "index.copy.html" }));
     await expect(
@@ -1601,30 +1676,36 @@ describe("AiSdkDesignPageAgent", () => {
         tools.read.execute({ path: "index.html" }),
       ),
     ).resolves.toMatchObject({
-      content: expect.stringContaining("Patched"),
-      path: "index.copy.html",
+      content: expect.stringContaining("Home"),
+      path: "index.html",
       type: "file",
     });
     await expect(
       expectWorkspaceToolOk<{ matches: Array<{ path: string }> }>(
-        tools.grep.execute({ path: "index.html", pattern: "Patched" }),
+        tools.grep.execute({ path: "index.html", pattern: "Home" }),
       ),
     ).resolves.toMatchObject({
-      matches: [{ path: "index.copy.html" }],
+      matches: [{ path: "index.html" }],
     });
     await expect(
       expectWorkspaceToolOk<{ matches: Array<{ path: string }> }>(
         tools.glob.execute({ pattern: "**/*.html" }),
       ),
     ).resolves.toMatchObject({
-      matches: [{ path: "index.copy.html" }],
+      matches: expect.arrayContaining([
+        expect.objectContaining({ path: "index.html" }),
+        expect.objectContaining({ path: "index.copy.html" }),
+      ]),
     });
     await expect(
       expectWorkspaceToolOk<{ matches: Array<{ path: string }> }>(
         tools.grep.execute({ include: "*.html", pattern: "Home|Patched" }),
       ),
     ).resolves.toMatchObject({
-      matches: [{ path: "index.copy.html" }],
+      matches: expect.arrayContaining([
+        expect.objectContaining({ path: "index.html" }),
+        expect.objectContaining({ path: "index.copy.html" }),
+      ]),
     });
     await expect(
       expectWorkspaceToolOk(
@@ -1701,42 +1782,39 @@ describe("AiSdkDesignPageAgent", () => {
       };
     };
 
-    await expectWorkspaceToolError(
+    await expectWorkspaceToolOk(
       tools.read.execute({ path: "index.html" }),
-      "must create a new HTML page before read",
     );
-    await expectWorkspaceToolError(
+    await expectWorkspaceToolOk(
       tools.write.execute({ content: "<main>Early</main>", path: "landing.html" }),
-      "must create a new HTML page before edit",
     );
     await expectWorkspaceToolError(
       tools.createHtml.execute({ path: "index.html" }),
-      "not overwrite the current preview page",
+      "already exists",
     );
     await expect(
       expectWorkspaceToolOk<{ matches: Array<{ path: string }> }>(
         tools.glob.execute({ pattern: "**/*.html" }),
       ),
     ).resolves.toMatchObject({
-      matches: [],
+      matches: expect.arrayContaining([
+        expect.objectContaining({ path: "index.html" }),
+        expect.objectContaining({ path: "landing.html" }),
+      ]),
     });
     await expect(
       expectWorkspaceToolOk<{ matches: Array<{ path: string }> }>(
         tools.grep.execute({ include: "*.html", pattern: "Home" }),
       ),
     ).resolves.toMatchObject({
-      matches: [],
+      matches: [{ path: "index.html" }],
     });
 
-    await expectWorkspaceToolOk(tools.createHtml.execute({ path: "landing.html" }));
-
-    await expectWorkspaceToolError(
+    await expectWorkspaceToolOk(
       tools.createHtml.execute({ path: "other.html" }),
-      "already created landing.html",
     );
-    await expectWorkspaceToolError(
+    await expectWorkspaceToolOk(
       tools.read.execute({ path: "index.html" }),
-      "can only read the newly created page: landing.html",
     );
     await expectWorkspaceToolOk(
       tools.write.execute({
@@ -1752,12 +1830,11 @@ describe("AiSdkDesignPageAgent", () => {
         path: "landing.html",
       }),
     );
-    await expectWorkspaceToolError(
+    await expectWorkspaceToolOk(
       tools.callFrontendCapability.execute({
         capability: "preview.switchHtml",
         payload: { path: "index.html" },
       }),
-      "can only preview the newly created page: landing.html",
     );
     await expect(
       expectWorkspaceToolOk(
@@ -1774,14 +1851,20 @@ describe("AiSdkDesignPageAgent", () => {
         tools.glob.execute({ pattern: "**/*.html" }),
       ),
     ).resolves.toMatchObject({
-      matches: [{ path: "landing.html" }],
+      matches: expect.arrayContaining([
+        expect.objectContaining({ path: "index.html" }),
+        expect.objectContaining({ path: "landing.html" }),
+      ]),
     });
     await expect(
       expectWorkspaceToolOk<{ matches: Array<{ path: string }> }>(
         tools.grep.execute({ include: "*.html", pattern: "Home|Published" }),
       ),
     ).resolves.toMatchObject({
-      matches: [{ path: "landing.html" }],
+      matches: expect.arrayContaining([
+        expect.objectContaining({ path: "index.html" }),
+        expect.objectContaining({ path: "landing.html" }),
+      ]),
     });
   });
 
@@ -1817,12 +1900,8 @@ describe("AiSdkDesignPageAgent", () => {
     expect(config.instructions).not.toContain(
       "Current preview page: dashboard.html.",
     );
-    expect(buildDesignPageTurnRuntimeContext({
-      currentPreviewPath: "dashboard.html",
-      outputType: "html",
-      pageEditModePolicy: { mode: "auto" },
-    })).toContain(
-      "edit that page directly; do not ask which page they mean",
+    expect(config.instructions).not.toContain(
+      "<page_edit_mode_policy>",
     );
   });
 

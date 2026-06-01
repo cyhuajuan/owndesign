@@ -288,65 +288,6 @@ describe("ConversationService", () => {
     expect(updatedConversation.lastMessageAt).toBe("2026-05-14T10:25:00.000Z");
   });
 
-  it("preserves turn contexts when saving streamed UI messages", async () => {
-    const workspaceStore = await createWorkspaceStore();
-    const projectService = new ProjectService({
-      workspaceStore,
-      createId: sequenceIds("project-1", "conversation-1"),
-      now: fixedNow("2026-05-14T10:00:00.000Z"),
-    });
-    const { project } = await projectService.createProject({
-      name: "Project One",
-    });
-    const conversation = await workspaceStore.getConversation(
-      project.id,
-      "conversation-1",
-    );
-    await workspaceStore.updateConversation(project.id, "conversation-1", {
-      ...conversation,
-      turnContexts: [
-        {
-          createdAt: "2026-05-14T10:05:00.000Z",
-          id: "turn-context-1",
-          messageId: "user-1",
-          outputType: "html",
-          pageEditMode: "auto",
-          pageEditModePolicy: { mode: "auto" },
-          previewPath: "index.html",
-        },
-      ],
-    });
-    const conversationService = new ConversationService({
-      workspaceStore,
-      now: fixedNow("2026-05-14T10:25:00.000Z"),
-    });
-    const messages = [
-      {
-        id: "user-1",
-        parts: [{ text: "继续", type: "text" as const }],
-        role: "user" as const,
-      },
-    ];
-
-    const updatedConversation = await conversationService.saveUIMessageStream(
-      project.id,
-      "conversation-1",
-      messages,
-    );
-
-    expect(updatedConversation.turnContexts).toEqual([
-      {
-        createdAt: "2026-05-14T10:05:00.000Z",
-        id: "turn-context-1",
-        messageId: "user-1",
-        outputType: "html",
-        pageEditMode: "auto",
-        pageEditModePolicy: { mode: "auto" },
-        previewPath: "index.html",
-      },
-    ]);
-  });
-
   it("deleting the last Conversation immediately replaces it with a new default Conversation", async () => {
     const workspaceStore = await createWorkspaceStore();
     const projectService = new ProjectService({

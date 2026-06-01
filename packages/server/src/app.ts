@@ -15,25 +15,26 @@ import {
   type UIMessage,
 } from "ai";
 
-import { normalizeConversationMessages } from "@owndesign/core/conversations/chat-messages";
+import {
+  getUIMessageText,
+  normalizeConversationMessages,
+  type TurnPromptRewriteMetadata,
+} from "@owndesign/core/conversations/chat-messages";
 import {
   buildDesignPageConversationInstructions,
-  buildDesignPageTurnRuntimeContext,
   createDesignPageAgent,
   createDesignPageAgentContext,
   DESIGN_PAGE_AGENT_PROMPT_VERSION,
+  type DesignAgentContext,
 } from "@owndesign/core/agent/design-page-agent";
 import { parsePageEditMode } from "@owndesign/core/agent/page-edit-mode";
+import { rewriteTurnPrompt } from "@owndesign/core/agent/turn-prompt-rewriter";
 import { getPreviewServerManager } from "@owndesign/core/preview/preview-server-manager";
 import { registerFrontendConnection } from "@owndesign/core/realtime/frontend-command-bus";
 import {
   parseDeepSeekThinkingMode,
 } from "@owndesign/core/settings/settings-service";
 import { buildWorkspaceHref } from "@owndesign/core/navigation";
-import type {
-  ConversationRecord,
-  ConversationTurnContextRecord,
-} from "@owndesign/core/workspace-store";
 
 import {
   createConversationService,
@@ -337,7 +338,7 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
     const storedMessages = normalizeConversationMessages(
       conversation.messages,
     ) as DesignPageUIMessage[];
-    const messages = mergeStoredAndIncomingMessages(
+    let messages = mergeStoredAndIncomingMessages(
       storedMessages,
       incomingMessages,
     ) as DesignPageUIMessage[];
@@ -378,24 +379,22 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
     }
 
     agentContext.agentInstructions = conversation.agentInstructions;
+    try {
+      messages = await rewriteLastUserMessageForDesignAgent({
+        messages,
+        pageEditMode,
+        pageEditModePolicy: agentContext.pageEditModePolicy ?? { mode: "auto" },
+        previewPath,
+        agentContext,
+      }) as DesignPageUIMessage[];
+    } catch (error) {
+      return context.text(
+        error instanceof Error ? error.message : "Failed to rewrite user prompt.",
+        500,
+      );
+    }
+
     const agent = createDesignPageAgent(agentContext);
-    const runtimeContextMessages = createTurnRuntimeContextMessages({
-      currentPreviewPath: previewPath,
-      outputType: project.outputType,
-      pageEditModePolicy: agentContext.pageEditModePolicy ?? { mode: "auto" },
-    });
-    const turnContext = createConversationTurnContext({
-      messageId: getLastUserMessageId(messages),
-      outputType: project.outputType,
-      pageEditMode,
-      pageEditModePolicy: agentContext.pageEditModePolicy ?? { mode: "auto" },
-      previewPath,
-    });
-    await workspaceStore.updateConversation(
-      projectId,
-      conversationId,
-      appendConversationTurnContext(conversation, turnContext),
-    );
     let latestStepUsage: LanguageModelUsage | undefined;
 
     const run = chatRunManager.startRun({
@@ -410,10 +409,7 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
         return createAgentUIStream({
           abortSignal,
           agent,
-          uiMessages: injectTransientMessagesBeforeLastUserMessage(
-            messages,
-            runtimeContextMessages,
-          ),
+          uiMessages: messages,
           originalMessages: messages,
           sendReasoning: true,
           onStepFinish: (step) => {
@@ -918,94 +914,120 @@ export function mergeStoredAndIncomingMessages(
   ];
 }
 
-function createConversationTurnContext({
-  messageId,
-  outputType,
+async function rewriteLastUserMessageForDesignAgent({
+  agentContext,
+  messages,
   pageEditMode,
   pageEditModePolicy,
   previewPath,
-}: Omit<ConversationTurnContextRecord, "createdAt" | "id">): ConversationTurnContextRecord {
-  return {
-    createdAt: new Date().toISOString(),
-    id: crypto.randomUUID(),
-    messageId,
-    outputType,
+}: {
+  agentContext: DesignAgentContext;
+  messages: UIMessage[];
+  pageEditMode: NonNullable<ReturnType<typeof parsePageEditMode>>;
+  pageEditModePolicy: NonNullable<DesignAgentContext["pageEditModePolicy"]>;
+  previewPath?: string;
+}) {
+  const lastUserMessageIndex = findLastUserMessageIndex(messages);
+
+  if (lastUserMessageIndex < 0) {
+    return messages;
+  }
+
+  const lastUserMessage = messages[lastUserMessageIndex];
+
+  if (!lastUserMessage || hasPromptRewriteMetadata(lastUserMessage)) {
+    return messages;
+  }
+
+  const originalUserPrompt = getUIMessageText(lastUserMessage);
+  const { rewrittenPrompt } = await rewriteTurnPrompt({
+    model: agentContext.model,
+    originalUserPrompt,
     pageEditMode,
     pageEditModePolicy,
-    ...(previewPath ? { previewPath } : {}),
+    previewPath,
+    providerOptions: agentContext.providerOptions,
+  });
+  const metadata = createTurnPromptRewriteMetadata({
+    originalUserPrompt,
+    pageEditMode,
+    pageEditModePolicy,
+    previewPath,
+  });
+  const rewrittenMessage: UIMessage = {
+    ...lastUserMessage,
+    metadata: {
+      ...(isRecord(lastUserMessage.metadata) ? lastUserMessage.metadata : {}),
+      ...metadata,
+    },
+    parts: [
+      {
+        text: rewrittenPrompt,
+        type: "text",
+      },
+      ...lastUserMessage.parts.filter((part) => part.type !== "text"),
+    ],
   };
+
+  return [
+    ...messages.slice(0, lastUserMessageIndex),
+    rewrittenMessage,
+    ...messages.slice(lastUserMessageIndex + 1),
+  ];
 }
 
-function appendConversationTurnContext(
-  conversation: ConversationRecord,
-  turnContext: ConversationTurnContextRecord,
-): ConversationRecord {
-  return {
-    ...conversation,
-    turnContexts: [...(conversation.turnContexts ?? []), turnContext],
-  };
-}
-
-function getLastUserMessageId(messages: UIMessage[]) {
+function findLastUserMessageIndex(messages: UIMessage[]) {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
 
     if (message?.role === "user") {
-      return message.id;
+      return index;
     }
   }
 
-  return undefined;
+  return -1;
 }
 
-function createTurnRuntimeContextMessages({
-  currentPreviewPath,
-  outputType,
+function createTurnPromptRewriteMetadata({
+  originalUserPrompt,
+  pageEditMode,
   pageEditModePolicy,
-}: Parameters<typeof buildDesignPageTurnRuntimeContext>[0]): DesignPageUIMessage[] {
-  return [
-    {
-      id: "owndesign-turn-runtime-context",
-      parts: [
-        {
-          text: buildDesignPageTurnRuntimeContext({
-            currentPreviewPath,
-            outputType,
-            pageEditModePolicy,
-          }),
-          type: "text",
-        },
-      ],
-      role: "system",
+  previewPath,
+}: {
+  originalUserPrompt: string;
+  pageEditMode: NonNullable<ReturnType<typeof parsePageEditMode>>;
+  pageEditModePolicy: NonNullable<DesignAgentContext["pageEditModePolicy"]>;
+  previewPath?: string;
+}): TurnPromptRewriteMetadata {
+  return {
+    originalUserPrompt,
+    promptRewrite: {
+      createdAt: new Date().toISOString(),
+      kind: "turn-prompt-rewriter",
+      pageEditMode,
+      ...(previewPath ? { previewPath } : {}),
+      ...(pageEditModePolicy.mode === "duplicate_edit"
+        ? {
+            duplicateSourcePath: pageEditModePolicy.sourcePath,
+            duplicateTargetPath: pageEditModePolicy.targetPath,
+          }
+        : {}),
     },
-  ];
+  };
 }
 
-export function injectTransientMessagesBeforeLastUserMessage(
-  messages: UIMessage[],
-  transientMessages: UIMessage[],
-) {
-  if (transientMessages.length === 0) {
-    return messages;
-  }
+function hasPromptRewriteMetadata(message: UIMessage) {
+  const metadata = message.metadata;
 
-  let lastUserMessageIndex = -1;
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    if (messages[index]?.role === "user") {
-      lastUserMessageIndex = index;
-      break;
-    }
-  }
+  return (
+    isRecord(metadata) &&
+    isRecord(metadata.promptRewrite) &&
+    metadata.promptRewrite.kind === "turn-prompt-rewriter"
+  );
+}
 
-  if (lastUserMessageIndex < 0) {
-    return [...messages, ...transientMessages];
-  }
-
-  return [
-    ...messages.slice(0, lastUserMessageIndex),
-    ...transientMessages,
-    ...messages.slice(lastUserMessageIndex),
-  ];
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }
 
 function asNonEmptyString(value: unknown) {

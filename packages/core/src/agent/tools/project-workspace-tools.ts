@@ -1,5 +1,6 @@
 import { createCallFrontendCapabilityToolDefinition } from "./call-frontend-capability";
 import { createWorkspaceToolRegistry } from "./core";
+import { createCopyFileToolDefinition } from "./copy-file";
 import { createCreateHtmlToolDefinition } from "./create-html";
 import { createDeleteToolDefinition } from "./delete";
 import { createEditToolDefinition } from "./edit";
@@ -13,6 +14,7 @@ import { createWriteToolDefinition } from "./write";
 export function createProjectWorkspaceToolDefinitions() {
   return [
     createCallFrontendCapabilityToolDefinition(),
+    createCopyFileToolDefinition(),
     createCreateHtmlToolDefinition(),
     createDeleteToolDefinition(),
     createEditToolDefinition(),

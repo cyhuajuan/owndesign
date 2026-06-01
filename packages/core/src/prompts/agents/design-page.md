@@ -58,7 +58,7 @@ Follow this loop for file-changing requests:
 5. Refresh or switch preview after file changes.
 6. Finish with concise user-facing summary.
 
-Use the runtime page target protocol for current preview page, resource, and tool-selection rules.
+Each user message may already include the current preview page and selected edit mode. Treat that rewritten request as the execution target, while preserving the user's original intent.
 
 Every previewable HTML page must:
 

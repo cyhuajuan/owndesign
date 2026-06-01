@@ -1,8 +1,3 @@
-import {
-  filterHtmlPathsForPageEditModePolicy,
-  resolveHtmlReadPathForPageEditModePolicy,
-} from "@owndesign/core/agent/page-edit-mode";
-
 import type { WorkspaceToolDefinition } from "./core";
 import type { ReadInput } from "./types";
 
@@ -38,39 +33,17 @@ export function createReadToolDefinition(): WorkspaceToolDefinition<
     name: "read",
     parallelSafe: true,
     execute: async ({ limit, offset, path }, {
-      pageEditModePolicy,
       projectId,
       workspaceStore,
     }) => {
-      const readPath = resolveHtmlReadPathForPageEditModePolicy(
-        pageEditModePolicy,
-        path,
-      );
-
-      const result = await workspaceStore.readProjectWorkspaceEntry(
+      return workspaceStore.readProjectWorkspaceEntry(
         projectId,
-        readPath,
+        path,
         {
           limit,
           offset,
         },
       );
-
-      if (result.type !== "directory") {
-        return result;
-      }
-
-      const entries = filterHtmlPathsForPageEditModePolicy(
-        pageEditModePolicy,
-        result.entries,
-      );
-
-      return {
-        ...result,
-        entries,
-        totalEntries: entries.length,
-        truncated: false,
-      };
     },
   };
 }

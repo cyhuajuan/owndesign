@@ -310,7 +310,7 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
     const body = (await context.req.json()) as ChatRequestBody;
     const projectId = asNonEmptyString(body.projectId);
     const conversationId = asNonEmptyString(body.conversationId);
-    const previewPath = asNonEmptyString(body.previewPath);
+    const requestedPreviewPath = asNonEmptyString(body.previewPath);
     const pageEditMode = parsePageEditMode(body.pageEditMode);
 
     if (!projectId || !conversationId || !Array.isArray(body.messages)) {
@@ -323,6 +323,11 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
 
     const workspaceStore = createWorkspaceStore(options);
     const project = await workspaceStore.getProject(projectId);
+    const previewPath = await resolveExistingPreviewPath(
+      workspaceStore,
+      projectId,
+      requestedPreviewPath,
+    );
 
     if (chatRunManager.getActiveRun(projectId)) {
       return context.text("当前项目已有任务正在执行。", 409);
@@ -1005,6 +1010,7 @@ function createTurnPromptRewriteMetadata({
       createdAt: new Date().toISOString(),
       kind: "turn-prompt-rewriter",
       pageEditMode,
+      previewFileExists: Boolean(previewPath),
       ...(previewPath ? { previewPath } : {}),
       ...(pageEditModePolicy.mode === "duplicate_edit"
         ? {
@@ -1028,6 +1034,20 @@ function hasPromptRewriteMetadata(message: UIMessage) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+async function resolveExistingPreviewPath(
+  workspaceStore: ReturnType<typeof createWorkspaceStore>,
+  projectId: string,
+  previewPath?: string,
+) {
+  if (!previewPath) {
+    return undefined;
+  }
+
+  const htmlFiles = await workspaceStore.listProjectHtmlFiles(projectId);
+
+  return htmlFiles.includes(previewPath) ? previewPath : undefined;
 }
 
 function asNonEmptyString(value: unknown) {

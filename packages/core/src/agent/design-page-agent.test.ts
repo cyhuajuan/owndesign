@@ -1281,7 +1281,7 @@ describe("AiSdkDesignPageAgent", () => {
       previewPath: "dashboard.html",
     });
 
-    expect(prompt).toContain("currentPreviewPath: dashboard.html");
+    expect(prompt).toContain("currentPreviewFile: dashboard.html");
     expect(prompt).toContain("pageEditMode: duplicate_edit");
     expect(prompt).toContain("duplicateSourcePath: dashboard.html");
     expect(prompt).toContain("duplicateTargetPath: dashboard.copy.html");

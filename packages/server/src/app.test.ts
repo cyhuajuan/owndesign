@@ -187,6 +187,7 @@ describe("createOwnDesignApp static hosting", () => {
           conversationId: match?.[2],
           messages: [],
           pageEditMode: "direct_edit",
+          previewPath: "index.html",
           projectId: match?.[1],
         }),
         headers: { "Content-Type": "application/json" },
@@ -200,7 +201,7 @@ describe("createOwnDesignApp static hosting", () => {
     );
   });
 
-  it("persists conversation instructions and rewritten user prompt on first chat", async () => {
+  it("persists conversation instructions and rewritten user prompt on first chat without a fake preview file", async () => {
     const { app, root } = await createAppWithTempOptions();
     const workspaceRoot = path.join(root, "workspace");
     const { conversationId, projectId } = await setupProject(app);
@@ -254,9 +255,19 @@ describe("createOwnDesignApp static hosting", () => {
       promptRewrite: {
         kind: "turn-prompt-rewriter",
         pageEditMode: "auto",
-        previewPath: "dashboard.html",
+        previewFileExists: false,
       },
     });
+    expect((conversation.messages[0] as UIMessage).metadata).not.toMatchObject({
+      promptRewrite: {
+        previewPath: expect.any(String),
+      },
+    });
+    expect(aiMocks.generateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        prompt: expect.stringContaining("currentPreviewFile: none"),
+      }),
+    );
     expect(streamInput.originalMessages).toEqual(conversation.messages);
     expect(streamInput.uiMessages).toEqual(conversation.messages);
   });
@@ -269,6 +280,11 @@ describe("createOwnDesignApp static hosting", () => {
     const conversation = await workspaceStore.getConversation(
       projectId,
       conversationId,
+    );
+    await workspaceStore.writeProjectWorkspaceFile(
+      projectId,
+      "settings.html",
+      "<main>Settings</main>",
     );
 
     await workspaceStore.updateConversation(projectId, conversationId, {
@@ -321,6 +337,7 @@ describe("createOwnDesignApp static hosting", () => {
       promptRewrite: {
         kind: "turn-prompt-rewriter",
         pageEditMode: "auto",
+        previewFileExists: true,
         previewPath: "settings.html",
       },
     });
@@ -335,6 +352,11 @@ describe("createOwnDesignApp static hosting", () => {
       projectId,
       conversationId,
     );
+    await workspaceStore.writeProjectWorkspaceFile(
+      projectId,
+      "second.html",
+      "<main>Second</main>",
+    );
     const previousUserMessage = {
       ...createUserMessage("user-1", "上一轮 rewritten"),
       metadata: {
@@ -343,6 +365,7 @@ describe("createOwnDesignApp static hosting", () => {
           createdAt: "2026-05-14T10:00:00.000Z",
           kind: "turn-prompt-rewriter",
           pageEditMode: "auto",
+          previewFileExists: true,
           previewPath: "first.html",
         },
       },
@@ -395,6 +418,7 @@ describe("createOwnDesignApp static hosting", () => {
       promptRewrite: {
         kind: "turn-prompt-rewriter",
         pageEditMode: "auto",
+        previewFileExists: true,
         previewPath: "second.html",
       },
     });
@@ -449,6 +473,7 @@ describe("createOwnDesignApp static hosting", () => {
         duplicateTargetPath: "dashboard.copy.html",
         kind: "turn-prompt-rewriter",
         pageEditMode: "duplicate_edit",
+        previewFileExists: true,
         previewPath: "dashboard.html",
       },
     });

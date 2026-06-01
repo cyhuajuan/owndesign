@@ -801,6 +801,32 @@ describe("MessageParts", () => {
     );
   });
 
+  it("omits preview path from the chat transport body when no real preview file is published", () => {
+    vi.mocked(useChat).mockReturnValue({
+      addToolApprovalResponse: vi.fn(),
+      error: undefined,
+      messages: [],
+      sendMessage: vi.fn(),
+      status: "ready",
+      stop: vi.fn(),
+    } as unknown as ReturnType<typeof useChat>);
+
+    render(
+      <StreamingConversationPanel
+        conversationId="conversation-1"
+        conversationTitle="新建会话"
+        initialMessages={[]}
+        projectId="project-1"
+      />,
+    );
+
+    const useChatOptions = vi.mocked(useChat).mock.calls.at(-1)?.[0] as
+      | { transport: { body: () => Record<string, unknown> } }
+      | undefined;
+
+    expect(useChatOptions?.transport.body()).not.toHaveProperty("previewPath");
+  });
+
   it("renders the page edit mode select in the composer tool area", () => {
     stubOpenAICompatibleSettings();
     vi.mocked(useChat).mockReturnValue({

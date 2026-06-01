@@ -117,7 +117,7 @@ export function ChatShell({
   const navigate = useAppNavigate();
   const [sessionPreviewHref, setSessionPreviewHref] = useState<string>();
   const [previewFiles, setPreviewFiles] = useState<string[]>([]);
-  const [activePreviewPath, setActivePreviewPath] = useState("index.html");
+  const [activePreviewPath, setActivePreviewPath] = useState<string>();
   const isConversationCollapsed = useSyncExternalStore(
     subscribeToConversationPaneState,
     readConversationPaneState,
@@ -169,7 +169,7 @@ export function ChatShell({
       const activePath =
         typeof event.detail?.activePath === "string"
           ? event.detail.activePath
-          : "index.html";
+          : undefined;
 
       setPreviewFiles(files);
       setActivePreviewPath(activePath);
@@ -201,7 +201,7 @@ export function ChatShell({
       onChange={selectPreviewPath}
     />
   );
-  const currentHtmlDownloadUrl = previewProjectId
+  const currentHtmlDownloadUrl = previewProjectId && activePreviewPath
     ? api.buildUrl(
         buildProjectDownloadPath(
           previewProjectId,
@@ -490,7 +490,7 @@ function PreviewFileSelect({
   files,
   onChange,
 }: {
-  activePath: string;
+  activePath?: string;
   files: string[];
   onChange: (path: string) => void;
 }) {
@@ -509,7 +509,7 @@ function PreviewFileSelect({
           onChange(value);
         }
       }}
-      value={activePath}
+      value={activePath ?? files[0]}
     >
       <SelectTrigger
         aria-label="切换预览 HTML"

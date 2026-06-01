@@ -53,7 +53,7 @@ export function buildTurnPromptRewriterSystemPrompt() {
     "Return only the rewritten request as plain text.",
     "Preserve the user's intent exactly.",
     "Do not add design requirements, features, style choices, or implementation details that the user did not request.",
-    "Use the current preview path and page edit mode only to clarify the target page and required file action.",
+    "Use the current preview file and page edit mode only to clarify the target page and required file action.",
     "Do not use markdown fences, JSON, bullet lists, headings, or explanations.",
   ].join("\n");
 }
@@ -65,7 +65,7 @@ export function buildTurnPromptRewriterPrompt({
   previewPath,
 }: Omit<TurnPromptRewriteInput, "model" | "providerOptions">) {
   return [
-    `currentPreviewPath: ${previewPath ?? "none"}`,
+    `currentPreviewFile: ${previewPath ?? "none"}`,
     `pageEditMode: ${pageEditMode}`,
     formatPolicyLine(pageEditModePolicy),
     "",
@@ -92,7 +92,7 @@ function formatPolicyLine(policy: PageEditModePolicy) {
   }
 
   if (policy.mode === "new_page") {
-    return `currentPreviewPath: ${policy.currentPreviewPath ?? "none"}`;
+    return `currentPreviewFile: ${policy.currentPreviewPath ?? "none"}`;
   }
 
   return "targetPath: none";

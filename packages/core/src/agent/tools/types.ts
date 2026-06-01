@@ -18,6 +18,11 @@ export type CreateHtmlInput = {
   title?: string;
 };
 
+export type CopyFileInput = {
+  sourcePath: string;
+  targetPath: string;
+};
+
 export type DeleteInput = {
   path: string;
 };

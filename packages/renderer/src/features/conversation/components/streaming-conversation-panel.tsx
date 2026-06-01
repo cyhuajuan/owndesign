@@ -111,8 +111,8 @@ export function StreamingConversationPanel({
       frontendTabId: FRONTEND_TAB_ID,
       modelConfigurationId: selectedModelId,
       pageEditMode,
-      previewPath: currentPreviewPath,
       projectId,
+      ...(currentPreviewPath ? { previewPath: currentPreviewPath } : {}),
       ...(selectedDeepSeekThinkingMode
         ? {
             providerOptionsSelection: {

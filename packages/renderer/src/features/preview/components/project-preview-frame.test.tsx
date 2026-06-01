@@ -75,6 +75,24 @@ describe("ProjectPreviewFrame", () => {
     expect(getCurrentPreviewPath()).toBe("generated.html");
   });
 
+  it("does not publish a fake current preview path for an empty workspace", async () => {
+    const fetchMock = mockEmptyPreviewFetch();
+
+    render(
+      <ProjectPreviewFrame
+        initialUpdatedAt="2026-05-15T00:00:00.000Z"
+        projectId="project-1"
+        projectName="Project One"
+      />,
+    );
+
+    await screen.findByTitle("Project One HTML 预览");
+
+    expect(getSessionPosts(fetchMock)).toHaveLength(1);
+    expect(getCurrentPreviewPath()).toBeUndefined();
+    expect(window.location.search).toBe("");
+  });
+
   it("does not release the preview session when only the preview path changes", async () => {
     window.history.replaceState(null, "", "/?previewPath=index.html");
     const fetchMock = mockPreviewFetch();
@@ -307,6 +325,23 @@ function mockPreviewFetch(defaultActivePath = "index.html") {
       activePath,
       files: ["index.html", "dashboard.html"],
       url: `http://127.0.0.1:3000/${activePath}`,
+    });
+  }) as unknown as typeof fetch & ReturnType<typeof vi.fn>;
+
+  vi.stubGlobal("fetch", fetchMock);
+
+  return fetchMock;
+}
+
+function mockEmptyPreviewFetch() {
+  const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+    if (init?.method === "DELETE") {
+      return new Response(null, { status: 204 });
+    }
+
+    return Response.json({
+      files: [],
+      url: "http://127.0.0.1:3000",
     });
   }) as unknown as typeof fetch & ReturnType<typeof vi.fn>;
 

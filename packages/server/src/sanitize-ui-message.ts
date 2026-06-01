@@ -128,7 +128,11 @@ function getPathFromValue(value: unknown): string | undefined {
     return undefined;
   }
 
-  const path = "path" in value ? value.path : undefined;
+  const path = "path" in value
+    ? value.path
+    : "targetPath" in value
+      ? value.targetPath
+      : undefined;
 
   if (typeof path === "string" && path.length > 0) {
     return path;

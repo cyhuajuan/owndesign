@@ -15,7 +15,7 @@ type PreviewServerManagerOptions = {
 };
 
 type PreviewServerEntry = {
-  activePath: string;
+  activePath?: string;
   baseUrl: string;
   expiresAt: number;
   key: string;
@@ -61,7 +61,7 @@ export class PreviewServerManager {
     this.ensureCleanupTimer();
 
     return {
-      activePath,
+      ...(activePath ? { activePath } : {}),
       files,
       url: buildPreviewUrl(entry.baseUrl, activePath),
     };
@@ -157,7 +157,6 @@ export class PreviewServerManager {
       this.workspaceStore.getProjectWorkspaceDirectory(projectId);
     const app = new Hono();
     const entry: PreviewServerEntry = {
-      activePath: "index.html",
       baseUrl: "",
       expiresAt: this.now() + this.leaseTtlMs,
       key,
@@ -396,10 +395,14 @@ function resolveActivePreviewPath(files: string[], previewPath?: string) {
     return "index.html";
   }
 
-  return files[0] ?? "index.html";
+  return files[0];
 }
 
-function buildPreviewUrl(baseUrl: string, previewPath: string) {
+function buildPreviewUrl(baseUrl: string, previewPath?: string) {
+  if (!previewPath) {
+    return baseUrl;
+  }
+
   return `${baseUrl}/${previewPath.split("/").map(encodeURIComponent).join("/")}`;
 }
 

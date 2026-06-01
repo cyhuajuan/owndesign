@@ -1,6 +1,20 @@
 import type { UIMessage } from "ai";
+import type { PageEditMode } from "@owndesign/core/agent/page-edit-mode";
 
 export type OwnDesignUIMessage = UIMessage;
+
+export type TurnPromptRewriteMetadata = {
+  originalUserPrompt: string;
+  promptRewrite: {
+    duplicateSourcePath?: string;
+    duplicateTargetPath?: string;
+    createdAt: string;
+    kind: "turn-prompt-rewriter";
+    pageEditMode: PageEditMode;
+    previewFileExists: boolean;
+    previewPath?: string;
+  };
+};
 
 type LegacyMessage = {
   content: string;
@@ -25,7 +39,26 @@ export function getUIMessageText(message: OwnDesignUIMessage) {
 export function getFirstUserMessageText(messages: OwnDesignUIMessage[]) {
   const firstUserMessage = messages.find((message) => message.role === "user");
 
-  return firstUserMessage ? getUIMessageText(firstUserMessage) : "";
+  return firstUserMessage ? getUserVisibleMessageText(firstUserMessage) : "";
+}
+
+export function getUserVisibleMessageText(message: OwnDesignUIMessage) {
+  return getOriginalUserPrompt(message) ?? getUIMessageText(message);
+}
+
+export function getOriginalUserPrompt(message: OwnDesignUIMessage) {
+  const metadata = message.metadata;
+
+  if (
+    typeof metadata === "object" &&
+    metadata !== null &&
+    "originalUserPrompt" in metadata &&
+    typeof metadata.originalUserPrompt === "string"
+  ) {
+    return metadata.originalUserPrompt;
+  }
+
+  return undefined;
 }
 
 function normalizeConversationMessage(

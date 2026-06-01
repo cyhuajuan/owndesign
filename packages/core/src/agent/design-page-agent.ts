@@ -22,10 +22,11 @@ import { loadPrompt } from "@owndesign/core/prompts";
 import { buildFrontendCapabilityPrompt } from "@owndesign/core/realtime/frontend-capabilities";
 import {
   buildPageEditModePolicy,
-  buildPageEditModePolicyPrompt,
   type PageEditMode,
   type PageEditModePolicy,
 } from "@owndesign/core/agent/page-edit-mode";
+
+export const DESIGN_PAGE_AGENT_PROMPT_VERSION = 1;
 
 export type DesignPageAgentInput = {
   content: string;
@@ -44,6 +45,7 @@ export type DesignPageAgent = {
 };
 
 type CreateDesignPageAgentInput = {
+  agentInstructions?: string;
   currentPreviewPath?: string;
   frontendTabId?: string;
   model: LanguageModel;
@@ -144,11 +146,12 @@ export async function createDesignPageAgentContext({
 }
 
 export function createDesignPageAgent(context: DesignAgentContext) {
-  const { model, providerOptions } = context;
+  const { agentInstructions, model, providerOptions } = context;
 
   return new ToolLoopAgent({
+    allowSystemInMessages: true,
     model,
-    instructions: buildDesignPageInstructions(context),
+    instructions: agentInstructions ?? buildDesignPageInstructions(context),
     providerOptions,
     stopWhen: stepCountIs(50),
     tools: createDesignPageWorkspaceTools(context),
@@ -173,17 +176,9 @@ export function createDesignPageWorkspaceTools({
 }
 
 export function buildDesignPageInstructions({
-  currentPreviewPath,
-  outputType,
-  pageEditModePolicy,
   resources,
 }: DesignAgentContext) {
-  return buildDesignPageAgentInstructions(
-    outputType,
-    resources,
-    currentPreviewPath,
-    pageEditModePolicy,
-  );
+  return buildDesignPageConversationInstructions(resources);
 }
 
 export function buildLanguageModel(
@@ -233,10 +228,13 @@ export function buildProviderOptions(
 }
 
 export function buildDesignPageAgentInstructions(
-  outputType: ProjectOutputType,
   resources?: ResourceSettings,
-  currentPreviewPath?: string,
-  pageEditModePolicy: PageEditModePolicy = { mode: "auto" },
+) {
+  return buildDesignPageConversationInstructions(resources);
+}
+
+export function buildDesignPageConversationInstructions(
+  resources?: ResourceSettings,
 ) {
   const sections: DesignPromptSection[] = [
     {
@@ -263,14 +261,6 @@ export function buildDesignPageAgentInstructions(
           },
         ]
       : []),
-    {
-      tag: "runtime_context",
-      content: buildProjectOutputPrompt(outputType, currentPreviewPath),
-    },
-    {
-      tag: "page_edit_mode_policy",
-      content: buildPageEditModePolicyPrompt(pageEditModePolicy),
-    },
   ];
 
   return renderDesignPromptSections(sections);
@@ -290,73 +280,61 @@ export function loadDesignPageAgentCorePrompt() {
   return loadPrompt("agents/design-page");
 }
 
-export function buildProjectOutputPrompt(
-  outputType: ProjectOutputType,
-  currentPreviewPath?: string,
-) {
-  return buildRuntimeContextPrompt(outputType, currentPreviewPath);
-}
-
-export function buildRuntimeContextPrompt(
-  outputType: ProjectOutputType,
-  currentPreviewPath?: string,
-) {
-  if (outputType !== "html") {
-    throw new Error(`Unsupported Project Output Type: ${outputType}`);
-  }
-
-  return [
-    "## Runtime Context",
-    "Project Output Type: html.",
-    "Project Output is a previewable UI prototype, not a production app implementation.",
-    `Current preview page: ${currentPreviewPath ?? "none"}.`,
-    "If current preview page is known, treat relative references such as 'here', 'this page', 'current page', 'top', 'bottom', or similar page positions as that file.",
-    "If the user names another HTML file, path, or page type, that explicit target overrides the current preview page.",
-    "If the user only gives a relative page reference and the current preview page is known, edit that page directly; do not ask which page they mean.",
-    "Use `callFrontendCapability` with `preview.switchHtml` only when the Preview Pane should move to a different existing target HTML page after creation or updates.",
-    "When the current preview page is already the correct target page, do not call `preview.switchHtml` redundantly.",
-  ].join("\n");
-}
-
 export function buildPageTargetProtocolPrompt() {
   return [
     "## Page Target Protocol",
-    "Resolve target page before creating or updating a previewable page.",
-    "All previewable HTML files must stay inside the Project Workspace; use relative paths ending in `.html`.",
-    "If the user clearly names a page or path, use that explicit target.",
-    "If the user uses a relative reference and current preview page is known, use the current preview page.",
-    "If the user asks for a home, main, landing, or first page, use `index.html`.",
-    "If the user asks for a new named page, choose a semantic `.html` file such as `login.html`, `settings.html`, or `pages/detail.html`.",
-    "If no page is specified and no multi-page structure is evident, default to `index.html`.",
-    "If multiple HTML files exist, current preview page is unknown, and the user's target is still ambiguous after `glob` and `read`, ask one concise follow-up question.",
-    "Do not ask a follow-up question just because the request is brief; act when current preview page, explicit filename, or `index.html` default resolves the target.",
-    "Resolve target page.",
-    "Inspect workspace when needed with `glob`, `grep`, and `read`; always inspect before coordinated edits when existing files may matter.",
-    "Create missing HTML with `createHtml`.",
-    "When the target HTML file does not exist, you must call `createHtml` first instead of using `write` to create the initial HTML.",
-    "For `createHtml`, choose `path` from the user's page target. Pass `fontLibraryName` or `iconLibraryName` only when the user explicitly specifies those resource preferences; otherwise omit them so the tool reads configured defaults.",
-    "Edit existing HTML with `read` plus `edit` or `patch`.",
-    "After `createHtml` succeeds, use `edit` or `patch` to fill in the actual page design, then call `callFrontendCapability` with `preview.switchHtml` for that page only if the Preview Pane is not already there.",
-    "For existing HTML files, use `read` first, then `edit` or `patch`; do not call `createHtml`.",
-    "When creating a new HTML page, do not overwrite `index.html` unless the user intent points to the home or main page.",
-    "After file changes are complete, call `callFrontendCapability` exactly once before the final summary: use `preview.switchHtml` when the Preview Pane should move to another HTML file, otherwise use `preview.refresh`.",
-    "Finish with concise user-facing summary after the workspace changes are done.",
+    "",
+    "Resolve the target HTML page before creating or updating previewable output.",
+    "",
+    "Target resolution:",
+    "- All previewable pages must be relative workspace paths ending in `.html`.",
+    "- If the user names a file, path, or page type, use that explicit target.",
+    "- Each turn's user message has already been rewritten with the current preview page and page edit mode when those matter.",
+    "- If the user uses a relative page reference such as \"this page\", \"current page\", \"here\", \"top\", or \"bottom\", use the target page stated in the current user message when available.",
+    "- If the user asks for a home, main, landing, or first page, use `index.html`.",
+    "- If the user asks for a new named page, choose a semantic filename such as `login.html`, `settings.html`, or `pages/detail.html`.",
+    "- If no target is specified and no multi-page structure is evident, default to `index.html`.",
+    "- If multiple HTML files exist, no current preview page is available, and the target remains ambiguous after inspection, ask one concise follow-up question.",
+    "- Do not ask a follow-up question just because the request is brief; act when the target can be resolved from the current user message, an explicit filename, or the `index.html` default.",
+    "",
+    "- Do not overwrite `index.html` for a new page unless the user intent points to the home or main page.",
   ].join("\n");
 }
 
 export function buildToolWorkflowPrompt() {
   return [
     "## Tool Workflow",
-    "Use Project Workspace tools to inspect, create, edit, search, patch, and delete UTF-8 files.",
-    "Use `glob`, `grep`, and `read` to inspect existing Project Workspace files.",
-    "Prefer `edit` for focused changes to existing files.",
-    "Use `patch` for coordinated changes or when multiple replacements must stay consistent.",
-    "Use `createHtml` for missing HTML files, then continue with `edit` or `patch` to complete the design.",
-    "Use `write` only for non-HTML files or deliberate full-file overwrites.",
-    "Use `delete` only for Project Workspace files that are clearly obsolete.",
-    "Only use resource CDNs that already exist in settings. Do not add any other external CDN.",
-    "`write`, `edit`, and `patch` reject HTML that contains external CDN tags outside the configured resource settings.",
-    "If a tool rejects HTML because of CDN guard rules, retry using configured libraries, system fonts, inline SVG, local CSS, or no external resource.",
+    "Use the narrowest reliable tool for each task; inspect before writing, recover before retrying.",
+    "",
+    "Inspect before changing files:",
+    "- Use `glob` to discover files.",
+    "- Use `grep` to locate relevant code or markup.",
+    "- Use `read` before editing any existing target file.",
+    "- Always inspect before coordinated edits across existing files.",
+    "",
+    "Choose the write tool by intent:",
+    "- Use `edit` for small, focused replacements in one existing file.",
+    "- Use `patch` for coordinated changes, repeated replacements, or multi-file edits.",
+    "- Use `write` only for non-HTML files or deliberate full-file overwrites; never use it to create initial HTML pages.",
+    "- Do not use `write` for ordinary HTML page edits. Use it for HTML only when the user explicitly asks to rebuild the whole file.",
+    "- Use `delete` only after using `grep` or direct inspection to confirm the file is no longer referenced by any page or build target.",
+    "- Use `copyFile` when the current user message asks you to duplicate an existing file before editing the duplicate.",
+    "",
+    "For HTML pages:",
+    "- Do not modify unrelated HTML files unless the requested change requires coordinated edits.",
+    "- Use `createHtml` when the target HTML file does not exist; do not create initial HTML with `write`.",
+    "- For `createHtml`, pass the resolved target path. Pass `fontLibraryName` or `iconLibraryName` only when the user explicitly names a font or icon library; otherwise omit them so the tool reads configured defaults.",
+    "- After `createHtml`, immediately use `read` on that file before editing it.",
+    "- If the target HTML file exists, use `read` before editing it; do not call `createHtml`.",
+    "- Use `edit` or `patch` for HTML changes after reading the file.",
+    "",
+    "Recover from tool failures:",
+    "- If `edit` cannot find the expected text, `read` the file again and retry with a smaller replacement or `patch`.",
+    "- If a write tool returns an error or produces unexpected output, read the file again before retrying.",
+    "",
+    "Resource constraints:",
+    "- Only use CDNs already listed in resource settings; do not add others.",
+    "- `write`, `edit`, and `patch` will reject HTML with unlisted CDN tags - if rejected, fall back to configured libraries, system fonts, inline SVG, or local CSS.",
   ].join("\n");
 }
 
@@ -377,7 +355,8 @@ export function buildResourcePolicyPrompt(resources: ResourceSettings) {
       : "Default icon library: none configured.",
     "If the user prompt explicitly names a configured font or icon library, use that named library; otherwise use the default library.",
     "Only use configured font libraries or system fonts. Do not reference any unconfigured external font service or font CDN.",
-    "Only use configured icon libraries or inline SVG icons. Do not reference any unconfigured external icon service or icon CDN.",
+    "Prefer configured icon libraries for icons. Use inline SVG only when no icon library is configured or when the configured libraries cannot provide a suitable icon.",
+    "Do not reference any unconfigured external icon service or icon CDN.",
     "When a configured library has no CDN, follow the library choice in CSS naming only and do not add a CDN tag for it.",
     "Configured font libraries:",
     fontLines.length ? fontLines.join("\n") : "- none",

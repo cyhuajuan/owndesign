@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 
 const PROMPT_FILES = {
   "agents/design-page": "agents/design-page.md",
+  "agents/turn-prompt-rewriter": "agents/turn-prompt-rewriter.md",
 } as const;
 
 export type PromptName = keyof typeof PROMPT_FILES;

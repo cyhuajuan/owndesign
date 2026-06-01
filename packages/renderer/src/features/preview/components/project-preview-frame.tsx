@@ -17,7 +17,7 @@ type ProjectPreviewFrameProps = {
 };
 
 type PreviewSessionResponse = {
-  activePath: string;
+  activePath?: string;
   files: string[];
   url: string;
 };
@@ -56,10 +56,6 @@ export function ProjectPreviewFrame({
     },
     [projectId],
   );
-
-  useEffect(() => {
-    setCurrentPreviewPath(selectedPreviewPath);
-  }, [selectedPreviewPath]);
 
   useEffect(() => {
     let isActive = true;
@@ -132,7 +128,7 @@ export function ProjectPreviewFrame({
           setPreviewUrl(undefined);
           previewUrlRef.current = undefined;
           publishPreviewHref(undefined);
-          publishPreviewFiles([], "index.html");
+          publishPreviewFiles([]);
         }
       }
     }
@@ -161,7 +157,7 @@ export function ProjectPreviewFrame({
             setPreviewUrl(undefined);
             previewUrlRef.current = undefined;
             publishPreviewHref(undefined);
-            publishPreviewFiles([], "index.html");
+            publishPreviewFiles([]);
           }
         });
     }, HEARTBEAT_INTERVAL_MS);
@@ -197,17 +193,18 @@ export function ProjectPreviewFrame({
 
       applyPreviewSession(session, { updateFrameSrc: false });
 
-      const currentPath = selectedPreviewPath ?? "index.html";
-
-      if (session.activePath !== currentPath) {
+      if (session.activePath && session.activePath !== selectedPreviewPath) {
         pendingRouteSyncPathRef.current = session.activePath;
         setPreviewPath(session.activePath);
+      } else if (!session.activePath && selectedPreviewPath) {
+        pendingRouteSyncPathRef.current = undefined;
+        setPreviewPath(undefined);
       }
     } catch {
       setPreviewUrl(undefined);
       previewUrlRef.current = undefined;
       publishPreviewHref(undefined);
-      publishPreviewFiles([], "index.html");
+      publishPreviewFiles([]);
     }
   };
 
@@ -217,7 +214,7 @@ export function ProjectPreviewFrame({
     return () => {
       setCurrentPreviewPath(undefined);
       publishPreviewHref(undefined);
-      publishPreviewFiles([], "index.html");
+      publishPreviewFiles([]);
       void fetch(
         api.buildUrl(
           `/api/projects/${encodeURIComponent(projectId)}/preview-session`,
@@ -314,7 +311,7 @@ function publishPreviewHref(href: string | undefined) {
   );
 }
 
-function publishPreviewFiles(files: string[], activePath: string) {
+function publishPreviewFiles(files: string[], activePath?: string) {
   window.dispatchEvent(
     new CustomEvent(PREVIEW_FILES_EVENT, {
       detail: { activePath, files },

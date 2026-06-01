@@ -259,7 +259,7 @@ describe("PreviewServerManager", () => {
     await expect(response.text()).resolves.toContain("Landing");
   });
 
-  it("serves styled empty preview HTML when index.html is missing", async () => {
+  it("serves styled empty preview HTML without publishing a fake active path", async () => {
     const { manager, workspaceStore } = await createPreviewManager();
     await createProject(workspaceStore);
 
@@ -268,7 +268,7 @@ describe("PreviewServerManager", () => {
     const html = await response.text();
 
     expect(html).toContain("<!doctype html>");
-    expect(session.activePath).toBe("index.html");
+    expect(session).not.toHaveProperty("activePath");
     expect(session.files).toEqual([]);
     expect(html).toContain("等待生成 HTML");
     expect(html).toContain("class=\"badge\">Preview");

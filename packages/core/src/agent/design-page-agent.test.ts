@@ -1161,8 +1161,8 @@ describe("AiSdkDesignPageAgent", () => {
     expect(config.instructions).toContain("local UI state");
     expect(config.instructions).toContain("clipboard");
     expect(config.instructions).toContain("network");
-    expect(config.instructions).toContain("storage");
-    expect(config.instructions).toContain("real submit");
+    expect(config.instructions).toContain("persistence");
+    expect(config.instructions).toContain("real form submissions");
     expect(config.instructions).toContain("Never use emoji as icons");
     expect(config.instructions).toContain("Project Workspace tools");
     expect(config.instructions).toContain("Use `callFrontendCapability`");
@@ -1188,30 +1188,28 @@ describe("AiSdkDesignPageAgent", () => {
     expect(config.instructions).toContain(
       "Do not ask a follow-up question just because the request is brief",
     );
-    expect(config.instructions).toContain("Workspace inspection:");
-    expect(config.instructions).toContain("File operation:");
+    expect(config.instructions).toContain("Inspect before changing files:");
+    expect(config.instructions).toContain("For HTML pages:");
     expect(config.instructions).toContain(
       "Do not modify unrelated HTML files unless the requested change requires coordinated edits",
     );
     expect(config.instructions).toContain(
-      "create it with `createHtml`; do not create initial HTML with `write`",
+      "do not create initial HTML with `write`",
     );
     expect(config.instructions).toContain(
-      "use `edit` or `patch` to fill in the actual page design",
-    );
-    expect(config.instructions).toContain("Preview update:");
-    expect(config.instructions).toContain(
-      "Refresh or switch preview after file changes",
+      "Use `edit` or `patch` for HTML changes after reading the file",
     );
     expect(config.instructions).toContain(
-      "After file changes, call `callFrontendCapability` exactly once",
+      "Notify the Preview Pane according to the frontend capabilities rules",
     );
     expect(config.instructions).toContain(
-      "Use `preview.refresh` when the Preview Pane is already on the correct page",
+      "After successful previewable HTML changes, call exactly one preview capability",
     );
-    expect(config.instructions).toContain("Final response:");
     expect(config.instructions).toContain(
-      "Finish with a concise user-facing summary",
+      "Use `preview.refresh` when the Preview Pane is already showing the correct page",
+    );
+    expect(config.instructions).toContain(
+      "Reply concisely with what changed and what to inspect next",
     );
     expect(config.instructions).toContain(
       "relative workspace paths ending in `.html`",
@@ -1220,15 +1218,17 @@ describe("AiSdkDesignPageAgent", () => {
     expect(config.instructions).toContain(
       "no current preview page is available",
     );
-    expect(config.instructions).toContain("create it with `createHtml`");
+    expect(config.instructions).toContain(
+      "Use `createHtml` when the target HTML file does not exist",
+    );
     expect(config.instructions).toContain(
       "omit them so the tool reads configured defaults",
     );
     expect(config.instructions).toContain(
-      "After `createHtml` succeeds, use `read` on that file",
+      "After `createHtml`, immediately use `read` on that file",
     );
     expect(config.instructions).toContain(
-      "If the target HTML file exists, use `read` first",
+      "If the target HTML file exists, use `read` before editing it",
     );
     expect(config.instructions).toContain(
       "will reject HTML with unlisted CDN tags",

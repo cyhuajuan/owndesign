@@ -1225,7 +1225,7 @@ describe("AiSdkDesignPageAgent", () => {
       "omit them so the tool reads configured defaults",
     );
     expect(config.instructions).toContain(
-      "After `createHtml` succeeds, use `edit` or `patch`",
+      "After `createHtml` succeeds, use `read` on that file",
     );
     expect(config.instructions).toContain(
       "If the target HTML file exists, use `read` first",

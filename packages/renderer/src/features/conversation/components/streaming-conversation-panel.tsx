@@ -35,11 +35,15 @@ import { PromptAttachmentControls } from "@/features/conversation/components/pro
 import { useConversationSettings } from "@/features/conversation/hooks/use-conversation-settings";
 import { getLatestContextUsage } from "@/features/conversation/utils/context-usage";
 import { deriveConversationTitle } from "@/features/conversation/utils/conversation-title";
-import { getDeepSeekThinkingMode } from "@/features/conversation/utils/model-selection";
+import {
+  anthropicEfforts,
+  getDeepSeekThinkingMode,
+} from "@/features/conversation/utils/model-selection";
 import { FRONTEND_TAB_ID } from "@/features/preview/components/frontend-capability-bridge";
 import { useApiClient } from "@/api/context";
 import { useCurrentPreviewPath } from "@/features/preview/preview-path";
 import type { ActiveRun, ActiveRunSnapshot } from "@/api/client";
+import type { AnthropicEffort } from "@/features/conversation/types";
 import type { PageEditMode } from "@owndesign/core/agent/page-edit-mode";
 
 type StreamingConversationPanelProps = {
@@ -68,6 +72,8 @@ const PAGE_EDIT_MODE_OPTIONS = [
   { label: "副本编辑", value: "duplicate_edit" },
 ] satisfies Array<{ label: string; value: PageEditMode }>;
 
+const ANTHROPIC_EFFORT_STORAGE_KEY = "owndesign:anthropic-efforts";
+
 export function StreamingConversationPanel({
   conversationId,
   conversationTitle,
@@ -85,6 +91,8 @@ export function StreamingConversationPanel({
   const reconnectState = useMemo(() => ({ afterChunkIndex: 0 }), []);
   const [localSubmitStarted, setLocalSubmitStarted] = useState(false);
   const [pageEditMode, setPageEditMode] = useState<PageEditMode>("auto");
+  const [selectedAnthropicEffort, setSelectedAnthropicEffort] =
+    useState<AnthropicEffort>("high");
   const [resumeSnapshot, setResumeSnapshot] = useState<
     | {
         nextChunkIndex: number;
@@ -96,6 +104,28 @@ export function StreamingConversationPanel({
     selectedModel?.provider === "deepseek"
       ? getDeepSeekThinkingMode(selectedModel)
       : undefined;
+  const handleAnthropicEffortSelect = useCallback(
+    (modelId: string, effort: AnthropicEffort) => {
+      setSelectedAnthropicEffort(effort);
+      saveStoredAnthropicEffort(modelId, effort);
+    },
+    [],
+  );
+  const selectedProviderOptionsSelection = useMemo(() => {
+    if (selectedModel?.provider === "anthropic") {
+      return { anthropic: selectedAnthropicEffort };
+    }
+
+    if (selectedDeepSeekThinkingMode) {
+      return { deepseek: selectedDeepSeekThinkingMode };
+    }
+
+    return undefined;
+  }, [
+    selectedAnthropicEffort,
+    selectedDeepSeekThinkingMode,
+    selectedModel?.provider,
+  ]);
   const currentPreviewPath = useCurrentPreviewPath();
   const hasProjectActiveRun = projectActiveRun?.status === "running";
   const activeRunId = projectActiveRun?.runId;
@@ -113,12 +143,8 @@ export function StreamingConversationPanel({
       pageEditMode,
       projectId,
       ...(currentPreviewPath ? { previewPath: currentPreviewPath } : {}),
-      ...(selectedDeepSeekThinkingMode
-        ? {
-            providerOptionsSelection: {
-              deepseek: selectedDeepSeekThinkingMode,
-            },
-          }
+      ...(selectedProviderOptionsSelection
+        ? { providerOptionsSelection: selectedProviderOptionsSelection }
         : {}),
     }),
     [
@@ -126,7 +152,7 @@ export function StreamingConversationPanel({
       currentPreviewPath,
       pageEditMode,
       projectId,
-      selectedDeepSeekThinkingMode,
+      selectedProviderOptionsSelection,
       selectedModelId,
     ],
   );
@@ -185,6 +211,16 @@ export function StreamingConversationPanel({
       window.dispatchEvent(new Event("owndesign:workspace-refresh"));
     });
   }, [api, onProjectRunChange, projectId, setResumeSnapshot, stop]);
+
+  useEffect(() => {
+    if (selectedModel?.provider !== "anthropic") {
+      return;
+    }
+
+    setSelectedAnthropicEffort(
+      getStoredAnthropicEffort(selectedModel.id) ?? "high",
+    );
+  }, [selectedModel?.id, selectedModel?.provider]);
 
   useEffect(() => {
     if (
@@ -380,7 +416,9 @@ export function StreamingConversationPanel({
                 usage={contextUsage}
               />
               <ModelSelect
+                onAnthropicEffortSelect={handleAnthropicEffortSelect}
                 onSelect={handleModelSelect}
+                selectedAnthropicEffort={selectedAnthropicEffort}
                 selectedModelId={selectedModelId}
                 settings={settings}
               />
@@ -450,6 +488,39 @@ function getPageEditModeLabel(value: PageEditMode) {
     PAGE_EDIT_MODE_OPTIONS.find((option) => option.value === value)?.label ??
     "自动"
   );
+}
+
+function getStoredAnthropicEffort(modelId: string): AnthropicEffort | undefined {
+  try {
+    const stored = window.localStorage.getItem(ANTHROPIC_EFFORT_STORAGE_KEY);
+    const value = stored ? JSON.parse(stored)[modelId] : undefined;
+
+    return isAnthropicEffort(value) ? value : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function saveStoredAnthropicEffort(modelId: string, effort: AnthropicEffort) {
+  try {
+    const stored = window.localStorage.getItem(ANTHROPIC_EFFORT_STORAGE_KEY);
+    const parsed = stored ? JSON.parse(stored) : {};
+    const next =
+      parsed && typeof parsed === "object"
+        ? { ...parsed, [modelId]: effort }
+        : { [modelId]: effort };
+
+    window.localStorage.setItem(
+      ANTHROPIC_EFFORT_STORAGE_KEY,
+      JSON.stringify(next),
+    );
+  } catch {
+    // Ignore storage failures; runtime selection still works for this session.
+  }
+}
+
+function isAnthropicEffort(value: unknown): value is AnthropicEffort {
+  return anthropicEfforts.includes(value as AnthropicEffort);
 }
 
 const ConversationMessageItem = memo(

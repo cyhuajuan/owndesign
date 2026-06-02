@@ -416,6 +416,7 @@ function ModelEntry({
               <SelectGroup>
                 <SelectItem value="deepseek">DeepSeek</SelectItem>
                 <SelectItem value="openai-compatible">OpenAI Compatible</SelectItem>
+                <SelectItem value="anthropic">Anthropic</SelectItem>
               </SelectGroup>
             </SelectContent>
           </Select>
@@ -449,7 +450,9 @@ function ModelEntry({
             <Input
               className={inputClassName}
               onChange={(event) => onChange({ ...model, model: event.target.value })}
-              placeholder="gpt-4o"
+              placeholder={
+                model.provider === "anthropic" ? "claude-sonnet-4-5" : "gpt-4o"
+              }
               type="text"
               value={model.model}
             />
@@ -459,7 +462,11 @@ function ModelEntry({
           <Input
             className={inputClassName}
             onChange={(event) => onChange({ ...model, baseUrl: event.target.value })}
-            placeholder="https://api.openai.com/v1"
+            placeholder={
+              model.provider === "anthropic"
+                ? "https://api.anthropic.com/v1"
+                : "https://api.openai.com/v1"
+            }
             type="text"
             value={model.baseUrl}
           />
@@ -473,6 +480,20 @@ function ModelEntry({
             value={model.apiKey}
           />
         </ModelField>
+        {model.provider !== "deepseek" ? (
+          <ModelField label="Context Size (K)">
+            <Input
+              className={inputClassName}
+              min={1}
+              onChange={(event) =>
+                onChange({ ...model, contextSizeK: event.target.value })
+              }
+              placeholder={String(DEFAULT_OPENAI_COMPATIBLE_CONTEXT_SIZE_K)}
+              type="number"
+              value={model.contextSizeK}
+            />
+          </ModelField>
+        ) : null}
       </FieldGroup>
     </div>
   );

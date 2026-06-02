@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useChat } from "@ai-sdk/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -61,6 +61,7 @@ vi.mock("ai", async () => {
 
 beforeEach(() => {
   window.history.replaceState(null, "", "/");
+  window.localStorage.clear();
   setCurrentPreviewPath(undefined);
   Object.defineProperty(URL, "createObjectURL", {
     configurable: true,
@@ -113,6 +114,29 @@ function stubOpenAICompatibleSettings() {
             id: "model-1",
             model: "gpt-4o",
             provider: "openai-compatible",
+          },
+        ],
+      }),
+    ),
+  );
+}
+
+function stubAnthropicSettings() {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () =>
+      Response.json({
+        defaultModelId: "model-anthropic",
+        interfaceLanguage: "zh-CN",
+        modelConfigurations: [
+          {
+            apiKey: "",
+            baseUrl: "",
+            contextSizeK: 200,
+            hasApiKey: true,
+            id: "model-anthropic",
+            model: "claude-sonnet-4-5",
+            provider: "anthropic",
           },
         ],
       }),
@@ -825,6 +849,98 @@ describe("MessageParts", () => {
       | undefined;
 
     expect(useChatOptions?.transport.body()).not.toHaveProperty("previewPath");
+  });
+
+  it("sends Anthropic effort selection in the chat transport body", async () => {
+    const user = userEvent.setup();
+    stubAnthropicSettings();
+    vi.mocked(useChat).mockReturnValue({
+      addToolApprovalResponse: vi.fn(),
+      error: undefined,
+      messages: [],
+      sendMessage: vi.fn(),
+      status: "ready",
+      stop: vi.fn(),
+    } as unknown as ReturnType<typeof useChat>);
+
+    render(
+      <StreamingConversationPanel
+        conversationId="conversation-1"
+        conversationTitle="新建会话"
+        initialMessages={[]}
+        projectId="project-1"
+      />,
+    );
+
+    await user.click(
+      await screen.findByRole("button", { name: "claude-sonnet-4-5 · high" }),
+    );
+    await user.hover(
+      await screen.findByRole("menuitem", { name: "claude-sonnet-4-5" }),
+    );
+    fireEvent.click(await screen.findByRole("menuitem", { name: "xhigh" }));
+
+    const useChatOptions = vi.mocked(useChat).mock.calls.at(-1)?.[0] as
+      | { transport: { body: () => Record<string, unknown> } }
+      | undefined;
+
+    expect(useChatOptions?.transport.body()).toEqual(
+      expect.objectContaining({
+        providerOptionsSelection: {
+          anthropic: "xhigh",
+        },
+      }),
+    );
+    expect(
+      JSON.parse(
+        window.localStorage.getItem("owndesign:anthropic-efforts") ?? "{}",
+      ),
+    ).toEqual({
+      "model-anthropic": "xhigh",
+    });
+  });
+
+  it("restores Anthropic effort selection after refresh", async () => {
+    window.localStorage.setItem(
+      "owndesign:anthropic-efforts",
+      JSON.stringify({ "model-anthropic": "max" }),
+    );
+    stubAnthropicSettings();
+    vi.mocked(useChat).mockReturnValue({
+      addToolApprovalResponse: vi.fn(),
+      error: undefined,
+      messages: [],
+      sendMessage: vi.fn(),
+      status: "ready",
+      stop: vi.fn(),
+    } as unknown as ReturnType<typeof useChat>);
+
+    render(
+      <StreamingConversationPanel
+        conversationId="conversation-1"
+        conversationTitle="新建会话"
+        initialMessages={[]}
+        projectId="project-1"
+      />,
+    );
+
+    expect(
+      await screen.findByRole("button", {
+        name: "claude-sonnet-4-5 · max",
+      }),
+    ).toBeInTheDocument();
+
+    const useChatOptions = vi.mocked(useChat).mock.calls.at(-1)?.[0] as
+      | { transport: { body: () => Record<string, unknown> } }
+      | undefined;
+
+    expect(useChatOptions?.transport.body()).toEqual(
+      expect.objectContaining({
+        providerOptionsSelection: {
+          anthropic: "max",
+        },
+      }),
+    );
   });
 
   it("renders the page edit mode select in the composer tool area", () => {

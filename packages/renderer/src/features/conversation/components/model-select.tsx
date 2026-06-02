@@ -15,24 +15,30 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import type {
+  AnthropicEffort,
   DeepSeekThinkingMode,
   PublicSettings,
 } from "@/features/conversation/types";
 import {
+  anthropicEfforts,
   deepSeekThinkingModes,
   getDeepSeekThinkingMode,
   getSelectedModelLabel,
 } from "@/features/conversation/utils/model-selection";
 
 export function ModelSelect({
+  onAnthropicEffortSelect,
   onSelect,
+  selectedAnthropicEffort = "high",
   selectedModelId,
   settings,
 }: {
+  onAnthropicEffortSelect?: (modelId: string, effort: AnthropicEffort) => void;
   onSelect: (
     modelId: string,
     thinkingMode?: DeepSeekThinkingMode,
   ) => void | Promise<void>;
+  selectedAnthropicEffort?: AnthropicEffort;
   selectedModelId: string | null;
   settings?: PublicSettings;
 }) {
@@ -51,7 +57,7 @@ export function ModelSelect({
             type="button"
           >
             <span className="whitespace-nowrap">
-              {getSelectedModelLabel(selectedModel)}
+              {getSelectedModelLabel(selectedModel, selectedAnthropicEffort)}
             </span>
             <ChevronDownIcon className="chev !size-2.5 opacity-50 transition-transform duration-150" />
           </button>
@@ -113,6 +119,57 @@ export function ModelSelect({
                             }
                           />
                           <span>{thinkingMode}</span>
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuGroup>
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+              ) : configuration.provider === "anthropic" ? (
+                <DropdownMenuSub key={configuration.id}>
+                  <DropdownMenuSubTrigger
+                    className={modelMenuItemClass(
+                      configuration.id === selectedModelId,
+                    )}
+                    onClick={() => {
+                      void onSelect(configuration.id);
+                    }}
+                  >
+                    <ModelSelectCheck
+                      active={configuration.id === selectedModelId}
+                    />
+                    <span className="min-w-0 flex-1 truncate">
+                      {configuration.model}
+                    </span>
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent
+                    align="end"
+                    className="min-w-[120px] rounded-[8px] border border-[#2a2a2e] bg-[#1c1c1f] p-1 text-[#a0a0ab] shadow-[0_8px_24px_rgba(0,0,0,0.5)]"
+                    side="right"
+                    sideOffset={6}
+                  >
+                    <DropdownMenuGroup>
+                      <DropdownMenuLabel className="px-2.5 py-1.5 text-[11px] text-[#6b6b76]">
+                        Effort
+                      </DropdownMenuLabel>
+                      {anthropicEfforts.map((effort) => (
+                        <DropdownMenuItem
+                          className={modelMenuItemClass(
+                            configuration.id === selectedModelId &&
+                              selectedAnthropicEffort === effort,
+                          )}
+                          key={effort}
+                          onClick={() => {
+                            void onSelect(configuration.id);
+                            onAnthropicEffortSelect?.(configuration.id, effort);
+                          }}
+                        >
+                          <ModelSelectCheck
+                            active={
+                              configuration.id === selectedModelId &&
+                              selectedAnthropicEffort === effort
+                            }
+                          />
+                          <span>{effort}</span>
                         </DropdownMenuItem>
                       ))}
                     </DropdownMenuGroup>

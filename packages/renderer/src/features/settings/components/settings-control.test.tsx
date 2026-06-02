@@ -243,6 +243,44 @@ describe("SettingsControl", () => {
     });
   });
 
+  it("saves Anthropic without provider options", async () => {
+    const user = userEvent.setup();
+    render(<SettingsControl />);
+
+    await user.click(screen.getByTitle("设置"));
+    await user.click(await screen.findByRole("button", { name: "AI 模型" }));
+    await user.click(screen.getByRole("button", { name: /添加模型/ }));
+
+    const providerSelect = document.querySelector("select");
+    expect(providerSelect).not.toBeNull();
+    await user.selectOptions(providerSelect!, "anthropic");
+
+    expect(screen.getByText("Context Size (K)")).toBeInTheDocument();
+    await user.type(screen.getByPlaceholderText("例如 claude-sonnet-4-5"), "claude-sonnet-4-5");
+    const textInputs = document.querySelectorAll("input[type='text']");
+    await user.type(textInputs[1], "https://proxy.example.com/v1");
+    await user.type(screen.getByPlaceholderText("sk-..."), "key");
+    await user.click(screen.getByRole("button", { name: "保存设置" }));
+
+    await waitFor(() =>
+      expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+        "/api/settings",
+        expect.objectContaining({ method: "PUT" }),
+      ),
+    );
+    const putCall = vi
+      .mocked(fetch)
+      .mock.calls.find(([, init]) => init?.method === "PUT");
+    const payload = JSON.parse(String(putCall?.[1]?.body));
+
+    expect(payload.modelConfigurations[0]).toMatchObject({
+      contextSizeK: "200",
+      model: "claude-sonnet-4-5",
+      provider: "anthropic",
+    });
+    expect(payload.modelConfigurations[0]).not.toHaveProperty("providerOptions");
+  });
+
   it("closes when clicking the overlay and stays open when clicking the panel", async () => {
     const user = userEvent.setup();
 

@@ -61,6 +61,7 @@ vi.mock("ai", async () => {
 
 beforeEach(() => {
   window.history.replaceState(null, "", "/");
+  window.localStorage.clear();
   setCurrentPreviewPath(undefined);
   Object.defineProperty(URL, "createObjectURL", {
     configurable: true,
@@ -887,6 +888,56 @@ describe("MessageParts", () => {
       expect.objectContaining({
         providerOptionsSelection: {
           anthropic: "xhigh",
+        },
+      }),
+    );
+    expect(
+      JSON.parse(
+        window.localStorage.getItem("owndesign:anthropic-efforts") ?? "{}",
+      ),
+    ).toEqual({
+      "model-anthropic": "xhigh",
+    });
+  });
+
+  it("restores Anthropic effort selection after refresh", async () => {
+    window.localStorage.setItem(
+      "owndesign:anthropic-efforts",
+      JSON.stringify({ "model-anthropic": "max" }),
+    );
+    stubAnthropicSettings();
+    vi.mocked(useChat).mockReturnValue({
+      addToolApprovalResponse: vi.fn(),
+      error: undefined,
+      messages: [],
+      sendMessage: vi.fn(),
+      status: "ready",
+      stop: vi.fn(),
+    } as unknown as ReturnType<typeof useChat>);
+
+    render(
+      <StreamingConversationPanel
+        conversationId="conversation-1"
+        conversationTitle="新建会话"
+        initialMessages={[]}
+        projectId="project-1"
+      />,
+    );
+
+    expect(
+      await screen.findByRole("button", {
+        name: "claude-sonnet-4-5 · max",
+      }),
+    ).toBeInTheDocument();
+
+    const useChatOptions = vi.mocked(useChat).mock.calls.at(-1)?.[0] as
+      | { transport: { body: () => Record<string, unknown> } }
+      | undefined;
+
+    expect(useChatOptions?.transport.body()).toEqual(
+      expect.objectContaining({
+        providerOptionsSelection: {
+          anthropic: "max",
         },
       }),
     );

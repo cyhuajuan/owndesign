@@ -53,6 +53,7 @@ import { sanitizePublicConversation } from "./sanitize-ui-message";
 type ChatRequestBody = {
   conversationId?: unknown;
   frontendTabId?: unknown;
+  message?: unknown;
   messages?: unknown;
   modelConfigurationId?: unknown;
   pageEditMode?: unknown;
@@ -313,8 +314,9 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
     const conversationId = asNonEmptyString(body.conversationId);
     const requestedPreviewPath = asNonEmptyString(body.previewPath);
     const pageEditMode = parsePageEditMode(body.pageEditMode);
+    const currentUserMessage = createCurrentUserMessage(body.message);
 
-    if (!projectId || !conversationId || !Array.isArray(body.messages)) {
+    if (!projectId || !conversationId || !currentUserMessage) {
       return context.text("Invalid chat request.", 400);
     }
 
@@ -334,9 +336,6 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
       return context.text("当前项目已有任务正在执行。", 409);
     }
 
-    const incomingMessages = normalizeConversationMessages(
-      body.messages,
-    ) as DesignPageUIMessage[];
     let conversation = await workspaceStore.getConversation(
       projectId,
       conversationId,
@@ -344,10 +343,10 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
     const storedMessages = normalizeConversationMessages(
       conversation.messages,
     ) as DesignPageUIMessage[];
-    let messages = mergeStoredAndIncomingMessages(
-      storedMessages,
-      incomingMessages,
-    ) as DesignPageUIMessage[];
+    let messages = [
+      ...storedMessages,
+      currentUserMessage,
+    ] as DesignPageUIMessage[];
     let agentContext;
 
     try {
@@ -904,20 +903,34 @@ async function readJson(request: Request) {
   }
 }
 
-export function mergeStoredAndIncomingMessages(
-  storedMessages: UIMessage[],
-  incomingMessages: UIMessage[],
-) {
-  if (storedMessages.length === 0) {
-    return incomingMessages;
+function createCurrentUserMessage(value: unknown): UIMessage | undefined {
+  if (!isRecord(value)) {
+    return undefined;
   }
 
-  const storedIds = new Set(storedMessages.map((message) => message.id));
-
-  return [
-    ...storedMessages,
-    ...incomingMessages.filter((message) => !storedIds.has(message.id)),
+  const id = asNonEmptyString(value.id);
+  const text = typeof value.text === "string" ? value.text : "";
+  const files = Array.isArray(value.files)
+    ? value.files.filter(isFileUIPart)
+    : [];
+  const parts: UIMessage["parts"] = [
+    ...(text ? [{ text, type: "text" as const }] : []),
+    ...files,
   ];
+
+  if (!id || parts.length === 0) {
+    return undefined;
+  }
+
+  return {
+    id,
+    parts,
+    role: "user",
+  };
+}
+
+function isFileUIPart(value: unknown): value is UIMessage["parts"][number] {
+  return isRecord(value) && value.type === "file";
 }
 
 async function rewriteLastUserMessageForDesignAgent({

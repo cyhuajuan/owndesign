@@ -48,10 +48,7 @@ vi.mock("@ai-sdk/openai-compatible", () => ({
   ),
 }));
 
-import {
-  createOwnDesignApp,
-  mergeStoredAndIncomingMessages,
-} from "./app";
+import { createOwnDesignApp } from "./app";
 import { createWorkspaceStore } from "./services";
 
 const tempRoots: string[] = [];
@@ -147,7 +144,7 @@ describe("createOwnDesignApp static hosting", () => {
       new Request("http://localhost/api/chat", {
         body: JSON.stringify({
           conversationId: "conversation-1",
-          messages: [],
+          message: createChatRequestMessage("user-1", "test"),
           pageEditMode: "replace_everything",
           projectId: "project-1",
         }),
@@ -190,7 +187,7 @@ describe("createOwnDesignApp static hosting", () => {
       new Request("http://localhost/api/chat", {
         body: JSON.stringify({
           conversationId: match?.[2],
-          messages: [],
+          message: createChatRequestMessage("user-1", "test"),
           pageEditMode: "direct_edit",
           previewPath: "index.html",
           projectId: match?.[1],
@@ -210,7 +207,6 @@ describe("createOwnDesignApp static hosting", () => {
     const { app, root } = await createAppWithTempOptions();
     const workspaceRoot = path.join(root, "workspace");
     const { conversationId, projectId } = await setupProject(app);
-    const userMessage = createUserMessage("user-1", "设计一个 CRM 仪表盘");
     aiMocks.generateText.mockResolvedValueOnce({
       text: "Create a CRM dashboard page.",
     });
@@ -219,7 +215,7 @@ describe("createOwnDesignApp static hosting", () => {
       new Request("http://localhost/api/chat", {
         body: JSON.stringify({
           conversationId,
-          messages: [userMessage],
+          message: createChatRequestMessage("user-1", "设计一个 CRM 仪表盘"),
           pageEditMode: "auto",
           previewPath: "dashboard.html",
           projectId,
@@ -298,7 +294,6 @@ describe("createOwnDesignApp static hosting", () => {
       agentPromptVersion: 1,
     });
 
-    const userMessage = createUserMessage("user-1", "改当前页顶部");
     aiMocks.generateText.mockResolvedValueOnce({
       text: "Edit settings.html: 改当前页顶部",
     });
@@ -306,7 +301,7 @@ describe("createOwnDesignApp static hosting", () => {
       new Request("http://localhost/api/chat", {
         body: JSON.stringify({
           conversationId,
-          messages: [userMessage],
+          message: createChatRequestMessage("user-1", "改当前页顶部"),
           pageEditMode: "auto",
           previewPath: "settings.html",
           projectId,
@@ -375,7 +370,6 @@ describe("createOwnDesignApp static hosting", () => {
         },
       },
     } satisfies UIMessage;
-    const nextUserMessage = createUserMessage("user-2", "继续修改");
     aiMocks.generateText.mockResolvedValueOnce({
       text: "Edit second.html: 继续修改",
     });
@@ -391,7 +385,7 @@ describe("createOwnDesignApp static hosting", () => {
       new Request("http://localhost/api/chat", {
         body: JSON.stringify({
           conversationId,
-          messages: [previousUserMessage, nextUserMessage],
+          message: createChatRequestMessage("user-2", "继续修改"),
           pageEditMode: "auto",
           previewPath: "second.html",
           projectId,
@@ -429,6 +423,74 @@ describe("createOwnDesignApp static hosting", () => {
     });
   });
 
+  it("ignores frontend message history and appends only the submitted user input", async () => {
+    const { app, root } = await createAppWithTempOptions();
+    const workspaceRoot = path.join(root, "workspace");
+    const { conversationId, projectId } = await setupProject(app);
+    const workspaceStore = createWorkspaceStore({ workspaceRoot });
+    const conversation = await workspaceStore.getConversation(
+      projectId,
+      conversationId,
+    );
+    const storedUserMessage = {
+      ...createUserMessage("stored-user-1", "stored rewritten"),
+      metadata: {
+        originalUserPrompt: "stored original",
+        promptRewrite: {
+          createdAt: "2026-05-14T10:00:00.000Z",
+          kind: "turn-prompt-rewriter",
+          pageEditMode: "auto",
+          previewFileExists: false,
+        },
+      },
+    } satisfies UIMessage;
+    const frontendOnlyMessage = createUserMessage(
+      "frontend-user-ignored",
+      "frontend history should not be used",
+    );
+    aiMocks.generateText.mockResolvedValueOnce({
+      text: "Rewrite only current input.",
+    });
+
+    await workspaceStore.updateConversation(projectId, conversationId, {
+      ...conversation,
+      agentInstructions: "persisted instructions",
+      agentPromptVersion: 1,
+      messages: [storedUserMessage],
+    });
+
+    const response = await app.fetch(
+      new Request("http://localhost/api/chat", {
+        body: JSON.stringify({
+          conversationId,
+          message: createChatRequestMessage("user-2", "current input"),
+          messages: [frontendOnlyMessage],
+          pageEditMode: "auto",
+          projectId,
+        }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      }),
+    );
+    await response.text();
+
+    expect(response.status).toBe(200);
+    await waitFor(() => expect(aiMocks.createAgentUIStream).toHaveBeenCalled());
+
+    const streamInput = aiMocks.createAgentUIStream.mock.calls[0]?.[0] as {
+      uiMessages: UIMessage[];
+    };
+
+    expect(streamInput.uiMessages).toHaveLength(2);
+    expect(streamInput.uiMessages.map((message) => message.id)).toEqual([
+      "stored-user-1",
+      "user-2",
+    ]);
+    expect(getMessageText(streamInput.uiMessages[1])).toBe(
+      "Rewrite only current input.",
+    );
+  });
+
   it("rewrites duplicate edit prompts with copy target metadata", async () => {
     const { app, root } = await createAppWithTempOptions();
     const workspaceRoot = path.join(root, "workspace");
@@ -441,7 +503,6 @@ describe("createOwnDesignApp static hosting", () => {
       "<main>Dashboard</main>",
     );
 
-    const userMessage = createUserMessage("user-1", "复制后修改");
     aiMocks.generateText.mockResolvedValueOnce({
       text: "Copy dashboard.html to dashboard.copy.html with copyFile, then apply: 复制后修改",
     });
@@ -449,7 +510,7 @@ describe("createOwnDesignApp static hosting", () => {
       new Request("http://localhost/api/chat", {
         body: JSON.stringify({
           conversationId,
-          messages: [userMessage],
+          message: createChatRequestMessage("user-1", "复制后修改"),
           pageEditMode: "duplicate_edit",
           previewPath: "dashboard.html",
           projectId,
@@ -623,51 +684,6 @@ describe("createOwnDesignApp static hosting", () => {
   });
 });
 
-describe("mergeStoredAndIncomingMessages", () => {
-  it("keeps complete stored messages when the frontend sends sanitized history", () => {
-    const storedMessages: UIMessage[] = [
-      {
-        id: "assistant-1",
-        parts: [
-          { text: "private reasoning", type: "reasoning" },
-          {
-            input: { path: "index.html", replace: "private input" },
-            output: { content: "private output", path: "index.html" },
-            state: "output-available",
-            toolCallId: "call-1",
-            type: "tool-edit",
-          },
-        ],
-        role: "assistant",
-      },
-    ];
-    const incomingMessages: UIMessage[] = [
-      {
-        id: "assistant-1",
-        parts: [
-          {
-            input: { path: "index.html" },
-            output: { path: "index.html" },
-            state: "output-available",
-            toolCallId: "call-1",
-            type: "tool-edit",
-          },
-        ],
-        role: "assistant",
-      },
-      {
-        id: "user-2",
-        parts: [{ text: "继续修改", type: "text" }],
-        role: "user",
-      },
-    ];
-
-    expect(
-      mergeStoredAndIncomingMessages(storedMessages, incomingMessages),
-    ).toEqual([...storedMessages, incomingMessages[1]]);
-  });
-});
-
 async function createAppWithStaticRoot() {
   const root = await createTempRoot();
   const staticRoot = path.join(root, "web");
@@ -746,6 +762,10 @@ function createUserMessage(id: string, text: string): UIMessage {
     parts: [{ text, type: "text" }],
     role: "user",
   };
+}
+
+function createChatRequestMessage(id: string, text: string) {
+  return { id, text };
 }
 
 function getMessageText(message: UIMessage | undefined) {

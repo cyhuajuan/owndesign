@@ -1,7 +1,11 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport, type UIMessage } from "ai";
+import {
+  DefaultChatTransport,
+  type FileUIPart,
+  type UIMessage,
+} from "ai";
 import { AlertCircleIcon } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -160,7 +164,22 @@ export function StreamingConversationPanel({
     () =>
       new DefaultChatTransport({
         api: api.streamChatUrl(),
-        body: buildChatRequestBody,
+        prepareSendMessagesRequest: ({
+          api: requestApi,
+          body,
+          credentials,
+          headers,
+          messages: requestMessages,
+        }) => ({
+          api: requestApi,
+          body: {
+            ...buildChatRequestBody(),
+            ...body,
+            message: createCurrentChatRequestMessage(requestMessages),
+          },
+          credentials,
+          headers,
+        }),
         prepareReconnectToStreamRequest: () => ({
           api: api.streamConversationRunUrl(projectId, conversationId, {
             after: reconnectState.afterChunkIndex,
@@ -434,6 +453,25 @@ export function StreamingConversationPanel({
       </div>
     </>
   );
+}
+
+function createCurrentChatRequestMessage(messages: UIMessage[]) {
+  const lastUserMessage = [...messages].reverse().find(
+    (message) => message.role === "user",
+  );
+
+  return {
+    files: lastUserMessage?.parts.filter(isFilePart) ?? [],
+    id: lastUserMessage?.id,
+    text: lastUserMessage?.parts
+      .filter((part) => part.type === "text")
+      .map((part) => part.text)
+      .join("") ?? "",
+  };
+}
+
+function isFilePart(part: UIMessage["parts"][number]): part is FileUIPart {
+  return part.type === "file";
 }
 
 function PageEditModeSelect({

@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useChat } from "@ai-sdk/react";
+import type { UIMessage } from "ai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -15,6 +16,27 @@ function getProjectOutputUpdatedEvents(dispatchEventSpy: ReturnType<typeof vi.sp
   );
 }
 
+type TestTransport = {
+  api: string;
+  prepareReconnectToStreamRequest?: () => { api: string };
+  prepareSendMessagesRequest?: (options: {
+    api: string;
+    body?: Record<string, unknown>;
+    credentials?: RequestCredentials;
+    headers?: HeadersInit;
+    id: string;
+    messageId?: string;
+    messages: UIMessage[];
+    requestMetadata?: unknown;
+    trigger: "submit-message" | "regenerate-message";
+  }) => {
+    api?: string;
+    body: object;
+    credentials?: RequestCredentials;
+    headers?: HeadersInit;
+  };
+};
+
 vi.mock("@ai-sdk/react", () => ({
   useChat: vi.fn(),
 }));
@@ -28,16 +50,49 @@ vi.mock("ai", async () => {
 
   class MockDefaultChatTransport {
     api: string;
-    body: Record<string, unknown> | (() => Record<string, unknown>);
+    body?: Record<string, unknown> | (() => Record<string, unknown>);
+    prepareSendMessagesRequest?: (options: {
+      api: string;
+      body?: Record<string, unknown>;
+      credentials?: RequestCredentials;
+      headers?: HeadersInit;
+      id: string;
+      messageId?: string;
+      messages: unknown[];
+      requestMetadata?: unknown;
+      trigger: "submit-message" | "regenerate-message";
+    }) => {
+      api?: string;
+      body: object;
+      credentials?: RequestCredentials;
+      headers?: HeadersInit;
+    };
     prepareReconnectToStreamRequest?: () => { api: string };
 
     constructor(options: {
       api: string;
-      body: Record<string, unknown> | (() => Record<string, unknown>);
+      body?: Record<string, unknown> | (() => Record<string, unknown>);
+      prepareSendMessagesRequest?: (options: {
+        api: string;
+        body?: Record<string, unknown>;
+        credentials?: RequestCredentials;
+        headers?: HeadersInit;
+        id: string;
+        messageId?: string;
+        messages: unknown[];
+        requestMetadata?: unknown;
+        trigger: "submit-message" | "regenerate-message";
+      }) => {
+        api?: string;
+        body: object;
+        credentials?: RequestCredentials;
+        headers?: HeadersInit;
+      };
       prepareReconnectToStreamRequest?: () => { api: string };
     }) {
       this.api = options.api;
       this.body = options.body;
+      this.prepareSendMessagesRequest = options.prepareSendMessagesRequest;
       this.prepareReconnectToStreamRequest =
         options.prepareReconnectToStreamRequest;
     }
@@ -142,6 +197,29 @@ function stubAnthropicSettings() {
       }),
     ),
   );
+}
+
+function prepareChatRequestBody(
+  transport: TestTransport | undefined,
+  messages: UIMessage[] = [
+    {
+      id: "user-1",
+      parts: [{ text: "生成页面", type: "text" }],
+      role: "user",
+    },
+  ],
+  body: Record<string, unknown> = {},
+) {
+  const prepared = transport?.prepareSendMessagesRequest?.({
+    api: transport.api,
+    body,
+    id: "conversation-1",
+    messageId: undefined,
+    messages,
+    trigger: "submit-message",
+  });
+
+  return prepared?.body as Record<string, unknown>;
 }
 
 describe("MessageParts", () => {
@@ -816,19 +894,87 @@ describe("MessageParts", () => {
     );
 
     const useChatOptions = vi.mocked(useChat).mock.calls.at(-1)?.[0] as
-      | { transport: { api: string; body: () => Record<string, unknown> } }
+      | { transport: TestTransport }
       | undefined;
     const transport = useChatOptions?.transport;
 
     expect(transport).toBeDefined();
     expect(transport?.api).toBe("/api/chat");
-    expect(transport?.body()).toEqual(
+    expect(prepareChatRequestBody(transport)).toEqual(
       expect.objectContaining({
         conversationId: "conversation-1",
         frontendTabId: "tab-1",
+        message: {
+          files: [],
+          id: "user-1",
+          text: "生成页面",
+        },
         pageEditMode: "auto",
         previewPath: "dashboard.html",
         projectId: "project-1",
+      }),
+    );
+    expect(prepareChatRequestBody(transport)).not.toHaveProperty("messages");
+  });
+
+  it("extracts only the current user text and files for the chat request body", () => {
+    vi.mocked(useChat).mockReturnValue({
+      addToolApprovalResponse: vi.fn(),
+      error: undefined,
+      messages: [],
+      sendMessage: vi.fn(),
+      status: "ready",
+      stop: vi.fn(),
+    } as unknown as ReturnType<typeof useChat>);
+
+    render(
+      <StreamingConversationPanel
+        conversationId="conversation-1"
+        conversationTitle="新建会话"
+        initialMessages={[
+          {
+            id: "assistant-1",
+            parts: [{ text: "历史回复", type: "text" }],
+            role: "assistant",
+          },
+        ]}
+        projectId="project-1"
+      />,
+    );
+
+    const useChatOptions = vi.mocked(useChat).mock.calls.at(-1)?.[0] as
+      | { transport: TestTransport }
+      | undefined;
+    const filePart = {
+      filename: "reference.png",
+      mediaType: "image/png",
+      type: "file" as const,
+      url: "data:image/png;base64,AAAA",
+    };
+
+    expect(
+      prepareChatRequestBody(useChatOptions?.transport, [
+        {
+          id: "assistant-1",
+          parts: [{ text: "历史回复", type: "text" }],
+          role: "assistant",
+        },
+        {
+          id: "user-2",
+          parts: [
+            { text: "当前输入", type: "text" },
+            filePart,
+          ],
+          role: "user",
+        },
+      ]),
+    ).toEqual(
+      expect.objectContaining({
+        message: {
+          files: [filePart],
+          id: "user-2",
+          text: "当前输入",
+        },
       }),
     );
   });
@@ -853,10 +999,12 @@ describe("MessageParts", () => {
     );
 
     const useChatOptions = vi.mocked(useChat).mock.calls.at(-1)?.[0] as
-      | { transport: { body: () => Record<string, unknown> } }
+      | { transport: TestTransport }
       | undefined;
 
-    expect(useChatOptions?.transport.body()).not.toHaveProperty("previewPath");
+    expect(prepareChatRequestBody(useChatOptions?.transport)).not.toHaveProperty(
+      "previewPath",
+    );
   });
 
   it("sends Anthropic effort selection in the chat transport body", async () => {
@@ -889,10 +1037,10 @@ describe("MessageParts", () => {
     fireEvent.click(await screen.findByRole("menuitem", { name: "xhigh" }));
 
     const useChatOptions = vi.mocked(useChat).mock.calls.at(-1)?.[0] as
-      | { transport: { body: () => Record<string, unknown> } }
+      | { transport: TestTransport }
       | undefined;
 
-    expect(useChatOptions?.transport.body()).toEqual(
+    expect(prepareChatRequestBody(useChatOptions?.transport)).toEqual(
       expect.objectContaining({
         providerOptionsSelection: {
           anthropic: "xhigh",
@@ -939,10 +1087,10 @@ describe("MessageParts", () => {
     ).toBeInTheDocument();
 
     const useChatOptions = vi.mocked(useChat).mock.calls.at(-1)?.[0] as
-      | { transport: { body: () => Record<string, unknown> } }
+      | { transport: TestTransport }
       | undefined;
 
-    expect(useChatOptions?.transport.body()).toEqual(
+    expect(prepareChatRequestBody(useChatOptions?.transport)).toEqual(
       expect.objectContaining({
         providerOptionsSelection: {
           anthropic: "max",
@@ -1001,12 +1149,21 @@ describe("MessageParts", () => {
     await user.click(await screen.findByRole("option", { name: "直接编辑" }));
 
     const useChatOptions = vi.mocked(useChat).mock.calls.at(-1)?.[0] as
-      | { transport: { body: () => Record<string, unknown> } }
+      | { transport: TestTransport }
       | undefined;
 
-    expect(useChatOptions?.transport.body()).toEqual(
+    expect(prepareChatRequestBody(useChatOptions?.transport)).toEqual(
       expect.objectContaining({
         pageEditMode: "direct_edit",
+      }),
+    );
+    expect(
+      prepareChatRequestBody(useChatOptions?.transport, undefined, {
+        pageEditMode: "duplicate_edit",
+      }),
+    ).toEqual(
+      expect.objectContaining({
+        pageEditMode: "duplicate_edit",
       }),
     );
   });

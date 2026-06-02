@@ -267,7 +267,7 @@ describe("AiSdkDesignPageAgent", () => {
     expect(buildProviderOptions(configuration)).toBeUndefined();
     expect(buildProviderOptions(configuration, { anthropic: "xhigh" })).toEqual({
       anthropic: {
-        thinking: { type: "enabled" },
+        thinking: { type: "adaptive" },
         effort: "xhigh",
       },
     });
@@ -302,7 +302,7 @@ describe("AiSdkDesignPageAgent", () => {
     });
     expect(context.providerOptions).toEqual({
       anthropic: {
-        thinking: { type: "enabled" },
+        thinking: { type: "adaptive" },
         effort: "max",
       },
     });

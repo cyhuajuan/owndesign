@@ -223,7 +223,7 @@ export function buildProviderOptions(
 
     return {
       anthropic: {
-        thinking: { type: "enabled" },
+        thinking: { type: "adaptive" },
         effort: selection.anthropic,
       },
     };

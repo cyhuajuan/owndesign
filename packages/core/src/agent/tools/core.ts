@@ -1,5 +1,6 @@
-import { jsonSchema, tool } from "ai";
+import { tool } from "ai";
 import type { ToolSet } from "ai";
+import type { z } from "zod";
 
 import type { ProjectWorkspaceToolContext } from "./types";
 
@@ -21,13 +22,16 @@ export type WorkspaceToolDefinition<Input, Output> = {
     input: Input,
     context: ProjectWorkspaceToolContext,
   ) => Promise<Output> | Output;
-  inputSchema: Record<string, unknown>;
+  inputSchema: z.ZodType<Input>;
   name: string;
   parallelSafe: boolean;
   validate?: (input: Input) => void;
 };
 
-export type AnyWorkspaceToolDefinition = WorkspaceToolDefinition<never, unknown>;
+export type AnyWorkspaceToolDefinition =
+  Omit<WorkspaceToolDefinition<never, unknown>, "inputSchema"> & {
+    inputSchema: z.ZodType;
+  };
 
 export function createWorkspaceToolRegistry(
   definitions: AnyWorkspaceToolDefinition[],
@@ -46,13 +50,14 @@ export function createWorkspaceToolRegistry(
     };
     tools[definition.name] = tool({
       description: definition.description,
-      inputSchema: jsonSchema(definition.inputSchema),
+      inputSchema: definition.inputSchema,
       execute: async (input: unknown) => {
         const startedAt = performance.now();
 
         try {
-          definition.validate?.(input as never);
-          const output = await definition.execute(input as never, context);
+          const parsedInput = definition.inputSchema.parse(input);
+          definition.validate?.(parsedInput as never);
+          const output = await definition.execute(parsedInput as never, context);
 
           return {
             ok: true,

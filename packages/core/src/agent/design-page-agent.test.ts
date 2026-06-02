@@ -76,7 +76,6 @@ vi.mock("@owndesign/core/realtime/frontend-command-bus", () => ({
 
 vi.mock("ai", () => ({
   generateText: aiMocks.generateText,
-  jsonSchema: vi.fn((schema: unknown) => schema),
   stepCountIs: vi.fn((count: number) => ({ count, type: "stepCountIs" })),
   tool: vi.fn((config: unknown) => config),
   ToolLoopAgent: aiMocks.toolLoopAgent,
@@ -353,7 +352,6 @@ describe("AiSdkDesignPageAgent", () => {
       tools: Record<string, unknown>;
     };
     expect(Object.keys(config.tools).sort()).toEqual([
-      "callFrontendCapability",
       "copyFile",
       "createHtml",
       "delete",
@@ -361,9 +359,12 @@ describe("AiSdkDesignPageAgent", () => {
       "glob",
       "grep",
       "patch",
+      "previewRefresh",
+      "previewSwitchHtml",
       "read",
       "write",
     ]);
+    expect(config.tools).not.toHaveProperty("callFrontendCapability");
     expect(config.tools).not.toHaveProperty("writeFile");
     expect(config.tools).not.toHaveProperty("addCdnResource");
   });
@@ -379,14 +380,58 @@ describe("AiSdkDesignPageAgent", () => {
     const config = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
       tools: {
         __metadata: Record<string, { parallelSafe: boolean }>;
-        patch: { inputSchema: { properties: unknown } };
-        read: { inputSchema: { required: string[] } };
+        patch: { inputSchema: { safeParse: (input: unknown) => { success: boolean } } };
+        previewRefresh: { inputSchema: { safeParse: (input: unknown) => { success: boolean } } };
+        previewSwitchHtml: { inputSchema: { safeParse: (input: unknown) => { success: boolean } } };
+        read: { inputSchema: { safeParse: (input: unknown) => { success: boolean } } };
       };
     };
     expect(config.tools.__metadata.read).toEqual({ parallelSafe: true });
     expect(config.tools.__metadata.patch).toEqual({ parallelSafe: false });
-    expect(config.tools.read.inputSchema.required).toEqual(["path"]);
-    expect(config.tools.patch.inputSchema.properties).toHaveProperty("changes");
+    expect(config.tools.read.inputSchema.safeParse({ path: "index.html" }).success).toBe(true);
+    expect(
+      config.tools.read.inputSchema.safeParse({
+        extra: true,
+        path: "index.html",
+      }).success,
+    ).toBe(false);
+    expect(config.tools.previewRefresh.inputSchema.safeParse({}).success).toBe(true);
+    expect(config.tools.previewRefresh.inputSchema.safeParse({ path: "index.html" }).success)
+      .toBe(false);
+    expect(
+      config.tools.previewSwitchHtml.inputSchema.safeParse({ path: "index.html" }).success,
+    ).toBe(true);
+    expect(config.tools.previewSwitchHtml.inputSchema.safeParse({}).success).toBe(false);
+    expect(
+      config.tools.patch.inputSchema.safeParse({
+        changes: [
+          {
+            content: "<main>Home</main>",
+            operation: "write",
+            path: "index.html",
+          },
+        ],
+      }).success,
+    ).toBe(true);
+    expect(
+      config.tools.patch.inputSchema.safeParse({
+        changes: [{ operation: "write", path: "index.html" }],
+      }).success,
+    ).toBe(false);
+    expect(
+      config.tools.patch.inputSchema.safeParse({
+        changes: [
+          {
+            content: "unexpected",
+            newString: "new",
+            oldString: "old",
+            operation: "edit",
+            path: "index.html",
+          },
+        ],
+      }).success,
+    ).toBe(false);
+    expect(config.tools.patch.inputSchema.safeParse({ changes: [] }).success).toBe(false);
 
     const definitions = createProjectWorkspaceToolDefinitions();
     expect(() =>
@@ -923,19 +968,19 @@ describe("AiSdkDesignPageAgent", () => {
       config.tools.patch.execute({
         changes: [{ operation: "edit", path: "index.html", oldString: "Old" }],
       }),
-      "require oldString and newString",
+      "newString",
     );
     await expectWorkspaceToolError(
       config.tools.patch.execute({
         changes: [{ operation: "write", path: "index.html" }],
       }),
-      "write changes require content",
+      "content",
     );
     await expectWorkspaceToolError(
       config.tools.patch.execute({
         changes: [{ content: "bad", operation: "delete", path: "index.html" }],
       }),
-      "delete changes must not include content",
+      "content",
     );
   });
 
@@ -1227,7 +1272,9 @@ describe("AiSdkDesignPageAgent", () => {
     expect(config.instructions).toContain("real form submissions");
     expect(config.instructions).toContain("Never use emoji as icons");
     expect(config.instructions).toContain("Project Workspace tools");
-    expect(config.instructions).toContain("Use `callFrontendCapability`");
+    expect(config.instructions).toContain("Use preview tools");
+    expect(config.instructions).toContain("previewSwitchHtml");
+    expect(config.instructions).toContain("previewRefresh");
     expect(config.instructions).toContain("preview.switchHtml");
     expect(config.instructions).toContain("preview.refresh");
     expect(config.instructions).not.toContain("<runtime_context>");
@@ -1265,10 +1312,10 @@ describe("AiSdkDesignPageAgent", () => {
       "Notify the Preview Pane according to the frontend capabilities rules",
     );
     expect(config.instructions).toContain(
-      "After successful previewable HTML changes, call exactly one preview capability",
+      "After successful previewable HTML changes, call exactly one preview tool",
     );
     expect(config.instructions).toContain(
-      "Use `preview.refresh` when the Preview Pane is already showing the correct page",
+      "Use `previewRefresh` when the Preview Pane is already showing the correct page",
     );
     expect(config.instructions).toContain(
       "Reply concisely with what changed and what to inspect next",
@@ -1589,17 +1636,14 @@ describe("AiSdkDesignPageAgent", () => {
         workspaceStore,
       },
     ) as unknown as {
-      callFrontendCapability: {
-        execute: (input: {
-          capability: string;
-          payload: unknown;
-        }) => Promise<unknown>;
-      };
       copyFile: {
         execute: (input: {
           sourcePath: string;
           targetPath: string;
         }) => Promise<unknown>;
+      };
+      previewSwitchHtml: {
+        execute: (input: { path: string }) => Promise<unknown>;
       };
       delete: { execute: (input: { path: string }) => Promise<unknown> };
       edit: {
@@ -1725,10 +1769,7 @@ describe("AiSdkDesignPageAgent", () => {
       "can only delete index.copy.html",
     );
     await expectWorkspaceToolError(
-      tools.callFrontendCapability.execute({
-        capability: "preview.switchHtml",
-        payload: { path: "index.html" },
-      }),
+      tools.previewSwitchHtml.execute({ path: "index.html" }),
       "can only preview index.copy.html",
     );
 
@@ -1771,10 +1812,7 @@ describe("AiSdkDesignPageAgent", () => {
     });
     await expect(
       expectWorkspaceToolOk(
-        tools.callFrontendCapability.execute({
-          capability: "preview.switchHtml",
-          payload: { path: "index.copy.html" },
-        }),
+        tools.previewSwitchHtml.execute({ path: "index.copy.html" }),
       ),
     ).resolves.toMatchObject({
       payload: { path: "index.copy.html" },
@@ -1817,12 +1855,6 @@ describe("AiSdkDesignPageAgent", () => {
         workspaceStore,
       },
     ) as unknown as {
-      callFrontendCapability: {
-        execute: (input: {
-          capability: string;
-          payload: unknown;
-        }) => Promise<unknown>;
-      };
       createHtml: { execute: (input: { path: string }) => Promise<unknown> };
       edit: {
         execute: (input: {
@@ -1839,6 +1871,9 @@ describe("AiSdkDesignPageAgent", () => {
         }) => Promise<unknown>;
       };
       read: { execute: (input: { path: string }) => Promise<unknown> };
+      previewSwitchHtml: {
+        execute: (input: { path: string }) => Promise<unknown>;
+      };
       write: {
         execute: (input: { content: string; path: string }) => Promise<unknown>;
       };
@@ -1893,17 +1928,11 @@ describe("AiSdkDesignPageAgent", () => {
       }),
     );
     await expectWorkspaceToolOk(
-      tools.callFrontendCapability.execute({
-        capability: "preview.switchHtml",
-        payload: { path: "index.html" },
-      }),
+      tools.previewSwitchHtml.execute({ path: "index.html" }),
     );
     await expect(
       expectWorkspaceToolOk(
-        tools.callFrontendCapability.execute({
-          capability: "preview.switchHtml",
-          payload: { path: "landing.html" },
-        }),
+        tools.previewSwitchHtml.execute({ path: "landing.html" }),
       ),
     ).resolves.toMatchObject({
       payload: { path: "landing.html" },
@@ -1987,20 +2016,17 @@ describe("AiSdkDesignPageAgent", () => {
 
     const config = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
       tools: {
-        callFrontendCapability: {
-          execute: (input: {
-            capability: string;
-            payload: unknown;
-          }) => Promise<unknown>;
+        previewRefresh: {
+          execute: (input: Record<string, never>) => Promise<unknown>;
+        };
+        previewSwitchHtml: {
+          execute: (input: { path: string }) => Promise<unknown>;
         };
       };
     };
     await expect(
       expectWorkspaceToolOk(
-        config.tools.callFrontendCapability.execute({
-          capability: "preview.switchHtml",
-          payload: { path: "pages/detail.html" },
-        }),
+        config.tools.previewSwitchHtml.execute({ path: "pages/detail.html" }),
       ),
     ).resolves.toEqual({
       capability: "preview.switchHtml",
@@ -2015,10 +2041,7 @@ describe("AiSdkDesignPageAgent", () => {
     });
     await expect(
       expectWorkspaceToolOk(
-        config.tools.callFrontendCapability.execute({
-          capability: "preview.refresh",
-          payload: {},
-        }),
+        config.tools.previewRefresh.execute({}),
       ),
     ).resolves.toEqual({
       capability: "preview.refresh",
@@ -2026,25 +2049,12 @@ describe("AiSdkDesignPageAgent", () => {
       payload: {},
     });
     await expectWorkspaceToolError(
-      config.tools.callFrontendCapability.execute({
-        capability: "preview.switchHtml",
-        payload: { path: "missing.html" },
-      }),
+      config.tools.previewSwitchHtml.execute({ path: "missing.html" }),
       "was not found",
     );
     await expectWorkspaceToolError(
-      config.tools.callFrontendCapability.execute({
-        capability: "preview.switchHtml",
-        payload: { path: "notes.txt" },
-      }),
+      config.tools.previewSwitchHtml.execute({ path: "notes.txt" }),
       "must end with .html",
-    );
-    await expectWorkspaceToolError(
-      config.tools.callFrontendCapability.execute({
-        capability: "preview.switchHtml",
-        payload: {},
-      }),
-      "payload.path",
     );
   });
 
@@ -2062,20 +2072,14 @@ describe("AiSdkDesignPageAgent", () => {
 
     const config = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
       tools: {
-        callFrontendCapability: {
-          execute: (input: {
-            capability: string;
-            payload: unknown;
-          }) => Promise<unknown>;
+        previewRefresh: {
+          execute: (input: Record<string, never>) => Promise<unknown>;
         };
       };
     };
 
     await expectWorkspaceToolError(
-      config.tools.callFrontendCapability.execute({
-        capability: "preview.refresh",
-        payload: {},
-      }),
+      config.tools.previewRefresh.execute({}),
       "Frontend tab id is required",
     );
   });

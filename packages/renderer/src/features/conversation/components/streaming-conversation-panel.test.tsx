@@ -449,7 +449,14 @@ describe("MessageParts", () => {
               output: {},
               state: "output-available",
               toolCallId: "call-1",
-              type: "tool-callFrontendCapability",
+              type: "tool-previewRefresh",
+            },
+            {
+              input: { path: "index.html" },
+              output: { path: "index.html" },
+              state: "output-available",
+              toolCallId: "call-2",
+              type: "tool-previewSwitchHtml",
             },
           ],
           role: "assistant",
@@ -457,8 +464,9 @@ describe("MessageParts", () => {
       />,
     );
 
-    expect(screen.getByText("已更新预览")).toBeInTheDocument();
-    expect(screen.queryByText("已更新预览文件")).not.toBeInTheDocument();
+    expect(screen.getByText("已刷新预览")).toBeInTheDocument();
+    expect(screen.getByText("已切换预览index.html")).toBeInTheDocument();
+    expect(screen.queryByText("已刷新预览文件")).not.toBeInTheDocument();
   });
 
   it("renders simple tool error descriptions without error details", () => {

@@ -1,4 +1,5 @@
 import { assertCopyFileAllowed } from "@owndesign/core/agent/page-edit-mode";
+import { z } from "zod";
 
 import {
   normalizeToolPath,
@@ -15,22 +16,12 @@ export function createCopyFileToolDefinition(): WorkspaceToolDefinition<
   return {
     description:
       "Copy one UTF-8 text file inside the current Project Workspace to a new path. Never overwrites existing files.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        sourcePath: {
-          type: "string",
-          description: "Relative source file path inside the Project Workspace.",
-        },
-        targetPath: {
-          type: "string",
-          description:
-            "Relative destination file path inside the Project Workspace. Must not already exist.",
-        },
-      },
-      required: ["sourcePath", "targetPath"],
-      additionalProperties: false,
-    },
+    inputSchema: z.object({
+      sourcePath: z.string().describe("Relative source file path inside the Project Workspace."),
+      targetPath: z
+        .string()
+        .describe("Relative destination file path inside the Project Workspace. Must not already exist."),
+    }).strict(),
     name: "copyFile",
     parallelSafe: false,
     execute: async (

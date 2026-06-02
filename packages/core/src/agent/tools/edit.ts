@@ -1,4 +1,5 @@
 import { resolveHtmlOperationPathForPageEditModePolicy } from "@owndesign/core/agent/page-edit-mode";
+import { z } from "zod";
 
 import { editProjectWorkspaceFileWithCdnGuard } from "./cdn-guard";
 import type { WorkspaceToolDefinition } from "./core";
@@ -11,30 +12,15 @@ export function createEditToolDefinition(): WorkspaceToolDefinition<
   return {
     description:
       "Edit one UTF-8 text file by replacing oldString with newString. By default oldString must occur exactly once; set replaceAll to replace every occurrence.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        newString: {
-          type: "string",
-          description: "Replacement text.",
-        },
-        oldString: {
-          type: "string",
-          description: "Text to replace.",
-        },
-        path: {
-          type: "string",
-          description: "Relative file path inside the Project Workspace.",
-        },
-        replaceAll: {
-          type: "boolean",
-          description:
-            "Replace every occurrence of oldString instead of requiring exactly one match.",
-        },
-      },
-      required: ["path", "oldString", "newString"],
-      additionalProperties: false,
-    },
+    inputSchema: z.object({
+      newString: z.string().describe("Replacement text."),
+      oldString: z.string().describe("Text to replace."),
+      path: z.string().describe("Relative file path inside the Project Workspace."),
+      replaceAll: z
+        .boolean()
+        .describe("Replace every occurrence of oldString instead of requiring exactly one match.")
+        .optional(),
+    }).strict(),
     name: "edit",
     parallelSafe: false,
     execute: async ({ newString, oldString, path, replaceAll }, {

@@ -32,7 +32,7 @@ function getToolDescription(part: ToolLikePart) {
   const toolName = getToolName(part);
   const target = getToolTarget(part);
   const verb = toolVerbs[toolName] ?? toolName;
-  const suffix = target ?? (toolName === "callFrontendCapability" ? "" : "文件");
+  const suffix = target ?? (isPreviewTool(toolName) ? "" : "文件");
 
   if (isFailedToolPart(part)) {
     return `${verb}${suffix}失败`;
@@ -109,8 +109,11 @@ function getToolOutputOk(part: ToolLikePart) {
   return typeof output.ok === "boolean" ? output.ok : undefined;
 }
 
+function isPreviewTool(toolName: string) {
+  return toolName === "previewRefresh" || toolName === "previewSwitchHtml";
+}
+
 const toolVerbs: Record<string, string> = {
-  callFrontendCapability: "更新预览",
   copyFile: "复制",
   createHtml: "创建",
   delete: "删除",
@@ -118,6 +121,8 @@ const toolVerbs: Record<string, string> = {
   glob: "查找",
   grep: "搜索",
   patch: "修改",
+  previewRefresh: "刷新预览",
+  previewSwitchHtml: "切换预览",
   read: "查看",
   write: "写入",
 };

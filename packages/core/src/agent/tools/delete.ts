@@ -1,4 +1,5 @@
 import { assertHtmlPathOperationAllowed } from "@owndesign/core/agent/page-edit-mode";
+import { z } from "zod";
 
 import type { WorkspaceToolDefinition } from "./core";
 import type { DeleteInput } from "./types";
@@ -10,18 +11,11 @@ export function createDeleteToolDefinition(): WorkspaceToolDefinition<
   return {
     description:
       "Recursively delete a file or directory from the current Project Workspace.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        path: {
-          type: "string",
-          description:
-            "Relative file or directory path inside the Project Workspace.",
-        },
-      },
-      required: ["path"],
-      additionalProperties: false,
-    },
+    inputSchema: z.object({
+      path: z
+        .string()
+        .describe("Relative file or directory path inside the Project Workspace."),
+    }).strict(),
     name: "delete",
     parallelSafe: false,
     execute: async ({ path }, {

@@ -6,12 +6,12 @@ import { useAppNavigate } from "@/lib/router";
 import {
   DownloadIcon,
   ExternalLinkIcon,
-  LayersIcon,
   PanelLeftCloseIcon,
   PanelLeftOpenIcon,
   RefreshCwIcon,
 } from "lucide-react";
 
+import { AppBrand } from "@/components/app-brand";
 import {
   Conversation,
   ConversationContent,
@@ -234,10 +234,7 @@ export function ChatShell({
             shellSlots?.topBarTrailing ? "pr-0" : "pr-3",
           )}
         >
-          <div className="flex shrink-0 items-center gap-2 font-semibold text-primary">
-            <LayersIcon className="size-5" />
-            <span className="text-[15px] tracking-normal">OwnDesign</span>
-          </div>
+          <AppBrand />
           <Separator orientation="vertical" className="h-5" />
           {controlBar ? (
             <div key="control-bar" className="min-w-0">

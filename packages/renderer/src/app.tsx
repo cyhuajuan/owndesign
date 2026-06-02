@@ -7,8 +7,8 @@ import {
   Routes,
   Route,
 } from "react-router";
-import { LayersIcon } from "lucide-react";
 
+import { AppBrand } from "@/components/app-brand";
 import { Separator } from "@/components/ui/separator";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ApiClientProvider, useApiClient } from "@/api/context";
@@ -213,10 +213,7 @@ function renderStandaloneRouteContent(
   return (
     <div className="flex h-screen w-full flex-col overflow-hidden bg-background text-foreground">
       <header className="flex h-11 shrink-0 items-center gap-2 border-b border-border bg-card py-0 pl-3 pr-0">
-        <div className="flex shrink-0 items-center gap-2 font-semibold text-primary">
-          <LayersIcon className="size-5" />
-          <span className="text-[15px] tracking-normal">OwnDesign</span>
-        </div>
+        <AppBrand />
         <Separator orientation="vertical" className="h-5" />
         {shellSlots.topBarDragRegion ?? <div className="flex-1" />}
         {shellSlots.topBarTrailing}

@@ -1,4 +1,5 @@
 import type { ResourceLibrary } from "@owndesign/core/settings/settings-service";
+import { z } from "zod";
 
 import {
   assertCreateHtmlAllowed,
@@ -27,32 +28,23 @@ export function createCreateHtmlToolDefinition(): WorkspaceToolDefinition<
   return {
     description:
       "Create a new previewable HTML file from the configured resource template before designing a missing target HTML page. Never overwrites existing files.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        fontLibraryName: {
-          type: "string",
-          description:
-            "Optional configured font library name. Omit to use the default font library. Pass an empty string to disable font resources.",
-        },
-        iconLibraryName: {
-          type: "string",
-          description:
-            "Optional configured icon library name. Omit to use the default icon library. Pass an empty string to disable icon resources.",
-        },
-        path: {
-          type: "string",
-          description:
-            "Relative HTML file path inside the Project Workspace, such as index.html or pages/detail.html.",
-        },
-        title: {
-          type: "string",
-          description: "Optional document title. Defaults to OwnDesign Preview.",
-        },
-      },
-      required: ["path"],
-      additionalProperties: false,
-    },
+    inputSchema: z.object({
+      fontLibraryName: z
+        .string()
+        .describe("Optional configured font library name. Omit to use the default font library. Pass an empty string to disable font resources.")
+        .optional(),
+      iconLibraryName: z
+        .string()
+        .describe("Optional configured icon library name. Omit to use the default icon library. Pass an empty string to disable icon resources.")
+        .optional(),
+      path: z
+        .string()
+        .describe("Relative HTML file path inside the Project Workspace, such as index.html or pages/detail.html."),
+      title: z
+        .string()
+        .describe("Optional document title. Defaults to OwnDesign Preview.")
+        .optional(),
+    }).strict(),
     name: "createHtml",
     parallelSafe: false,
     execute: async (input, {

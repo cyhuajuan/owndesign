@@ -86,12 +86,12 @@ export function validateFrontendCapabilityPayload(
 export function buildFrontendCapabilityPrompt() {
   return [
     "## Frontend Capabilities",
-    "Use `callFrontendCapability` only to notify the browser UI after Project Workspace file changes are complete. It does not create, edit, or validate files.",
-    "After successful previewable HTML changes, call exactly one preview capability before the final user-facing summary.",
-    "Do not call a preview capability when no previewable HTML file changed or the file operation failed.",
-    "Use the current user request to decide which capability is needed:",
-    "- Use `preview.switchHtml` only when the Preview Pane should move to a different existing relative `.html` file inside the Project Workspace.",
-    "- Use `preview.refresh` when the Preview Pane is already showing the correct page and only needs to reload changed HTML.",
+    "Use preview tools only to notify the browser UI after Project Workspace file changes are complete. They do not create, edit, or validate files.",
+    "After successful previewable HTML changes, call exactly one preview tool before the final user-facing summary.",
+    "Do not call a preview tool when no previewable HTML file changed or the file operation failed.",
+    "Use the current user request to decide which preview tool is needed:",
+    "- Use `previewSwitchHtml` only when the Preview Pane should move to a different existing relative `.html` file inside the Project Workspace.",
+    "- Use `previewRefresh` when the Preview Pane is already showing the correct page and only needs to reload changed HTML.",
     "Do not use workspace file tools to simulate preview switching or refreshing.",
     "Available capabilities:",
     ...FRONTEND_CAPABILITY_IDS.map((capability) => {

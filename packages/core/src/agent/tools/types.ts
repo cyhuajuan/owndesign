@@ -72,11 +72,6 @@ export type ReadInput = {
   path: string;
 };
 
-export type CallFrontendCapabilityInput = {
-  capability: string;
-  payload: unknown;
-};
-
 export type WriteInput = {
   content: string;
   path: string;

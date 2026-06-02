@@ -1,4 +1,5 @@
 import { resolveHtmlOperationPathForPageEditModePolicy } from "@owndesign/core/agent/page-edit-mode";
+import { z } from "zod";
 
 import { writeProjectWorkspaceFileWithCdnGuard } from "./cdn-guard";
 import type { WorkspaceToolDefinition } from "./core";
@@ -11,21 +12,10 @@ export function createWriteToolDefinition(): WorkspaceToolDefinition<
   return {
     description:
       "Create or overwrite one UTF-8 text file in the current Project Workspace.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        content: {
-          type: "string",
-          description: "Complete UTF-8 text file content.",
-        },
-        path: {
-          type: "string",
-          description: "Relative file path inside the Project Workspace.",
-        },
-      },
-      required: ["path", "content"],
-      additionalProperties: false,
-    },
+    inputSchema: z.object({
+      content: z.string().describe("Complete UTF-8 text file content."),
+      path: z.string().describe("Relative file path inside the Project Workspace."),
+    }).strict(),
     name: "write",
     parallelSafe: false,
     execute: async ({ content, path }, {

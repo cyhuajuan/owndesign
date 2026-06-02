@@ -21,7 +21,6 @@ vi.mock("ai", () => ({
   createAgentUIStream: aiMocks.createAgentUIStream,
   createUIMessageStreamResponse: vi.fn(() => new Response("")),
   generateText: aiMocks.generateText,
-  jsonSchema: vi.fn((schema: unknown) => schema),
   readUIMessageStream: vi.fn(async function* () {}),
   stepCountIs: vi.fn((count: number) => ({ count, type: "stepCountIs" })),
   tool: vi.fn((config: unknown) => config),

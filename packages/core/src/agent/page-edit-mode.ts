@@ -259,7 +259,7 @@ async function resolveUniqueCopyPath(
 ) {
   const parsed = path.posix.parse(sourcePath);
   const directory = parsed.dir ? `${parsed.dir}/` : "";
-  const baseName = parsed.name;
+  const baseName = normalizeCopyBaseName(parsed.name);
   const extension = parsed.ext || ".html";
 
   for (let index = 1; index < 1000; index += 1) {
@@ -274,4 +274,8 @@ async function resolveUniqueCopyPath(
   }
 
   throw new Error(`Could not create a unique copy path for ${sourcePath}.`);
+}
+
+function normalizeCopyBaseName(baseName: string) {
+  return baseName.replace(/\.copy(?:-\d+)?$/, "");
 }

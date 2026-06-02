@@ -1501,6 +1501,83 @@ describe("AiSdkDesignPageAgent", () => {
     ).rejects.toThrow("ENOENT");
   });
 
+  it("resolves duplicate edit targets from the original copy base name", async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    await workspaceStore.writeProjectWorkspaceFile(
+      "project-1",
+      "index.html",
+      "<main>Home</main>",
+    );
+    await workspaceStore.writeProjectWorkspaceFile(
+      "project-1",
+      "index.copy.html",
+      "<main>Home Copy</main>",
+    );
+
+    await expect(
+      createDesignPageAgentContext({
+        currentPreviewPath: "index.html",
+        modelConfigurationId: "model-1",
+        outputType: "html",
+        pageEditMode: "duplicate_edit",
+        projectId: "project-1",
+        workspaceStore,
+      }),
+    ).resolves.toMatchObject({
+      pageEditModePolicy: {
+        mode: "duplicate_edit",
+        sourcePath: "index.html",
+        targetPath: "index.copy-2.html",
+      },
+    });
+
+    await expect(
+      createDesignPageAgentContext({
+        currentPreviewPath: "index.copy.html",
+        modelConfigurationId: "model-1",
+        outputType: "html",
+        pageEditMode: "duplicate_edit",
+        projectId: "project-1",
+        workspaceStore,
+      }),
+    ).resolves.toMatchObject({
+      pageEditModePolicy: {
+        mode: "duplicate_edit",
+        sourcePath: "index.copy.html",
+        targetPath: "index.copy-2.html",
+      },
+    });
+
+    await workspaceStore.writeProjectWorkspaceFile(
+      "project-1",
+      "pages/home.copy.html",
+      "<main>Home Copy</main>",
+    );
+    await workspaceStore.writeProjectWorkspaceFile(
+      "project-1",
+      "pages/home.copy-2.html",
+      "<main>Home Copy 2</main>",
+    );
+
+    await expect(
+      createDesignPageAgentContext({
+        currentPreviewPath: "pages/home.copy-2.html",
+        modelConfigurationId: "model-1",
+        outputType: "html",
+        pageEditMode: "duplicate_edit",
+        projectId: "project-1",
+        workspaceStore,
+      }),
+    ).resolves.toMatchObject({
+      pageEditModePolicy: {
+        mode: "duplicate_edit",
+        sourcePath: "pages/home.copy-2.html",
+        targetPath: "pages/home.copy-3.html",
+      },
+    });
+  });
+
   it("enforces forced page edit modes in workspace tools", async () => {
     const workspaceStore = await createWorkspaceStore();
     await createProject(workspaceStore);

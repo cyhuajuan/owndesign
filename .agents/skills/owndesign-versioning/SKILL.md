@@ -32,6 +32,12 @@ pnpm version:set <platform|web|cli|desktop> <x.y.z>
 
 Use `version:bump` for normal releases. Use `version:set` only for exact target versions. Use `version:sync` when `versions.json` is correct but tracked version fields drift.
 
+## Default Behavior
+
+When a user asks to bump, update, or release a version track with this skill, run the full Release Workflow by default. This applies even when the user says only "patch", "minor", "major", "bump", or "update" and does not explicitly say "release".
+
+Only skip committing or tagging when the user explicitly asks for no commit, no tag, dry run, local-only changes, or version sync/check without a release.
+
 ## Release Workflow
 
 For any track:

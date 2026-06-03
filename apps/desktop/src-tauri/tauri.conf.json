@@ -30,6 +30,8 @@
     "resources": {
       "resources/server": "server"
     },
-    "targets": ["nsis"]
+    "targets": [
+      "nsis"
+    ]
   }
 }

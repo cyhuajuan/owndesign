@@ -1,4 +1,4 @@
-import { cp, mkdir, rm } from "node:fs/promises";
+import { cp, mkdir, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -9,6 +9,7 @@ const repoRoot = path.resolve(packageRoot, "../..");
 const distDir = path.join(packageRoot, "dist");
 const serverDistDir = path.join(repoRoot, "packages/server/dist");
 const webDistDir = path.join(repoRoot, "apps/web/dist");
+const packageJson = JSON.parse(await readFile(path.join(packageRoot, "package.json"), "utf8"));
 
 await rm(distDir, { force: true, recursive: true });
 await mkdir(distDir, { recursive: true });
@@ -23,6 +24,9 @@ await build({
   },
   bundle: true,
   entryPoints: [path.join(packageRoot, "src/index.ts")],
+  define: {
+    __OWNDESIGN_CLI_VERSION__: JSON.stringify(packageJson.version),
+  },
   format: "esm",
   outfile: path.join(distDir, "index.js"),
   platform: "node",

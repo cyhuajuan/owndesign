@@ -9,7 +9,7 @@ type CliOptions = {
 
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PORT = 3710;
-const VERSION = "0.1.0";
+declare const __OWNDESIGN_CLI_VERSION__: string;
 
 async function main(argv: string[]) {
   const options = parseArgs(argv);
@@ -20,7 +20,7 @@ async function main(argv: string[]) {
   }
 
   if (options === "version") {
-    console.log(VERSION);
+    console.log(__OWNDESIGN_CLI_VERSION__);
     return;
   }
 

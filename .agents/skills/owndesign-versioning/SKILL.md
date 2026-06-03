@@ -43,7 +43,11 @@ For any track:
    - web: `pnpm --filter @owndesign/web build`
    - cli: `pnpm --filter owndesign build`, then `node packages/cli/dist/index.js --version`
    - desktop: `pnpm --filter @owndesign/desktop build`
-4. Use tag names:
+4. Commit the version files before tagging:
+   - `git status --short`
+   - `git add versions.json <changed version target files>`
+   - `git commit -m "chore(release): <track> vX.Y.Z"`
+5. Use tag names:
    - `platform-vX.Y.Z`
    - `web-vX.Y.Z`
    - `cli-vX.Y.Z`
@@ -56,7 +60,7 @@ git tag <track>-vX.Y.Z
 git tag --list "<track>-vX.Y.Z"
 ```
 
-Use the bumped version from `versions.json`. Do not create a tag if build/check failed.
+Use the bumped version from `versions.json`. Do not create a tag if build/check failed. Always tag the release commit, not an uncommitted working tree.
 
 ## Guardrails
 

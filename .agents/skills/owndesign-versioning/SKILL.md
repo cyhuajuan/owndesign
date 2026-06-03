@@ -49,6 +49,15 @@ For any track:
    - `cli-vX.Y.Z`
    - `desktop-vX.Y.Z`
 
+Create the release tag only after validation passes:
+
+```bash
+git tag <track>-vX.Y.Z
+git tag --list "<track>-vX.Y.Z"
+```
+
+Use the bumped version from `versions.json`. Do not create a tag if build/check failed.
+
 ## Guardrails
 
 - Keep `versions.json` as the only source of truth.

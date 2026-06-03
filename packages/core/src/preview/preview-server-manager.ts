@@ -26,6 +26,7 @@ type PreviewServerEntry = {
 const DEFAULT_CLEANUP_INTERVAL_MS = 30_000;
 const DEFAULT_LEASE_TTL_MS = 90_000;
 const PREVIEW_HOST = "127.0.0.1";
+const PREVIEW_CACHE_CONTROL = "no-store";
 
 declare global {
   var __owndesignPreviewServerManager: PreviewServerManager | undefined;
@@ -169,6 +170,10 @@ export class PreviewServerManager {
     app.get("/index.html", async () =>
       htmlResponse(await readIndexHtmlOrEmptyPreview(workspaceDirectory, entry)),
     );
+    app.use("*", async (context, next) => {
+      context.header("Cache-Control", PREVIEW_CACHE_CONTROL);
+      await next();
+    });
     app.use("*", serveStatic({
       onFound: (filePath) => {
         recordServedStaticPath(entry, workspaceDirectory, filePath);
@@ -222,6 +227,7 @@ export class PreviewServerManager {
 function htmlResponse(html: string) {
   return new Response(html, {
     headers: {
+      "Cache-Control": PREVIEW_CACHE_CONTROL,
       "Content-Type": "text/html; charset=utf-8",
     },
   });

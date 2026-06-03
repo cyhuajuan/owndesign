@@ -106,6 +106,7 @@ describe("PreviewServerManager", () => {
     expect(session.activePath).toBe("index.html");
     expect(session.files).toEqual(["index.html"]);
     expect(session.url).not.toContain("?");
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
     await expect(response.text()).resolves.toContain("Preview works");
   });
 
@@ -185,10 +186,11 @@ describe("PreviewServerManager", () => {
       "client-1",
       "pages/about.html",
     );
-    await fetch(new URL("/assets/site.css", session.url));
+    const response = await fetch(new URL("/assets/site.css", session.url));
 
     const heartbeat = await manager.heartbeat("project-1", "client-1");
 
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
     expect(heartbeat.activePath).toBe("pages/about.html");
   });
 

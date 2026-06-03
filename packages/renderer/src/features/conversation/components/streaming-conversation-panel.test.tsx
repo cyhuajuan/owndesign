@@ -327,6 +327,41 @@ describe("MessageParts", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("renders user text without markdown parsing", () => {
+    const { container } = render(
+      <MessageParts
+        message={{
+          id: "user-1",
+          parts: [{ text: "**不要加粗**\n`code`", type: "text" }],
+          role: "user",
+        }}
+      />,
+    );
+
+    expect(container.textContent).toBe("**不要加粗**\n`code`");
+    expect(container.querySelector("strong")).not.toBeInTheDocument();
+    expect(container.querySelector("code")).not.toBeInTheDocument();
+  });
+
+  it("renders original user prompts without markdown parsing", () => {
+    const { container } = render(
+      <MessageParts
+        message={{
+          id: "user-1",
+          metadata: {
+            originalUserPrompt: "**原始输入**",
+          },
+          parts: [{ text: "改写后的输入", type: "text" }],
+          role: "user",
+        }}
+      />,
+    );
+
+    expect(screen.getByText("**原始输入**")).toBeInTheDocument();
+    expect(screen.queryByText("改写后的输入")).not.toBeInTheDocument();
+    expect(container.querySelector("strong")).not.toBeInTheDocument();
+  });
+
   it("does not render streaming reasoning text", () => {
     const { container } = render(
       <MessageParts

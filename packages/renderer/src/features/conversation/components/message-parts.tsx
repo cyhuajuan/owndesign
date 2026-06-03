@@ -34,13 +34,14 @@ export function MessageParts({
   return (
     <>
       {originalUserPrompt ? (
-        <MessageResponse>{originalUserPrompt}</MessageResponse>
+        <PlainTextResponse>{originalUserPrompt}</PlainTextResponse>
       ) : null}
       {message.parts.map((part, index) => (
         originalUserPrompt && part.type === "text" ? null :
         <MessagePart
           key={`${message.id}-${index}-${part.type}`}
           isReasoningStreaming={index === streamingReasoningPartIndex}
+          role={message.role}
           useStreamingText={useStreamingText}
           part={part}
         />
@@ -52,13 +53,19 @@ export function MessageParts({
 function MessagePart({
   isReasoningStreaming,
   part,
+  role,
   useStreamingText,
 }: {
   isReasoningStreaming: boolean;
   part: UIMessage["parts"][number];
+  role: UIMessage["role"];
   useStreamingText: boolean;
 }) {
   if (part.type === "text") {
+    if (role === "user") {
+      return <PlainTextResponse>{part.text}</PlainTextResponse>;
+    }
+
     if (useStreamingText) {
       return <StreamingTextResponse>{part.text}</StreamingTextResponse>;
     }
@@ -83,6 +90,14 @@ function ReasoningPendingIndicator() {
   return (
     <div className="w-full font-medium text-muted-foreground text-sm">
       <Shimmer as="span">{t("conversation.thinking")}</Shimmer>
+    </div>
+  );
+}
+
+function PlainTextResponse({ children }: { children: string }) {
+  return (
+    <div className="size-full whitespace-pre-wrap break-words">
+      {children}
     </div>
   );
 }

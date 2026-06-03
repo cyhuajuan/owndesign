@@ -23,9 +23,10 @@ export function getDeepSeekThinkingMode(configuration: {
 export function getSelectedModelLabel(
   configuration: PublicModelConfiguration | undefined,
   anthropicEffort?: AnthropicEffort,
+  fallback = "",
 ) {
   if (!configuration) {
-    return "未配置模型";
+    return fallback;
   }
 
   if (configuration.provider === "anthropic") {

@@ -16,6 +16,7 @@ import {
   InputGroupAddon,
 } from "@/components/ui/input-group"
 import { SearchIcon, CheckIcon } from "lucide-react"
+import { useI18n } from "@/features/i18n/context"
 
 function Command({
   className,
@@ -34,8 +35,8 @@ function Command({
 }
 
 function CommandDialog({
-  title = "命令面板",
-  description = "搜索可执行的命令...",
+  title,
+  description,
   children,
   className,
   showCloseButton = false,
@@ -47,11 +48,13 @@ function CommandDialog({
   showCloseButton?: boolean
   children: React.ReactNode
 }) {
+  const { t } = useI18n()
+
   return (
     <Dialog {...props}>
       <DialogHeader className="sr-only">
-        <DialogTitle>{title}</DialogTitle>
-        <DialogDescription>{description}</DialogDescription>
+        <DialogTitle>{title ?? t("ui.commandTitle")}</DialogTitle>
+        <DialogDescription>{description ?? t("ui.commandDescription")}</DialogDescription>
       </DialogHeader>
       <DialogContent
         className={cn(

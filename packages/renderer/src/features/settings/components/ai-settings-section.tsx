@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { ChevronDownIcon, PlusIcon, XIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/features/i18n/context";
 import {
   DEEPSEEK_CONTEXT_SIZE_K,
   DEEPSEEK_MODELS,
@@ -23,17 +24,18 @@ export function AiSettingsSection({
   modelConfigurations: ModelConfigurationForm[];
   onChange: (configurations: ModelConfigurationForm[]) => void;
 }) {
+  const { t } = useI18n();
+
   return (
     <div>
-      <div className="mb-1 text-base font-semibold">AI 模型</div>
+      <div className="mb-1 text-base font-semibold">{t("settings.aiModels")}</div>
       <div className="mb-6 text-[13px] leading-normal text-[#6b6b76]">
-        添加和管理多个 AI 模型配置，每个配置包含 Provider、Model、Base URL 和
-        API Key。
+        {t("settings.aiDescription")}
       </div>
       <div className="mb-4 flex flex-col gap-3">
         {modelConfigurations.length === 0 ? (
           <div className="px-4 py-8 text-center text-[13px] text-[#6b6b76]">
-            暂无模型配置，点击下方按钮添加。
+            {t("settings.noModel")}
           </div>
         ) : (
           modelConfigurations.map((configuration, index) => (
@@ -76,7 +78,7 @@ export function AiSettingsSection({
         type="button"
       >
         <PlusIcon />
-        添加模型
+        {t("settings.addModel")}
       </button>
     </div>
   );
@@ -91,8 +93,9 @@ function ModelConfigCard({
   onChange: (configuration: ModelConfigurationForm) => void;
   onRemove: () => void;
 }) {
+  const { t } = useI18n();
   const label =
-    configuration.model || getProviderLabel(configuration.provider) || "未命名";
+    configuration.model || getProviderLabel(configuration.provider) || t("settings.unnamed");
 
   return (
     <div className="overflow-hidden rounded-[8px] border border-[#2a2a2e] bg-[#0a0a0b] transition-colors duration-150 hover:border-[#38383d]">
@@ -120,7 +123,7 @@ function ModelConfigCard({
             event.stopPropagation();
             onRemove();
           }}
-          title="删除此配置"
+          title={t("settings.deleteConfiguration")}
           type="button"
         >
           <XIcon />
@@ -162,7 +165,7 @@ function ModelConfigCard({
               }}
               value={configuration.provider}
             >
-              <option value="">选择 Provider...</option>
+              <option value="">{t("settings.selectProvider")}</option>
               <option value="deepseek">DeepSeek</option>
               <option value="openai-compatible">OpenAI Compatible</option>
               <option value="anthropic">Anthropic</option>
@@ -199,8 +202,8 @@ function ModelConfigCard({
                 }
                 placeholder={
                   configuration.provider === "anthropic"
-                    ? "例如 claude-sonnet-4-5"
-                    : "例如 gpt-4o"
+                    ? t("settings.anthropicModelPlaceholder")
+                    : t("settings.openAiModelPlaceholder")
                 }
                 type="text"
                 value={configuration.model}

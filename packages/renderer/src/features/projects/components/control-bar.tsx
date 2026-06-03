@@ -61,8 +61,9 @@ import {
 } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/features/i18n/context";
 import { EntityMenu } from "@/features/projects/components/entity-menu";
-import { filterByQuery, getDeleteName } from "@/features/projects/utils";
+import { filterByQuery } from "@/features/projects/utils";
 
 type ControlBarProps = {
   activeConversationId?: string;
@@ -123,6 +124,7 @@ export function ControlBar({
   onSelectProject,
   projects,
 }: ControlBarProps) {
+  const { t } = useI18n();
   const navigate = useAppNavigate();
   const [openMenu, setOpenMenu] = useState<"project" | "conversation" | null>(
     null,
@@ -183,7 +185,9 @@ export function ControlBar({
         <PopoverTrigger
           render={
             <Button
-              aria-label={`项目切换器 ${displayedProject?.name ?? "暂无当前项目"}`}
+              aria-label={t("projects.projectSwitcher", {
+                name: displayedProject?.name ?? t("projects.noCurrentProject"),
+              })}
               className="h-7 max-w-[220px] justify-start gap-1.5 px-2 text-xs"
               type="button"
               variant="ghost"
@@ -192,7 +196,7 @@ export function ControlBar({
         >
           <span className="size-1.5 shrink-0 rounded-full bg-primary" />
           <span className="truncate text-foreground">
-            {displayedProject?.name ?? "选择项目"}
+            {displayedProject?.name ?? t("projects.selectProject")}
           </span>
           <ChevronDownIcon data-icon="inline-end" />
         </PopoverTrigger>
@@ -204,16 +208,16 @@ export function ControlBar({
           <Command shouldFilter={false}>
             <div className="px-3 pt-3 pb-2">
               <CommandInput
-                aria-label="搜索项目"
+                aria-label={t("projects.searchProjects")}
                 className="border-0 bg-transparent px-0"
                 onValueChange={setProjectQuery}
-                placeholder="搜索项目..."
+                placeholder={t("projects.searchProjectsPlaceholder")}
                 value={projectQuery}
                 wrapperClassName="w-full p-0"
               />
             </div>
             <CommandList>
-              <CommandEmpty>没有匹配的项目。</CommandEmpty>
+              <CommandEmpty>{t("projects.noMatchingProjects")}</CommandEmpty>
               <CommandGroup>
                 {filteredProjects.map((project) => (
                   <CommandItem
@@ -265,10 +269,10 @@ export function ControlBar({
                     setIsProjectCreateOpen(true);
                   }}
                   showIndicator={false}
-                  value="新建项目"
+                  value={t("projects.newProject")}
                 >
                   <PlusIcon data-icon="inline-start" />
-                  新建项目
+                  {t("projects.newProject")}
                 </CommandItem>
               </CommandGroup>
             </CommandList>
@@ -288,11 +292,11 @@ export function ControlBar({
         <PopoverTrigger
           render={
             <Button
-              aria-label={`会话切换器 ${
-                isProjectSwitchPending
-                  ? "加载会话..."
-                  : activeConversation?.title ?? "暂无当前会话"
-              }`}
+              aria-label={t("projects.conversationSwitcher", {
+                name: isProjectSwitchPending
+                  ? t("projects.loadingConversations")
+                  : activeConversation?.title ?? t("projects.noCurrentConversation"),
+              })}
               className="h-7 max-w-[220px] justify-start gap-1.5 px-2 text-xs"
               disabled={!activeProject || isProjectSwitchPending}
               type="button"
@@ -303,8 +307,8 @@ export function ControlBar({
           <span className="size-1.5 shrink-0 rounded-full bg-[var(--status-ready)]" />
           <span className="truncate text-foreground">
             {isProjectSwitchPending
-              ? "加载会话..."
-              : activeConversation?.title ?? "选择会话"}
+              ? t("projects.loadingConversations")
+              : activeConversation?.title ?? t("projects.selectConversation")}
           </span>
           <ChevronDownIcon data-icon="inline-end" />
         </PopoverTrigger>
@@ -316,16 +320,16 @@ export function ControlBar({
           <Command shouldFilter={false}>
             <div className="px-3 pt-3 pb-2">
               <CommandInput
-                aria-label="搜索会话"
+                aria-label={t("projects.searchConversations")}
                 className="border-0 bg-transparent px-0"
                 onValueChange={setConversationQuery}
-                placeholder="搜索会话..."
+                placeholder={t("projects.searchConversationsPlaceholder")}
                 value={conversationQuery}
                 wrapperClassName="w-full p-0"
               />
             </div>
             <CommandList>
-              <CommandEmpty>没有匹配的会话。</CommandEmpty>
+              <CommandEmpty>{t("projects.noMatchingConversations")}</CommandEmpty>
               <CommandGroup>
                 {filteredConversations.map((conversation) => (
                   <CommandItem
@@ -376,10 +380,10 @@ export function ControlBar({
                     });
                   }}
                   showIndicator={false}
-                  value="新建会话"
+                  value={t("projects.newConversation")}
                 >
                   <PlusIcon data-icon="inline-start" />
-                  新建会话
+                  {t("projects.newConversation")}
                 </CommandItem>
               </CommandGroup>
             </CommandList>
@@ -398,26 +402,26 @@ export function ControlBar({
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>新建项目</DialogTitle>
+            <DialogTitle>{t("projects.createTitle")}</DialogTitle>
             <DialogDescription>
-              创建后会自动进入新项目的第一段会话。
+              {t("projects.createDescription")}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleProjectCreate}>
             <FieldGroup>
               <Field>
-                <FieldLabel htmlFor={projectNameId}>项目名称</FieldLabel>
+                <FieldLabel htmlFor={projectNameId}>{t("projects.projectName")}</FieldLabel>
                 <Input
                   id={projectNameId}
                   onChange={(event) => setProjectName(event.target.value)}
-                  placeholder="输入项目名称"
+                  placeholder={t("projects.projectNamePlaceholder")}
                   required
                   value={projectName}
                 />
               </Field>
             </FieldGroup>
             <DialogFooter className="mt-5 border-t-0">
-              <Button type="submit">创建项目</Button>
+              <Button type="submit">{t("projects.create")}</Button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -436,16 +440,18 @@ export function ControlBar({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {renameTarget?.type === "project" ? "重命名项目" : "重命名会话"}
+              {renameTarget?.type === "project"
+                ? t("projects.renameProject")
+                : t("projects.renameConversation")}
             </DialogTitle>
             <DialogDescription>
-              更新顶栏和列表中展示的名称。
+              {t("projects.renameDescription")}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleRename}>
             <FieldGroup>
               <Field>
-                <FieldLabel htmlFor={renameNameId}>新名称</FieldLabel>
+                <FieldLabel htmlFor={renameNameId}>{t("projects.newName")}</FieldLabel>
                 <Input
                   id={renameNameId}
                   onChange={(event) => setRenameName(event.target.value)}
@@ -456,7 +462,7 @@ export function ControlBar({
               {renameTarget?.type === "project" ? (
                 <Field>
                   <FieldLabel htmlFor={renameDescriptionId}>
-                    项目描述
+                    {t("projects.projectDescription")}
                   </FieldLabel>
                   <Textarea
                     id={renameDescriptionId}
@@ -469,7 +475,7 @@ export function ControlBar({
               ) : null}
             </FieldGroup>
             <DialogFooter className="mt-5">
-              <Button type="submit">保存</Button>
+              <Button type="submit">{t("common.save")}</Button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -485,14 +491,24 @@ export function ControlBar({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>确认删除</AlertDialogTitle>
+            <AlertDialogTitle>{t("projects.confirmDelete")}</AlertDialogTitle>
             <AlertDialogDescription>
-              将移入系统回收站，而非永久删除。
-              {deleteTarget ? ` ${getDeleteName(deleteTarget)}` : ""}
+              {t("projects.deleteDescription")}
+              {deleteTarget
+                ? ` ${
+                    deleteTarget.type === "project"
+                      ? t("projects.deleteProjectName", {
+                          name: deleteTarget.project.name,
+                        })
+                      : t("projects.deleteConversationName", {
+                          name: deleteTarget.conversation.title,
+                        })
+                  }`
+                : ""}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
               onClick={() => {
@@ -511,7 +527,7 @@ export function ControlBar({
                 });
               }}
             >
-              删除
+              {t("common.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

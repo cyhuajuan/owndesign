@@ -30,10 +30,12 @@ describe("InitialSetupGuide", () => {
     render(<InitialSetupGuide onComplete={vi.fn()} />);
 
     await user.click(screen.getByRole("button", { name: /English English \(US\)/ }));
-    await user.click(screen.getByRole("button", { name: /继续/ }));
-    await user.click(screen.getByRole("button", { name: /继续/ }));
+    await user.click(getLastButton());
+    await user.click(getLastButton());
 
-    expect(screen.getByText("确认你的初始设置，随时可以进入主界面开始设计。")).toBeInTheDocument();
+    expect(
+      screen.queryByText("确认你的初始设置，随时可以进入主界面开始设计。"),
+    ).not.toBeInTheDocument();
     expect(screen.getByText("English")).toBeInTheDocument();
     expect(
       screen.getByText((content) =>
@@ -80,3 +82,9 @@ describe("InitialSetupGuide", () => {
     );
   });
 });
+
+function getLastButton() {
+  const buttons = screen.getAllByRole("button");
+
+  return buttons[buttons.length - 1];
+}

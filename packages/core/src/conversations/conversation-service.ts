@@ -10,6 +10,10 @@ import {
   getFirstUserMessageText,
   OwnDesignUIMessage,
 } from "./chat-messages";
+import {
+  FALLBACK_CONVERSATION_TITLE,
+  normalizeDefaultConversationTitle,
+} from "./default-title";
 
 type ConversationServiceOptions = {
   workspaceStore: WorkspaceStore;
@@ -38,7 +42,7 @@ type AssistantMessage = {
   createdAt: string;
 };
 
-const DEFAULT_CONVERSATION_TITLE = "新建会话";
+const DEFAULT_CONVERSATION_TITLE = FALLBACK_CONVERSATION_TITLE;
 
 export class ConversationService {
   private readonly workspaceStore: WorkspaceStore;
@@ -54,12 +58,12 @@ export class ConversationService {
       options.designPageAgent ?? new AiSdkDesignPageAgent(this.workspaceStore);
   }
 
-  async createConversation(projectId: string) {
+  async createConversation(projectId: string, defaultTitle?: string) {
     const timestamp = this.now();
     const conversation: ConversationRecord = {
       id: this.createId(),
       projectId,
-      title: DEFAULT_CONVERSATION_TITLE,
+      title: normalizeDefaultConversationTitle(defaultTitle),
       createdAt: timestamp,
       updatedAt: timestamp,
       messages: [],
@@ -194,7 +198,11 @@ export class ConversationService {
     );
   }
 
-  async deleteConversation(projectId: string, conversationId: string) {
+  async deleteConversation(
+    projectId: string,
+    conversationId: string,
+    defaultTitle?: string,
+  ) {
     await this.workspaceStore.deleteConversation(projectId, conversationId);
 
     let remainingConversations = await this.workspaceStore.listConversations(
@@ -202,7 +210,10 @@ export class ConversationService {
     );
 
     if (remainingConversations.length === 0) {
-      const replacementConversation = await this.createConversation(projectId);
+      const replacementConversation = await this.createConversation(
+        projectId,
+        defaultTitle,
+      );
       remainingConversations = [replacementConversation];
     }
 

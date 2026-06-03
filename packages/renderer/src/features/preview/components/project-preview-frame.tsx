@@ -5,6 +5,7 @@ import { LoaderCircleIcon } from "lucide-react";
 
 import { PreviewEmptyState } from "@/features/preview/components/preview-empty-state";
 import { useApiClient } from "@/api/context";
+import { useI18n } from "@/features/i18n/context";
 import {
   setCurrentPreviewPath,
   usePreviewPath,
@@ -32,6 +33,7 @@ export function ProjectPreviewFrame({
   projectName,
 }: ProjectPreviewFrameProps) {
   const api = useApiClient();
+  const { t } = useI18n();
   const clientId = useRef(createClientId());
   const [selectedPreviewPath, setPreviewPath] = usePreviewPath();
   const pendingRouteSyncPathRef = useRef<string | undefined>(undefined);
@@ -276,9 +278,9 @@ export function ProjectPreviewFrame({
     return (
       <PreviewEmptyState
         badge="Loading"
-        description="正在为当前项目启动预览环境。准备完成后，这里会自动显示最新页面。"
+        description={t("preview.serviceStartingDescription")}
         icon={<LoaderCircleIcon className="animate-spin" />}
-        title="预览服务启动中"
+        title={t("preview.serviceStartingTitle")}
       />
     );
   }
@@ -292,7 +294,7 @@ export function ProjectPreviewFrame({
       }}
       sandbox="allow-scripts allow-same-origin"
       src={previewUrl}
-      title={`${projectName} HTML 预览`}
+      title={t("preview.htmlTitle", { projectName })}
     />
   );
 }

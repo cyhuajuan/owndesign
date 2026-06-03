@@ -45,6 +45,7 @@ import {
 } from "@/features/conversation/utils/model-selection";
 import { FRONTEND_TAB_ID } from "@/features/preview/components/frontend-capability-bridge";
 import { useApiClient } from "@/api/context";
+import { useI18n } from "@/features/i18n/context";
 import { useCurrentPreviewPath } from "@/features/preview/preview-path";
 import type { ActiveRun, ActiveRunSnapshot } from "@/api/client";
 import type { AnthropicEffort } from "@/features/conversation/types";
@@ -70,11 +71,18 @@ export type ConversationPanelUpdate = {
 };
 
 const PAGE_EDIT_MODE_OPTIONS = [
-  { label: "自动", value: "auto" },
-  { label: "新页面", value: "new_page" },
-  { label: "直接编辑", value: "direct_edit" },
-  { label: "副本编辑", value: "duplicate_edit" },
-] satisfies Array<{ label: string; value: PageEditMode }>;
+  { labelKey: "conversation.pageModeAuto", value: "auto" },
+  { labelKey: "conversation.pageModeNewPage", value: "new_page" },
+  { labelKey: "conversation.pageModeDirectEdit", value: "direct_edit" },
+  { labelKey: "conversation.pageModeDuplicateEdit", value: "duplicate_edit" },
+] satisfies Array<{
+  labelKey:
+    | "conversation.pageModeAuto"
+    | "conversation.pageModeNewPage"
+    | "conversation.pageModeDirectEdit"
+    | "conversation.pageModeDuplicateEdit";
+  value: PageEditMode;
+}>;
 
 const ANTHROPIC_EFFORT_STORAGE_KEY = "owndesign:anthropic-efforts";
 
@@ -89,6 +97,7 @@ export function StreamingConversationPanel({
   titleManuallySet = false,
 }: StreamingConversationPanelProps) {
   const api = useApiClient();
+  const { t } = useI18n();
   const { handleModelSelect, selectedModel, selectedModelId, settings } =
     useConversationSettings();
   const previousStatusRef = useRef("ready");
@@ -218,7 +227,7 @@ export function StreamingConversationPanel({
   const isProjectBusy = Boolean(hasProjectActiveRun);
   const canSend = Boolean(selectedModel) && !isGenerating && !isProjectBusy;
   const submitStatus = isProjectBusy && !isGenerating ? "streaming" : status;
-  const busyMessage = "当前项目已有任务正在执行，完成或停止后才能继续输入。";
+  const busyMessage = t("conversation.busyMessage");
   const requiresCurrentPreview =
     pageEditMode === "direct_edit" || pageEditMode === "duplicate_edit";
   const handleStop = useCallback(() => {
@@ -342,8 +351,8 @@ export function StreamingConversationPanel({
         <ConversationContent className="gap-2 p-4">
           {messages.length === 0 ? (
             <ConversationEmptyState
-              description="发送第一条消息后，会自动生成会话标题。"
-              title="暂无消息"
+              description={t("conversation.titleHint")}
+              title={t("conversation.emptyTitle")}
             />
           ) : (
             messages.map((message, index) => {
@@ -364,7 +373,7 @@ export function StreamingConversationPanel({
               <MessageContent className="w-full">
                 <div className="flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-destructive text-sm">
                   <AlertCircleIcon className="size-4 shrink-0" />
-                  <span>生成失败：{error.message}</span>
+                  <span>{t("conversation.generationFailed", { message: error.message })}</span>
                 </div>
               </MessageContent>
             </Message>
@@ -416,7 +425,7 @@ export function StreamingConversationPanel({
             <PromptInputTextarea
               className="min-h-13 text-[13px]"
               disabled={isGenerating || isProjectBusy}
-              placeholder="输入消息... (Enter 发送, Shift+Enter 换行)"
+              placeholder={t("conversation.placeholder")}
             />
           </PromptInputBody>
           <PromptInputFooter className="px-2 pb-1">
@@ -485,19 +494,21 @@ function PageEditModeSelect({
   onValueChange: (value: PageEditMode) => void;
   value: PageEditMode;
 }) {
+  const { t } = useI18n();
+
   return (
     <PromptInputSelect
       onValueChange={(nextValue) => onValueChange(nextValue as PageEditMode)}
       value={value}
     >
       <PromptInputSelectTrigger
-        aria-label="页面模式"
+        aria-label={t("conversation.pageMode")}
         className="h-7 max-w-24 px-2 text-xs"
         disabled={disabled}
         size="sm"
       >
         <PromptInputSelectValue>
-          {getPageEditModeLabel(value)}
+          {getPageEditModeLabel(value, t)}
         </PromptInputSelectValue>
       </PromptInputSelectTrigger>
       <PromptInputSelectContent side="top" sideOffset={6}>
@@ -512,7 +523,7 @@ function PageEditModeSelect({
               key={option.value}
               value={option.value}
             >
-              {option.label}
+              {t(option.labelKey)}
             </PromptInputSelectItem>
           );
         })}
@@ -521,11 +532,13 @@ function PageEditModeSelect({
   );
 }
 
-function getPageEditModeLabel(value: PageEditMode) {
-  return (
-    PAGE_EDIT_MODE_OPTIONS.find((option) => option.value === value)?.label ??
-    "自动"
-  );
+function getPageEditModeLabel(
+  value: PageEditMode,
+  t: ReturnType<typeof useI18n>["t"],
+) {
+  const option = PAGE_EDIT_MODE_OPTIONS.find((item) => item.value === value);
+
+  return option ? t(option.labelKey) : t("conversation.pageModeAuto");
 }
 
 function getStoredAnthropicEffort(modelId: string): AnthropicEffort | undefined {

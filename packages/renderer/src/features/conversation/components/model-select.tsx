@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/features/i18n/context";
 import type {
   AnthropicEffort,
   DeepSeekThinkingMode,
@@ -42,6 +43,7 @@ export function ModelSelect({
   selectedModelId: string | null;
   settings?: PublicSettings;
 }) {
+  const { t } = useI18n();
   const selectedModel = settings?.modelConfigurations.find(
     (configuration) => configuration.id === selectedModelId,
   );
@@ -57,7 +59,11 @@ export function ModelSelect({
             type="button"
           >
             <span className="whitespace-nowrap">
-              {getSelectedModelLabel(selectedModel, selectedAnthropicEffort)}
+              {getSelectedModelLabel(
+                selectedModel,
+                selectedAnthropicEffort,
+                t("conversation.noModelConfigured"),
+              )}
             </span>
             <ChevronDownIcon className="chev !size-2.5 opacity-50 transition-transform duration-150" />
           </button>
@@ -97,7 +103,7 @@ export function ModelSelect({
                   >
                     <DropdownMenuGroup>
                       <DropdownMenuLabel className="px-2.5 py-1.5 text-[11px] text-[#6b6b76]">
-                        思考模式
+                          {t("conversation.modelThinkingMode")}
                       </DropdownMenuLabel>
                       {deepSeekThinkingModes.map((thinkingMode) => (
                         <DropdownMenuItem
@@ -199,7 +205,7 @@ export function ModelSelect({
               className="justify-center px-4 py-6 text-center text-xs text-[#6b6b76] focus:bg-transparent focus:text-[#6b6b76]"
               disabled
             >
-              暂无模型配置
+              {t("conversation.noConfiguredModel")}
             </DropdownMenuItem>
           )}
         </DropdownMenuGroup>

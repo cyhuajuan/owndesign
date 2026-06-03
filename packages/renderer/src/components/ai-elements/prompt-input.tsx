@@ -34,6 +34,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
+import { useI18n } from "@/features/i18n/context";
 import {
   Tooltip,
   TooltipContent,
@@ -423,10 +424,11 @@ type DropdownMenuItemClickHandler = NonNullable<
 >;
 
 export const PromptInputActionAddAttachments = ({
-  label = "添加图片或文件",
+  label,
   onClick,
   ...props
 }: PromptInputActionAddAttachmentsProps) => {
+  const { t } = useI18n();
   const attachments = usePromptInputAttachments();
 
   const handleClick: DropdownMenuItemClickHandler = useCallback(
@@ -446,7 +448,7 @@ export const PromptInputActionAddAttachments = ({
       {...props}
       onClick={handleClick}
     >
-      <PaperclipIcon /> {label}
+      <PaperclipIcon /> {label ?? t("conversation.addImageOrFile")}
     </DropdownMenuItem>
   );
 };
@@ -458,10 +460,11 @@ export type PromptInputActionAddScreenshotProps = ComponentProps<
 };
 
 export const PromptInputActionAddScreenshot = ({
-  label = "截取屏幕截图",
+  label,
   onClick,
   ...props
 }: PromptInputActionAddScreenshotProps) => {
+  const { t } = useI18n();
   const attachments = usePromptInputAttachments();
 
   const handleClick: DropdownMenuItemClickHandler = useCallback(
@@ -492,7 +495,7 @@ export const PromptInputActionAddScreenshot = ({
   return (
     <DropdownMenuItem {...props} onClick={handleClick}>
       <Monitor className="mr-2 size-4" />
-      {label}
+      {label ?? t("conversation.screenshot")}
     </DropdownMenuItem>
   );
 };
@@ -540,6 +543,7 @@ export const PromptInput = ({
   children,
   ...props
 }: PromptInputProps) => {
+  const { t } = useI18n();
   // Try to use a provider controller if present
   const controller = useOptionalPromptInputController();
   const usingProvider = !!controller;
@@ -598,7 +602,7 @@ export const PromptInput = ({
       if (incoming.length && accepted.length === 0) {
         onError?.({
           code: "accept",
-          message: "没有文件符合允许的类型。",
+          message: t("promptInput.acceptError"),
         });
         return;
       }
@@ -608,7 +612,7 @@ export const PromptInput = ({
       if (accepted.length > 0 && sized.length === 0) {
         onError?.({
           code: "max_file_size",
-          message: "所有文件都超过了大小限制。",
+          message: t("promptInput.maxFileSizeError"),
         });
         return;
       }
@@ -623,7 +627,7 @@ export const PromptInput = ({
         if (typeof capacity === "number" && sized.length > capacity) {
           onError?.({
             code: "max_files",
-            message: "文件数量过多，部分文件未添加。",
+            message: t("promptInput.maxFilesError"),
           });
         }
         const next: PromptInputAttachment[] = [];
@@ -640,7 +644,7 @@ export const PromptInput = ({
         return [...prev, ...next];
       });
     },
-    [matchesAccept, maxFiles, maxFileSize, onError]
+    [matchesAccept, maxFiles, maxFileSize, onError, t]
   );
 
   const removeLocal = useCallback(
@@ -663,7 +667,7 @@ export const PromptInput = ({
       if (incoming.length && accepted.length === 0) {
         onError?.({
           code: "accept",
-          message: "没有文件符合允许的类型。",
+          message: t("promptInput.acceptError"),
         });
         return;
       }
@@ -673,7 +677,7 @@ export const PromptInput = ({
       if (accepted.length > 0 && sized.length === 0) {
         onError?.({
           code: "max_file_size",
-          message: "所有文件都超过了大小限制。",
+          message: t("promptInput.maxFileSizeError"),
         });
         return;
       }
@@ -688,7 +692,7 @@ export const PromptInput = ({
       if (typeof capacity === "number" && sized.length > capacity) {
         onError?.({
           code: "max_files",
-          message: "文件数量过多，部分文件未添加。",
+          message: t("promptInput.maxFilesError"),
         });
       }
 
@@ -696,7 +700,7 @@ export const PromptInput = ({
         controller?.attachments.add(capped);
       }
     },
-    [matchesAccept, maxFileSize, maxFiles, onError, files.length, controller]
+    [matchesAccept, maxFileSize, maxFiles, onError, files.length, controller, t]
   );
 
   const clearAttachments = useCallback(
@@ -926,12 +930,12 @@ export const PromptInput = ({
     <>
       <input
         accept={accept}
-        aria-label="上传文件"
+        aria-label={t("conversation.uploadFile")}
         className="hidden"
         multiple={multiple}
         onChange={handleChange}
         ref={inputRef}
-        title="上传文件"
+        title={t("conversation.uploadFile")}
         type="file"
       />
       <form
@@ -976,9 +980,10 @@ export const PromptInputTextarea = ({
   onChange,
   onKeyDown,
   className,
-  placeholder = "你想了解什么？",
+  placeholder,
   ...props
 }: PromptInputTextareaProps) => {
+  const { t } = useI18n();
   const controller = useOptionalPromptInputController();
   const attachments = usePromptInputAttachments();
   const [isComposing, setIsComposing] = useState(false);
@@ -1080,7 +1085,7 @@ export const PromptInputTextarea = ({
       onCompositionStart={handleCompositionStart}
       onKeyDown={handleKeyDown}
       onPaste={handlePaste}
-      placeholder={placeholder}
+      placeholder={placeholder ?? t("conversation.promptPlaceholder")}
       {...props}
       {...controlledProps}
     />
@@ -1141,8 +1146,9 @@ function AttachmentPreview({
   file: PromptInputAttachment;
   onRemove: () => void;
 }) {
+  const { t } = useI18n();
   const isImage = file.mediaType.startsWith("image/") && file.url;
-  const filename = file.filename ?? "未命名文件";
+  const filename = file.filename ?? t("conversation.file");
 
   return (
     <div className="group relative flex w-[92px] shrink-0 flex-col items-center gap-1 rounded-lg border border-border bg-background p-1.5">
@@ -1168,7 +1174,7 @@ function AttachmentPreview({
         ) : null}
       </div>
       <button
-        aria-label={`移除 ${filename}`}
+        aria-label={t("conversation.removeFile", { filename })}
         className="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full border border-border bg-background text-muted-foreground opacity-0 transition-opacity hover:bg-destructive hover:text-destructive-foreground group-hover:opacity-100"
         onClick={onRemove}
         type="button"
@@ -1334,6 +1340,7 @@ export const PromptInputSubmit = ({
   children,
   ...props
 }: PromptInputSubmitProps) => {
+  const { t } = useI18n();
   const isGenerating = status === "submitted" || status === "streaming";
 
   let Icon = <CornerDownLeftIcon className="size-4" />;
@@ -1360,7 +1367,7 @@ export const PromptInputSubmit = ({
 
   return (
     <InputGroupButton
-      aria-label={isGenerating ? "停止" : "提交"}
+      aria-label={isGenerating ? t("common.stop") : t("common.submit")}
       className={cn(className)}
       onClick={handleClick}
       size={size}

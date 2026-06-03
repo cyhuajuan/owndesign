@@ -1,6 +1,7 @@
 import type { UIMessage } from "ai";
 
 import { getFirstUserMessageText } from "@owndesign/core/conversations/chat-messages";
+import { FALLBACK_CONVERSATION_TITLE } from "@owndesign/core/conversations/default-title";
 
 export function deriveConversationTitle({
   conversationTitle,
@@ -15,7 +16,7 @@ export function deriveConversationTitle({
 }) {
   if (
     titleManuallySet ||
-    conversationTitle !== "新建会话" ||
+    conversationTitle !== FALLBACK_CONVERSATION_TITLE ||
     initialMessages.length > 0
   ) {
     return conversationTitle;

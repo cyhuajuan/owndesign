@@ -16,6 +16,7 @@ import {
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/features/i18n/context";
 
 type ContextValue = {
   maxTokens: number;
@@ -51,13 +52,14 @@ export function ContextTrigger({
   ...props
 }: ContextTriggerProps) {
   const context = useContextValue();
+  const { t } = useI18n();
   const percent = getUsagePercent(context.usedTokens, context.maxTokens);
 
   return (
     <HoverCardTrigger
       render={
         <Button
-          aria-label={`上下文 ${percent}%`}
+          aria-label={t("conversation.contextAria", { percent })}
           className={cn(
             "h-7 rounded-[6px] bg-transparent px-2 text-xs text-[#a0a0ab] hover:bg-[#252528] hover:text-[#f0f0f2]",
             className,
@@ -103,6 +105,7 @@ export function ContextContentHeader({
   ...props
 }: ContextContentHeaderProps) {
   const { maxTokens, usedTokens } = useContextValue();
+  const { t } = useI18n();
   const percent = getUsagePercent(usedTokens, maxTokens);
 
   return (
@@ -112,7 +115,7 @@ export function ContextContentHeader({
           <div className="flex items-center justify-between gap-3 text-xs">
             <span className="flex items-center gap-1.5 font-medium">
               <GaugeIcon className="size-3.5 text-[#6c5ce7]" />
-              上下文
+              {t("conversation.context")}
             </span>
             <span className="text-[#a0a0ab]">{percent}%</span>
           </div>
@@ -147,6 +150,8 @@ export function ContextContentFooter({
   className,
   ...props
 }: ContextContentFooterProps) {
+  const { t } = useI18n();
+
   return (
     <div
       className={cn(
@@ -155,7 +160,7 @@ export function ContextContentFooter({
       )}
       {...props}
     >
-      {children ?? "统计来自最近一次模型响应。"}
+      {children ?? t("conversation.contextDescription")}
     </div>
   );
 }
@@ -166,9 +171,10 @@ export type ContextUsageProps = ComponentProps<"div"> & {
 
 export function ContextInputUsage(props: ContextUsageProps) {
   const { usage } = useContextValue();
+  const { t } = useI18n();
   return (
     <ContextUsageRow
-      label="输入"
+      label={t("conversation.contextInput")}
       tokens={usage?.inputTokens}
       {...props}
     />
@@ -177,9 +183,10 @@ export function ContextInputUsage(props: ContextUsageProps) {
 
 export function ContextOutputUsage(props: ContextUsageProps) {
   const { usage } = useContextValue();
+  const { t } = useI18n();
   return (
     <ContextUsageRow
-      label="输出"
+      label={t("conversation.contextOutput")}
       tokens={usage?.outputTokens}
       {...props}
     />
@@ -188,9 +195,10 @@ export function ContextOutputUsage(props: ContextUsageProps) {
 
 export function ContextReasoningUsage(props: ContextUsageProps) {
   const { usage } = useContextValue();
+  const { t } = useI18n();
   return (
     <ContextUsageRow
-      label="推理"
+      label={t("conversation.contextReasoning")}
       tokens={
         usage?.outputTokenDetails?.reasoningTokens ?? usage?.reasoningTokens
       }
@@ -201,9 +209,10 @@ export function ContextReasoningUsage(props: ContextUsageProps) {
 
 export function ContextCacheUsage(props: ContextUsageProps) {
   const { usage } = useContextValue();
+  const { t } = useI18n();
   return (
     <ContextUsageRow
-      label="缓存"
+      label={t("conversation.contextCache")}
       tokens={usage?.inputTokenDetails?.cacheReadTokens ?? usage?.cachedInputTokens}
       {...props}
     />

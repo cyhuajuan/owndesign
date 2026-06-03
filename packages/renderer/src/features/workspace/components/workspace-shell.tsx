@@ -6,6 +6,7 @@ import { FolderIcon, MessageSquareIcon, PlusIcon } from "lucide-react";
 import {
   ConversationEmptyState,
 } from "@/components/ai-elements/conversation";
+import { useI18n } from "@/features/i18n/context";
 import { ChatShell } from "@/features/workspace/components/chat-shell";
 import type { ChatShellSlots } from "@/features/workspace/components/chat-shell";
 import { ControlBar } from "@/features/projects/components/control-bar";
@@ -77,6 +78,7 @@ export const WorkspaceShell = memo(function WorkspaceShell({
   projects,
   shellSlots,
 }: WorkspaceShellProps) {
+  const { t } = useI18n();
   const [conversationUpdates, setConversationUpdates] = useState<
     Record<string, ConversationPanelUpdate>
   >({});
@@ -123,9 +125,9 @@ export const WorkspaceShell = memo(function WorkspaceShell({
         !activeProject || !activeConversation ? (
           <ConversationEmptyState
             className="min-h-28 pt-4"
-            description="请先创建项目，再开始发送消息。"
+            description={t("shell.composerUnavailableDescription")}
             icon={<PlusIcon />}
-            title="输入区暂不可用"
+            title={t("shell.composerUnavailableTitle")}
           />
         ) : undefined
       }
@@ -165,9 +167,9 @@ export const WorkspaceShell = memo(function WorkspaceShell({
       messageHistory={
         activeConversation ? undefined : (
           <ConversationEmptyState
-            description="选择或创建一个会话来填充这里。"
+            description={t("shell.noCurrentConversationDescription")}
             icon={<MessageSquareIcon />}
-            title="暂无当前会话"
+            title={t("shell.noCurrentConversationTitle")}
           />
         )
       }
@@ -182,9 +184,9 @@ export const WorkspaceShell = memo(function WorkspaceShell({
         ) : (
           <PreviewEmptyState
             badge="Preview"
-            description="在对话中向 AI 描述你的设计需求，生成的页面将在此处实时预览。"
+            description={t("preview.emptyDescription")}
             icon={<FolderIcon />}
-            title="尚无预览内容"
+            title={t("preview.emptyTitle")}
           />
         )
       }

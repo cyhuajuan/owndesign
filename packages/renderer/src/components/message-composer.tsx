@@ -16,6 +16,7 @@ import {
   PromptInputTextarea,
   PromptInputTools,
 } from "@/components/ai-elements/prompt-input";
+import { useI18n } from "@/features/i18n/context";
 
 type MessageComposerProps = {
   action: (formData: FormData) => Promise<void>;
@@ -28,6 +29,7 @@ export function MessageComposer({
   conversationId,
   projectId,
 }: MessageComposerProps) {
+  const { t } = useI18n();
   const [isPending, setIsPending] = useState(false);
 
   return (
@@ -64,14 +66,14 @@ export function MessageComposer({
       <PromptInputBody>
         <PromptInputTextarea
           disabled={isPending}
-          placeholder="描述你希望这段会话探索的内容..."
+          placeholder={t("conversation.historyPlaceholder")}
         />
       </PromptInputBody>
       <PromptInputFooter>
         <PromptInputTools>
           <PromptInputActionMenu>
             <PromptInputActionMenuTrigger
-              aria-label="添加附件"
+              aria-label={t("conversation.addAttachment")}
             />
             <PromptInputActionMenuContent side="top" sideOffset={6}>
               <PromptInputActionAddAttachments />

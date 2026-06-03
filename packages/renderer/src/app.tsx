@@ -13,6 +13,7 @@ import { Separator } from "@/components/ui/separator";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ApiClientProvider, useApiClient } from "@/api/context";
 import { InitialSetupGuide } from "@/features/onboarding/components/initial-setup-guide";
+import { LanguageProvider, useI18n } from "@/features/i18n/context";
 import { WorkspaceShell } from "@/features/workspace/components/workspace-shell";
 import type { WorkspaceShellSlots } from "@/features/workspace/components/workspace-shell";
 import type { WorkspaceState } from "@/api/client";
@@ -31,18 +32,20 @@ export function OwnDesignApp({
     <ApiClientProvider baseUrl={apiBaseUrl}>
       <BrowserRouter>
         <TooltipProvider>
-          <Routes>
-            <Route path="/" element={<WorkspaceRoute shellSlots={shellSlots} />} />
-            <Route
-              path="/projects/:projectId"
-              element={<WorkspaceRoute shellSlots={shellSlots} />}
-            />
-            <Route
-              path="/projects/:projectId/conversations/:conversationId"
-              element={<WorkspaceRoute shellSlots={shellSlots} />}
-            />
-            <Route path="*" element={<WorkspaceRoute shellSlots={shellSlots} />} />
-          </Routes>
+          <LanguageProvider>
+            <Routes>
+              <Route path="/" element={<WorkspaceRoute shellSlots={shellSlots} />} />
+              <Route
+                path="/projects/:projectId"
+                element={<WorkspaceRoute shellSlots={shellSlots} />}
+              />
+              <Route
+                path="/projects/:projectId/conversations/:conversationId"
+                element={<WorkspaceRoute shellSlots={shellSlots} />}
+              />
+              <Route path="*" element={<WorkspaceRoute shellSlots={shellSlots} />} />
+            </Routes>
+          </LanguageProvider>
         </TooltipProvider>
       </BrowserRouter>
     </ApiClientProvider>
@@ -51,6 +54,7 @@ export function OwnDesignApp({
 
 function WorkspaceRoute({ shellSlots }: { shellSlots?: WorkspaceShellSlots }) {
   const api = useApiClient();
+  const { t } = useI18n();
   const navigate = useNavigate();
   const params = useParams();
   const [state, setState] = useState<WorkspaceState>();
@@ -162,7 +166,7 @@ function WorkspaceRoute({ shellSlots }: { shellSlots?: WorkspaceShellSlots }) {
   if (!state) {
     return renderStandaloneRouteContent(
       <div className="flex min-h-screen items-center justify-center bg-background text-muted-foreground">
-        加载中...
+        {t("app.loading")}
       </div>,
       shellSlots,
     );

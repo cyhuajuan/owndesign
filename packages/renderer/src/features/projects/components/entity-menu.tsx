@@ -3,6 +3,7 @@
 import { PencilIcon, Trash2Icon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { useI18n } from "@/features/i18n/context";
 
 export function EntityMenu({
   onDelete,
@@ -11,10 +12,12 @@ export function EntityMenu({
   onDelete: () => void;
   onRename: () => void;
 }) {
+  const { t } = useI18n();
+
   return (
     <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover/item:opacity-100">
       <Button
-        aria-label="重命名"
+        aria-label={t("projects.rename")}
         onClick={(event) => {
           event.stopPropagation();
           onRename();
@@ -27,7 +30,7 @@ export function EntityMenu({
         <PencilIcon />
       </Button>
       <Button
-        aria-label="删除"
+        aria-label={t("common.delete")}
         onClick={(event) => {
           event.stopPropagation();
           onDelete();

@@ -3,8 +3,10 @@ import {
   ProjectRecord,
   WorkspaceStore,
 } from "@owndesign/core/workspace-store";
+import { normalizeDefaultConversationTitle } from "@owndesign/core/conversations/default-title";
 
 type CreateProjectInput = {
+  defaultConversationTitle?: string;
   name: string;
   description?: string;
 };
@@ -55,7 +57,7 @@ export class ProjectService {
     const conversation: ConversationRecord = {
       id: this.createId(),
       projectId: project.id,
-      title: "新建会话",
+      title: normalizeDefaultConversationTitle(input.defaultConversationTitle),
       createdAt: timestamp,
       updatedAt: timestamp,
       messages: [],

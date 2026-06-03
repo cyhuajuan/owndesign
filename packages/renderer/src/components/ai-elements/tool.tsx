@@ -20,6 +20,7 @@ import type { ComponentProps, ReactNode } from "react";
 import { isValidElement } from "react";
 
 import { CodeBlock } from "./code-block";
+import { useI18n } from "@/features/i18n/context";
 
 const TOOL_DISPLAY_STRING_LIMIT = 100;
 
@@ -70,16 +71,6 @@ export type ToolHeaderProps = {
     }
 );
 
-const statusLabels: Record<ToolPart["state"], string> = {
-  "approval-requested": "等待批准",
-  "approval-responded": "已批准",
-  "input-available": "准备调用",
-  "input-streaming": "生成参数中",
-  "output-available": "已完成",
-  "output-denied": "已拒绝",
-  "output-error": "失败",
-};
-
 const statusIcons: Record<ToolPart["state"], ReactNode> = {
   "approval-requested": <ClockIcon className="size-4 text-yellow-600" />,
   "approval-responded": <CheckCircleIcon className="size-4 text-blue-600" />,
@@ -90,12 +81,25 @@ const statusIcons: Record<ToolPart["state"], ReactNode> = {
   "output-error": <XCircleIcon className="size-4 text-red-600" />,
 };
 
-export const getStatusBadge = (status: ToolPart["state"]) => (
-  <Badge className="gap-1.5 rounded-full text-xs" variant="secondary">
-    {statusIcons[status]}
-    {statusLabels[status]}
-  </Badge>
-);
+function StatusBadge({ status }: { status: ToolPart["state"] }) {
+  const { t } = useI18n();
+  const statusLabels: Record<ToolPart["state"], string> = {
+    "approval-requested": t("tool.approvalRequested"),
+    "approval-responded": t("tool.approvalResponded"),
+    "input-available": t("tool.inputAvailable"),
+    "input-streaming": t("tool.inputStreaming"),
+    "output-available": t("tool.outputAvailable"),
+    "output-denied": t("tool.outputDenied"),
+    "output-error": t("tool.outputError"),
+  };
+
+  return (
+    <Badge className="gap-1.5 rounded-full text-xs" variant="secondary">
+      {statusIcons[status]}
+      {statusLabels[status]}
+    </Badge>
+  );
+}
 
 export const ToolHeader = ({
   className,
@@ -119,7 +123,7 @@ export const ToolHeader = ({
       <div className="flex items-center gap-2">
         <WrenchIcon className="size-4 text-muted-foreground" />
         <span className="font-medium text-sm">{title ?? derivedName}</span>
-        {getStatusBadge(state)}
+        <StatusBadge status={state} />
       </div>
       <ChevronDownIcon className="tool-chevron size-4 shrink-0 text-muted-foreground transition-transform duration-200" />
     </CollapsibleTrigger>
@@ -142,19 +146,23 @@ export type ToolInputProps = ComponentProps<"div"> & {
   input: ToolPart["input"];
 };
 
-export const ToolInput = ({ className, input, ...props }: ToolInputProps) => (
-  <div className={cn("space-y-2 overflow-hidden", className)} {...props}>
-    <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-      参数
-    </h4>
-    <div className="rounded-md bg-muted/50">
-      <CodeBlock
-        code={JSON.stringify(truncateToolDisplayValue(input), null, 2)}
-        language="json"
-      />
+export const ToolInput = ({ className, input, ...props }: ToolInputProps) => {
+  const { t } = useI18n();
+
+  return (
+    <div className={cn("space-y-2 overflow-hidden", className)} {...props}>
+      <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+        {t("tool.parameters")}
+      </h4>
+      <div className="rounded-md bg-muted/50">
+        <CodeBlock
+          code={JSON.stringify(truncateToolDisplayValue(input), null, 2)}
+          language="json"
+        />
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 export type ToolOutputProps = ComponentProps<"div"> & {
   output: ToolPart["output"];
@@ -167,6 +175,8 @@ export const ToolOutput = ({
   errorText,
   ...props
 }: ToolOutputProps) => {
+  const { t } = useI18n();
+
   if (!(output || errorText)) {
     return null;
   }
@@ -192,7 +202,7 @@ export const ToolOutput = ({
   return (
     <div className={cn("space-y-2", className)} {...props}>
       <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-        {errorText ? "错误" : "结果"}
+        {errorText ? t("common.error") : t("tool.result")}
       </h4>
       <div
         className={cn(

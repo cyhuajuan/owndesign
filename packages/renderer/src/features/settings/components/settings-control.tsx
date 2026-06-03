@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/features/i18n/context";
 import { AiSettingsSection } from "@/features/settings/components/ai-settings-section";
 import { GeneralSettingsSection } from "@/features/settings/components/general-settings-section";
 import { ResourceSettingsSection } from "@/features/settings/components/resource-settings-section";
@@ -49,13 +50,14 @@ const DEFAULT_RESOURCES: ResourceSettings = {
 
 export function SettingsControl() {
   const [isOpen, setIsOpen] = useState(false);
+  const { t } = useI18n();
 
   return (
     <Dialog onOpenChange={setIsOpen} open={isOpen}>
       <button
         className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[6px] text-[#6b6b76] transition-all duration-200 hover:bg-[#252528] hover:text-[#f0f0f2] [&_svg]:size-4 [&_svg]:transition-transform [&_svg]:duration-[400ms] hover:[&_svg]:rotate-[60deg]"
         onClick={() => setIsOpen(true)}
-        title="设置"
+        title={t("settings.open")}
         type="button"
       >
         <SettingsIcon />
@@ -84,6 +86,7 @@ function SettingsPanel({
   const [resources, setResources] =
     useState<ResourceSettings>(DEFAULT_RESOURCES);
   const api = useApiClient();
+  const { t } = useI18n();
 
   useEffect(() => {
     if (!isOpen) {
@@ -133,9 +136,9 @@ function SettingsPanel({
       data-testid="settings-panel"
       showCloseButton={false}
     >
-      <DialogTitle className="sr-only">设置</DialogTitle>
+      <DialogTitle className="sr-only">{t("settings.open")}</DialogTitle>
       <DialogDescription className="sr-only">
-        管理界面语言、资源配置和 AI 模型设置。
+        {t("settings.description")}
       </DialogDescription>
       <div
         className="flex size-full flex-row overflow-hidden rounded-[12px]"
@@ -148,7 +151,7 @@ function SettingsPanel({
             type="button"
           >
             <SlidersIcon className="size-4 shrink-0" />
-            通用设置
+            {t("settings.general")}
           </button>
           <button
             className={navItemClass(activeSection === "resources")}
@@ -157,7 +160,7 @@ function SettingsPanel({
             type="button"
           >
             <BookOpenIcon className="size-4 shrink-0" />
-            资源管理
+            {t("settings.resources")}
           </button>
           <button
             className={navItemClass(activeSection === "ai")}
@@ -166,7 +169,7 @@ function SettingsPanel({
             type="button"
           >
             <CpuIcon className="size-4 shrink-0" />
-            AI 模型
+            {t("settings.aiModels")}
           </button>
         </div>
         <div className="flex min-w-0 flex-1 flex-col overflow-y-auto px-8 pt-7 pb-6">
@@ -189,7 +192,7 @@ function SettingsPanel({
               onClick={onClose}
               type="button"
             >
-              取消
+              {t("common.cancel")}
             </button>
             <button
               className="rounded-[6px] bg-[#6c5ce7] px-[18px] py-[7px] text-[13px] font-medium text-white transition-all duration-150 hover:bg-[#7d6ff0]"
@@ -208,7 +211,7 @@ function SettingsPanel({
               }}
               type="button"
             >
-              保存设置
+              {t("settings.saveSettings")}
             </button>
           </div>
         </div>

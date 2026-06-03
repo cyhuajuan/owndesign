@@ -10,6 +10,7 @@ import {
   PromptInputTools,
   usePromptInputAttachments,
 } from "@/components/ai-elements/prompt-input";
+import { useI18n } from "@/features/i18n/context";
 import type { PublicModelConfiguration } from "@/features/conversation/types";
 
 export function PromptAttachmentControls({
@@ -17,6 +18,7 @@ export function PromptAttachmentControls({
 }: {
   selectedModel?: PublicModelConfiguration;
 }) {
+  const { t } = useI18n();
   const attachments = usePromptInputAttachments();
   const hideAttachments = !selectedModel || selectedModel.provider === "deepseek";
 
@@ -33,7 +35,7 @@ export function PromptAttachmentControls({
   return (
     <PromptInputTools>
       <PromptInputActionMenu>
-        <PromptInputActionMenuTrigger aria-label="添加附件" />
+        <PromptInputActionMenuTrigger aria-label={t("conversation.addAttachment")} />
         <PromptInputActionMenuContent side="top" sideOffset={6}>
           <PromptInputActionAddAttachments />
         </PromptInputActionMenuContent>

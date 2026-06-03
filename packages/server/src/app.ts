@@ -20,6 +20,7 @@ import {
   normalizeConversationMessages,
   type TurnPromptRewriteMetadata,
 } from "@owndesign/core/conversations/chat-messages";
+import { getDefaultConversationTitle } from "@owndesign/core/conversations/default-title";
 import {
   buildDesignPageConversationInstructions,
   createDesignPageAgent,
@@ -158,6 +159,9 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
     });
 
     const result = await services.projectService.createProject({
+      defaultConversationTitle: getDefaultConversationTitle(
+        input.interfaceLanguage === "en-US" ? "en-US" : "zh-CN",
+      ),
       name: "helloworld",
     });
 
@@ -177,7 +181,12 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
       return context.json({}, 400);
     }
 
-    const result = await createProjectService(options).createProject({
+    const services = createOwnDesignServices(options);
+    const settings = await services.settingsService.getSettings();
+    const result = await services.projectService.createProject({
+      defaultConversationTitle: getDefaultConversationTitle(
+        settings.interfaceLanguage,
+      ),
       name: trimmedName,
       description: asNonEmptyString(body.description),
     });
@@ -230,8 +239,13 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
 
   app.post("/api/projects/:projectId/conversations", async (context) => {
     const projectId = context.req.param("projectId");
+    const services = createOwnDesignServices(options);
+    const settings = await services.settingsService.getSettings();
     const conversation =
-      await createConversationService(options).createConversation(projectId);
+      await services.conversationService.createConversation(
+        projectId,
+        getDefaultConversationTitle(settings.interfaceLanguage),
+      );
 
     return context.json({
       href: buildWorkspaceHref({
@@ -289,10 +303,13 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
       const projectId = context.req.param("projectId");
       const conversationId = context.req.param("conversationId");
       const currentConversationId = context.req.query("currentConversationId");
+      const services = createOwnDesignServices(options);
+      const settings = await services.settingsService.getSettings();
       const remainingConversations =
-        await createConversationService(options).deleteConversation(
+        await services.conversationService.deleteConversation(
           projectId,
           conversationId,
+          getDefaultConversationTitle(settings.interfaceLanguage),
         );
       const nextConversationId =
         currentConversationId === conversationId

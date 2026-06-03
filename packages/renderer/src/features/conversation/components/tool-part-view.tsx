@@ -7,9 +7,11 @@ import {
 } from "ai";
 
 import { Shimmer } from "@/components/ai-elements/shimmer";
+import { useI18n } from "@/features/i18n/context";
 
 export function ToolPartView({ part }: { part: ToolLikePart }) {
-  const description = getToolDescription(part);
+  const { t } = useI18n();
+  const description = getToolDescription(part, t);
 
   return (
     <div className="w-full text-muted-foreground text-sm">
@@ -28,25 +30,28 @@ export function isToolPart(part: unknown): part is ToolLikePart {
 
 export type ToolLikePart = ToolUIPart | DynamicToolUIPart;
 
-function getToolDescription(part: ToolLikePart) {
+function getToolDescription(
+  part: ToolLikePart,
+  t: ReturnType<typeof useI18n>["t"],
+) {
   const toolName = getToolName(part);
   const target = getToolTarget(part);
-  const verb = toolVerbs[toolName] ?? toolName;
-  const suffix = target ?? (isPreviewTool(toolName) ? "" : "文件");
+  const verb = getToolVerb(toolName, t);
+  const suffix = target ?? (isPreviewTool(toolName) ? "" : t("conversation.file"));
 
   if (isFailedToolPart(part)) {
-    return `${verb}${suffix}失败`;
+    return t("tool.failed", { suffix, verb });
   }
 
   if (part.state === "output-denied") {
-    return `已取消${verb}${suffix}`;
+    return t("tool.cancelled", { suffix, verb });
   }
 
   if (part.state === "output-available") {
-    return `已${verb}${suffix}`;
+    return t("tool.completed", { suffix, verb });
   }
 
-  return `正在${verb}${suffix}`;
+  return t("tool.running", { suffix, verb });
 }
 
 function isPendingToolPart(part: ToolLikePart) {
@@ -113,16 +118,21 @@ function isPreviewTool(toolName: string) {
   return toolName === "previewRefresh" || toolName === "previewSwitchHtml";
 }
 
-const toolVerbs: Record<string, string> = {
-  copyFile: "复制",
-  createHtml: "创建",
-  delete: "删除",
-  edit: "编辑",
-  glob: "查找",
-  grep: "搜索",
-  patch: "修改",
-  previewRefresh: "刷新预览",
-  previewSwitchHtml: "切换预览",
-  read: "查看",
-  write: "写入",
-};
+function getToolVerb(toolName: string, t: ReturnType<typeof useI18n>["t"]) {
+  const toolVerbKeys: Record<string, Parameters<typeof t>[0]> = {
+    copyFile: "tool.copyFile",
+    createHtml: "tool.createHtml",
+    delete: "tool.delete",
+    edit: "tool.edit",
+    glob: "tool.glob",
+    grep: "tool.grep",
+    patch: "tool.patch",
+    previewRefresh: "tool.previewRefresh",
+    previewSwitchHtml: "tool.previewSwitchHtml",
+    read: "tool.read",
+    write: "tool.write",
+  };
+  const key = toolVerbKeys[toolName];
+
+  return key ? t(key) : toolName;
+}

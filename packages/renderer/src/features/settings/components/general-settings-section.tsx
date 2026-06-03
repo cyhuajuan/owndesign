@@ -2,6 +2,7 @@
 
 import type { InterfaceLanguage } from "@/features/settings/types";
 import { settingsOptClass } from "@/features/settings/components/settings-styles";
+import { useI18n } from "@/features/i18n/context";
 
 export function GeneralSettingsSection({
   interfaceLanguage,
@@ -10,15 +11,17 @@ export function GeneralSettingsSection({
   interfaceLanguage: InterfaceLanguage;
   onInterfaceLanguageChange: (language: InterfaceLanguage) => void;
 }) {
+  const { t } = useI18n();
+
   return (
     <div>
-      <div className="mb-1 text-base font-semibold">通用设置</div>
+      <div className="mb-1 text-base font-semibold">{t("settings.general")}</div>
       <div className="mb-6 text-[13px] leading-normal text-[#6b6b76]">
-        管理界面语言等基础偏好。
+        {t("settings.generalDescription")}
       </div>
       <div className="mb-5">
         <label className="mb-1.5 block text-xs font-medium text-[#a0a0ab]">
-          界面语言
+          {t("settings.interfaceLanguage")}
         </label>
         <div className="flex gap-2">
           <button
@@ -42,4 +45,3 @@ export function GeneralSettingsSection({
     </div>
   );
 }
-

@@ -26,6 +26,10 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import {
+  translations,
+  type TranslationKey,
+} from "@/features/i18n/translations";
+import {
   LanguageCard,
   PanelDescription,
   PanelTitle,
@@ -100,12 +104,13 @@ export function InitialSetupGuide({ onComplete }: InitialSetupGuideProps) {
   >();
   const [isFinishing, setIsFinishing] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const localT = (key: TranslationKey) => translations[language][key];
   const summaryModels = useMemo(
     () =>
       models.map(
-        (model) => getProviderLabel(model.provider) || model.model || "未命名",
+        (model) => getProviderLabel(model.provider) || model.model || localT("onboarding.unnamed"),
       ),
-    [models],
+    [language, models],
   );
 
   return (
@@ -117,30 +122,30 @@ export function InitialSetupGuide({ onComplete }: InitialSetupGuideProps) {
             OwnDesign
           </div>
           <div className="ml-auto text-[13px] text-[#6b6b76]">
-            项目初始化向导
+            {localT("onboarding.setupTitle")}
           </div>
         </div>
 
         <div className="flex shrink-0 items-center px-7 pt-5 pb-2">
           <StepItem active={currentStep === 1} done={currentStep > 1} number="1">
-            语言设置
+            {localT("onboarding.languageStepLabel")}
           </StepItem>
           <StepLine done={currentStep > 1} />
           <StepItem active={currentStep === 2} done={currentStep > 2} number="2">
-            模型配置
+            {localT("onboarding.modelStepLabel")}
           </StepItem>
           <StepLine done={currentStep > 2} />
           <StepItem active={currentStep === 3} done={false} number="3">
-            准备就绪
+            {localT("onboarding.readyLabel")}
           </StepItem>
         </div>
 
         <CardContent className="min-h-0 flex-1 overflow-y-auto px-7 pt-4 pb-0">
           {currentStep === 1 ? (
             <section className="animate-[panelIn_0.3s_ease]">
-              <PanelTitle>选择界面语言</PanelTitle>
+              <PanelTitle>{localT("onboarding.languageTitle")}</PanelTitle>
               <PanelDescription>
-                选择你偏好的语言，界面文本将切换为对应语言。
+                {localT("onboarding.languageDescription")}
               </PanelDescription>
               <div className="grid grid-cols-2 gap-2.5 pb-2 max-sm:grid-cols-1">
                 <LanguageCard
@@ -163,14 +168,14 @@ export function InitialSetupGuide({ onComplete }: InitialSetupGuideProps) {
 
           {currentStep === 2 ? (
             <section className="animate-[panelIn_0.3s_ease]">
-              <PanelTitle>添加模型配置</PanelTitle>
+              <PanelTitle>{localT("onboarding.addModelTitle")}</PanelTitle>
               <PanelDescription>
-                配置 AI 模型的接入信息，包括 Provider、模型名称、接口地址和 API Key。
+                {localT("onboarding.modelDescription")}
               </PanelDescription>
               <div className="mb-3 flex flex-col gap-2">
                 {models.length === 0 ? (
                   <div className="px-3 py-6 text-center text-[13px] text-[#6b6b76]">
-                    暂无模型配置，点击下方按钮添加。
+                    {localT("onboarding.modelEmpty")}
                   </div>
                 ) : (
                   models.map((model, index) => (
@@ -178,6 +183,7 @@ export function InitialSetupGuide({ onComplete }: InitialSetupGuideProps) {
                       key={model.id}
                       model={model}
                       removable={models.length > 1}
+                      t={localT}
                       onChange={(nextModel) =>
                         setModels((current) =>
                           current.map((item, itemIndex) =>
@@ -212,25 +218,25 @@ export function InitialSetupGuide({ onComplete }: InitialSetupGuideProps) {
                 type="button"
               >
                 <PlusIcon />
-                添加另一个模型
+                {localT("onboarding.addAnotherModel")}
               </button>
             </section>
           ) : null}
 
           {currentStep === 3 ? (
             <section className="animate-[panelIn_0.3s_ease]">
-              <PanelTitle>准备就绪</PanelTitle>
+              <PanelTitle>{localT("onboarding.readyTitle")}</PanelTitle>
               <PanelDescription>
-                确认你的初始设置，随时可以进入主界面开始设计。
+                {localT("onboarding.confirmDescription")}
               </PanelDescription>
               <div className="mb-3 flex flex-col gap-3">
-                <SummaryCard label="界面语言">
+                <SummaryCard label={localT("onboarding.reviewLanguage")}>
                   <div className="flex items-center gap-2 text-sm font-medium text-[#fafafa]">
                     <GlobeIcon />
                     <span>{language === "zh-CN" ? "简体中文" : "English"}</span>
                   </div>
                 </SummaryCard>
-                <SummaryCard label="已配置模型">
+                <SummaryCard label={localT("onboarding.reviewModels")}>
                   <div className="flex flex-col gap-1">
                     {summaryModels.map((name, index) => (
                       <div
@@ -251,7 +257,7 @@ export function InitialSetupGuide({ onComplete }: InitialSetupGuideProps) {
         </CardContent>
 
         <div className="mt-4 flex shrink-0 items-center justify-between border-t border-[#27272a] px-7 pt-4 pb-5">
-          <div className="text-xs text-[#6b6b76]">{getHint(currentStep)}</div>
+          <div className="text-xs text-[#6b6b76]">{getHint(currentStep, localT)}</div>
           <div className="flex gap-2">
             {currentStep > 1 ? (
               <Button
@@ -263,7 +269,7 @@ export function InitialSetupGuide({ onComplete }: InitialSetupGuideProps) {
                 variant="ghost"
               >
                 <ChevronLeftIcon data-icon="inline-start" />
-                返回
+                {localT("onboarding.previous")}
               </Button>
             ) : null}
             <Button
@@ -272,7 +278,7 @@ export function InitialSetupGuide({ onComplete }: InitialSetupGuideProps) {
               onClick={handleNext}
               type="button"
             >
-              {currentStep === 3 ? "进入主界面" : "继续"}
+              {currentStep === 3 ? localT("onboarding.enterApp") : localT("onboarding.next")}
               <ChevronRightIcon data-icon="inline-end" />
             </Button>
           </div>
@@ -288,9 +294,9 @@ export function InitialSetupGuide({ onComplete }: InitialSetupGuideProps) {
         <div className="flex animate-[toPulse_0.6s_ease] flex-col items-center gap-4">
           <LayoutPanelLeftIcon className="size-12 text-[#6c5ce7]" />
           <div className="text-base font-semibold text-[#fafafa]">
-            正在进入 OwnDesign
+            {localT("onboarding.entering")}
           </div>
-          <div className="text-[13px] text-[#6b6b76]">加载项目工作区...</div>
+          <div className="text-[13px] text-[#6b6b76]">{localT("onboarding.loadingWorkspace")}</div>
         </div>
       </div>
 
@@ -317,7 +323,7 @@ export function InitialSetupGuide({ onComplete }: InitialSetupGuideProps) {
 
     if (currentStep === 2) {
       if (models.length === 0) {
-        showToast("请至少添加一个模型配置", "error");
+        showToast(localT("onboarding.needModel"), "error");
         return;
       }
 
@@ -326,7 +332,7 @@ export function InitialSetupGuide({ onComplete }: InitialSetupGuideProps) {
     }
 
     setIsFinishing(true);
-    showToast("初始化完成，正在进入主界面", "success");
+    showToast(localT("onboarding.initialized"), "success");
     startTransition(async () => {
       const result = await onComplete({
         interfaceLanguage: language,
@@ -352,13 +358,15 @@ function ModelEntry({
   removable,
   onChange,
   onRemove,
+  t,
 }: {
   model: ModelForm;
   removable: boolean;
   onChange: (model: ModelForm) => void;
   onRemove: () => void;
+  t: (key: TranslationKey) => string;
 }) {
-  const label = getProviderLabel(model.provider) || model.model || "未命名模型";
+  const label = getProviderLabel(model.provider) || model.model || t("onboarding.unnamedModel");
 
   return (
     <div className="overflow-hidden rounded-[10px] border border-[#27272a] bg-[#1c1c20] transition-colors duration-150 hover:border-[#3f3f46]">
@@ -367,13 +375,13 @@ function ModelEntry({
           {label}
         </span>
         <span className="rounded-[10px] bg-[rgba(108,92,231,0.14)] px-2 py-0.5 text-[10px] font-semibold tracking-[0.3px] text-[#6c5ce7]">
-          {getProviderLabel(model.provider) || "未设置"}
+          {getProviderLabel(model.provider) || t("onboarding.notSet")}
         </span>
         {removable ? (
           <button
             className="flex size-6 items-center justify-center rounded-md text-[#6b6b76] transition-all duration-150 hover:bg-[rgba(231,76,60,0.1)] hover:text-[#e74c3c] [&_svg]:size-3.5"
             onClick={onRemove}
-            title="移除"
+            title={t("common.remove")}
             type="button"
           >
             <XIcon />
@@ -410,7 +418,7 @@ function ModelEntry({
             value={model.provider}
           >
             <SelectTrigger className={selectClassName}>
-              <SelectValue placeholder="选择 Provider" />
+              <SelectValue placeholder={t("onboarding.selectProvider")} />
             </SelectTrigger>
             <SelectContent>
               <SelectGroup>
@@ -516,16 +524,16 @@ function ModelField({
   );
 }
 
-function getHint(step: Step) {
+function getHint(step: Step, t: (key: TranslationKey) => string) {
   if (step === 1) {
-    return "选择你偏好的界面语言";
+    return t("onboarding.languageStep");
   }
 
   if (step === 2) {
-    return "配置至少一个 AI 模型";
+    return t("onboarding.modelStep");
   }
 
-  return "确认设置，开始使用";
+  return t("onboarding.confirmStep");
 }
 
 function normalizeModelForSubmit(model: ModelForm): InitialModelConfiguration {

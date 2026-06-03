@@ -9,6 +9,7 @@ import {
   ToolPartView,
 } from "@/features/conversation/components/tool-part-view";
 import { getOriginalUserPrompt } from "@owndesign/core/conversations/chat-messages";
+import { useI18n } from "@/features/i18n/context";
 
 export function MessageParts({
   isLastMessage = false,
@@ -77,9 +78,11 @@ function MessagePart({
 }
 
 function ReasoningPendingIndicator() {
+  const { t } = useI18n();
+
   return (
     <div className="w-full font-medium text-muted-foreground text-sm">
-      <Shimmer as="span">正在思考</Shimmer>
+      <Shimmer as="span">{t("conversation.thinking")}</Shimmer>
     </div>
   );
 }

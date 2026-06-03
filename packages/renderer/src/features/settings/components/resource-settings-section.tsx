@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import { CheckIcon, ImageIcon, PlusIcon, TypeIcon, XIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/features/i18n/context";
 import { normalizeResourceDefaults } from "@/features/settings/resource-utils";
 import type { ResourceLibrary, ResourceSettings } from "@/features/settings/types";
 
@@ -14,56 +15,59 @@ export function ResourceSettingsSection({
   resources: ResourceSettings;
   onChange: (resources: ResourceSettings) => void;
 }) {
+  const { t } = useI18n();
+
   return (
     <div>
-      <div className="mb-1 text-base font-semibold">资源管理</div>
+      <div className="mb-1 text-base font-semibold">{t("settings.resources")}</div>
       <div className="mb-6 max-w-[560px] text-[13px] leading-normal text-[#6b6b76]">
-        管理设计页面可使用的字体库和图标库。
+        {t("settings.resourcesDescription")}
       </div>
 
       <ResourceGroup
-        addLabel="添加字体库"
         emptyIcon={<TypeIcon />}
-        emptyText="暂无字体库，点击上方&quot;添加字体库&quot;按钮添加。"
         icon={<TypeIcon />}
+        kind="font"
         libraries={resources.fontLibraries}
         onChange={(fontLibraries) => onChange({ ...resources, fontLibraries })}
-        title="字体库"
       />
       <div className="my-7 h-px bg-[#2a2a2e]" />
       <ResourceGroup
-        addLabel="添加图标库"
         emptyIcon={<ImageIcon />}
-        emptyText="暂无图标库，点击上方&quot;添加图标库&quot;按钮添加。"
         icon={<ImageIcon />}
+        kind="icon"
         libraries={resources.iconLibraries}
         onChange={(iconLibraries) => onChange({ ...resources, iconLibraries })}
-        title="图标库"
       />
     </div>
   );
 }
 
 function ResourceGroup({
-  addLabel,
   emptyIcon,
-  emptyText,
   icon,
+  kind,
   libraries,
   onChange,
-  title,
 }: {
-  addLabel: string;
   emptyIcon: ReactNode;
-  emptyText: string;
   icon: ReactNode;
+  kind: "font" | "icon";
   libraries: ResourceLibrary[];
   onChange: (libraries: ResourceLibrary[]) => void;
-  title: string;
 }) {
+  const { t } = useI18n();
   const [isAdding, setIsAdding] = useState(false);
   const [draftName, setDraftName] = useState("");
   const [draftCdn, setDraftCdn] = useState("");
+  const addLabel =
+    kind === "font" ? t("settings.addFontLibrary") : t("settings.addIconLibrary");
+  const emptyText =
+    kind === "font" ? t("settings.fontLibraryEmpty") : t("settings.iconLibraryEmpty");
+  const title =
+    kind === "font" ? t("settings.fontLibrary") : t("settings.iconLibrary");
+  const namePlaceholder =
+    kind === "font" ? t("settings.fontLibraryName") : t("settings.iconLibraryName");
 
   const addLibrary = () => {
     const name = draftName.trim();
@@ -111,7 +115,7 @@ function ResourceGroup({
         {libraries.length === 0 ? (
           <div className="rounded-[8px] border border-dashed border-[#2a2a2e] px-4 py-8 text-center text-[13px] text-[#6b6b76] [&_svg]:mx-auto [&_svg]:mb-2 [&_svg]:size-6 [&_svg]:opacity-35">
             {emptyIcon}
-            <div>{emptyText.replaceAll("&quot;", '"')}</div>
+            <div>{emptyText}</div>
           </div>
         ) : (
           libraries.map((library) => (
@@ -149,7 +153,7 @@ function ResourceGroup({
           <input
             className="min-w-0 flex-1 rounded-[6px] border border-[#2a2a2e] bg-[#1c1c1f] px-2.5 py-1.5 text-xs text-[#f0f0f2] outline-none transition-colors duration-150 placeholder:text-[#6b6b76] focus:border-[#6c5ce7]"
             onChange={(event) => setDraftName(event.target.value)}
-            placeholder={title === "字体库" ? "字体库名称" : "图标库名称"}
+            placeholder={namePlaceholder}
             type="text"
             value={draftName}
           />
@@ -164,7 +168,7 @@ function ResourceGroup({
             className="flex size-7 items-center justify-center rounded-[6px] bg-[#6c5ce7] text-white transition-colors duration-150 hover:bg-[#7d6ff0] disabled:cursor-not-allowed disabled:opacity-50 [&_svg]:size-3.5"
             disabled={!draftName.trim()}
             onClick={addLibrary}
-            title="确认添加"
+            title={t("settings.confirmAdd")}
             type="button"
           >
             <CheckIcon />
@@ -176,7 +180,7 @@ function ResourceGroup({
               setDraftCdn("");
               setIsAdding(false);
             }}
-            title="取消"
+            title={t("common.cancel")}
             type="button"
           >
             <XIcon />
@@ -198,6 +202,8 @@ function ResourceCard({
   onRemove: () => void;
   onSetDefault: () => void;
 }) {
+  const { t } = useI18n();
+
   return (
     <div
       className={cn(
@@ -211,7 +217,7 @@ function ResourceCard({
         </span>
         {library.isDefault ? (
           <span className="shrink-0 rounded-full bg-[rgba(108,92,231,0.15)] px-2 py-0.5 text-[10px] font-semibold tracking-[0.3px] text-[#6c5ce7]">
-            默认
+            {t("settings.default")}
           </span>
         ) : (
           <button
@@ -219,13 +225,13 @@ function ResourceCard({
             onClick={onSetDefault}
             type="button"
           >
-            设为默认
+            {t("settings.setDefault")}
           </button>
         )}
         <button
           className="flex size-6 shrink-0 items-center justify-center rounded-[6px] text-[#6b6b76] transition-all duration-150 hover:bg-[rgba(231,76,60,0.1)] hover:text-[#e74c3c] [&_svg]:size-3.5"
           onClick={onRemove}
-          title="移除"
+          title={t("common.remove")}
           type="button"
         >
           <XIcon />

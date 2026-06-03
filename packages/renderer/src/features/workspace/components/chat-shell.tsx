@@ -34,6 +34,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { SettingsControl } from "@/features/settings/components/settings-control";
+import { useI18n } from "@/features/i18n/context";
 import { Separator } from "@/components/ui/separator";
 import {
   Select,
@@ -61,18 +62,6 @@ const PREVIEW_REFRESH_EVENT = "owndesign:preview-refresh";
 const PREVIEW_HREF_EVENT = "owndesign:preview-href-updated";
 const PREVIEW_FILES_EVENT = "owndesign:preview-files-updated";
 
-const demoMessages = [
-  {
-    content: "为设计评审工作台创建紧凑的移动端首屏。",
-    role: "user" as const,
-  },
-  {
-    content:
-      "模拟助手回复：预览壳层已就绪。下一步可以接入实时项目和会话状态。",
-    role: "assistant" as const,
-  },
-];
-
 type PreviewStatus = "ready" | "loading" | "error";
 
 export type ChatShellSlots = {
@@ -94,12 +83,6 @@ type ChatShellProps = {
   shellSlots?: ChatShellSlots;
 };
 
-const statusLabels: Record<PreviewStatus, string> = {
-  error: "异常",
-  loading: "加载中...",
-  ready: "就绪",
-};
-
 export function ChatShell({
   composer,
   conversationBody,
@@ -114,6 +97,7 @@ export function ChatShell({
   shellSlots,
 }: ChatShellProps) {
   const api = useApiClient();
+  const { t } = useI18n();
   const navigate = useAppNavigate();
   const [sessionPreviewHref, setSessionPreviewHref] = useState<string>();
   const [previewFiles, setPreviewFiles] = useState<string[]>([]);
@@ -213,6 +197,21 @@ export function ChatShell({
   const workspaceZipDownloadUrl = previewProjectId
     ? api.buildUrl(buildProjectDownloadPath(previewProjectId, "workspace-zip"))
     : undefined;
+  const statusLabels: Record<PreviewStatus, string> = {
+    error: t("shell.error"),
+    loading: t("app.loading"),
+    ready: t("shell.ready"),
+  };
+  const demoMessages = [
+    {
+      content: t("shell.demoUser"),
+      role: "user" as const,
+    },
+    {
+      content: t("shell.demoAssistant"),
+      role: "assistant" as const,
+    },
+  ];
 
   return (
     <SidebarProvider
@@ -248,7 +247,7 @@ export function ChatShell({
 
         <div className="flex min-h-0 flex-1 overflow-hidden">
           <Sidebar
-            aria-label="会话工作流"
+            aria-label={t("shell.conversationWorkflow")}
             className="top-11 h-[calc(100vh-2.75rem)] border-r border-border bg-card"
             collapsible="offcanvas"
             role="region"
@@ -279,7 +278,7 @@ export function ChatShell({
                 {composer ?? (
                   <PromptInput onSubmit={() => {}}>
                     <PromptInputBody>
-                      <PromptInputTextarea placeholder="输入消息..." />
+                      <PromptInputTextarea placeholder={t("conversation.placeholder")} />
                     </PromptInputBody>
                     <PromptInputFooter>
                       <PromptInputTools />
@@ -292,7 +291,7 @@ export function ChatShell({
           </Sidebar>
 
           <SidebarInset
-            aria-label="预览面板"
+            aria-label={t("preview.panel")}
             className="min-w-0 bg-background"
             role="region"
           >
@@ -301,8 +300,8 @@ export function ChatShell({
                 <Button
                   aria-label={
                     isConversationCollapsed
-                      ? "展开会话面板"
-                      : "收起会话面板"
+                      ? t("shell.expandConversation")
+                      : t("shell.collapseConversation")
                   }
                   onClick={() =>
                     writeConversationPaneState(!isConversationCollapsed)
@@ -333,7 +332,7 @@ export function ChatShell({
                           disabled={!previewProjectId}
                           render={
                             <Button
-                              aria-label="下载"
+                              aria-label={t("download.label")}
                               size="icon-sm"
                               type="button"
                               variant="ghost"
@@ -351,7 +350,7 @@ export function ChatShell({
                               }
                             }}
                           >
-                            下载当前HTML
+                            {t("download.currentHtml")}
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             disabled={!workspaceZipDownloadUrl}
@@ -361,12 +360,12 @@ export function ChatShell({
                               }
                             }}
                           >
-                            下载全部打包成ZIP
+                            {t("download.zip")}
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                       <Button
-                        aria-label="刷新预览"
+                        aria-label={t("preview.refresh")}
                         onClick={() => {
                           window.dispatchEvent(new Event(PREVIEW_REFRESH_EVENT));
                         }}
@@ -377,7 +376,7 @@ export function ChatShell({
                         <RefreshCwIcon />
                       </Button>
                       <Button
-                        aria-label="新窗口打开预览"
+                        aria-label={t("preview.openExternal")}
                         disabled={!effectivePreviewHref}
                         onClick={() => {
                           if (effectivePreviewHref) {
@@ -403,8 +402,8 @@ export function ChatShell({
                 {previewBody ?? (
                   <div className="flex size-full items-center justify-center p-10">
                     <ConversationEmptyState
-                      description="在对话中向 AI 描述你的设计需求，生成的页面将在此处实时预览。"
-                      title="尚无预览内容"
+                      description={t("preview.emptyDescription")}
+                      title={t("preview.emptyTitle")}
                     />
                   </div>
                 )}
@@ -491,10 +490,12 @@ function PreviewFileSelect({
   files: string[];
   onChange: (path: string) => void;
 }) {
+  const { t } = useI18n();
+
   if (files.length === 0) {
     return (
       <span className="font-mono text-xs text-muted-foreground">
-        未找到 HTML
+        {t("preview.notFound")}
       </span>
     );
   }
@@ -509,7 +510,7 @@ function PreviewFileSelect({
       value={activePath ?? files[0]}
     >
       <SelectTrigger
-        aria-label="切换预览 HTML"
+        aria-label={t("preview.switchHtml")}
         className="h-7 max-w-full border-0 bg-transparent px-1.5 font-mono text-xs text-muted-foreground shadow-none"
         size="sm"
       >

@@ -6,7 +6,6 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 3710",
     "build": "vite build",
-    "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest"

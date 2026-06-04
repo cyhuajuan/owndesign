@@ -60,6 +60,7 @@ const CONVERSATION_PANE_EVENT = 'owndesign:conversation-pane';
 const PREVIEW_REFRESH_EVENT = 'owndesign:preview-refresh';
 const PREVIEW_HREF_EVENT = 'owndesign:preview-href-updated';
 const PREVIEW_FILES_EVENT = 'owndesign:preview-files-updated';
+const PREVIEW_MANUAL_SWITCH_EVENT = 'owndesign:preview-manual-switch';
 
 type PreviewStatus = 'ready' | 'loading' | 'error';
 
@@ -165,6 +166,11 @@ export function ChatShell({
 
     const params = new URLSearchParams(window.location.search);
     params.set('previewPath', nextPath);
+    window.dispatchEvent(
+      new CustomEvent(PREVIEW_MANUAL_SWITCH_EVENT, {
+        detail: { key: String(Date.now()) },
+      }),
+    );
     navigate(`${window.location.pathname}?${params.toString()}`, {
       preventScrollReset: true,
       replace: true,

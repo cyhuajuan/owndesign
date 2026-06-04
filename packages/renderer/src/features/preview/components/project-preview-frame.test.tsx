@@ -154,6 +154,31 @@ describe('ProjectPreviewFrame', () => {
     expect(screen.queryByText('预览服务启动中')).not.toBeInTheDocument();
   });
 
+  it('remounts the iframe after a manual preview file switch', async () => {
+    mockPreviewFetch();
+
+    render(
+      <ProjectPreviewFrame
+        initialUpdatedAt="2026-05-15T00:00:00.000Z"
+        projectId="project-1"
+        projectName="Project One"
+      />,
+    );
+
+    const iframe = await screen.findByTitle('Project One HTML 预览');
+
+    fireEvent(
+      window,
+      new CustomEvent('owndesign:preview-manual-switch', {
+        detail: { key: 'manual-switch-1' },
+      }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTitle('Project One HTML 预览')).not.toBe(iframe);
+    });
+  });
+
   it('releases the preview session when the frame unmounts', async () => {
     const fetchMock = mockPreviewFetch();
 

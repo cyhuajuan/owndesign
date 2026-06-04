@@ -22,6 +22,7 @@ type PreviewSessionResponse = {
 
 const PREVIEW_HREF_EVENT = 'owndesign:preview-href-updated';
 const PREVIEW_FILES_EVENT = 'owndesign:preview-files-updated';
+const PREVIEW_MANUAL_SWITCH_EVENT = 'owndesign:preview-manual-switch';
 const HEARTBEAT_INTERVAL_MS = 30_000;
 
 export function ProjectPreviewFrame({
@@ -38,6 +39,7 @@ export function ProjectPreviewFrame({
   const previewUrlRef = useRef<string | undefined>(undefined);
   const [previewUrl, setPreviewUrl] = useState<string>();
   const [refreshKey, setRefreshKey] = useState(initialUpdatedAt);
+  const [manualSwitchKey, setManualSwitchKey] = useState('');
   const applyPreviewSession = useCallback(
     (session: PreviewSessionResponse, { updateFrameSrc }: { updateFrameSrc: boolean }) => {
       previewProjectIdRef.current = projectId;
@@ -233,6 +235,23 @@ export function ProjectPreviewFrame({
     };
   }, [projectId]);
 
+  useEffect(() => {
+    const handleManualPreviewSwitch = (event: Event) => {
+      const nextKey =
+        event instanceof CustomEvent && typeof event.detail?.key === 'string'
+          ? event.detail.key
+          : String(Date.now());
+
+      setManualSwitchKey(nextKey);
+    };
+
+    window.addEventListener(PREVIEW_MANUAL_SWITCH_EVENT, handleManualPreviewSwitch);
+
+    return () => {
+      window.removeEventListener(PREVIEW_MANUAL_SWITCH_EVENT, handleManualPreviewSwitch);
+    };
+  }, []);
+
   if (!previewUrl) {
     return (
       <PreviewEmptyState
@@ -247,7 +266,7 @@ export function ProjectPreviewFrame({
   return (
     <iframe
       className="size-full border-0 bg-white"
-      key={refreshKey}
+      key={`${refreshKey}:${manualSwitchKey}`}
       onLoad={() => {
         void syncPreviewSession();
       }}

@@ -1,12 +1,12 @@
-"use client";
+'use client';
 
-import { useState, type ReactNode } from "react";
-import { CheckIcon, ImageIcon, PlusIcon, TypeIcon, XIcon } from "lucide-react";
+import { useState, type ReactNode } from 'react';
+import { CheckIcon, ImageIcon, PlusIcon, TypeIcon, XIcon } from 'lucide-react';
 
-import { cn } from "@/lib/utils";
-import { useI18n } from "@/features/i18n/context";
-import { normalizeResourceDefaults } from "@/features/settings/resource-utils";
-import type { ResourceLibrary, ResourceSettings } from "@/features/settings/types";
+import { cn } from '@/lib/utils';
+import { useI18n } from '@/features/i18n/context';
+import { normalizeResourceDefaults } from '@/features/settings/resource-utils';
+import type { ResourceLibrary, ResourceSettings } from '@/features/settings/types';
 
 export function ResourceSettingsSection({
   resources,
@@ -19,9 +19,9 @@ export function ResourceSettingsSection({
 
   return (
     <div>
-      <div className="mb-1 text-base font-semibold">{t("settings.resources")}</div>
+      <div className="mb-1 text-base font-semibold">{t('settings.resources')}</div>
       <div className="mb-6 max-w-[560px] text-[13px] leading-normal text-[#6b6b76]">
-        {t("settings.resourcesDescription")}
+        {t('settings.resourcesDescription')}
       </div>
 
       <ResourceGroup
@@ -52,22 +52,20 @@ function ResourceGroup({
 }: {
   emptyIcon: ReactNode;
   icon: ReactNode;
-  kind: "font" | "icon";
+  kind: 'font' | 'icon';
   libraries: ResourceLibrary[];
   onChange: (libraries: ResourceLibrary[]) => void;
 }) {
   const { t } = useI18n();
   const [isAdding, setIsAdding] = useState(false);
-  const [draftName, setDraftName] = useState("");
-  const [draftCdn, setDraftCdn] = useState("");
-  const addLabel =
-    kind === "font" ? t("settings.addFontLibrary") : t("settings.addIconLibrary");
+  const [draftName, setDraftName] = useState('');
+  const [draftCdn, setDraftCdn] = useState('');
+  const addLabel = kind === 'font' ? t('settings.addFontLibrary') : t('settings.addIconLibrary');
   const emptyText =
-    kind === "font" ? t("settings.fontLibraryEmpty") : t("settings.iconLibraryEmpty");
-  const title =
-    kind === "font" ? t("settings.fontLibrary") : t("settings.iconLibrary");
+    kind === 'font' ? t('settings.fontLibraryEmpty') : t('settings.iconLibraryEmpty');
+  const title = kind === 'font' ? t('settings.fontLibrary') : t('settings.iconLibrary');
   const namePlaceholder =
-    kind === "font" ? t("settings.fontLibraryName") : t("settings.iconLibraryName");
+    kind === 'font' ? t('settings.fontLibraryName') : t('settings.iconLibraryName');
 
   const addLibrary = () => {
     const name = draftName.trim();
@@ -87,8 +85,8 @@ function ResourceGroup({
         },
       ]),
     );
-    setDraftName("");
-    setDraftCdn("");
+    setDraftName('');
+    setDraftCdn('');
     setIsAdding(false);
   };
 
@@ -124,9 +122,7 @@ function ResourceGroup({
               library={library}
               onChange={(nextLibrary) =>
                 onChange(
-                  libraries.map((current) =>
-                    current.id === library.id ? nextLibrary : current,
-                  ),
+                  libraries.map((current) => (current.id === library.id ? nextLibrary : current)),
                 )
               }
               onRemove={() =>
@@ -168,7 +164,7 @@ function ResourceGroup({
             className="flex size-7 items-center justify-center rounded-[6px] bg-[#6c5ce7] text-white transition-colors duration-150 hover:bg-[#7d6ff0] disabled:cursor-not-allowed disabled:opacity-50 [&_svg]:size-3.5"
             disabled={!draftName.trim()}
             onClick={addLibrary}
-            title={t("settings.confirmAdd")}
+            title={t('settings.confirmAdd')}
             type="button"
           >
             <CheckIcon />
@@ -176,11 +172,11 @@ function ResourceGroup({
           <button
             className="flex size-7 items-center justify-center rounded-[6px] bg-[#252528] text-[#6b6b76] transition-colors duration-150 hover:bg-[#2e2e32] hover:text-[#a0a0ab] [&_svg]:size-3.5"
             onClick={() => {
-              setDraftName("");
-              setDraftCdn("");
+              setDraftName('');
+              setDraftCdn('');
               setIsAdding(false);
             }}
-            title={t("common.cancel")}
+            title={t('common.cancel')}
             type="button"
           >
             <XIcon />
@@ -207,8 +203,8 @@ function ResourceCard({
   return (
     <div
       className={cn(
-        "rounded-[8px] border border-[#2a2a2e] bg-[#0a0a0b] px-3.5 py-3 transition-[border-color,box-shadow] duration-150 hover:border-[#38383d]",
-        library.isDefault && "border-[#6c5ce7] shadow-[0_0_0_1px_rgba(108,92,231,0.15)]",
+        'rounded-[8px] border border-[#2a2a2e] bg-[#0a0a0b] px-3.5 py-3 transition-[border-color,box-shadow] duration-150 hover:border-[#38383d]',
+        library.isDefault && 'border-[#6c5ce7] shadow-[0_0_0_1px_rgba(108,92,231,0.15)]',
       )}
     >
       <div className="flex items-center gap-2">
@@ -217,7 +213,7 @@ function ResourceCard({
         </span>
         {library.isDefault ? (
           <span className="shrink-0 rounded-full bg-[rgba(108,92,231,0.15)] px-2 py-0.5 text-[10px] font-semibold tracking-[0.3px] text-[#6c5ce7]">
-            {t("settings.default")}
+            {t('settings.default')}
           </span>
         ) : (
           <button
@@ -225,22 +221,20 @@ function ResourceCard({
             onClick={onSetDefault}
             type="button"
           >
-            {t("settings.setDefault")}
+            {t('settings.setDefault')}
           </button>
         )}
         <button
           className="flex size-6 shrink-0 items-center justify-center rounded-[6px] text-[#6b6b76] transition-all duration-150 hover:bg-[rgba(231,76,60,0.1)] hover:text-[#e74c3c] [&_svg]:size-3.5"
           onClick={onRemove}
-          title={t("common.remove")}
+          title={t('common.remove')}
           type="button"
         >
           <XIcon />
         </button>
       </div>
       <div className="mt-2 flex items-center gap-2">
-        <span className="w-9 shrink-0 text-[11px] font-medium text-[#6b6b76]">
-          CDN
-        </span>
+        <span className="w-9 shrink-0 text-[11px] font-medium text-[#6b6b76]">CDN</span>
         <input
           className={resourceCdnInputClass}
           onChange={(event) => onChange({ ...library, cdn: event.target.value })}
@@ -249,15 +243,11 @@ function ResourceCard({
           type="text"
           value={library.cdn}
         />
-        {library.cdn ? (
-          <CheckIcon className="size-3 shrink-0 text-[#2ecc71]" />
-        ) : null}
+        {library.cdn ? <CheckIcon className="size-3 shrink-0 text-[#2ecc71]" /> : null}
       </div>
     </div>
   );
 }
 
-
-
 const resourceCdnInputClass =
-  "min-w-0 flex-1 rounded-[6px] border border-[#2a2a2e] bg-[#1c1c1f] px-2 py-1.5 font-mono text-xs text-[#a0a0ab] outline-none transition-colors duration-150 placeholder:text-[#6b6b76] focus:border-[#6c5ce7]";
+  'min-w-0 flex-1 rounded-[6px] border border-[#2a2a2e] bg-[#1c1c1f] px-2 py-1.5 font-mono text-xs text-[#a0a0ab] outline-none transition-colors duration-150 placeholder:text-[#6b6b76] focus:border-[#6c5ce7]';

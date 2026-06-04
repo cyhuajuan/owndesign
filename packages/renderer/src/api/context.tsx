@@ -1,6 +1,6 @@
-import { createContext, useContext, useMemo } from "react";
+import { createContext, useContext, useMemo } from 'react';
 
-import { createApiClient, type ApiClient } from "./client";
+import { createApiClient, type ApiClient } from './client';
 
 const ApiClientContext = createContext<ApiClient>(createApiClient());
 
@@ -13,9 +13,7 @@ export function ApiClientProvider({
 }) {
   const client = useMemo(() => createApiClient(baseUrl), [baseUrl]);
 
-  return (
-    <ApiClientContext.Provider value={client}>{children}</ApiClientContext.Provider>
-  );
+  return <ApiClientContext.Provider value={client}>{children}</ApiClientContext.Provider>;
 }
 
 export function useApiClient() {

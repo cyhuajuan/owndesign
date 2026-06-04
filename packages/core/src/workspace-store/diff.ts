@@ -1,14 +1,10 @@
-import { truncateLineMiddle } from "./text";
+import { truncateLineMiddle } from './text';
 
 const MAX_DIFF_LINES = 80;
 
-export function buildUnifiedDiff(
-  oldContent: string,
-  newContent: string,
-  relativePath: string,
-) {
+export function buildUnifiedDiff(oldContent: string, newContent: string, relativePath: string) {
   if (oldContent === newContent) {
-    return "";
+    return '';
   }
 
   const oldLines = oldContent.split(/\r?\n/);
@@ -48,5 +44,5 @@ export function buildUnifiedDiff(
     lines.push(`... ${omitted} changed line(s) omitted ...`);
   }
 
-  return lines.join("\n");
+  return lines.join('\n');
 }

@@ -1,19 +1,7 @@
-import {
-  ConversationRecord,
-  WorkspaceStore,
-} from "@owndesign/core/workspace-store";
-import {
-  AiSdkDesignPageAgent,
-  DesignPageAgent,
-} from "@owndesign/core/agent/design-page-agent";
-import {
-  getFirstUserMessageText,
-  OwnDesignUIMessage,
-} from "./chat-messages";
-import {
-  FALLBACK_CONVERSATION_TITLE,
-  normalizeDefaultConversationTitle,
-} from "./default-title";
+import { ConversationRecord, WorkspaceStore } from '@owndesign/core/workspace-store';
+import { AiSdkDesignPageAgent, DesignPageAgent } from '@owndesign/core/agent/design-page-agent';
+import { getFirstUserMessageText, OwnDesignUIMessage } from './chat-messages';
+import { FALLBACK_CONVERSATION_TITLE, normalizeDefaultConversationTitle } from './default-title';
 
 type ConversationServiceOptions = {
   workspaceStore: WorkspaceStore;
@@ -31,13 +19,13 @@ type ConversationState = {
 };
 
 type UserMessage = {
-  role: "user";
+  role: 'user';
   content: string;
   createdAt: string;
 };
 
 type AssistantMessage = {
-  role: "assistant";
+  role: 'assistant';
   content: string;
   createdAt: string;
 };
@@ -54,8 +42,7 @@ export class ConversationService {
     this.workspaceStore = options.workspaceStore;
     this.now = options.now ?? (() => new Date().toISOString());
     this.createId = options.createId ?? (() => crypto.randomUUID());
-    this.designPageAgent =
-      options.designPageAgent ?? new AiSdkDesignPageAgent(this.workspaceStore);
+    this.designPageAgent = options.designPageAgent ?? new AiSdkDesignPageAgent(this.workspaceStore);
   }
 
   async createConversation(projectId: string, defaultTitle?: string) {
@@ -90,22 +77,14 @@ export class ConversationService {
       updatedAt: this.now(),
     };
 
-    return this.workspaceStore.updateConversation(
-      projectId,
-      conversationId,
-      updatedConversation,
-    );
+    return this.workspaceStore.updateConversation(projectId, conversationId, updatedConversation);
   }
 
   async switchConversation(projectId: string, conversationId: string) {
     return this.workspaceStore.getConversation(projectId, conversationId);
   }
 
-  async sendUserMessage(
-    projectId: string,
-    conversationId: string,
-    content: string,
-  ) {
+  async sendUserMessage(projectId: string, conversationId: string, content: string) {
     const existingConversation = await this.workspaceStore.getConversation(
       projectId,
       conversationId,
@@ -113,7 +92,7 @@ export class ConversationService {
     const project = await this.workspaceStore.getProject(projectId);
     const timestamp = this.now();
     const userMessage = {
-      role: "user",
+      role: 'user',
       content,
       createdAt: timestamp,
     } satisfies UserMessage;
@@ -123,15 +102,11 @@ export class ConversationService {
       projectId,
     });
     const mockReply = {
-      role: "assistant",
+      role: 'assistant',
       content: agentResult.content,
       createdAt: timestamp,
     } satisfies AssistantMessage;
-    const messages = [
-      ...existingConversation.messages,
-      userMessage,
-      mockReply,
-    ];
+    const messages = [...existingConversation.messages, userMessage, mockReply];
     const updatedConversation: ConversationRecord = {
       ...existingConversation,
       title:
@@ -152,11 +127,7 @@ export class ConversationService {
 
     await this.workspaceStore.updateProject(projectId, updatedProject);
 
-    return this.workspaceStore.updateConversation(
-      projectId,
-      conversationId,
-      updatedConversation,
-    );
+    return this.workspaceStore.updateConversation(projectId, conversationId, updatedConversation);
   }
 
   async saveUIMessageStream(
@@ -191,29 +162,16 @@ export class ConversationService {
 
     await this.workspaceStore.updateProject(projectId, updatedProject);
 
-    return this.workspaceStore.updateConversation(
-      projectId,
-      conversationId,
-      updatedConversation,
-    );
+    return this.workspaceStore.updateConversation(projectId, conversationId, updatedConversation);
   }
 
-  async deleteConversation(
-    projectId: string,
-    conversationId: string,
-    defaultTitle?: string,
-  ) {
+  async deleteConversation(projectId: string, conversationId: string, defaultTitle?: string) {
     await this.workspaceStore.deleteConversation(projectId, conversationId);
 
-    let remainingConversations = await this.workspaceStore.listConversations(
-      projectId,
-    );
+    let remainingConversations = await this.workspaceStore.listConversations(projectId);
 
     if (remainingConversations.length === 0) {
-      const replacementConversation = await this.createConversation(
-        projectId,
-        defaultTitle,
-      );
+      const replacementConversation = await this.createConversation(projectId, defaultTitle);
       remainingConversations = [replacementConversation];
     }
 
@@ -229,13 +187,12 @@ export class ConversationService {
   }
 
   private async generateProjectOutputSafely(
-    input: Parameters<DesignPageAgent["generateProjectOutput"]>[0],
+    input: Parameters<DesignPageAgent['generateProjectOutput']>[0],
   ) {
     try {
       return await this.designPageAgent.generateProjectOutput(input);
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unknown design agent error";
+      const message = error instanceof Error ? error.message : 'Unknown design agent error';
 
       return {
         content: `生成失败：${message}`,
@@ -245,5 +202,5 @@ export class ConversationService {
 }
 
 function summarizeConversationTitle(content: string) {
-  return content.trim().replace(/\s+/g, " ").slice(0, 80);
+  return content.trim().replace(/\s+/g, ' ').slice(0, 80);
 }

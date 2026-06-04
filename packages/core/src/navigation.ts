@@ -4,13 +4,9 @@ export type WorkspaceHrefInput = {
   projectId?: string;
 };
 
-export function buildWorkspaceHref({
-  conversationId,
-  previewPath,
-  projectId,
-}: WorkspaceHrefInput) {
+export function buildWorkspaceHref({ conversationId, previewPath, projectId }: WorkspaceHrefInput) {
   if (!projectId) {
-    return "/";
+    return '/';
   }
 
   const pathname = conversationId
@@ -33,10 +29,8 @@ export function getWorkspaceProjectId(href: string) {
 }
 
 function matchWorkspaceHref(href: string) {
-  const url = new URL(href, "http://owndesign.local");
-  const match = url.pathname.match(
-    /^\/projects\/([^/]+)(?:\/conversations\/([^/]+))?\/?$/,
-  );
+  const url = new URL(href, 'http://owndesign.local');
+  const match = url.pathname.match(/^\/projects\/([^/]+)(?:\/conversations\/([^/]+))?\/?$/);
 
   if (!match) {
     return undefined;

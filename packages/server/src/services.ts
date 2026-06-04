@@ -1,8 +1,8 @@
-import { getPreviewServerManager } from "@owndesign/core/preview/preview-server-manager";
-import { ConversationService } from "@owndesign/core/conversations/conversation-service";
-import { ProjectService } from "@owndesign/core/projects/project-service";
-import { createSettingsService } from "@owndesign/core/settings/settings-service";
-import { WorkspaceStore } from "@owndesign/core/workspace-store";
+import { getPreviewServerManager } from '@owndesign/core/preview/preview-server-manager';
+import { ConversationService } from '@owndesign/core/conversations/conversation-service';
+import { ProjectService } from '@owndesign/core/projects/project-service';
+import { createSettingsService } from '@owndesign/core/settings/settings-service';
+import { WorkspaceStore } from '@owndesign/core/workspace-store';
 
 export type OwnDesignServerOptions = {
   corsOrigin?: string | string[];

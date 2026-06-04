@@ -1,25 +1,11 @@
-"use client";
+'use client';
 
-import {
-  startTransition,
-  useDeferredValue,
-  useId,
-  useMemo,
-  useState,
-  type FormEvent,
-} from "react";
-import { useAppNavigate } from "@/lib/router";
-import {
-  ChevronDownIcon,
-  MessageSquareIcon,
-  PlusIcon,
-} from "lucide-react";
+import { startTransition, useDeferredValue, useId, useMemo, useState, type FormEvent } from 'react';
+import { useAppNavigate } from '@/lib/router';
+import { ChevronDownIcon, MessageSquareIcon, PlusIcon } from 'lucide-react';
 
-import type {
-  ConversationRecord,
-  ProjectRecord,
-} from "@owndesign/core/workspace-store";
-import { getWorkspaceProjectId } from "@owndesign/core/navigation";
+import type { ConversationRecord, ProjectRecord } from '@owndesign/core/workspace-store';
+import { getWorkspaceProjectId } from '@owndesign/core/navigation';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,8 +15,8 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Button } from "@/components/ui/button";
+} from '@/components/ui/alert-dialog';
+import { Button } from '@/components/ui/button';
 import {
   Command,
   CommandEmpty,
@@ -39,7 +25,7 @@ import {
   CommandItem,
   CommandList,
   CommandSeparator,
-} from "@/components/ui/command";
+} from '@/components/ui/command';
 import {
   Dialog,
   DialogContent,
@@ -47,23 +33,15 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Field,
-  FieldGroup,
-  FieldLabel,
-} from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/lib/utils";
-import { useI18n } from "@/features/i18n/context";
-import { EntityMenu } from "@/features/projects/components/entity-menu";
-import { filterByQuery } from "@/features/projects/utils";
+} from '@/components/ui/dialog';
+import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Textarea } from '@/components/ui/textarea';
+import { cn } from '@/lib/utils';
+import { useI18n } from '@/features/i18n/context';
+import { EntityMenu } from '@/features/projects/components/entity-menu';
+import { filterByQuery } from '@/features/projects/utils';
 
 type ControlBarProps = {
   activeConversationId?: string;
@@ -77,9 +55,7 @@ type ControlBarProps = {
   onDeleteConversation: (
     conversationId: string,
   ) => Promise<ControlBarActionResult> | ControlBarActionResult;
-  onDeleteProject: (
-    projectId: string,
-  ) => Promise<ControlBarActionResult> | ControlBarActionResult;
+  onDeleteProject: (projectId: string) => Promise<ControlBarActionResult> | ControlBarActionResult;
   onRenameConversation: (
     conversationId: string,
     title: string,
@@ -92,22 +68,20 @@ type ControlBarProps = {
   onSelectConversation: (
     conversationId: string,
   ) => Promise<ControlBarActionResult> | ControlBarActionResult;
-  onSelectProject: (
-    projectId: string,
-  ) => Promise<ControlBarActionResult> | ControlBarActionResult;
+  onSelectProject: (projectId: string) => Promise<ControlBarActionResult> | ControlBarActionResult;
   projects: ProjectRecord[];
 };
 
 type ControlBarActionResult = { href?: string } | undefined | void;
 
 type RenameTarget =
-  | { type: "conversation"; conversation: ConversationRecord }
-  | { type: "project"; project: ProjectRecord }
+  | { type: 'conversation'; conversation: ConversationRecord }
+  | { type: 'project'; project: ProjectRecord }
   | null;
 
 type DeleteTarget =
-  | { type: "conversation"; conversation: ConversationRecord }
-  | { type: "project"; project: ProjectRecord }
+  | { type: 'conversation'; conversation: ConversationRecord }
+  | { type: 'project'; project: ProjectRecord }
   | null;
 
 export function ControlBar({
@@ -126,18 +100,16 @@ export function ControlBar({
 }: ControlBarProps) {
   const { t } = useI18n();
   const navigate = useAppNavigate();
-  const [openMenu, setOpenMenu] = useState<"project" | "conversation" | null>(
-    null,
-  );
+  const [openMenu, setOpenMenu] = useState<'project' | 'conversation' | null>(null);
   const [isProjectCreateOpen, setIsProjectCreateOpen] = useState(false);
   const [renameTarget, setRenameTarget] = useState<RenameTarget>(null);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null);
   const [optimisticProjectId, setOptimisticProjectId] = useState<string>();
-  const [projectQuery, setProjectQuery] = useState("");
-  const [conversationQuery, setConversationQuery] = useState("");
-  const [projectName, setProjectName] = useState("");
-  const [renameName, setRenameName] = useState("");
-  const [renameDescription, setRenameDescription] = useState("");
+  const [projectQuery, setProjectQuery] = useState('');
+  const [conversationQuery, setConversationQuery] = useState('');
+  const [projectName, setProjectName] = useState('');
+  const [renameName, setRenameName] = useState('');
+  const [renameDescription, setRenameDescription] = useState('');
   const projectNameId = useId();
   const renameNameId = useId();
   const renameDescriptionId = useId();
@@ -147,16 +119,12 @@ export function ControlBar({
   const activeProject = projects.find((project) => project.id === activeProjectId);
   const effectiveOptimisticProjectId =
     optimisticProjectId === activeProjectId ? undefined : optimisticProjectId;
-  const optimisticProject = projects.find(
-    (project) => project.id === effectiveOptimisticProjectId,
-  );
+  const optimisticProject = projects.find((project) => project.id === effectiveOptimisticProjectId);
   const displayedProject = optimisticProject ?? activeProject;
   const isProjectSwitchPending = Boolean(effectiveOptimisticProjectId);
   const activeConversation = isProjectSwitchPending
     ? undefined
-    : conversations.find(
-        (conversation) => conversation.id === activeConversationId,
-      );
+    : conversations.find((conversation) => conversation.id === activeConversationId);
   const filteredProjects = useMemo(
     () => filterByQuery(projects, deferredProjectQuery, (project) => project.name),
     [deferredProjectQuery, projects],
@@ -174,19 +142,19 @@ export function ControlBar({
   return (
     <div className="flex min-w-0 items-center gap-1.5">
       <Popover
-        open={openMenu === "project"}
+        open={openMenu === 'project'}
         onOpenChange={(open) => {
-          setOpenMenu(open ? "project" : null);
+          setOpenMenu(open ? 'project' : null);
           if (!open) {
-            setProjectQuery("");
+            setProjectQuery('');
           }
         }}
       >
         <PopoverTrigger
           render={
             <Button
-              aria-label={t("projects.projectSwitcher", {
-                name: displayedProject?.name ?? t("projects.noCurrentProject"),
+              aria-label={t('projects.projectSwitcher', {
+                name: displayedProject?.name ?? t('projects.noCurrentProject'),
               })}
               className="h-7 max-w-[220px] justify-start gap-1.5 px-2 text-xs"
               type="button"
@@ -196,7 +164,7 @@ export function ControlBar({
         >
           <span className="size-1.5 shrink-0 rounded-full bg-primary" />
           <span className="truncate text-foreground">
-            {displayedProject?.name ?? t("projects.selectProject")}
+            {displayedProject?.name ?? t('projects.selectProject')}
           </span>
           <ChevronDownIcon data-icon="inline-end" />
         </PopoverTrigger>
@@ -208,25 +176,24 @@ export function ControlBar({
           <Command shouldFilter={false}>
             <div className="px-3 pt-3 pb-2">
               <CommandInput
-                aria-label={t("projects.searchProjects")}
+                aria-label={t('projects.searchProjects')}
                 className="border-0 bg-transparent px-0"
                 onValueChange={setProjectQuery}
-                placeholder={t("projects.searchProjectsPlaceholder")}
+                placeholder={t('projects.searchProjectsPlaceholder')}
                 value={projectQuery}
                 wrapperClassName="w-full p-0"
               />
             </div>
             <CommandList>
-              <CommandEmpty>{t("projects.noMatchingProjects")}</CommandEmpty>
+              <CommandEmpty>{t('projects.noMatchingProjects')}</CommandEmpty>
               <CommandGroup>
                 {filteredProjects.map((project) => (
                   <CommandItem
                     aria-label={project.name}
                     className={cn(
-                      "group/item mb-1 gap-2 last:mb-0",
-                      project.id ===
-                        (effectiveOptimisticProjectId ?? activeProjectId) &&
-                        "bg-primary/15 text-primary data-[selected=true]:bg-primary/15 data-[selected=true]:text-primary",
+                      'group/item mb-1 gap-2 last:mb-0',
+                      project.id === (effectiveOptimisticProjectId ?? activeProjectId) &&
+                        'bg-primary/15 text-primary data-[selected=true]:bg-primary/15 data-[selected=true]:text-primary',
                     )}
                     key={project.id}
                     onSelect={() => {
@@ -248,13 +215,13 @@ export function ControlBar({
                     <EntityMenu
                       onDelete={() => {
                         setOpenMenu(null);
-                        setDeleteTarget({ type: "project", project });
+                        setDeleteTarget({ type: 'project', project });
                       }}
                       onRename={() => {
                         setOpenMenu(null);
                         setRenameName(project.name);
-                        setRenameDescription(project.description ?? "");
-                        setRenameTarget({ type: "project", project });
+                        setRenameDescription(project.description ?? '');
+                        setRenameTarget({ type: 'project', project });
                       }}
                     />
                   </CommandItem>
@@ -269,10 +236,10 @@ export function ControlBar({
                     setIsProjectCreateOpen(true);
                   }}
                   showIndicator={false}
-                  value={t("projects.newProject")}
+                  value={t('projects.newProject')}
                 >
                   <PlusIcon data-icon="inline-start" />
-                  {t("projects.newProject")}
+                  {t('projects.newProject')}
                 </CommandItem>
               </CommandGroup>
             </CommandList>
@@ -281,21 +248,21 @@ export function ControlBar({
       </Popover>
 
       <Popover
-        open={openMenu === "conversation"}
+        open={openMenu === 'conversation'}
         onOpenChange={(open) => {
-          setOpenMenu(open ? "conversation" : null);
+          setOpenMenu(open ? 'conversation' : null);
           if (!open) {
-            setConversationQuery("");
+            setConversationQuery('');
           }
         }}
       >
         <PopoverTrigger
           render={
             <Button
-              aria-label={t("projects.conversationSwitcher", {
+              aria-label={t('projects.conversationSwitcher', {
                 name: isProjectSwitchPending
-                  ? t("projects.loadingConversations")
-                  : activeConversation?.title ?? t("projects.noCurrentConversation"),
+                  ? t('projects.loadingConversations')
+                  : (activeConversation?.title ?? t('projects.noCurrentConversation')),
               })}
               className="h-7 max-w-[220px] justify-start gap-1.5 px-2 text-xs"
               disabled={!activeProject || isProjectSwitchPending}
@@ -307,8 +274,8 @@ export function ControlBar({
           <span className="size-1.5 shrink-0 rounded-full bg-[var(--status-ready)]" />
           <span className="truncate text-foreground">
             {isProjectSwitchPending
-              ? t("projects.loadingConversations")
-              : activeConversation?.title ?? t("projects.selectConversation")}
+              ? t('projects.loadingConversations')
+              : (activeConversation?.title ?? t('projects.selectConversation'))}
           </span>
           <ChevronDownIcon data-icon="inline-end" />
         </PopoverTrigger>
@@ -320,24 +287,24 @@ export function ControlBar({
           <Command shouldFilter={false}>
             <div className="px-3 pt-3 pb-2">
               <CommandInput
-                aria-label={t("projects.searchConversations")}
+                aria-label={t('projects.searchConversations')}
                 className="border-0 bg-transparent px-0"
                 onValueChange={setConversationQuery}
-                placeholder={t("projects.searchConversationsPlaceholder")}
+                placeholder={t('projects.searchConversationsPlaceholder')}
                 value={conversationQuery}
                 wrapperClassName="w-full p-0"
               />
             </div>
             <CommandList>
-              <CommandEmpty>{t("projects.noMatchingConversations")}</CommandEmpty>
+              <CommandEmpty>{t('projects.noMatchingConversations')}</CommandEmpty>
               <CommandGroup>
                 {filteredConversations.map((conversation) => (
                   <CommandItem
                     aria-label={conversation.title}
                     className={cn(
-                      "group/item mb-1 gap-2 last:mb-0",
+                      'group/item mb-1 gap-2 last:mb-0',
                       conversation.id === activeConversationId &&
-                        "bg-primary/15 text-primary [&_[data-icon=inline-start]]:text-primary data-[selected=true]:bg-primary/15 data-[selected=true]:text-primary data-[selected=true]:[&_[data-icon=inline-start]]:text-primary",
+                        'bg-primary/15 text-primary [&_[data-icon=inline-start]]:text-primary data-[selected=true]:bg-primary/15 data-[selected=true]:text-primary data-[selected=true]:[&_[data-icon=inline-start]]:text-primary',
                     )}
                     key={conversation.id}
                     onSelect={() => {
@@ -350,19 +317,17 @@ export function ControlBar({
                     value={conversation.title}
                   >
                     <MessageSquareIcon data-icon="inline-start" />
-                    <span className="min-w-0 flex-1 truncate">
-                      {conversation.title}
-                    </span>
+                    <span className="min-w-0 flex-1 truncate">{conversation.title}</span>
                     <EntityMenu
                       onDelete={() => {
                         setOpenMenu(null);
-                        setDeleteTarget({ type: "conversation", conversation });
+                        setDeleteTarget({ type: 'conversation', conversation });
                       }}
                       onRename={() => {
                         setOpenMenu(null);
                         setRenameName(conversation.title);
-                        setRenameDescription("");
-                        setRenameTarget({ type: "conversation", conversation });
+                        setRenameDescription('');
+                        setRenameTarget({ type: 'conversation', conversation });
                       }}
                     />
                   </CommandItem>
@@ -380,10 +345,10 @@ export function ControlBar({
                     });
                   }}
                   showIndicator={false}
-                  value={t("projects.newConversation")}
+                  value={t('projects.newConversation')}
                 >
                   <PlusIcon data-icon="inline-start" />
-                  {t("projects.newConversation")}
+                  {t('projects.newConversation')}
                 </CommandItem>
               </CommandGroup>
             </CommandList>
@@ -395,33 +360,31 @@ export function ControlBar({
         onOpenChange={(open) => {
           setIsProjectCreateOpen(open);
           if (!open) {
-            setProjectName("");
+            setProjectName('');
           }
         }}
         open={isProjectCreateOpen}
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{t("projects.createTitle")}</DialogTitle>
-            <DialogDescription>
-              {t("projects.createDescription")}
-            </DialogDescription>
+            <DialogTitle>{t('projects.createTitle')}</DialogTitle>
+            <DialogDescription>{t('projects.createDescription')}</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleProjectCreate}>
             <FieldGroup>
               <Field>
-                <FieldLabel htmlFor={projectNameId}>{t("projects.projectName")}</FieldLabel>
+                <FieldLabel htmlFor={projectNameId}>{t('projects.projectName')}</FieldLabel>
                 <Input
                   id={projectNameId}
                   onChange={(event) => setProjectName(event.target.value)}
-                  placeholder={t("projects.projectNamePlaceholder")}
+                  placeholder={t('projects.projectNamePlaceholder')}
                   required
                   value={projectName}
                 />
               </Field>
             </FieldGroup>
             <DialogFooter className="mt-5 border-t-0">
-              <Button type="submit">{t("projects.create")}</Button>
+              <Button type="submit">{t('projects.create')}</Button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -431,8 +394,8 @@ export function ControlBar({
         onOpenChange={(open) => {
           if (!open) {
             setRenameTarget(null);
-            setRenameName("");
-            setRenameDescription("");
+            setRenameName('');
+            setRenameDescription('');
           }
         }}
         open={renameTarget !== null}
@@ -440,18 +403,16 @@ export function ControlBar({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {renameTarget?.type === "project"
-                ? t("projects.renameProject")
-                : t("projects.renameConversation")}
+              {renameTarget?.type === 'project'
+                ? t('projects.renameProject')
+                : t('projects.renameConversation')}
             </DialogTitle>
-            <DialogDescription>
-              {t("projects.renameDescription")}
-            </DialogDescription>
+            <DialogDescription>{t('projects.renameDescription')}</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleRename}>
             <FieldGroup>
               <Field>
-                <FieldLabel htmlFor={renameNameId}>{t("projects.newName")}</FieldLabel>
+                <FieldLabel htmlFor={renameNameId}>{t('projects.newName')}</FieldLabel>
                 <Input
                   id={renameNameId}
                   onChange={(event) => setRenameName(event.target.value)}
@@ -459,23 +420,21 @@ export function ControlBar({
                   value={renameName}
                 />
               </Field>
-              {renameTarget?.type === "project" ? (
+              {renameTarget?.type === 'project' ? (
                 <Field>
                   <FieldLabel htmlFor={renameDescriptionId}>
-                    {t("projects.projectDescription")}
+                    {t('projects.projectDescription')}
                   </FieldLabel>
                   <Textarea
                     id={renameDescriptionId}
-                    onChange={(event) =>
-                      setRenameDescription(event.target.value)
-                    }
+                    onChange={(event) => setRenameDescription(event.target.value)}
                     value={renameDescription}
                   />
                 </Field>
               ) : null}
             </FieldGroup>
             <DialogFooter className="mt-5">
-              <Button type="submit">{t("common.save")}</Button>
+              <Button type="submit">{t('common.save')}</Button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -491,24 +450,24 @@ export function ControlBar({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t("projects.confirmDelete")}</AlertDialogTitle>
+            <AlertDialogTitle>{t('projects.confirmDelete')}</AlertDialogTitle>
             <AlertDialogDescription>
-              {t("projects.deleteDescription")}
+              {t('projects.deleteDescription')}
               {deleteTarget
                 ? ` ${
-                    deleteTarget.type === "project"
-                      ? t("projects.deleteProjectName", {
+                    deleteTarget.type === 'project'
+                      ? t('projects.deleteProjectName', {
                           name: deleteTarget.project.name,
                         })
-                      : t("projects.deleteConversationName", {
+                      : t('projects.deleteConversationName', {
                           name: deleteTarget.conversation.title,
                         })
                   }`
-                : ""}
+                : ''}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
               onClick={() => {
@@ -519,7 +478,7 @@ export function ControlBar({
                 const target = deleteTarget;
                 setDeleteTarget(null);
                 startTransition(() => {
-                  if (target.type === "project") {
+                  if (target.type === 'project') {
                     void runAction(onDeleteProject(target.project.id));
                   } else {
                     void runAction(onDeleteConversation(target.conversation.id));
@@ -527,7 +486,7 @@ export function ControlBar({
                 });
               }}
             >
-              {t("common.delete")}
+              {t('common.delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -545,7 +504,7 @@ export function ControlBar({
     }
 
     setIsProjectCreateOpen(false);
-    setProjectName("");
+    setProjectName('');
     startTransition(() => {
       void runAction(onCreateProject(trimmedName));
     });
@@ -567,28 +526,20 @@ export function ControlBar({
 
     const target = renameTarget;
     setRenameTarget(null);
-    setRenameName("");
-    setRenameDescription("");
+    setRenameName('');
+    setRenameDescription('');
     startTransition(() => {
-      if (target.type === "project") {
+      if (target.type === 'project') {
         void runAction(
-          onRenameProject(
-            target.project.id,
-            trimmedName,
-            trimmedDescription || undefined,
-          ),
+          onRenameProject(target.project.id, trimmedName, trimmedDescription || undefined),
         );
       } else {
-        void runAction(
-          onRenameConversation(target.conversation.id, trimmedName),
-        );
+        void runAction(onRenameConversation(target.conversation.id, trimmedName));
       }
     });
   }
 
-  async function runAction(
-    actionResult: Promise<ControlBarActionResult> | ControlBarActionResult,
-  ) {
+  async function runAction(actionResult: Promise<ControlBarActionResult> | ControlBarActionResult) {
     const result = await actionResult;
 
     if (result?.href) {
@@ -596,7 +547,7 @@ export function ControlBar({
       return;
     }
 
-    window.dispatchEvent(new Event("owndesign:workspace-refresh"));
+    window.dispatchEvent(new Event('owndesign:workspace-refresh'));
   }
 
   function getNavigationHref(href: string) {
@@ -606,16 +557,14 @@ export function ControlBar({
       return href;
     }
 
-    const previewPath = new URLSearchParams(window.location.search).get(
-      "previewPath",
-    );
+    const previewPath = new URLSearchParams(window.location.search).get('previewPath');
 
     if (!previewPath) {
       return href;
     }
 
     const url = new URL(href, window.location.origin);
-    url.searchParams.set("previewPath", previewPath);
+    url.searchParams.set('previewPath', previewPath);
 
     return `${url.pathname}${url.search}`;
   }

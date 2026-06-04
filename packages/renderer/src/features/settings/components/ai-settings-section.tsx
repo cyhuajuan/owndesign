@@ -1,10 +1,10 @@
-"use client";
+'use client';
 
-import type { ReactNode } from "react";
-import { ChevronDownIcon, PlusIcon, XIcon } from "lucide-react";
+import type { ReactNode } from 'react';
+import { ChevronDownIcon, PlusIcon, XIcon } from 'lucide-react';
 
-import { cn } from "@/lib/utils";
-import { useI18n } from "@/features/i18n/context";
+import { cn } from '@/lib/utils';
+import { useI18n } from '@/features/i18n/context';
 import {
   DEEPSEEK_CONTEXT_SIZE_K,
   DEEPSEEK_MODELS,
@@ -14,8 +14,8 @@ import {
   getProviderLabel,
   isDeepSeekModel,
   type ModelProvider,
-} from "@/features/settings/model-utils";
-import type { ModelConfigurationForm } from "@/features/settings/types";
+} from '@/features/settings/model-utils';
+import type { ModelConfigurationForm } from '@/features/settings/types';
 
 export function AiSettingsSection({
   modelConfigurations,
@@ -28,14 +28,14 @@ export function AiSettingsSection({
 
   return (
     <div>
-      <div className="mb-1 text-base font-semibold">{t("settings.aiModels")}</div>
+      <div className="mb-1 text-base font-semibold">{t('settings.aiModels')}</div>
       <div className="mb-6 text-[13px] leading-normal text-[#6b6b76]">
-        {t("settings.aiDescription")}
+        {t('settings.aiDescription')}
       </div>
       <div className="mb-4 flex flex-col gap-3">
         {modelConfigurations.length === 0 ? (
           <div className="px-4 py-8 text-center text-[13px] text-[#6b6b76]">
-            {t("settings.noModel")}
+            {t('settings.noModel')}
           </div>
         ) : (
           modelConfigurations.map((configuration, index) => (
@@ -50,9 +50,7 @@ export function AiSettingsSection({
                 );
               }}
               onRemove={() => {
-                onChange(
-                  modelConfigurations.filter((_, itemIndex) => itemIndex !== index),
-                );
+                onChange(modelConfigurations.filter((_, itemIndex) => itemIndex !== index));
               }}
             />
           ))
@@ -65,11 +63,11 @@ export function AiSettingsSection({
             ...modelConfigurations,
             {
               id: crypto.randomUUID(),
-              provider: "",
-              model: "",
-              baseUrl: "",
-              apiKey: "",
-              contextSizeK: "",
+              provider: '',
+              model: '',
+              baseUrl: '',
+              apiKey: '',
+              contextSizeK: '',
               providerOptions: undefined,
               collapsed: false,
             },
@@ -78,7 +76,7 @@ export function AiSettingsSection({
         type="button"
       >
         <PlusIcon />
-        {t("settings.addModel")}
+        {t('settings.addModel')}
       </button>
     </div>
   );
@@ -95,35 +93,31 @@ function ModelConfigCard({
 }) {
   const { t } = useI18n();
   const label =
-    configuration.model || getProviderLabel(configuration.provider) || t("settings.unnamed");
+    configuration.model || getProviderLabel(configuration.provider) || t('settings.unnamed');
 
   return (
     <div className="overflow-hidden rounded-[8px] border border-[#2a2a2e] bg-[#0a0a0b] transition-colors duration-150 hover:border-[#38383d]">
       <div
         className={cn(
-          "flex cursor-pointer select-none items-center gap-1.5 bg-[#141416] px-3.5 py-2.5",
-          !configuration.collapsed && "border-b border-[#2a2a2e]",
+          'flex cursor-pointer select-none items-center gap-1.5 bg-[#141416] px-3.5 py-2.5',
+          !configuration.collapsed && 'border-b border-[#2a2a2e]',
         )}
-        onClick={() =>
-          onChange({ ...configuration, collapsed: !configuration.collapsed })
-        }
+        onClick={() => onChange({ ...configuration, collapsed: !configuration.collapsed })}
       >
         <ChevronDownIcon
           className={cn(
-            "size-3.5 shrink-0 text-[#6b6b76] transition-transform duration-200",
-            configuration.collapsed && "-rotate-90",
+            'size-3.5 shrink-0 text-[#6b6b76] transition-transform duration-200',
+            configuration.collapsed && '-rotate-90',
           )}
         />
-        <div className="flex min-w-0 flex-1 items-center gap-1.5 text-[13px]">
-          {label}
-        </div>
+        <div className="flex min-w-0 flex-1 items-center gap-1.5 text-[13px]">{label}</div>
         <button
           className="flex size-6 items-center justify-center rounded-[6px] text-[#6b6b76] transition-all duration-150 hover:bg-[rgba(231,76,60,0.1)] hover:text-[#e74c3c] [&_svg]:size-3.5"
           onClick={(event) => {
             event.stopPropagation();
             onRemove();
           }}
-          title={t("settings.deleteConfiguration")}
+          title={t('settings.deleteConfiguration')}
           type="button"
         >
           <XIcon />
@@ -140,7 +134,7 @@ function ModelConfigCard({
                 onChange({
                   ...configuration,
                   provider,
-                  ...(provider === "deepseek"
+                  ...(provider === 'deepseek'
                     ? {
                         model: isDeepSeekModel(configuration.model)
                           ? configuration.model
@@ -148,31 +142,31 @@ function ModelConfigCard({
                         contextSizeK: String(DEEPSEEK_CONTEXT_SIZE_K),
                         providerOptions: undefined,
                       }
-                    : provider === "openai-compatible"
+                    : provider === 'openai-compatible'
                       ? {
                           contextSizeK: configuration.contextSizeK,
                           providerOptions: undefined,
                         }
-                      : provider === "anthropic"
+                      : provider === 'anthropic'
                         ? {
                             contextSizeK:
                               configuration.contextSizeK ||
                               String(DEFAULT_OPENAI_COMPATIBLE_CONTEXT_SIZE_K),
                             providerOptions: undefined,
                           }
-                      : {}),
+                        : {}),
                 });
               }}
               value={configuration.provider}
             >
-              <option value="">{t("settings.selectProvider")}</option>
+              <option value="">{t('settings.selectProvider')}</option>
               <option value="deepseek">DeepSeek</option>
               <option value="openai-compatible">OpenAI Compatible</option>
               <option value="anthropic">Anthropic</option>
             </select>
           </ModelField>
           <ModelField label="Model" required>
-            {configuration.provider === "deepseek" ? (
+            {configuration.provider === 'deepseek' ? (
               <select
                 className="w-full cursor-pointer appearance-none rounded-[6px] border border-[#2a2a2e] bg-[#1c1c1f] px-2.5 py-[7px] pr-7 text-[13px] text-[#f0f0f2] outline-none transition-colors duration-150 hover:border-[#38383d] focus:border-[#6c5ce7]"
                 onChange={(event) =>
@@ -197,28 +191,21 @@ function ModelConfigCard({
             ) : (
               <input
                 className={modelInputClass}
-                onChange={(event) =>
-                  onChange({ ...configuration, model: event.target.value })
-                }
+                onChange={(event) => onChange({ ...configuration, model: event.target.value })}
                 placeholder={
-                  configuration.provider === "anthropic"
-                    ? t("settings.anthropicModelPlaceholder")
-                    : t("settings.openAiModelPlaceholder")
+                  configuration.provider === 'anthropic'
+                    ? t('settings.anthropicModelPlaceholder')
+                    : t('settings.openAiModelPlaceholder')
                 }
                 type="text"
                 value={configuration.model}
               />
             )}
           </ModelField>
-          <ModelField
-            label="Base URL"
-            required={configuration.provider === "openai-compatible"}
-          >
+          <ModelField label="Base URL" required={configuration.provider === 'openai-compatible'}>
             <input
               className={modelInputClass}
-              onChange={(event) =>
-                onChange({ ...configuration, baseUrl: event.target.value })
-              }
+              onChange={(event) => onChange({ ...configuration, baseUrl: event.target.value })}
               placeholder={getBaseUrlPlaceholder(configuration.provider)}
               type="text"
               value={configuration.baseUrl}
@@ -227,15 +214,13 @@ function ModelConfigCard({
           <ModelField label="API Key" required>
             <input
               className={modelInputClass}
-              onChange={(event) =>
-                onChange({ ...configuration, apiKey: event.target.value })
-              }
+              onChange={(event) => onChange({ ...configuration, apiKey: event.target.value })}
               placeholder="sk-..."
               type="password"
               value={configuration.apiKey}
             />
           </ModelField>
-          {configuration.provider === "openai-compatible" ? (
+          {configuration.provider === 'openai-compatible' ? (
             <ModelField label="Context Size (K)">
               <input
                 className={modelInputClass}
@@ -252,7 +237,7 @@ function ModelConfigCard({
               />
             </ModelField>
           ) : null}
-          {configuration.provider === "anthropic" ? (
+          {configuration.provider === 'anthropic' ? (
             <ModelField label="Context Size (K)">
               <input
                 className={modelInputClass}
@@ -295,7 +280,5 @@ function ModelField({
   );
 }
 
-
-
 const modelInputClass =
-  "w-full rounded-[6px] border border-[#2a2a2e] bg-[#1c1c1f] px-2.5 py-[7px] text-[13px] text-[#f0f0f2] outline-none transition-colors duration-150 placeholder:text-[#6b6b76] focus:border-[#6c5ce7]";
+  'w-full rounded-[6px] border border-[#2a2a2e] bg-[#1c1c1f] px-2.5 py-[7px] text-[13px] text-[#f0f0f2] outline-none transition-colors duration-150 placeholder:text-[#6b6b76] focus:border-[#6c5ce7]';

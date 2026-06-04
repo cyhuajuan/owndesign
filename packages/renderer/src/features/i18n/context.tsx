@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import {
   createContext,
@@ -8,16 +8,13 @@ import {
   useMemo,
   useState,
   type ReactNode,
-} from "react";
+} from 'react';
 
-import { useApiClient } from "@/api/context";
-import type { InterfaceLanguage } from "@/features/settings/types";
-import {
-  translations,
-  type TranslationKey,
-} from "@/features/i18n/translations";
+import { useApiClient } from '@/api/context';
+import type { InterfaceLanguage } from '@/features/settings/types';
+import { translations, type TranslationKey } from '@/features/i18n/translations';
 
-const SETTINGS_UPDATED_EVENT = "owndesign:settings-updated";
+const SETTINGS_UPDATED_EVENT = 'owndesign:settings-updated';
 
 type FormatParams = Record<string, string | number>;
 
@@ -31,7 +28,7 @@ const I18nContext = createContext<I18nContextValue | undefined>(undefined);
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
   const api = useApiClient();
-  const [language, setLanguage] = useState<InterfaceLanguage>("zh-CN");
+  const [language, setLanguage] = useState<InterfaceLanguage>('zh-CN');
 
   const refreshLanguage = useCallback(async () => {
     const settings = await api.loadSettings();
@@ -83,7 +80,7 @@ function formatMessage(message: string, params?: FormatParams) {
 }
 
 const fallbackI18nContext: I18nContextValue = {
-  language: "zh-CN",
+  language: 'zh-CN',
   refreshLanguage: async () => {},
-  t: (key, params) => formatMessage(translations["zh-CN"][key], params),
+  t: (key, params) => formatMessage(translations['zh-CN'][key], params),
 };

@@ -1,8 +1,8 @@
-import { tool } from "ai";
-import type { ToolSet } from "ai";
-import type { z } from "zod";
+import { tool } from 'ai';
+import type { ToolSet } from 'ai';
+import type { z } from 'zod';
 
-import type { ProjectWorkspaceToolContext } from "./types";
+import type { ProjectWorkspaceToolContext } from './types';
 
 export type WorkspaceToolResult<Output> =
   | {
@@ -18,20 +18,19 @@ export type WorkspaceToolResult<Output> =
 
 export type WorkspaceToolDefinition<Input, Output> = {
   description: string;
-  execute: (
-    input: Input,
-    context: ProjectWorkspaceToolContext,
-  ) => Promise<Output> | Output;
+  execute: (input: Input, context: ProjectWorkspaceToolContext) => Promise<Output> | Output;
   inputSchema: z.ZodType<Input>;
   name: string;
   parallelSafe: boolean;
   validate?: (input: Input) => void;
 };
 
-export type AnyWorkspaceToolDefinition =
-  Omit<WorkspaceToolDefinition<never, unknown>, "inputSchema"> & {
-    inputSchema: z.ZodType;
-  };
+export type AnyWorkspaceToolDefinition = Omit<
+  WorkspaceToolDefinition<never, unknown>,
+  'inputSchema'
+> & {
+  inputSchema: z.ZodType;
+};
 
 export function createWorkspaceToolRegistry(
   definitions: AnyWorkspaceToolDefinition[],
@@ -75,7 +74,7 @@ export function createWorkspaceToolRegistry(
     });
   }
 
-  Object.defineProperty(tools, "__metadata", {
+  Object.defineProperty(tools, '__metadata', {
     enumerable: false,
     value: metadata,
   });

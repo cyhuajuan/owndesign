@@ -1,42 +1,42 @@
-import { createWriteStream, statSync } from "node:fs";
-import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
+import { createWriteStream, statSync } from 'node:fs';
+import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 
-import { serveStatic } from "@hono/node-server/serve-static";
-import { cors } from "hono/cors";
-import { stream } from "hono/streaming";
-import { Hono } from "hono";
-import { ZipFile } from "yazl";
+import { serveStatic } from '@hono/node-server/serve-static';
+import { cors } from 'hono/cors';
+import { stream } from 'hono/streaming';
+import { Hono } from 'hono';
+import { ZipFile } from 'yazl';
 import {
   createAgentUIStream,
   type InferAgentUIMessage,
   type LanguageModelUsage,
   type UIMessage,
-} from "ai";
+} from 'ai';
 
 import {
   getUIMessageText,
   normalizeConversationMessages,
   type TurnPromptRewriteMetadata,
-} from "@owndesign/core/conversations/chat-messages";
-import { getDefaultConversationTitle } from "@owndesign/core/conversations/default-title";
+} from '@owndesign/core/conversations/chat-messages';
+import { getDefaultConversationTitle } from '@owndesign/core/conversations/default-title';
 import {
   buildDesignPageConversationInstructions,
   createDesignPageAgent,
   createDesignPageAgentContext,
   DESIGN_PAGE_AGENT_PROMPT_VERSION,
   type DesignAgentContext,
-} from "@owndesign/core/agent/design-page-agent";
-import { parsePageEditMode } from "@owndesign/core/agent/page-edit-mode";
-import { rewriteTurnPrompt } from "@owndesign/core/agent/turn-prompt-rewriter";
-import { getPreviewServerManager } from "@owndesign/core/preview/preview-server-manager";
-import { registerFrontendConnection } from "@owndesign/core/realtime/frontend-command-bus";
+} from '@owndesign/core/agent/design-page-agent';
+import { parsePageEditMode } from '@owndesign/core/agent/page-edit-mode';
+import { rewriteTurnPrompt } from '@owndesign/core/agent/turn-prompt-rewriter';
+import { getPreviewServerManager } from '@owndesign/core/preview/preview-server-manager';
+import { registerFrontendConnection } from '@owndesign/core/realtime/frontend-command-bus';
 import {
   parseAnthropicEffort,
   parseDeepSeekThinkingMode,
-} from "@owndesign/core/settings/settings-service";
-import { buildWorkspaceHref } from "@owndesign/core/navigation";
+} from '@owndesign/core/settings/settings-service';
+import { buildWorkspaceHref } from '@owndesign/core/navigation';
 
 import {
   createConversationService,
@@ -44,12 +44,9 @@ import {
   createProjectService,
   createWorkspaceStore,
   type OwnDesignServerOptions,
-} from "./services";
-import {
-  createChatRunStreamResponse,
-  getChatRunManager,
-} from "./chat-run-manager";
-import { sanitizePublicConversation } from "./sanitize-ui-message";
+} from './services';
+import { createChatRunStreamResponse, getChatRunManager } from './chat-run-manager';
+import { sanitizePublicConversation } from './sanitize-ui-message';
 
 type ChatRequestBody = {
   conversationId?: unknown;
@@ -63,32 +60,30 @@ type ChatRequestBody = {
   providerOptionsSelection?: unknown;
 };
 
-type DesignPageUIMessage = InferAgentUIMessage<
-  ReturnType<typeof createDesignPageAgent>
->;
+type DesignPageUIMessage = InferAgentUIMessage<ReturnType<typeof createDesignPageAgent>>;
 
 export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
   const app = new Hono();
   const chatRunManager = getChatRunManager(getChatRunManagerKey(options));
 
   app.use(
-    "/api/*",
+    '/api/*',
     cors({
-      allowHeaders: ["Content-Type"],
-      allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-      exposeHeaders: ["Content-Disposition", "Content-Length", "Content-Type"],
-      origin: options.corsOrigin ?? "*",
+      allowHeaders: ['Content-Type'],
+      allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+      exposeHeaders: ['Content-Disposition', 'Content-Length', 'Content-Type'],
+      origin: options.corsOrigin ?? '*',
     }),
   );
 
-  app.get("/api/workspace", async (context) => {
+  app.get('/api/workspace', async (context) => {
     const services = createOwnDesignServices(options);
     const [projectState, settings] = await Promise.all([
       services.projectService.getProjectState(),
       services.settingsService.getPublicSettings(),
     ]);
-    const requestedProjectId = context.req.query("projectId");
-    const requestedConversationId = context.req.query("conversationId");
+    const requestedProjectId = context.req.query('projectId');
+    const requestedConversationId = context.req.query('conversationId');
     const activeProject =
       projectState.projects.find((project) => project.id === requestedProjectId) ??
       projectState.projects[0];
@@ -103,41 +98,33 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
     return context.json({
       activeConversationId: activeConversation?.id,
       activeProject,
-      activeRun: activeProject
-        ? chatRunManager.getActiveRun(activeProject.id)
-        : undefined,
-      conversations: conversationState.conversations.map(
-        sanitizePublicConversation,
-      ),
+      activeRun: activeProject ? chatRunManager.getActiveRun(activeProject.id) : undefined,
+      conversations: conversationState.conversations.map(sanitizePublicConversation),
       projects: projectState.projects,
       settings,
     });
   });
 
-  app.get("/api/settings", async (context) => {
-    return context.json(
-      await createOwnDesignServices(options).settingsService.getPublicSettings(),
-    );
+  app.get('/api/settings', async (context) => {
+    return context.json(await createOwnDesignServices(options).settingsService.getPublicSettings());
   });
 
-  app.put("/api/settings", async (context) => {
+  app.put('/api/settings', async (context) => {
     try {
       const body = await context.req.json();
 
       return context.json(
-        await createOwnDesignServices(options).settingsService.updatePublicSettings(
-          body,
-        ),
+        await createOwnDesignServices(options).settingsService.updatePublicSettings(body),
       );
     } catch (error) {
       return context.text(
-        error instanceof Error ? error.message : "Invalid settings payload.",
+        error instanceof Error ? error.message : 'Invalid settings payload.',
         400,
       );
     }
   });
 
-  app.post("/api/initial-setup", async (context) => {
+  app.post('/api/initial-setup', async (context) => {
     const input = await context.req.json();
     const services = createOwnDesignServices(options);
     const modelConfigurations = Array.isArray(input.modelConfigurations)
@@ -160,9 +147,9 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
 
     const result = await services.projectService.createProject({
       defaultConversationTitle: getDefaultConversationTitle(
-        input.interfaceLanguage === "en-US" ? "en-US" : "zh-CN",
+        input.interfaceLanguage === 'en-US' ? 'en-US' : 'zh-CN',
       ),
-      name: "helloworld",
+      name: 'helloworld',
     });
 
     return context.json({
@@ -173,7 +160,7 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
     });
   });
 
-  app.post("/api/projects", async (context) => {
+  app.post('/api/projects', async (context) => {
     const body = await context.req.json();
     const trimmedName = asNonEmptyString(body.name);
 
@@ -184,9 +171,7 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
     const services = createOwnDesignServices(options);
     const settings = await services.settingsService.getSettings();
     const result = await services.projectService.createProject({
-      defaultConversationTitle: getDefaultConversationTitle(
-        settings.interfaceLanguage,
-      ),
+      defaultConversationTitle: getDefaultConversationTitle(settings.interfaceLanguage),
       name: trimmedName,
       description: asNonEmptyString(body.description),
     });
@@ -199,8 +184,8 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
     });
   });
 
-  app.patch("/api/projects/:projectId", async (context) => {
-    const projectId = context.req.param("projectId");
+  app.patch('/api/projects/:projectId', async (context) => {
+    const projectId = context.req.param('projectId');
     const body = await context.req.json();
     const trimmedName = asNonEmptyString(body.name);
 
@@ -216,17 +201,16 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
     return context.json({});
   });
 
-  app.delete("/api/projects/:projectId", async (context) => {
-    const projectId = context.req.param("projectId");
+  app.delete('/api/projects/:projectId', async (context) => {
+    const projectId = context.req.param('projectId');
 
     await createProjectService(options).deleteProject(projectId);
 
     const projectState = await createProjectService(options).getProjectState();
     const fallbackProject = projectState.projects[0];
     const fallbackConversation = fallbackProject
-      ? (await createConversationService(options).getConversationState(
-          fallbackProject.id,
-        )).conversations[0]
+      ? (await createConversationService(options).getConversationState(fallbackProject.id))
+          .conversations[0]
       : undefined;
 
     return context.json({
@@ -237,15 +221,14 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
     });
   });
 
-  app.post("/api/projects/:projectId/conversations", async (context) => {
-    const projectId = context.req.param("projectId");
+  app.post('/api/projects/:projectId/conversations', async (context) => {
+    const projectId = context.req.param('projectId');
     const services = createOwnDesignServices(options);
     const settings = await services.settingsService.getSettings();
-    const conversation =
-      await services.conversationService.createConversation(
-        projectId,
-        getDefaultConversationTitle(settings.interfaceLanguage),
-      );
+    const conversation = await services.conversationService.createConversation(
+      projectId,
+      getDefaultConversationTitle(settings.interfaceLanguage),
+    );
 
     return context.json({
       href: buildWorkspaceHref({
@@ -255,77 +238,62 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
     });
   });
 
-  app.post(
-    "/api/projects/:projectId/conversations/:conversationId/select",
-    async (context) => {
-      const projectId = context.req.param("projectId");
-      const conversationId = context.req.param("conversationId");
+  app.post('/api/projects/:projectId/conversations/:conversationId/select', async (context) => {
+    const projectId = context.req.param('projectId');
+    const conversationId = context.req.param('conversationId');
 
-      await createConversationService(options).switchConversation(
-        projectId,
+    await createConversationService(options).switchConversation(projectId, conversationId);
+
+    return context.json({
+      href: buildWorkspaceHref({
         conversationId,
-      );
-
-      return context.json({
-        href: buildWorkspaceHref({
-          conversationId,
-          projectId,
-        }),
-      });
-    },
-  );
-
-  app.patch(
-    "/api/projects/:projectId/conversations/:conversationId",
-    async (context) => {
-      const projectId = context.req.param("projectId");
-      const conversationId = context.req.param("conversationId");
-      const body = await context.req.json();
-      const trimmedTitle = asNonEmptyString(body.title);
-
-      if (!trimmedTitle) {
-        return context.json({}, 400);
-      }
-
-      await createConversationService(options).renameConversation(
         projectId,
-        conversationId,
-        { title: trimmedTitle },
-      );
+      }),
+    });
+  });
 
-      return context.json({});
-    },
-  );
+  app.patch('/api/projects/:projectId/conversations/:conversationId', async (context) => {
+    const projectId = context.req.param('projectId');
+    const conversationId = context.req.param('conversationId');
+    const body = await context.req.json();
+    const trimmedTitle = asNonEmptyString(body.title);
 
-  app.delete(
-    "/api/projects/:projectId/conversations/:conversationId",
-    async (context) => {
-      const projectId = context.req.param("projectId");
-      const conversationId = context.req.param("conversationId");
-      const currentConversationId = context.req.query("currentConversationId");
-      const services = createOwnDesignServices(options);
-      const settings = await services.settingsService.getSettings();
-      const remainingConversations =
-        await services.conversationService.deleteConversation(
-          projectId,
-          conversationId,
-          getDefaultConversationTitle(settings.interfaceLanguage),
-        );
-      const nextConversationId =
-        currentConversationId === conversationId
-          ? remainingConversations[0]?.id
-          : currentConversationId;
+    if (!trimmedTitle) {
+      return context.json({}, 400);
+    }
 
-      return context.json({
-        href: buildWorkspaceHref({
-          conversationId: nextConversationId,
-          projectId,
-        }),
-      });
-    },
-  );
+    await createConversationService(options).renameConversation(projectId, conversationId, {
+      title: trimmedTitle,
+    });
 
-  app.post("/api/chat", async (context) => {
+    return context.json({});
+  });
+
+  app.delete('/api/projects/:projectId/conversations/:conversationId', async (context) => {
+    const projectId = context.req.param('projectId');
+    const conversationId = context.req.param('conversationId');
+    const currentConversationId = context.req.query('currentConversationId');
+    const services = createOwnDesignServices(options);
+    const settings = await services.settingsService.getSettings();
+    const remainingConversations = await services.conversationService.deleteConversation(
+      projectId,
+      conversationId,
+      getDefaultConversationTitle(settings.interfaceLanguage),
+    );
+    const nextConversationId =
+      currentConversationId === conversationId
+        ? remainingConversations[0]?.id
+        : currentConversationId;
+
+    return context.json({
+      href: buildWorkspaceHref({
+        conversationId: nextConversationId,
+        projectId,
+      }),
+    });
+  });
+
+  app.post('/api/chat', async (context) => {
     const body = (await context.req.json()) as ChatRequestBody;
     const projectId = asNonEmptyString(body.projectId);
     const conversationId = asNonEmptyString(body.conversationId);
@@ -334,11 +302,11 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
     const currentUserMessage = createCurrentUserMessage(body.message);
 
     if (!projectId || !conversationId || !currentUserMessage) {
-      return context.text("Invalid chat request.", 400);
+      return context.text('Invalid chat request.', 400);
     }
 
     if (!pageEditMode) {
-      return context.text("Invalid page edit mode.", 400);
+      return context.text('Invalid page edit mode.', 400);
     }
 
     const workspaceStore = createWorkspaceStore(options);
@@ -350,20 +318,14 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
     );
 
     if (chatRunManager.getActiveRun(projectId)) {
-      return context.text("当前项目已有任务正在执行。", 409);
+      return context.text('当前项目已有任务正在执行。', 409);
     }
 
-    let conversation = await workspaceStore.getConversation(
-      projectId,
-      conversationId,
-    );
+    let conversation = await workspaceStore.getConversation(projectId, conversationId);
     const storedMessages = normalizeConversationMessages(
       conversation.messages,
     ) as DesignPageUIMessage[];
-    let messages = [
-      ...storedMessages,
-      currentUserMessage,
-    ] as DesignPageUIMessage[];
+    let messages = [...storedMessages, currentUserMessage] as DesignPageUIMessage[];
     let agentContext;
 
     try {
@@ -374,44 +336,36 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
         outputType: project.outputType,
         pageEditMode,
         projectId,
-        providerOptionsSelection: parseProviderOptionsSelection(
-          body.providerOptionsSelection,
-        ),
+        providerOptionsSelection: parseProviderOptionsSelection(body.providerOptionsSelection),
         workspaceStore,
       });
     } catch (error) {
       return context.text(
-        error instanceof Error ? error.message : "Invalid model configuration.",
+        error instanceof Error ? error.message : 'Invalid model configuration.',
         400,
       );
     }
 
     if (!conversation.agentInstructions) {
-      conversation = await workspaceStore.updateConversation(
-        projectId,
-        conversationId,
-        {
-          ...conversation,
-          agentInstructions: buildDesignPageConversationInstructions(
-            agentContext.resources,
-          ),
-          agentPromptVersion: DESIGN_PAGE_AGENT_PROMPT_VERSION,
-        },
-      );
+      conversation = await workspaceStore.updateConversation(projectId, conversationId, {
+        ...conversation,
+        agentInstructions: buildDesignPageConversationInstructions(agentContext.resources),
+        agentPromptVersion: DESIGN_PAGE_AGENT_PROMPT_VERSION,
+      });
     }
 
     agentContext.agentInstructions = conversation.agentInstructions;
     try {
-      messages = await rewriteLastUserMessageForDesignAgent({
+      messages = (await rewriteLastUserMessageForDesignAgent({
         messages,
         pageEditMode,
-        pageEditModePolicy: agentContext.pageEditModePolicy ?? { mode: "auto" },
+        pageEditModePolicy: agentContext.pageEditModePolicy ?? { mode: 'auto' },
         previewPath,
         agentContext,
-      }) as DesignPageUIMessage[];
+      })) as DesignPageUIMessage[];
     } catch (error) {
       return context.text(
-        error instanceof Error ? error.message : "Failed to rewrite user prompt.",
+        error instanceof Error ? error.message : 'Failed to rewrite user prompt.',
         500,
       );
     }
@@ -438,7 +392,7 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
             latestStepUsage = step.usage;
           },
           messageMetadata: ({ part }) => {
-            if (part.type !== "finish" || !latestStepUsage) {
+            if (part.type !== 'finish' || !latestStepUsage) {
               return undefined;
             }
 
@@ -457,9 +411,7 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
             };
           },
           onError: (error) =>
-            error instanceof Error
-              ? `生成失败：${error.message}`
-              : "生成失败：Unknown error",
+            error instanceof Error ? `生成失败：${error.message}` : '生成失败：Unknown error',
         });
       },
       initialMessages: messages,
@@ -474,14 +426,14 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
     });
 
     if (!run.ok) {
-      return context.text("当前项目已有任务正在执行。", 409);
+      return context.text('当前项目已有任务正在执行。', 409);
     }
 
     return createChatRunStreamResponse(run.stream);
   });
 
-  app.get("/api/projects/:projectId/runs/active", async (context) => {
-    const activeRun = chatRunManager.getActiveRun(context.req.param("projectId"));
+  app.get('/api/projects/:projectId/runs/active', async (context) => {
+    const activeRun = chatRunManager.getActiveRun(context.req.param('projectId'));
 
     if (!activeRun) {
       return new Response(null, { status: 204 });
@@ -490,10 +442,8 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
     return context.json(activeRun);
   });
 
-  app.delete("/api/projects/:projectId/runs/active", async (context) => {
-    const activeRun = chatRunManager.cancelActiveRun(
-      context.req.param("projectId"),
-    );
+  app.delete('/api/projects/:projectId/runs/active', async (context) => {
+    const activeRun = chatRunManager.cancelActiveRun(context.req.param('projectId'));
 
     if (!activeRun) {
       return new Response(null, { status: 204 });
@@ -503,15 +453,12 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
   });
 
   app.get(
-    "/api/projects/:projectId/conversations/:conversationId/runs/active/stream",
+    '/api/projects/:projectId/conversations/:conversationId/runs/active/stream',
     async (context) => {
-      const afterChunkIndex = Number.parseInt(
-        context.req.query("after") ?? "0",
-        10,
-      );
+      const afterChunkIndex = Number.parseInt(context.req.query('after') ?? '0', 10);
       const stream = chatRunManager.subscribeActiveRun(
-        context.req.param("projectId"),
-        context.req.param("conversationId"),
+        context.req.param('projectId'),
+        context.req.param('conversationId'),
         Number.isFinite(afterChunkIndex) ? afterChunkIndex : 0,
       );
 
@@ -524,11 +471,11 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
   );
 
   app.get(
-    "/api/projects/:projectId/conversations/:conversationId/runs/active/snapshot",
+    '/api/projects/:projectId/conversations/:conversationId/runs/active/snapshot',
     async (context) => {
       const snapshot = chatRunManager.getActiveRunSnapshot(
-        context.req.param("projectId"),
-        context.req.param("conversationId"),
+        context.req.param('projectId'),
+        context.req.param('conversationId'),
       );
 
       if (!snapshot) {
@@ -539,18 +486,18 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
     },
   );
 
-  app.post("/api/projects/:projectId/preview-session", async (context) => {
+  app.post('/api/projects/:projectId/preview-session', async (context) => {
     const body = await readJson(context.req.raw);
     const clientId = asNonEmptyString(body?.clientId);
 
     if (!clientId) {
-      return context.text("Invalid preview session request.", 400);
+      return context.text('Invalid preview session request.', 400);
     }
 
     const workspaceStore = createWorkspaceStore(options);
     const manager = getPreviewServerManager(workspaceStore);
     const session = await manager.ensure(
-      context.req.param("projectId"),
+      context.req.param('projectId'),
       clientId,
       asNonEmptyString(body?.previewPath),
     );
@@ -558,103 +505,97 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
     return context.json(session);
   });
 
-  app.delete("/api/projects/:projectId/preview-session", async (context) => {
+  app.delete('/api/projects/:projectId/preview-session', async (context) => {
     const body = await readJson(context.req.raw);
     const clientId = asNonEmptyString(body?.clientId);
 
     if (!clientId) {
-      return context.text("Invalid preview session request.", 400);
+      return context.text('Invalid preview session request.', 400);
     }
 
     const workspaceStore = createWorkspaceStore(options);
     const manager = getPreviewServerManager(workspaceStore);
 
-    await manager.release(context.req.param("projectId"), clientId);
+    await manager.release(context.req.param('projectId'), clientId);
 
     return new Response(null, { status: 204 });
   });
 
-  app.post(
-    "/api/projects/:projectId/preview-session/heartbeat",
-    async (context) => {
-      const body = await readJson(context.req.raw);
-      const clientId = asNonEmptyString(body?.clientId);
+  app.post('/api/projects/:projectId/preview-session/heartbeat', async (context) => {
+    const body = await readJson(context.req.raw);
+    const clientId = asNonEmptyString(body?.clientId);
 
-      if (!clientId) {
-        return context.text("Invalid preview heartbeat request.", 400);
-      }
+    if (!clientId) {
+      return context.text('Invalid preview heartbeat request.', 400);
+    }
 
-      const workspaceStore = createWorkspaceStore(options);
-      const manager = getPreviewServerManager(workspaceStore);
-      const session = await manager.heartbeat(
-        context.req.param("projectId"),
-        clientId,
-        asNonEmptyString(body?.previewPath),
-      );
-
-      return context.json(session);
-    },
-  );
-
-  app.get(
-    "/api/projects/:projectId/frontend-capabilities/stream",
-    async (context) => {
-      const projectId = context.req.param("projectId");
-      const tabId = context.req.query("tabId")?.trim();
-
-      if (!tabId) {
-        return context.text("Invalid frontend capability stream request.", 400);
-      }
-
-      await createWorkspaceStore(options).getProject(projectId);
-
-      context.header("Cache-Control", "no-cache, no-transform");
-      context.header("Connection", "keep-alive");
-      context.header("Content-Type", "text/event-stream; charset=utf-8");
-
-      return stream(context, async (streamApi) => {
-        const commandStream = registerFrontendConnection({
-          frontendTabId: tabId,
-          projectId,
-          signal: context.req.raw.signal,
-        });
-        const reader = commandStream.getReader();
-
-        try {
-          while (true) {
-            const { done, value } = await reader.read();
-
-            if (done) {
-              break;
-            }
-
-            await streamApi.write(value);
-          }
-        } finally {
-          reader.releaseLock();
-        }
-      });
-    },
-  );
-
-  app.get("/api/projects/:projectId/download", async (context) => {
     const workspaceStore = createWorkspaceStore(options);
-    const projectId = context.req.param("projectId");
-    const kind = context.req.query("kind");
+    const manager = getPreviewServerManager(workspaceStore);
+    const session = await manager.heartbeat(
+      context.req.param('projectId'),
+      clientId,
+      asNonEmptyString(body?.previewPath),
+    );
 
-    if (kind === "current-html") {
+    return context.json(session);
+  });
+
+  app.get('/api/projects/:projectId/frontend-capabilities/stream', async (context) => {
+    const projectId = context.req.param('projectId');
+    const tabId = context.req.query('tabId')?.trim();
+
+    if (!tabId) {
+      return context.text('Invalid frontend capability stream request.', 400);
+    }
+
+    await createWorkspaceStore(options).getProject(projectId);
+
+    context.header('Cache-Control', 'no-cache, no-transform');
+    context.header('Connection', 'keep-alive');
+    context.header('Content-Type', 'text/event-stream; charset=utf-8');
+
+    return stream(context, async (streamApi) => {
+      const commandStream = registerFrontendConnection({
+        frontendTabId: tabId,
+        projectId,
+        signal: context.req.raw.signal,
+      });
+      const reader = commandStream.getReader();
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+
+          if (done) {
+            break;
+          }
+
+          await streamApi.write(value);
+        }
+      } finally {
+        reader.releaseLock();
+      }
+    });
+  });
+
+  app.get('/api/projects/:projectId/download', async (context) => {
+    const workspaceStore = createWorkspaceStore(options);
+    const projectId = context.req.param('projectId');
+    const kind = context.req.query('kind');
+
+    if (kind === 'current-html') {
       return downloadCurrentHtml(
         workspaceStore,
         projectId,
-        context.req.query("previewPath") ?? null,
+        context.req.query('previewPath') ?? null,
       );
     }
 
-    if (kind === "workspace-zip") {
+    if (kind === 'workspace-zip') {
       return downloadWorkspaceZip(workspaceStore, projectId);
     }
 
-    return context.text("Invalid download request.", 400);
+    return context.text('Invalid download request.', 400);
   });
 
   registerStaticHosting(app, options.staticRoot);
@@ -662,10 +603,7 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
   return app;
 }
 
-function registerStaticHosting(
-  app: Hono,
-  staticRoot: string | undefined,
-) {
+function registerStaticHosting(app: Hono, staticRoot: string | undefined) {
   const indexPath = resolveStaticIndexPath(staticRoot);
 
   if (!indexPath || !staticRoot) {
@@ -674,7 +612,7 @@ function registerStaticHosting(
 
   const serveStaticFile = serveStatic({ root: staticRoot });
 
-  app.use("*", async (context, next) => {
+  app.use('*', async (context, next) => {
     if (isApiPath(context.req.path)) {
       return next();
     }
@@ -689,7 +627,7 @@ function registerStaticHosting(
       return next();
     }
 
-    return htmlResponse(await readFile(indexPath, "utf8"));
+    return htmlResponse(await readFile(indexPath, 'utf8'));
   });
 }
 
@@ -700,7 +638,7 @@ function resolveStaticIndexPath(staticRoot: string | undefined) {
 
   try {
     const rootStats = statSync(staticRoot);
-    const indexPath = path.join(staticRoot, "index.html");
+    const indexPath = path.join(staticRoot, 'index.html');
     const indexStats = statSync(indexPath);
 
     if (!rootStats.isDirectory() || !indexStats.isFile()) {
@@ -714,11 +652,11 @@ function resolveStaticIndexPath(staticRoot: string | undefined) {
 }
 
 function isApiPath(requestPath: string) {
-  return requestPath === "/api" || requestPath.startsWith("/api/");
+  return requestPath === '/api' || requestPath.startsWith('/api/');
 }
 
 function shouldServeSpaIndex(request: Request, requestPath: string) {
-  if (request.method !== "GET" && request.method !== "HEAD") {
+  if (request.method !== 'GET' && request.method !== 'HEAD') {
     return false;
   }
 
@@ -726,14 +664,14 @@ function shouldServeSpaIndex(request: Request, requestPath: string) {
     return false;
   }
 
-  const accept = request.headers.get("Accept");
+  const accept = request.headers.get('Accept');
 
-  return !accept || accept.includes("text/html") || accept.includes("*/*");
+  return !accept || accept.includes('text/html') || accept.includes('*/*');
 }
 
 function htmlResponse(html: string) {
   return new Response(html, {
-    headers: { "Content-Type": "text/html; charset=utf-8" },
+    headers: { 'Content-Type': 'text/html; charset=utf-8' },
   });
 }
 
@@ -742,22 +680,17 @@ async function downloadCurrentHtml(
   projectId: string,
   previewPath: string | null,
 ) {
-  if (!previewPath?.trim() || !previewPath.toLowerCase().endsWith(".html")) {
-    return new Response("Invalid download request.", { status: 400 });
+  if (!previewPath?.trim() || !previewPath.toLowerCase().endsWith('.html')) {
+    return new Response('Invalid download request.', { status: 400 });
   }
 
   try {
-    const content = await workspaceStore.readProjectWorkspaceFileBuffer(
-      projectId,
-      previewPath,
-    );
+    const content = await workspaceStore.readProjectWorkspaceFileBuffer(projectId, previewPath);
 
     return new Response(content, {
       headers: {
-        "Content-Disposition": createAttachmentDisposition(
-          path.basename(previewPath),
-        ),
-        "Content-Type": "text/html; charset=utf-8",
+        'Content-Disposition': createAttachmentDisposition(path.basename(previewPath)),
+        'Content-Type': 'text/html; charset=utf-8',
       },
       status: 200,
     });
@@ -774,28 +707,23 @@ async function downloadWorkspaceZip(
 
   try {
     const project = await workspaceStore.getProject(projectId);
-    tempDirectory = await mkdtemp(
-      path.join(os.tmpdir(), "owndesign-project-download-"),
-    );
-    const zipPath = path.join(tempDirectory, "workspace.zip");
+    tempDirectory = await mkdtemp(path.join(os.tmpdir(), 'owndesign-project-download-'));
+    const zipPath = path.join(tempDirectory, 'workspace.zip');
 
     await writeWorkspaceZip(workspaceStore, projectId, zipPath);
 
-    const [zipStats, zipBuffer] = await Promise.all([
-      stat(zipPath),
-      readFile(zipPath),
-    ]);
+    const [zipStats, zipBuffer] = await Promise.all([stat(zipPath), readFile(zipPath)]);
 
     await rm(tempDirectory, { force: true, recursive: true });
     tempDirectory = undefined;
 
     return new Response(zipBuffer, {
       headers: {
-        "Content-Disposition": createAttachmentDisposition(
+        'Content-Disposition': createAttachmentDisposition(
           `${sanitizeDownloadFilename(project.name) || projectId}-workspace.zip`,
         ),
-        "Content-Length": String(zipStats.size),
-        "Content-Type": "application/zip",
+        'Content-Length': String(zipStats.size),
+        'Content-Type': 'application/zip',
       },
       status: 200,
     });
@@ -818,22 +746,19 @@ async function writeWorkspaceZip(
   const entries = await workspaceStore.listProjectWorkspace(projectId);
 
   const done = new Promise<void>((resolve, reject) => {
-    output.on("close", resolve);
-    output.on("error", reject);
-    zipFile.outputStream.on("error", reject);
+    output.on('close', resolve);
+    output.on('error', reject);
+    zipFile.outputStream.on('error', reject);
   });
 
   zipFile.outputStream.pipe(output);
 
   for (const entry of entries) {
-    if (entry.type !== "file") {
+    if (entry.type !== 'file') {
       continue;
     }
 
-    const content = await workspaceStore.readProjectWorkspaceFileBuffer(
-      projectId,
-      entry.path,
-    );
+    const content = await workspaceStore.readProjectWorkspaceFileBuffer(projectId, entry.path);
     zipFile.addBuffer(content, entry.path);
   }
 
@@ -849,48 +774,51 @@ function createAttachmentDisposition(filename: string) {
 }
 
 function sanitizeDownloadFilename(value: string | undefined) {
-  return value
-    // eslint-disable-next-line no-control-regex
-    ?.replace(/[<>:"/\\|?*\u0000-\u001F]/g, "-")
-    .replace(/[.\s]+$/g, "")
-    .trim();
+  return (
+    value
+      // eslint-disable-next-line no-control-regex
+      ?.replace(/[<>:"/\\|?*\u0000-\u001F]/g, '-')
+      .replace(/[.\s]+$/g, '')
+      .trim()
+  );
 }
 
 function createAsciiFilenameFallback(filename: string) {
   const extension = path.extname(filename);
   const basename = extension ? filename.slice(0, -extension.length) : filename;
   const safeBasename = basename
-    .normalize("NFKD")
-    .replace(/[^\x20-\x7E]/g, "-")
-    .replace(/["\\]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^[.-]+|[.-]+$/g, "");
-  const safeExtension = extension.replace(/[^\x20-\x7E]/g, "");
-  const combined = `${safeBasename || "download"}${safeExtension}`;
+    .normalize('NFKD')
+    .replace(/[^\x20-\x7E]/g, '-')
+    .replace(/["\\]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^[.-]+|[.-]+$/g, '');
+  const safeExtension = extension.replace(/[^\x20-\x7E]/g, '');
+  const combined = `${safeBasename || 'download'}${safeExtension}`;
 
-  return combined || "download";
+  return combined || 'download';
 }
 
 function encodeRFC5987Value(value: string) {
-  return encodeURIComponent(value).replace(/['()*]/g, (character) =>
-    `%${character.charCodeAt(0).toString(16).toUpperCase()}`,
+  return encodeURIComponent(value).replace(
+    /['()*]/g,
+    (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`,
   );
 }
 
 function mapWorkspaceErrorToResponse(error: unknown) {
   if (isMissingPathError(error)) {
-    return new Response("Project file not found.", { status: 404 });
+    return new Response('Project file not found.', { status: 404 });
   }
 
   if (
     error instanceof Error &&
-    (error.message.includes("must be relative") ||
-      error.message.includes("escapes workspace") ||
-      error.message.includes("symlinks are not supported") ||
-      error.message.includes("is not a file"))
+    (error.message.includes('must be relative') ||
+      error.message.includes('escapes workspace') ||
+      error.message.includes('symlinks are not supported') ||
+      error.message.includes('is not a file'))
   ) {
-    return new Response("Invalid download request.", { status: 400 });
+    return new Response('Invalid download request.', { status: 400 });
   }
 
   throw error;
@@ -898,17 +826,17 @@ function mapWorkspaceErrorToResponse(error: unknown) {
 
 function isMissingPathError(error: unknown): error is NodeJS.ErrnoException {
   return (
-    typeof error === "object" &&
+    typeof error === 'object' &&
     error !== null &&
-    "code" in error &&
-    (error as NodeJS.ErrnoException).code === "ENOENT"
+    'code' in error &&
+    (error as NodeJS.ErrnoException).code === 'ENOENT'
   );
 }
 
 function getChatRunManagerKey(options: OwnDesignServerOptions) {
   return JSON.stringify({
-    settingsPath: options.settingsPath ?? "",
-    workspaceRoot: options.workspaceRoot ?? "",
+    settingsPath: options.settingsPath ?? '',
+    workspaceRoot: options.workspaceRoot ?? '',
   });
 }
 
@@ -926,14 +854,9 @@ function createCurrentUserMessage(value: unknown): UIMessage | undefined {
   }
 
   const id = asNonEmptyString(value.id);
-  const text = typeof value.text === "string" ? value.text : "";
-  const files = Array.isArray(value.files)
-    ? value.files.filter(isFileUIPart)
-    : [];
-  const parts: UIMessage["parts"] = [
-    ...(text ? [{ text, type: "text" as const }] : []),
-    ...files,
-  ];
+  const text = typeof value.text === 'string' ? value.text : '';
+  const files = Array.isArray(value.files) ? value.files.filter(isFileUIPart) : [];
+  const parts: UIMessage['parts'] = [...(text ? [{ text, type: 'text' as const }] : []), ...files];
 
   if (!id || parts.length === 0) {
     return undefined;
@@ -942,12 +865,12 @@ function createCurrentUserMessage(value: unknown): UIMessage | undefined {
   return {
     id,
     parts,
-    role: "user",
+    role: 'user',
   };
 }
 
-function isFileUIPart(value: unknown): value is UIMessage["parts"][number] {
-  return isRecord(value) && value.type === "file";
+function isFileUIPart(value: unknown): value is UIMessage['parts'][number] {
+  return isRecord(value) && value.type === 'file';
 }
 
 async function rewriteLastUserMessageForDesignAgent({
@@ -960,7 +883,7 @@ async function rewriteLastUserMessageForDesignAgent({
   agentContext: DesignAgentContext;
   messages: UIMessage[];
   pageEditMode: NonNullable<ReturnType<typeof parsePageEditMode>>;
-  pageEditModePolicy: NonNullable<DesignAgentContext["pageEditModePolicy"]>;
+  pageEditModePolicy: NonNullable<DesignAgentContext['pageEditModePolicy']>;
   previewPath?: string;
 }) {
   const lastUserMessageIndex = findLastUserMessageIndex(messages);
@@ -999,9 +922,9 @@ async function rewriteLastUserMessageForDesignAgent({
     parts: [
       {
         text: rewrittenPrompt,
-        type: "text",
+        type: 'text',
       },
-      ...lastUserMessage.parts.filter((part) => part.type !== "text"),
+      ...lastUserMessage.parts.filter((part) => part.type !== 'text'),
     ],
   };
 
@@ -1016,7 +939,7 @@ function findLastUserMessageIndex(messages: UIMessage[]) {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
 
-    if (message?.role === "user") {
+    if (message?.role === 'user') {
       return index;
     }
   }
@@ -1032,18 +955,18 @@ function createTurnPromptRewriteMetadata({
 }: {
   originalUserPrompt: string;
   pageEditMode: NonNullable<ReturnType<typeof parsePageEditMode>>;
-  pageEditModePolicy: NonNullable<DesignAgentContext["pageEditModePolicy"]>;
+  pageEditModePolicy: NonNullable<DesignAgentContext['pageEditModePolicy']>;
   previewPath?: string;
 }): TurnPromptRewriteMetadata {
   return {
     originalUserPrompt,
     promptRewrite: {
       createdAt: new Date().toISOString(),
-      kind: "turn-prompt-rewriter",
+      kind: 'turn-prompt-rewriter',
       pageEditMode,
       previewFileExists: Boolean(previewPath),
       ...(previewPath ? { previewPath } : {}),
-      ...(pageEditModePolicy.mode === "duplicate_edit"
+      ...(pageEditModePolicy.mode === 'duplicate_edit'
         ? {
             duplicateSourcePath: pageEditModePolicy.sourcePath,
             duplicateTargetPath: pageEditModePolicy.targetPath,
@@ -1059,12 +982,12 @@ function hasPromptRewriteMetadata(message: UIMessage) {
   return (
     isRecord(metadata) &&
     isRecord(metadata.promptRewrite) &&
-    metadata.promptRewrite.kind === "turn-prompt-rewriter"
+    metadata.promptRewrite.kind === 'turn-prompt-rewriter'
   );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
+  return typeof value === 'object' && value !== null;
 }
 
 async function resolveExistingPreviewPath(
@@ -1082,7 +1005,7 @@ async function resolveExistingPreviewPath(
 }
 
 function asNonEmptyString(value: unknown) {
-  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
 
 function parseProviderOptionsSelection(value: unknown) {

@@ -1,32 +1,32 @@
-import { spawn } from "node:child_process";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { spawn } from 'node:child_process';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 type CliOptions = {
   host: string;
   port: number;
 };
 
-const DEFAULT_HOST = "127.0.0.1";
+const DEFAULT_HOST = '127.0.0.1';
 const DEFAULT_PORT = 3710;
 declare const __OWNDESIGN_CLI_VERSION__: string;
 
 async function main(argv: string[]) {
   const options = parseArgs(argv);
 
-  if (options === "help") {
+  if (options === 'help') {
     printHelp();
     return;
   }
 
-  if (options === "version") {
+  if (options === 'version') {
     console.log(__OWNDESIGN_CLI_VERSION__);
     return;
   }
 
   const cliRoot = path.dirname(fileURLToPath(import.meta.url));
-  const staticRoot = path.join(cliRoot, "web");
-  const serverEntry = path.join(cliRoot, "server/index.js");
+  const staticRoot = path.join(cliRoot, 'web');
+  const serverEntry = path.join(cliRoot, 'server/index.js');
   const child = spawn(process.execPath, [serverEntry], {
     env: {
       ...process.env,
@@ -34,7 +34,7 @@ async function main(argv: string[]) {
       OWNDESIGN_SERVER_PORT: String(options.port),
       OWNDESIGN_WEB_ROOT: staticRoot,
     },
-    stdio: "inherit",
+    stdio: 'inherit',
   });
 
   const stop = (signal: NodeJS.Signals) => {
@@ -43,14 +43,14 @@ async function main(argv: string[]) {
     }
   };
 
-  process.once("SIGINT", () => {
-    stop("SIGINT");
+  process.once('SIGINT', () => {
+    stop('SIGINT');
   });
-  process.once("SIGTERM", () => {
-    stop("SIGTERM");
+  process.once('SIGTERM', () => {
+    stop('SIGTERM');
   });
 
-  child.once("exit", (code, signal) => {
+  child.once('exit', (code, signal) => {
     if (signal) {
       process.exit(128 + signalToExitCode(signal));
       return;
@@ -61,18 +61,18 @@ async function main(argv: string[]) {
 }
 
 function signalToExitCode(signal: NodeJS.Signals) {
-  if (signal === "SIGINT") {
+  if (signal === 'SIGINT') {
     return 2;
   }
 
-  if (signal === "SIGTERM") {
+  if (signal === 'SIGTERM') {
     return 15;
   }
 
   return 0;
 }
 
-function parseArgs(argv: string[]): CliOptions | "help" | "version" {
+function parseArgs(argv: string[]): CliOptions | 'help' | 'version' {
   const options: CliOptions = {
     host: process.env.OWNDESIGN_SERVER_HOST ?? DEFAULT_HOST,
     port: Number(process.env.OWNDESIGN_SERVER_PORT ?? DEFAULT_PORT),
@@ -81,33 +81,33 @@ function parseArgs(argv: string[]): CliOptions | "help" | "version" {
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
 
-    if (arg === "--help" || arg === "-h") {
-      return "help";
+    if (arg === '--help' || arg === '-h') {
+      return 'help';
     }
 
-    if (arg === "--version" || arg === "-v") {
-      return "version";
+    if (arg === '--version' || arg === '-v') {
+      return 'version';
     }
 
-    if (arg === "--host") {
-      options.host = readValue(argv, index, "--host");
+    if (arg === '--host') {
+      options.host = readValue(argv, index, '--host');
       index += 1;
       continue;
     }
 
-    if (arg.startsWith("--host=")) {
-      options.host = arg.slice("--host=".length);
+    if (arg.startsWith('--host=')) {
+      options.host = arg.slice('--host='.length);
       continue;
     }
 
-    if (arg === "--port") {
-      options.port = parsePort(readValue(argv, index, "--port"));
+    if (arg === '--port') {
+      options.port = parsePort(readValue(argv, index, '--port'));
       index += 1;
       continue;
     }
 
-    if (arg.startsWith("--port=")) {
-      options.port = parsePort(arg.slice("--port=".length));
+    if (arg.startsWith('--port=')) {
+      options.port = parsePort(arg.slice('--port='.length));
       continue;
     }
 
@@ -124,7 +124,7 @@ function parseArgs(argv: string[]): CliOptions | "help" | "version" {
 function readValue(argv: string[], index: number, option: string) {
   const value = argv[index + 1];
 
-  if (!value || value.startsWith("-")) {
+  if (!value || value.startsWith('-')) {
     throw new Error(`${option} requires a value.`);
   }
 
@@ -152,6 +152,6 @@ Options:
 }
 
 main(process.argv.slice(2)).catch((error: unknown) => {
-  console.error(error instanceof Error ? error.message : "Failed to start OwnDesign.");
+  console.error(error instanceof Error ? error.message : 'Failed to start OwnDesign.');
   process.exit(1);
 });

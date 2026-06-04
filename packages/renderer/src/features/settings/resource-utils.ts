@@ -1,4 +1,4 @@
-import type { ResourceLibrary } from "@/features/settings/types";
+import type { ResourceLibrary } from '@/features/settings/types';
 
 export function normalizeResourceDefaults(libraries: ResourceLibrary[]) {
   const defaultIndex = libraries.findIndex((library) => library.isDefault);

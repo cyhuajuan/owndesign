@@ -1,9 +1,5 @@
-import {
-  ConversationRecord,
-  ProjectRecord,
-  WorkspaceStore,
-} from "@owndesign/core/workspace-store";
-import { normalizeDefaultConversationTitle } from "@owndesign/core/conversations/default-title";
+import { ConversationRecord, ProjectRecord, WorkspaceStore } from '@owndesign/core/workspace-store';
+import { normalizeDefaultConversationTitle } from '@owndesign/core/conversations/default-title';
 
 type CreateProjectInput = {
   defaultConversationTitle?: string;
@@ -33,9 +29,7 @@ export class ProjectService {
   private readonly workspaceStore: WorkspaceStore;
   private readonly now: () => string;
   private readonly createId: () => string;
-  private readonly previewServerManager:
-    | { stop: (projectId: string) => Promise<void> }
-    | undefined;
+  private readonly previewServerManager: { stop: (projectId: string) => Promise<void> } | undefined;
 
   constructor(options: ProjectServiceOptions) {
     this.workspaceStore = options.workspaceStore;
@@ -50,7 +44,7 @@ export class ProjectService {
       id: this.createId(),
       name: input.name,
       description: input.description,
-      outputType: "html",
+      outputType: 'html',
       createdAt: timestamp,
       updatedAt: timestamp,
     };

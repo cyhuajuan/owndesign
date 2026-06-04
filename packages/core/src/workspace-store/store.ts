@@ -1,22 +1,14 @@
-import {
-  lstat,
-  mkdir,
-  readdir,
-  readFile,
-  rm,
-  stat,
-  writeFile,
-} from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
-import process from "node:process";
+import { lstat, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import process from 'node:process';
 
-import { buildUnifiedDiff } from "./diff";
-import { isProbablyBinary, readFilePrefix, readTextFileIfExists } from "./files";
-import { isMissingPathError, normalizeWorkspaceRelativePath } from "./paths";
-import { globToRegExp } from "./search";
-import { applyTextEdit, normalizePositiveInteger, truncateLineMiddle } from "./text";
-import { movePathToTrash, runWindowsRecycleCommand } from "./trash";
+import { buildUnifiedDiff } from './diff';
+import { isProbablyBinary, readFilePrefix, readTextFileIfExists } from './files';
+import { isMissingPathError, normalizeWorkspaceRelativePath } from './paths';
+import { globToRegExp } from './search';
+import { applyTextEdit, normalizePositiveInteger, truncateLineMiddle } from './text';
+import { movePathToTrash, runWindowsRecycleCommand } from './trash';
 const DEFAULT_READ_LIMIT = 2000;
 const MAX_READ_BYTES = 50 * 1024;
 const MAX_TOOL_RESULTS = 100;
@@ -31,7 +23,7 @@ export type ProjectRecord = {
   updatedAt: string;
 };
 
-export type ProjectOutputType = "html";
+export type ProjectOutputType = 'html';
 
 export type ConversationRecord = {
   agentInstructions?: string;
@@ -48,7 +40,7 @@ export type ConversationRecord = {
 
 export type WorkspaceEntry = {
   path: string;
-  type: "directory" | "file";
+  type: 'directory' | 'file';
   size: number;
   updatedAt: string;
 };
@@ -74,7 +66,7 @@ export type WorkspaceGrepMatch = {
 
 export type WorkspaceSkippedFile = {
   path: string;
-  reason: "binary" | "too-large";
+  reason: 'binary' | 'too-large';
   size: number;
 };
 
@@ -87,7 +79,7 @@ export type WorkspaceGrepResult = {
 
 export type WorkspaceGlobMatch = {
   path: string;
-  type: "directory" | "file";
+  type: 'directory' | 'file';
   updatedAt: string;
 };
 
@@ -100,35 +92,35 @@ export type WorkspaceReadEntryResult =
       path: string;
       startLine: number;
       truncated: boolean;
-      truncatedReason?: "byte-limit" | "line-limit" | "line-length" | "size-limit";
-      type: "file";
+      truncatedReason?: 'byte-limit' | 'line-limit' | 'line-length' | 'size-limit';
+      type: 'file';
     }
   | {
       entries: Array<{
         path: string;
-        type: "directory" | "file";
+        type: 'directory' | 'file';
       }>;
       path: string;
       totalEntries: number;
       truncated: boolean;
-      type: "directory";
+      type: 'directory';
     };
 
 export type WorkspacePatchChange =
   | {
       content: string;
-      operation: "add" | "write";
+      operation: 'add' | 'write';
       path: string;
     }
   | {
       newString: string;
       oldString: string;
-      operation: "edit";
+      operation: 'edit';
       path: string;
       replaceAll?: boolean;
     }
   | {
-      operation: "delete";
+      operation: 'delete';
       path: string;
     };
 
@@ -139,7 +131,7 @@ export type WorkspacePatchResult = {
 
 export type WorkspacePatchChangeResult = {
   diff?: string;
-  operation: WorkspacePatchChange["operation"];
+  operation: WorkspacePatchChange['operation'];
   result: {
     bytesWritten?: number;
     deleted?: true;
@@ -155,21 +147,18 @@ type WorkspaceStoreOptions = {
   runWindowsRecycleCommand?: (targetPath: string) => Promise<void>;
 };
 
-
 export class WorkspaceStore {
   private readonly workspaceRoot: string;
   private readonly moveToTrash: (targetPath: string) => Promise<void>;
 
   constructor(options: WorkspaceStoreOptions = {}) {
-    this.workspaceRoot =
-      options.workspaceRoot ?? path.join(os.homedir(), ".owndesign");
+    this.workspaceRoot = options.workspaceRoot ?? path.join(os.homedir(), '.owndesign');
     this.moveToTrash =
       options.moveToTrash ??
       (async (targetPath: string) => {
         await movePathToTrash(targetPath, {
           platform: options.platform ?? process.platform,
-          runWindowsRecycleCommand:
-            options.runWindowsRecycleCommand ?? runWindowsRecycleCommand,
+          runWindowsRecycleCommand: options.runWindowsRecycleCommand ?? runWindowsRecycleCommand,
         });
       });
   }
@@ -181,14 +170,14 @@ export class WorkspaceStore {
   async createProject(project: ProjectRecord) {
     const projectDirectory = this.getProjectDirectory(project.id);
 
-    await mkdir(path.join(projectDirectory, "workspace"), { recursive: true });
-    await mkdir(path.join(projectDirectory, "conversations"), {
+    await mkdir(path.join(projectDirectory, 'workspace'), { recursive: true });
+    await mkdir(path.join(projectDirectory, 'conversations'), {
       recursive: true,
     });
     await writeFile(
-      path.join(projectDirectory, "project.json"),
+      path.join(projectDirectory, 'project.json'),
       JSON.stringify(project, null, 2),
-      "utf8",
+      'utf8',
     );
 
     return project;
@@ -204,8 +193,8 @@ export class WorkspaceStore {
           .filter((entry) => entry.isDirectory())
           .map(async (entry) => {
             const projectJson = await readFile(
-              path.join(projectsRoot, entry.name, "project.json"),
-              "utf8",
+              path.join(projectsRoot, entry.name, 'project.json'),
+              'utf8',
             );
 
             return JSON.parse(projectJson) as ProjectRecord;
@@ -213,8 +202,7 @@ export class WorkspaceStore {
       );
 
       return projects.sort(
-        (left, right) =>
-          new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime(),
+        (left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime(),
       );
     } catch (error) {
       if (isMissingPathError(error)) {
@@ -227,8 +215,8 @@ export class WorkspaceStore {
 
   async getProject(projectId: string) {
     const projectJson = await readFile(
-      path.join(this.getProjectDirectory(projectId), "project.json"),
-      "utf8",
+      path.join(this.getProjectDirectory(projectId), 'project.json'),
+      'utf8',
     );
 
     return JSON.parse(projectJson) as ProjectRecord;
@@ -236,9 +224,9 @@ export class WorkspaceStore {
 
   async updateProject(projectId: string, project: ProjectRecord) {
     await writeFile(
-      path.join(this.getProjectDirectory(projectId), "project.json"),
+      path.join(this.getProjectDirectory(projectId), 'project.json'),
       JSON.stringify(project, null, 2),
-      "utf8",
+      'utf8',
     );
 
     return project;
@@ -251,7 +239,7 @@ export class WorkspaceStore {
     await writeFile(
       this.getConversationFilePath(conversation.projectId, conversation.id),
       JSON.stringify(conversation, null, 2),
-      "utf8",
+      'utf8',
     );
 
     return conversation;
@@ -266,11 +254,11 @@ export class WorkspaceStore {
       });
       const conversations = await Promise.all(
         conversationEntries
-          .filter((entry) => entry.isFile() && entry.name.endsWith(".json"))
+          .filter((entry) => entry.isFile() && entry.name.endsWith('.json'))
           .map(async (entry) => {
             const conversationJson = await readFile(
               path.join(conversationsDirectory, entry.name),
-              "utf8",
+              'utf8',
             );
 
             return JSON.parse(conversationJson) as ConversationRecord;
@@ -295,7 +283,7 @@ export class WorkspaceStore {
   async getConversation(projectId: string, conversationId: string) {
     const conversationJson = await readFile(
       this.getConversationFilePath(projectId, conversationId),
-      "utf8",
+      'utf8',
     );
 
     return JSON.parse(conversationJson) as ConversationRecord;
@@ -309,37 +297,33 @@ export class WorkspaceStore {
     await writeFile(
       this.getConversationFilePath(projectId, conversationId),
       JSON.stringify(conversation, null, 2),
-      "utf8",
+      'utf8',
     );
 
     return conversation;
   }
 
-  async writeProjectOutput(
-    projectId: string,
-    outputType: ProjectOutputType,
-    content: string,
-  ) {
+  async writeProjectOutput(projectId: string, outputType: ProjectOutputType, content: string) {
     const outputPath = this.getProjectOutputFilePath(projectId, outputType);
 
     await mkdir(path.dirname(outputPath), { recursive: true });
-    await writeFile(outputPath, content, "utf8");
+    await writeFile(outputPath, content, 'utf8');
 
     return outputPath;
   }
 
   async readProjectOutput(projectId: string, outputType: ProjectOutputType) {
-    return readFile(this.getProjectOutputFilePath(projectId, outputType), "utf8");
+    return readFile(this.getProjectOutputFilePath(projectId, outputType), 'utf8');
   }
 
   getProjectWorkspaceDirectory(projectId: string) {
-    return path.join(this.getProjectDirectory(projectId), "workspace");
+    return path.join(this.getProjectDirectory(projectId), 'workspace');
   }
 
   async listProjectWorkspace(projectId: string) {
     const entries: WorkspaceEntry[] = [];
 
-    await this.walkProjectWorkspace(projectId, "", async (entry) => {
+    await this.walkProjectWorkspace(projectId, '', async (entry) => {
       entries.push(entry);
     });
 
@@ -349,8 +333,8 @@ export class WorkspaceStore {
   async listProjectHtmlFiles(projectId: string) {
     const entries: WorkspaceEntry[] = [];
 
-    await this.walkProjectWorkspace(projectId, "", async (entry) => {
-      if (entry.type === "file" && entry.path.toLowerCase().endsWith(".html")) {
+    await this.walkProjectWorkspace(projectId, '', async (entry) => {
+      if (entry.type === 'file' && entry.path.toLowerCase().endsWith('.html')) {
         entries.push(entry);
       }
     });
@@ -358,11 +342,11 @@ export class WorkspaceStore {
     return entries
       .map((entry) => entry.path)
       .sort((left, right) => {
-        if (left === "index.html") {
+        if (left === 'index.html') {
           return -1;
         }
 
-        if (right === "index.html") {
+        if (right === 'index.html') {
           return 1;
         }
 
@@ -378,24 +362,19 @@ export class WorkspaceStore {
       offset?: number;
     } = {},
   ): Promise<WorkspaceReadEntryResult> {
-    const offset = normalizePositiveInteger(options.offset, 1, "offset");
-    const limit = normalizePositiveInteger(
-      options.limit,
-      DEFAULT_READ_LIMIT,
-      "limit",
-    );
-    const targetPath = relativePath === "."
-      ? this.getProjectWorkspaceDirectory(projectId)
-      : await this.resolveProjectWorkspacePath(
-          projectId,
-          relativePath,
-          { checkTargetSymlink: true },
-        );
+    const offset = normalizePositiveInteger(options.offset, 1, 'offset');
+    const limit = normalizePositiveInteger(options.limit, DEFAULT_READ_LIMIT, 'limit');
+    const targetPath =
+      relativePath === '.'
+        ? this.getProjectWorkspaceDirectory(projectId)
+        : await this.resolveProjectWorkspacePath(projectId, relativePath, {
+            checkTargetSymlink: true,
+          });
     const targetStats = await lstat(targetPath);
     const normalizedPath = normalizeWorkspaceRelativePath(relativePath);
 
     if (targetStats.isSymbolicLink()) {
-      throw new Error("Project Workspace symlinks are not supported.");
+      throw new Error('Project Workspace symlinks are not supported.');
     }
 
     if (targetStats.isDirectory()) {
@@ -416,17 +395,13 @@ export class WorkspaceStore {
             }
 
             return {
-              path: normalizeWorkspaceRelativePath(
-                path.relative(rootPath, absolutePath),
-              ),
-              type: entryStats.isDirectory() ? "directory" as const : "file" as const,
+              path: normalizeWorkspaceRelativePath(path.relative(rootPath, absolutePath)),
+              type: entryStats.isDirectory() ? ('directory' as const) : ('file' as const),
             };
           }),
         )
       )
-        .filter((entry): entry is { path: string; type: "directory" | "file" } =>
-          Boolean(entry),
-        )
+        .filter((entry): entry is { path: string; type: 'directory' | 'file' } => Boolean(entry))
         .sort((left, right) => left.path.localeCompare(right.path));
       const start = offset - 1;
       const sliced = visibleEntries.slice(start, start + limit);
@@ -436,7 +411,7 @@ export class WorkspaceStore {
         path: normalizedPath,
         totalEntries: visibleEntries.length,
         truncated: start + sliced.length < visibleEntries.length,
-        type: "directory",
+        type: 'directory',
       };
     }
 
@@ -448,28 +423,23 @@ export class WorkspaceStore {
     const sizeLimited = fileStats.size > MAX_TEXT_FILE_BYTES;
     const content = sizeLimited
       ? await readFilePrefix(targetPath, MAX_TEXT_FILE_BYTES)
-      : await readFile(targetPath, "utf8");
+      : await readFile(targetPath, 'utf8');
     const lines = content.split(/\r?\n/);
     const start = offset - 1;
 
-    if (start >= lines.length && !(lines.length === 1 && lines[0] === "" && start === 0)) {
+    if (start >= lines.length && !(lines.length === 1 && lines[0] === '' && start === 0)) {
       throw new Error(`Offset ${offset} is out of range for this file (${lines.length} lines)`);
     }
 
     const selectedLines: string[] = [];
     let usedBytes = 0;
     let truncated = false;
-    let truncatedReason:
-      | "byte-limit"
-      | "line-limit"
-      | "line-length"
-      | "size-limit"
-      | undefined;
+    let truncatedReason: 'byte-limit' | 'line-limit' | 'line-length' | 'size-limit' | undefined;
 
     for (let index = start; index < lines.length; index += 1) {
       if (selectedLines.length >= limit) {
         truncated = true;
-        truncatedReason = "line-limit";
+        truncatedReason = 'line-limit';
         break;
       }
 
@@ -477,14 +447,14 @@ export class WorkspaceStore {
       const { line, truncated: lineTruncated } = truncateLineMiddle(originalLine);
       if (lineTruncated) {
         truncated = true;
-        truncatedReason ??= "line-length";
+        truncatedReason ??= 'line-length';
       }
       const numberedLine = `${index + 1}: ${line}`;
-      const lineBytes = Buffer.byteLength(numberedLine, "utf8") + 1;
+      const lineBytes = Buffer.byteLength(numberedLine, 'utf8') + 1;
 
       if (usedBytes + lineBytes > MAX_READ_BYTES) {
         truncated = true;
-        truncatedReason = "byte-limit";
+        truncatedReason = 'byte-limit';
         break;
       }
 
@@ -494,65 +464,51 @@ export class WorkspaceStore {
 
     if (sizeLimited) {
       truncated = true;
-      truncatedReason = "size-limit";
+      truncatedReason = 'size-limit';
     }
 
     const knownTotalLines = sizeLimited ? undefined : lines.length;
     const visibleEndLine = offset + selectedLines.length - 1;
 
     return {
-      content: selectedLines.join("\n"),
+      content: selectedLines.join('\n'),
       endLine: visibleEndLine,
       lineCount: knownTotalLines ?? lines.length,
-      omittedLines: knownTotalLines
-        ? Math.max(0, knownTotalLines - visibleEndLine)
-        : 0,
+      omittedLines: knownTotalLines ? Math.max(0, knownTotalLines - visibleEndLine) : 0,
       path: normalizedPath,
       startLine: offset,
       truncated,
       truncatedReason,
-      type: "file",
+      type: 'file',
     };
   }
 
-  async globProjectWorkspace(
-    projectId: string,
-    pattern: string,
-    relativePath = "",
-  ) {
+  async globProjectWorkspace(projectId: string, pattern: string, relativePath = '') {
     if (!pattern.trim()) {
-      throw new Error("Glob pattern must not be empty.");
+      throw new Error('Glob pattern must not be empty.');
     }
 
-    const startPath = relativePath && relativePath !== "."
-      ? relativePath
-      : "";
+    const startPath = relativePath && relativePath !== '.' ? relativePath : '';
     const matcher = globToRegExp(pattern);
     const matches: WorkspaceGlobMatch[] = [];
 
-    await this.walkProjectWorkspace(
-      projectId,
-      startPath,
-      async (entry) => {
-        const pathFromStart = startPath
-          ? normalizeWorkspaceRelativePath(path.relative(startPath, entry.path))
-          : entry.path;
+    await this.walkProjectWorkspace(projectId, startPath, async (entry) => {
+      const pathFromStart = startPath
+        ? normalizeWorkspaceRelativePath(path.relative(startPath, entry.path))
+        : entry.path;
 
-        if (matcher.test(pathFromStart) || matcher.test(path.basename(entry.path))) {
-          matches.push({
-            path: entry.path,
-            type: entry.type,
-            updatedAt: entry.updatedAt,
-          });
-        }
-      },
+      if (matcher.test(pathFromStart) || matcher.test(path.basename(entry.path))) {
+        matches.push({
+          path: entry.path,
+          type: entry.type,
+          updatedAt: entry.updatedAt,
+        });
+      }
+    });
+
+    const sortedMatches = matches.sort(
+      (left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime(),
     );
-
-    const sortedMatches = matches
-      .sort(
-        (left, right) =>
-          new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime(),
-      )
     const slicedMatches = sortedMatches.slice(0, MAX_TOOL_RESULTS);
 
     return {
@@ -571,7 +527,7 @@ export class WorkspaceStore {
     } = {},
   ) {
     if (!pattern) {
-      throw new Error("Grep pattern must not be empty.");
+      throw new Error('Grep pattern must not be empty.');
     }
 
     let regex: RegExp;
@@ -590,7 +546,7 @@ export class WorkspaceStore {
     const includeMatcher = options.include ? globToRegExp(options.include) : undefined;
     const matches: Array<WorkspaceGrepMatch & { updatedAtTime: number }> = [];
     const skippedFiles: WorkspaceSkippedFile[] = [];
-    const startPath = options.path && options.path !== "." ? options.path : "";
+    const startPath = options.path && options.path !== '.' ? options.path : '';
     const absoluteStartPath = startPath
       ? await this.resolveProjectWorkspacePath(projectId, startPath, {
           checkTargetSymlink: true,
@@ -615,7 +571,7 @@ export class WorkspaceStore {
       if (fileStats.size > MAX_TEXT_FILE_BYTES) {
         skippedFiles.push({
           path: relativeFilePath,
-          reason: "too-large",
+          reason: 'too-large',
           size: fileStats.size,
         });
         return;
@@ -625,13 +581,13 @@ export class WorkspaceStore {
       if (isProbablyBinary(buffer)) {
         skippedFiles.push({
           path: relativeFilePath,
-          reason: "binary",
+          reason: 'binary',
           size: fileStats.size,
         });
         return;
       }
 
-      const content = buffer.toString("utf8");
+      const content = buffer.toString('utf8');
       const lines = content.split(/\r?\n/);
 
       lines.forEach((lineText, index) => {
@@ -654,20 +610,18 @@ export class WorkspaceStore {
       await visitFile(absoluteStartPath);
     } else if (startStats.isDirectory()) {
       await this.walkProjectWorkspace(projectId, startPath, async (entry, absolutePath) => {
-        if (entry.type === "file") {
+        if (entry.type === 'file') {
           await visitFile(absolutePath);
         }
       });
     }
 
-    const sortedMatches = matches
-      .sort((left, right) => right.updatedAtTime - left.updatedAtTime)
-    const slicedMatches = sortedMatches.slice(0, MAX_TOOL_RESULTS)
-      .map((match) => ({
-        line: match.line,
-        path: match.path,
-        preview: match.preview,
-      }));
+    const sortedMatches = matches.sort((left, right) => right.updatedAtTime - left.updatedAtTime);
+    const slicedMatches = sortedMatches.slice(0, MAX_TOOL_RESULTS).map((match) => ({
+      line: match.line,
+      path: match.path,
+      preview: match.preview,
+    }));
 
     return {
       matches: slicedMatches,
@@ -681,30 +635,23 @@ export class WorkspaceStore {
     projectId: string,
     changes: WorkspacePatchChange[],
     options: {
-      transformContent?: (
-        relativePath: string,
-        content: string,
-      ) => Promise<string> | string;
+      transformContent?: (relativePath: string, content: string) => Promise<string> | string;
     } = {},
   ): Promise<WorkspacePatchResult> {
     if (!changes.length) {
-      throw new Error("Project Workspace patch must include at least one change.");
+      throw new Error('Project Workspace patch must include at least one change.');
     }
 
-    const prepared = await this.prepareProjectWorkspacePatch(
-      projectId,
-      changes,
-      options,
-    );
+    const prepared = await this.prepareProjectWorkspacePatch(projectId, changes, options);
 
     for (const change of prepared) {
-      if (change.operation === "delete") {
+      if (change.operation === 'delete') {
         await rm(change.absolutePath, { force: false, recursive: true });
         continue;
       }
 
       await mkdir(path.dirname(change.absolutePath), { recursive: true });
-      await writeFile(change.absolutePath, change.content ?? "", "utf8");
+      await writeFile(change.absolutePath, change.content ?? '', 'utf8');
     }
 
     const results = prepared.map((change) => ({
@@ -722,42 +669,31 @@ export class WorkspaceStore {
   async searchProjectWorkspace(
     projectId: string,
     query: string,
-    relativePath = "",
+    relativePath = '',
   ): Promise<WorkspaceSearchResult> {
     if (!query) {
-      throw new Error("Search query must not be empty.");
+      throw new Error('Search query must not be empty.');
     }
 
     const matches: WorkspaceSearchMatch[] = [];
     const skippedFiles: WorkspaceSkippedFile[] = [];
-    const startPath = relativePath && relativePath !== "."
-      ? await this.resolveProjectWorkspacePath(projectId, relativePath, {
-          checkTargetSymlink: true,
-        })
-      : this.getProjectWorkspaceDirectory(projectId);
+    const startPath =
+      relativePath && relativePath !== '.'
+        ? await this.resolveProjectWorkspacePath(projectId, relativePath, {
+            checkTargetSymlink: true,
+          })
+        : this.getProjectWorkspaceDirectory(projectId);
     const startStats = await stat(startPath);
 
     if (startStats.isFile()) {
-      await this.searchWorkspaceFile(
-        projectId,
-        startPath,
-        query,
-        matches,
-        skippedFiles,
-      );
+      await this.searchWorkspaceFile(projectId, startPath, query, matches, skippedFiles);
     } else if (startStats.isDirectory()) {
       await this.walkProjectWorkspace(
         projectId,
-        relativePath === "." ? "" : relativePath,
+        relativePath === '.' ? '' : relativePath,
         async (entry, absolutePath) => {
-          if (entry.type === "file") {
-            await this.searchWorkspaceFile(
-              projectId,
-              absolutePath,
-              query,
-              matches,
-              skippedFiles,
-            );
+          if (entry.type === 'file') {
+            await this.searchWorkspaceFile(projectId, absolutePath, query, matches, skippedFiles);
           }
         },
       );
@@ -774,26 +710,22 @@ export class WorkspaceStore {
   }
 
   async readProjectWorkspaceFile(projectId: string, relativePath: string) {
-    const filePath = await this.resolveProjectWorkspacePath(
-      projectId,
-      relativePath,
-      { checkTargetSymlink: true },
-    );
+    const filePath = await this.resolveProjectWorkspacePath(projectId, relativePath, {
+      checkTargetSymlink: true,
+    });
     const fileStats = await stat(filePath);
 
     if (!fileStats.isFile()) {
       throw new Error(`Project Workspace path is not a file: ${relativePath}`);
     }
 
-    return readFile(filePath, "utf8");
+    return readFile(filePath, 'utf8');
   }
 
   async readProjectWorkspaceFileBuffer(projectId: string, relativePath: string) {
-    const filePath = await this.resolveProjectWorkspacePath(
-      projectId,
-      relativePath,
-      { checkTargetSymlink: true },
-    );
+    const filePath = await this.resolveProjectWorkspacePath(projectId, relativePath, {
+      checkTargetSymlink: true,
+    });
     const fileStats = await stat(filePath);
 
     if (!fileStats.isFile()) {
@@ -803,25 +735,20 @@ export class WorkspaceStore {
     return readFile(filePath);
   }
 
-  async writeProjectWorkspaceFile(
-    projectId: string,
-    relativePath: string,
-    content: string,
-  ) {
-    const filePath = await this.resolveProjectWorkspacePath(
-      projectId,
-      relativePath,
-      { checkTargetSymlink: true, targetMayBeMissing: true },
-    );
+  async writeProjectWorkspaceFile(projectId: string, relativePath: string, content: string) {
+    const filePath = await this.resolveProjectWorkspacePath(projectId, relativePath, {
+      checkTargetSymlink: true,
+      targetMayBeMissing: true,
+    });
 
     const previousContent = await readTextFileIfExists(filePath);
     await mkdir(path.dirname(filePath), { recursive: true });
-    await writeFile(filePath, content, "utf8");
+    await writeFile(filePath, content, 'utf8');
 
     return {
-      bytesWritten: Buffer.byteLength(content, "utf8"),
+      bytesWritten: Buffer.byteLength(content, 'utf8'),
       diff: buildUnifiedDiff(
-        previousContent ?? "",
+        previousContent ?? '',
         content,
         normalizeWorkspaceRelativePath(
           path.relative(this.getProjectWorkspaceDirectory(projectId), filePath),
@@ -841,11 +768,11 @@ export class WorkspaceStore {
     replaceAll = false,
   ) {
     if (!oldText) {
-      throw new Error("oldText must not be empty.");
+      throw new Error('oldText must not be empty.');
     }
 
     if (oldText === newText) {
-      throw new Error("No changes to apply: oldText and newText are identical.");
+      throw new Error('No changes to apply: oldText and newText are identical.');
     }
 
     const content = await this.readProjectWorkspaceFile(projectId, relativePath);
@@ -860,22 +787,16 @@ export class WorkspaceStore {
     await this.writeProjectWorkspaceFile(projectId, relativePath, updatedContent);
 
     return {
-      diff: buildUnifiedDiff(
-        content,
-        updatedContent,
-        normalizeWorkspaceRelativePath(relativePath),
-      ),
+      diff: buildUnifiedDiff(content, updatedContent, normalizeWorkspaceRelativePath(relativePath)),
       path: normalizeWorkspaceRelativePath(relativePath),
       replacements: replaceAll ? replacements : 1,
     };
   }
 
   async deleteProjectWorkspacePath(projectId: string, relativePath: string) {
-    const targetPath = await this.resolveProjectWorkspacePath(
-      projectId,
-      relativePath,
-      { checkTargetSymlink: true },
-    );
+    const targetPath = await this.resolveProjectWorkspacePath(projectId, relativePath, {
+      checkTargetSymlink: true,
+    });
 
     await rm(targetPath, { force: false, recursive: true });
 
@@ -886,9 +807,7 @@ export class WorkspaceStore {
   }
 
   async deleteConversation(projectId: string, conversationId: string) {
-    await this.moveToTrash(
-      this.getConversationFilePath(projectId, conversationId),
-    );
+    await this.moveToTrash(this.getConversationFilePath(projectId, conversationId));
   }
 
   async deleteProject(projectId: string) {
@@ -896,7 +815,7 @@ export class WorkspaceStore {
   }
 
   private getProjectsRoot() {
-    return path.join(this.workspaceRoot, "projects");
+    return path.join(this.workspaceRoot, 'projects');
   }
 
   private getProjectDirectory(projectId: string) {
@@ -904,24 +823,15 @@ export class WorkspaceStore {
   }
 
   private getConversationsDirectory(projectId: string) {
-    return path.join(this.getProjectDirectory(projectId), "conversations");
+    return path.join(this.getProjectDirectory(projectId), 'conversations');
   }
 
-  private getProjectOutputFilePath(
-    projectId: string,
-    outputType: ProjectOutputType,
-  ) {
-    return path.join(
-      this.getProjectWorkspaceDirectory(projectId),
-      `index.${outputType}`,
-    );
+  private getProjectOutputFilePath(projectId: string, outputType: ProjectOutputType) {
+    return path.join(this.getProjectWorkspaceDirectory(projectId), `index.${outputType}`);
   }
 
   private getConversationFilePath(projectId: string, conversationId: string) {
-    return path.join(
-      this.getConversationsDirectory(projectId),
-      `${conversationId}.json`,
-    );
+    return path.join(this.getConversationsDirectory(projectId), `${conversationId}.json`);
   }
 
   private async walkProjectWorkspace(
@@ -956,7 +866,7 @@ export class WorkspaceStore {
             {
               path: relativeEntryPath,
               size: entryStats.size,
-              type: "directory",
+              type: 'directory',
               updatedAt: entryStats.mtime.toISOString(),
             },
             absolutePath,
@@ -967,7 +877,7 @@ export class WorkspaceStore {
             {
               path: relativeEntryPath,
               size: entryStats.size,
-              type: "file",
+              type: 'file',
               updatedAt: entryStats.mtime.toISOString(),
             },
             absolutePath,
@@ -979,7 +889,7 @@ export class WorkspaceStore {
     const startStats = await lstat(startPath);
 
     if (startStats.isSymbolicLink()) {
-      throw new Error("Project Workspace symlinks are not supported.");
+      throw new Error('Project Workspace symlinks are not supported.');
     }
 
     if (startStats.isDirectory()) {
@@ -989,7 +899,7 @@ export class WorkspaceStore {
         {
           path: normalizeWorkspaceRelativePath(path.relative(rootPath, startPath)),
           size: startStats.size,
-          type: "file",
+          type: 'file',
           updatedAt: startStats.mtime.toISOString(),
         },
         startPath,
@@ -1012,7 +922,7 @@ export class WorkspaceStore {
     if (fileStats.size > MAX_TEXT_FILE_BYTES) {
       skippedFiles.push({
         path: relativePath,
-        reason: "too-large",
+        reason: 'too-large',
         size: fileStats.size,
       });
       return;
@@ -1022,13 +932,13 @@ export class WorkspaceStore {
     if (isProbablyBinary(buffer)) {
       skippedFiles.push({
         path: relativePath,
-        reason: "binary",
+        reason: 'binary',
         size: fileStats.size,
       });
       return;
     }
 
-    const content = buffer.toString("utf8");
+    const content = buffer.toString('utf8');
     const lines = content.split(/\r?\n/);
 
     lines.forEach((lineText, index) => {
@@ -1048,10 +958,7 @@ export class WorkspaceStore {
     projectId: string,
     changes: WorkspacePatchChange[],
     options: {
-      transformContent?: (
-        relativePath: string,
-        content: string,
-      ) => Promise<string> | string;
+      transformContent?: (relativePath: string, content: string) => Promise<string> | string;
     },
   ) {
     const state = new Map<string, string | undefined>();
@@ -1067,11 +974,10 @@ export class WorkspaceStore {
         return state.get(relativePath);
       }
 
-      const absolutePath = await this.resolveProjectWorkspacePath(
-        projectId,
-        relativePath,
-        { checkTargetSymlink: true, targetMayBeMissing: true },
-      );
+      const absolutePath = await this.resolveProjectWorkspacePath(projectId, relativePath, {
+        checkTargetSymlink: true,
+        targetMayBeMissing: true,
+      });
       const content = await readTextFileIfExists(absolutePath);
 
       state.set(relativePath, content);
@@ -1080,16 +986,12 @@ export class WorkspaceStore {
 
     for (const change of changes) {
       const relativePath = normalizeWorkspaceRelativePath(change.path);
-      const absolutePath = await this.resolveProjectWorkspacePath(
-        projectId,
-        relativePath,
-        {
-          checkTargetSymlink: true,
-          targetMayBeMissing: change.operation !== "delete",
-        },
-      );
+      const absolutePath = await this.resolveProjectWorkspacePath(projectId, relativePath, {
+        checkTargetSymlink: true,
+        targetMayBeMissing: change.operation !== 'delete',
+      });
 
-      if (change.operation === "delete") {
+      if (change.operation === 'delete') {
         const targetStats = await lstat(absolutePath);
         const previousContent = targetStats.isFile()
           ? await readCurrentContent(relativePath)
@@ -1097,9 +999,7 @@ export class WorkspaceStore {
         state.set(relativePath, undefined);
         prepared.push({
           absolutePath,
-          diff: previousContent
-            ? buildUnifiedDiff(previousContent, "", relativePath)
-            : undefined,
+          diff: previousContent ? buildUnifiedDiff(previousContent, '', relativePath) : undefined,
           operation: change.operation,
           result: {
             deleted: true,
@@ -1109,7 +1009,7 @@ export class WorkspaceStore {
         continue;
       }
 
-      if (change.operation === "edit") {
+      if (change.operation === 'edit') {
         const previousContent = await readCurrentContent(relativePath);
 
         if (previousContent === undefined) {
@@ -1150,10 +1050,10 @@ export class WorkspaceStore {
       prepared.push({
         absolutePath,
         content,
-        diff: buildUnifiedDiff(previousContent ?? "", content, relativePath),
+        diff: buildUnifiedDiff(previousContent ?? '', content, relativePath),
         operation: change.operation,
         result: {
-          bytesWritten: Buffer.byteLength(content, "utf8"),
+          bytesWritten: Buffer.byteLength(content, 'utf8'),
           path: relativePath,
         },
       });
@@ -1171,7 +1071,7 @@ export class WorkspaceStore {
     } = {},
   ) {
     if (!relativePath.trim()) {
-      throw new Error("Project Workspace path must not be empty.");
+      throw new Error('Project Workspace path must not be empty.');
     }
 
     if (path.isAbsolute(relativePath)) {
@@ -1184,17 +1084,13 @@ export class WorkspaceStore {
 
     if (
       !relativeFromWorkspace ||
-      relativeFromWorkspace.startsWith("..") ||
+      relativeFromWorkspace.startsWith('..') ||
       path.isAbsolute(relativeFromWorkspace)
     ) {
       throw new Error(`Project Workspace path escapes workspace: ${relativePath}`);
     }
 
-    await this.assertNoWorkspaceSymlinkPath(
-      workspaceDirectory,
-      relativeFromWorkspace,
-      options,
-    );
+    await this.assertNoWorkspaceSymlinkPath(workspaceDirectory, relativeFromWorkspace, options);
 
     return targetPath;
   }
@@ -1209,7 +1105,7 @@ export class WorkspaceStore {
   ) {
     const segments = relativeFromWorkspace
       .split(path.sep)
-      .filter((segment) => segment && segment !== ".");
+      .filter((segment) => segment && segment !== '.');
     const lastIndex = segments.length - 1;
     let currentPath = workspaceDirectory;
 
@@ -1221,7 +1117,7 @@ export class WorkspaceStore {
         const isTarget = index === lastIndex;
 
         if (pathStats.isSymbolicLink() && (!isTarget || options.checkTargetSymlink)) {
-          throw new Error("Project Workspace symlinks are not supported.");
+          throw new Error('Project Workspace symlinks are not supported.');
         }
       } catch (error) {
         if (isMissingPathError(error) && options.targetMayBeMissing) {

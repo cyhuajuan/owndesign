@@ -1,17 +1,12 @@
-import { StrictMode, useCallback, useEffect, useState } from "react";
-import { createRoot } from "react-dom/client";
-import type { ComponentType, ReactNode } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import {
-  CopyIcon,
-  MinusIcon,
-  SquareIcon,
-  XIcon,
-} from "lucide-react";
-import type { OwnDesignAppProps } from "@owndesign/renderer";
+import { StrictMode, useCallback, useEffect, useState } from 'react';
+import { createRoot } from 'react-dom/client';
+import type { ComponentType, ReactNode } from 'react';
+import { invoke } from '@tauri-apps/api/core';
+import { getCurrentWindow } from '@tauri-apps/api/window';
+import { CopyIcon, MinusIcon, SquareIcon, XIcon } from 'lucide-react';
+import type { OwnDesignAppProps } from '@owndesign/renderer';
 
-import "./main.css";
+import './main.css';
 
 type DesktopStartupStatus = {
   serverError?: string;
@@ -30,15 +25,13 @@ function DesktopBootstrap() {
     setStatusError(undefined);
 
     try {
-      const nextStatus = await invoke<DesktopStartupStatus>(
-        "get_desktop_startup_status",
-      );
+      const nextStatus = await invoke<DesktopStartupStatus>('get_desktop_startup_status');
 
       setStatus(nextStatus);
       setStatusError(undefined);
 
       if (nextStatus.serverStarted) {
-        const renderer = await import("@owndesign/renderer");
+        const renderer = await import('@owndesign/renderer');
         setOwnDesignApp(() => renderer.OwnDesignApp);
       } else {
         setOwnDesignApp(undefined);
@@ -46,18 +39,14 @@ function DesktopBootstrap() {
     } catch (error) {
       setOwnDesignApp(undefined);
       setStatus(undefined);
-      setStatusError(
-        error instanceof Error
-          ? error.message
-          : "无法读取桌面端启动状态。",
-      );
+      setStatusError(error instanceof Error ? error.message : '无法读取桌面端启动状态。');
     }
   }, []);
 
   useEffect(() => {
     let isActive = true;
 
-    void invoke<DesktopStartupStatus>("get_desktop_startup_status")
+    void invoke<DesktopStartupStatus>('get_desktop_startup_status')
       .then(async (nextStatus) => {
         if (!isActive) {
           return;
@@ -67,7 +56,7 @@ function DesktopBootstrap() {
         setStatusError(undefined);
 
         if (nextStatus.serverStarted) {
-          const renderer = await import("@owndesign/renderer");
+          const renderer = await import('@owndesign/renderer');
 
           if (isActive) {
             setOwnDesignApp(() => renderer.OwnDesignApp);
@@ -83,11 +72,7 @@ function DesktopBootstrap() {
 
         setOwnDesignApp(undefined);
         setStatus(undefined);
-        setStatusError(
-          error instanceof Error
-            ? error.message
-            : "无法读取桌面端启动状态。",
-        );
+        setStatusError(error instanceof Error ? error.message : '无法读取桌面端启动状态。');
       });
 
     return () => {
@@ -112,7 +97,7 @@ function DesktopBootstrap() {
   if (!status.serverStarted) {
     return (
       <DesktopStartupError
-        detail={status.serverError ?? "本地 server 未能启动，但没有返回错误详情。"}
+        detail={status.serverError ?? '本地 server 未能启动，但没有返回错误详情。'}
         onRetry={() => void retryStatusCheck()}
         title="本地服务启动失败"
       />
@@ -229,17 +214,19 @@ function DesktopWindowControls() {
         }
       });
 
-    void appWindow.onResized(() => {
-      if (isActive) {
-        syncMaximizedState();
-      }
-    }).then((nextUnlisten) => {
-      if (isActive) {
-        unlisten = nextUnlisten;
-      } else {
-        nextUnlisten();
-      }
-    });
+    void appWindow
+      .onResized(() => {
+        if (isActive) {
+          syncMaximizedState();
+        }
+      })
+      .then((nextUnlisten) => {
+        if (isActive) {
+          unlisten = nextUnlisten;
+        } else {
+          nextUnlisten();
+        }
+      });
 
     return () => {
       isActive = false;
@@ -271,10 +258,10 @@ function DesktopWindowControls() {
         <MinusIcon />
       </button>
       <button
-        aria-label={isMaximized ? "还原窗口" : "最大化窗口"}
+        aria-label={isMaximized ? '还原窗口' : '最大化窗口'}
         className="desktop-window-control"
         onClick={toggleMaximize}
-        title={isMaximized ? "还原" : "最大化"}
+        title={isMaximized ? '还原' : '最大化'}
         type="button"
       >
         {isMaximized ? <CopyIcon /> : <SquareIcon />}
@@ -292,10 +279,10 @@ function DesktopWindowControls() {
   );
 }
 
-const root = document.getElementById("root");
+const root = document.getElementById('root');
 
 if (!root) {
-  throw new Error("Root element not found.");
+  throw new Error('Root element not found.');
 }
 
 createRoot(root).render(

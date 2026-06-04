@@ -1,27 +1,22 @@
-"use client";
+'use client';
 
-import { memo, useEffect, useMemo, useState } from "react";
-import { FolderIcon, MessageSquareIcon, PlusIcon } from "lucide-react";
+import { memo, useEffect, useMemo, useState } from 'react';
+import { FolderIcon, MessageSquareIcon, PlusIcon } from 'lucide-react';
 
-import {
-  ConversationEmptyState,
-} from "@/components/ai-elements/conversation";
-import { useI18n } from "@/features/i18n/context";
-import { ChatShell } from "@/features/workspace/components/chat-shell";
-import type { ChatShellSlots } from "@/features/workspace/components/chat-shell";
-import { ControlBar } from "@/features/projects/components/control-bar";
-import { PreviewEmptyState } from "@/features/preview/components/preview-empty-state";
-import { ProjectPreviewFrame } from "@/features/preview/components/project-preview-frame";
+import { ConversationEmptyState } from '@/components/ai-elements/conversation';
+import { useI18n } from '@/features/i18n/context';
+import { ChatShell } from '@/features/workspace/components/chat-shell';
+import type { ChatShellSlots } from '@/features/workspace/components/chat-shell';
+import { ControlBar } from '@/features/projects/components/control-bar';
+import { PreviewEmptyState } from '@/features/preview/components/preview-empty-state';
+import { ProjectPreviewFrame } from '@/features/preview/components/project-preview-frame';
 import {
   StreamingConversationPanel,
   type ConversationPanelUpdate,
-} from "@/features/conversation/components/streaming-conversation-panel";
-import { normalizeConversationMessages } from "@owndesign/core/conversations/chat-messages";
-import type { ActiveRun } from "@/api/client";
-import type {
-  ConversationRecord,
-  ProjectRecord,
-} from "@owndesign/core/workspace-store";
+} from '@/features/conversation/components/streaming-conversation-panel';
+import { normalizeConversationMessages } from '@owndesign/core/conversations/chat-messages';
+import type { ActiveRun } from '@/api/client';
+import type { ConversationRecord, ProjectRecord } from '@owndesign/core/workspace-store';
 
 type ActionResult = { href?: string } | undefined | void;
 
@@ -33,16 +28,9 @@ type WorkspaceShellProps = {
   activeRun?: ActiveRun;
   conversations: ConversationRecord[];
   onCreateConversation: () => Promise<ActionResult> | ActionResult;
-  onCreateProject: (
-    name: string,
-    description?: string,
-  ) => Promise<ActionResult> | ActionResult;
-  onDeleteConversation: (
-    conversationId: string,
-  ) => Promise<ActionResult> | ActionResult;
-  onDeleteProject: (
-    projectId: string,
-  ) => Promise<ActionResult> | ActionResult;
+  onCreateProject: (name: string, description?: string) => Promise<ActionResult> | ActionResult;
+  onDeleteConversation: (conversationId: string) => Promise<ActionResult> | ActionResult;
+  onDeleteProject: (projectId: string) => Promise<ActionResult> | ActionResult;
   onRenameConversation: (
     conversationId: string,
     title: string,
@@ -52,12 +40,8 @@ type WorkspaceShellProps = {
     name: string,
     description?: string,
   ) => Promise<ActionResult> | ActionResult;
-  onSelectConversation: (
-    conversationId: string,
-  ) => Promise<ActionResult> | ActionResult;
-  onSelectProject: (
-    projectId: string,
-  ) => Promise<ActionResult> | ActionResult;
+  onSelectConversation: (conversationId: string) => Promise<ActionResult> | ActionResult;
+  onSelectProject: (projectId: string) => Promise<ActionResult> | ActionResult;
   projects: ProjectRecord[];
   shellSlots?: WorkspaceShellSlots;
 };
@@ -82,9 +66,7 @@ export const WorkspaceShell = memo(function WorkspaceShell({
   const [conversationUpdates, setConversationUpdates] = useState<
     Record<string, ConversationPanelUpdate>
   >({});
-  const [clientActiveRun, setClientActiveRun] = useState<ActiveRun | undefined>(
-    activeRun,
-  );
+  const [clientActiveRun, setClientActiveRun] = useState<ActiveRun | undefined>(activeRun);
   const effectiveActiveRun = clientActiveRun;
 
   useEffect(() => {
@@ -113,9 +95,8 @@ export const WorkspaceShell = memo(function WorkspaceShell({
 
   const activeConversation = useMemo(
     () =>
-      clientConversations.find(
-        (conversation) => conversation.id === activeConversationId,
-      ) ?? clientConversations[0],
+      clientConversations.find((conversation) => conversation.id === activeConversationId) ??
+      clientConversations[0],
     [activeConversationId, clientConversations],
   );
 
@@ -125,9 +106,9 @@ export const WorkspaceShell = memo(function WorkspaceShell({
         !activeProject || !activeConversation ? (
           <ConversationEmptyState
             className="min-h-28 pt-4"
-            description={t("shell.composerUnavailableDescription")}
+            description={t('shell.composerUnavailableDescription')}
             icon={<PlusIcon />}
-            title={t("shell.composerUnavailableTitle")}
+            title={t('shell.composerUnavailableTitle')}
           />
         ) : undefined
       }
@@ -152,9 +133,7 @@ export const WorkspaceShell = memo(function WorkspaceShell({
           <StreamingConversationPanel
             conversationId={activeConversation.id}
             conversationTitle={activeConversation.title}
-            initialMessages={normalizeConversationMessages(
-              activeConversation.messages,
-            )}
+            initialMessages={normalizeConversationMessages(activeConversation.messages)}
             key={activeConversation.id}
             onConversationUpdate={handleConversationUpdate}
             onProjectRunChange={setClientActiveRun}
@@ -167,9 +146,9 @@ export const WorkspaceShell = memo(function WorkspaceShell({
       messageHistory={
         activeConversation ? undefined : (
           <ConversationEmptyState
-            description={t("shell.noCurrentConversationDescription")}
+            description={t('shell.noCurrentConversationDescription')}
             icon={<MessageSquareIcon />}
-            title={t("shell.noCurrentConversationTitle")}
+            title={t('shell.noCurrentConversationTitle')}
           />
         )
       }
@@ -184,9 +163,9 @@ export const WorkspaceShell = memo(function WorkspaceShell({
         ) : (
           <PreviewEmptyState
             badge="Preview"
-            description={t("preview.emptyDescription")}
+            description={t('preview.emptyDescription')}
             icon={<FolderIcon />}
-            title={t("preview.emptyTitle")}
+            title={t('preview.emptyTitle')}
           />
         )
       }

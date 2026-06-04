@@ -1,6 +1,6 @@
-import type { ReactNode } from "react";
+import type { ReactNode } from 'react';
 
-import { cn } from "@/lib/utils";
+import { cn } from '@/lib/utils';
 
 type PreviewEmptyStateProps = {
   badge?: string;
@@ -20,7 +20,7 @@ export function PreviewEmptyState({
   return (
     <div
       className={cn(
-        "flex size-full items-center justify-center bg-[#0a0a0b] px-6 py-10 text-[#f0f0f2]",
+        'flex size-full items-center justify-center bg-[#0a0a0b] px-6 py-10 text-[#f0f0f2]',
         className,
       )}
     >
@@ -34,12 +34,8 @@ export function PreviewEmptyState({
               {badge}
             </div>
           ) : null}
-          <h2 className="text-lg font-semibold tracking-[-0.02em] text-[#f0f0f2]">
-            {title}
-          </h2>
-          <p className="mx-auto max-w-sm text-sm leading-6 text-[#a0a0ab]">
-            {description}
-          </p>
+          <h2 className="text-lg font-semibold tracking-[-0.02em] text-[#f0f0f2]">{title}</h2>
+          <p className="mx-auto max-w-sm text-sm leading-6 text-[#a0a0ab]">{description}</p>
         </div>
       </div>
     </div>

@@ -4,21 +4,16 @@ import type {
   PublicAppSettings,
   ResourceLibrary,
   ResourceSettings,
-} from "@owndesign/core/settings/settings-service";
-import type { ModelProvider } from "@/features/settings/model-utils";
+} from '@owndesign/core/settings/settings-service';
+import type { ModelProvider } from '@/features/settings/model-utils';
 
-export type {
-  InterfaceLanguage,
-  ModelProviderOptions,
-  ResourceLibrary,
-  ResourceSettings,
-};
+export type { InterfaceLanguage, ModelProviderOptions, ResourceLibrary, ResourceSettings };
 
-export type SettingsSection = "general" | "resources" | "ai";
+export type SettingsSection = 'general' | 'resources' | 'ai';
 
 export type ModelConfigurationForm = {
   id: string;
-  provider: ModelProvider | "";
+  provider: ModelProvider | '';
   model: string;
   baseUrl: string;
   apiKey: string;

@@ -1,15 +1,12 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from 'react';
 
-import { SETTINGS_UPDATED_EVENT } from "@/features/settings/components/settings-control";
-import type {
-  DeepSeekThinkingMode,
-  PublicSettings,
-} from "@/features/conversation/types";
-import { updateDefaultModel } from "@/features/conversation/utils/model-selection";
-import { useApiClient } from "@/api/context";
-import type { ApiClient } from "@/api/client";
+import { SETTINGS_UPDATED_EVENT } from '@/features/settings/components/settings-control';
+import type { DeepSeekThinkingMode, PublicSettings } from '@/features/conversation/types';
+import { updateDefaultModel } from '@/features/conversation/utils/model-selection';
+import { useApiClient } from '@/api/context';
+import type { ApiClient } from '@/api/client';
 
 export function useConversationSettings() {
   const api = useApiClient();
@@ -44,9 +41,7 @@ export function useConversationSettings() {
 
       setSettings(nextSettings);
       setSelectedModelId(
-        nextSettings.defaultModelId ??
-          nextSettings.modelConfigurations[0]?.id ??
-          null,
+        nextSettings.defaultModelId ?? nextSettings.modelConfigurations[0]?.id ?? null,
       );
     };
 
@@ -67,10 +62,7 @@ export function useConversationSettings() {
   };
 }
 
-async function saveSettings(
-  api: ApiClient,
-  settings: PublicSettings,
-) {
+async function saveSettings(api: ApiClient, settings: PublicSettings) {
   await api.saveSettings({
     defaultModelId: settings.defaultModelId,
     interfaceLanguage: settings.interfaceLanguage,
@@ -82,10 +74,8 @@ async function saveSettings(
       baseUrl: configuration.baseUrl,
       contextSizeK: String(configuration.contextSizeK),
       providerOptions:
-        configuration.provider === "deepseek"
-          ? configuration.providerOptions
-          : undefined,
-      apiKey: "",
+        configuration.provider === 'deepseek' ? configuration.providerOptions : undefined,
+      apiKey: '',
       collapsed: true,
     })),
   });

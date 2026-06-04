@@ -1,9 +1,5 @@
-import {
-  useAppLocation,
-  useAppNavigate,
-  useAppSearchParams,
-} from "@/lib/router";
-import { useCallback, useSyncExternalStore } from "react";
+import { useAppLocation, useAppNavigate, useAppSearchParams } from '@/lib/router';
+import { useCallback, useSyncExternalStore } from 'react';
 
 let currentPreviewPath: string | undefined;
 const currentPreviewPathListeners = new Set<() => void>();
@@ -41,19 +37,16 @@ export function usePreviewPath() {
   const { pathname } = useAppLocation();
   const navigate = useAppNavigate();
   const [searchParams] = useAppSearchParams();
-  const previewPath = searchParams.get("previewPath") ?? undefined;
+  const previewPath = searchParams.get('previewPath') ?? undefined;
 
   const setPreviewPath = useCallback(
-    (
-      nextPreviewPath: string | undefined,
-      options: { replace?: boolean } = {},
-    ) => {
+    (nextPreviewPath: string | undefined, options: { replace?: boolean } = {}) => {
       const params = new URLSearchParams(window.location.search);
 
       if (nextPreviewPath) {
-        params.set("previewPath", nextPreviewPath);
+        params.set('previewPath', nextPreviewPath);
       } else {
-        params.delete("previewPath");
+        params.delete('previewPath');
       }
 
       const nextSearch = params.toString();

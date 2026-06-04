@@ -32,11 +32,11 @@ export function applyTextEdit(
   relativePath: string,
 ) {
   if (!oldText) {
-    throw new Error("oldText must not be empty.");
+    throw new Error('oldText must not be empty.');
   }
 
   if (oldText === newText) {
-    throw new Error("No changes to apply: oldText and newText are identical.");
+    throw new Error('No changes to apply: oldText and newText are identical.');
   }
 
   const normalizedOldText = convertToLineEnding(oldText, detectLineEnding(content));
@@ -50,9 +50,7 @@ export function applyTextEdit(
   const replacements = countOccurrences(content, normalizedOldText);
 
   if (!replaceAll && replacements > 1) {
-    throw new Error(
-      `oldText appears more than once in Project Workspace file: ${relativePath}`,
-    );
+    throw new Error(`oldText appears more than once in Project Workspace file: ${relativePath}`);
   }
 
   return {
@@ -65,14 +63,14 @@ export function applyTextEdit(
   };
 }
 
-function detectLineEnding(text: string): "\n" | "\r\n" {
-  return text.includes("\r\n") ? "\r\n" : "\n";
+function detectLineEnding(text: string): '\n' | '\r\n' {
+  return text.includes('\r\n') ? '\r\n' : '\n';
 }
 
-function convertToLineEnding(text: string, ending: "\n" | "\r\n") {
-  const normalized = text.replaceAll("\r\n", "\n").replaceAll("\r", "\n");
+function convertToLineEnding(text: string, ending: '\n' | '\r\n') {
+  const normalized = text.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
 
-  return ending === "\n" ? normalized : normalized.replaceAll("\n", "\r\n");
+  return ending === '\n' ? normalized : normalized.replaceAll('\n', '\r\n');
 }
 
 export function truncateLineMiddle(line: string) {

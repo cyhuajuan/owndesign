@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { useEffect } from "react";
+import { useEffect } from 'react';
 
 import {
   PromptInputActionAddAttachments,
@@ -9,9 +9,9 @@ import {
   PromptInputActionMenuTrigger,
   PromptInputTools,
   usePromptInputAttachments,
-} from "@/components/ai-elements/prompt-input";
-import { useI18n } from "@/features/i18n/context";
-import type { PublicModelConfiguration } from "@/features/conversation/types";
+} from '@/components/ai-elements/prompt-input';
+import { useI18n } from '@/features/i18n/context';
+import type { PublicModelConfiguration } from '@/features/conversation/types';
 
 export function PromptAttachmentControls({
   selectedModel,
@@ -20,7 +20,7 @@ export function PromptAttachmentControls({
 }) {
   const { t } = useI18n();
   const attachments = usePromptInputAttachments();
-  const hideAttachments = !selectedModel || selectedModel.provider === "deepseek";
+  const hideAttachments = !selectedModel || selectedModel.provider === 'deepseek';
 
   useEffect(() => {
     if (hideAttachments && attachments.files.length > 0) {
@@ -35,7 +35,7 @@ export function PromptAttachmentControls({
   return (
     <PromptInputTools>
       <PromptInputActionMenu>
-        <PromptInputActionMenuTrigger aria-label={t("conversation.addAttachment")} />
+        <PromptInputActionMenuTrigger aria-label={t('conversation.addAttachment')} />
         <PromptInputActionMenuContent side="top" sideOffset={6}>
           <PromptInputActionAddAttachments />
         </PromptInputActionMenuContent>

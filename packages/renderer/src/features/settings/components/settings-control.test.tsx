@@ -1,28 +1,28 @@
-import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { SettingsControl } from "./settings-control";
+import { SettingsControl } from './settings-control';
 
 const defaultSettings = {
   defaultModelId: null,
-  interfaceLanguage: "zh-CN",
+  interfaceLanguage: 'zh-CN',
   modelConfigurations: [],
   resources: {
     fontLibraries: [
       {
-        cdn: "https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Noto+Sans+SC:wght@100..900&display=swap",
-        id: "font-1",
+        cdn: 'https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Noto+Sans+SC:wght@100..900&display=swap',
+        id: 'font-1',
         isDefault: true,
-        name: "Google Fonts",
+        name: 'Google Fonts',
       },
     ],
     iconLibraries: [
       {
-        cdn: "https://unpkg.com/lucide@latest/dist/umd/lucide.js",
-        id: "icon-1",
+        cdn: 'https://unpkg.com/lucide@latest/dist/umd/lucide.js',
+        id: 'icon-1',
         isDefault: true,
-        name: "Lucide Icons",
+        name: 'Lucide Icons',
       },
     ],
   },
@@ -30,9 +30,9 @@ const defaultSettings = {
 
 beforeEach(() => {
   vi.stubGlobal(
-    "fetch",
+    'fetch',
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      if (init?.method === "PUT") {
+      if (init?.method === 'PUT') {
         return Response.json(JSON.parse(String(init.body)));
       }
 
@@ -45,258 +45,245 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("SettingsControl", () => {
-  it("renders resource settings with prototype copy and defaults", async () => {
+describe('SettingsControl', () => {
+  it('renders resource settings with prototype copy and defaults', async () => {
     const user = userEvent.setup();
 
     render(<SettingsControl />);
-    await user.click(screen.getByTitle("设置"));
-    await user.click(await screen.findByRole("button", { name: "资源管理" }));
+    await user.click(screen.getByTitle('设置'));
+    await user.click(await screen.findByRole('button', { name: '资源管理' }));
 
-    expect(screen.getAllByText("资源管理").length).toBeGreaterThan(0);
-    expect(
-      screen.getByText("管理设计页面可使用的字体库和图标库。"),
-    ).toBeInTheDocument();
-    expect(screen.getByText("字体库")).toBeInTheDocument();
-    expect(screen.getByText("图标库")).toBeInTheDocument();
-    expect(screen.getByText("Google Fonts")).toBeInTheDocument();
-    expect(screen.getByText("Lucide Icons")).toBeInTheDocument();
-    expect(screen.queryByText("启用 Tailwind CSS")).not.toBeInTheDocument();
+    expect(screen.getAllByText('资源管理').length).toBeGreaterThan(0);
+    expect(screen.getByText('管理设计页面可使用的字体库和图标库。')).toBeInTheDocument();
+    expect(screen.getByText('字体库')).toBeInTheDocument();
+    expect(screen.getByText('图标库')).toBeInTheDocument();
+    expect(screen.getByText('Google Fonts')).toBeInTheDocument();
+    expect(screen.getByText('Lucide Icons')).toBeInTheDocument();
+    expect(screen.queryByText('启用 Tailwind CSS')).not.toBeInTheDocument();
   });
 
-  it("adds and edits resource settings before saving", async () => {
+  it('adds and edits resource settings before saving', async () => {
     const user = userEvent.setup();
 
     render(<SettingsControl />);
-    await user.click(screen.getByTitle("设置"));
-    await user.click(await screen.findByRole("button", { name: "资源管理" }));
+    await user.click(screen.getByTitle('设置'));
+    await user.click(await screen.findByRole('button', { name: '资源管理' }));
 
-    await user.click(screen.getByRole("button", { name: /添加字体库/ }));
-    await user.type(screen.getByPlaceholderText("字体库名称"), "HarmonyOS Sans");
+    await user.click(screen.getByRole('button', { name: /添加字体库/ }));
+    await user.type(screen.getByPlaceholderText('字体库名称'), 'HarmonyOS Sans');
     await user.type(
-      screen.getByPlaceholderText("CDN URL (https://...)"),
-      "https://cdn.example.com/harmony.css",
+      screen.getByPlaceholderText('CDN URL (https://...)'),
+      'https://cdn.example.com/harmony.css',
     );
-    await user.click(screen.getByTitle("确认添加"));
+    await user.click(screen.getByTitle('确认添加'));
 
-    await user.click(screen.getByRole("button", { name: /添加图标库/ }));
-    await user.type(screen.getByPlaceholderText("图标库名称"), "Remix Icon");
+    await user.click(screen.getByRole('button', { name: /添加图标库/ }));
+    await user.type(screen.getByPlaceholderText('图标库名称'), 'Remix Icon');
     await user.type(
-      screen.getByPlaceholderText("CDN URL (https://...)"),
-      "https://cdn.example.com/remix.js",
+      screen.getByPlaceholderText('CDN URL (https://...)'),
+      'https://cdn.example.com/remix.js',
     );
-    await user.click(screen.getByTitle("确认添加"));
+    await user.click(screen.getByTitle('确认添加'));
 
-    await user.click(screen.getByRole("button", { name: "保存设置" }));
+    await user.click(screen.getByRole('button', { name: '保存设置' }));
 
     await waitFor(() =>
       expect(vi.mocked(fetch)).toHaveBeenCalledWith(
-        "/api/settings",
-        expect.objectContaining({ method: "PUT" }),
+        '/api/settings',
+        expect.objectContaining({ method: 'PUT' }),
       ),
     );
-    const putCall = vi
-      .mocked(fetch)
-      .mock.calls.find(([, init]) => init?.method === "PUT");
+    const putCall = vi.mocked(fetch).mock.calls.find(([, init]) => init?.method === 'PUT');
     const payload = JSON.parse(String(putCall?.[1]?.body));
 
     expect(payload.resources.fontLibraries).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          cdn: "https://cdn.example.com/harmony.css",
-          name: "HarmonyOS Sans",
+          cdn: 'https://cdn.example.com/harmony.css',
+          name: 'HarmonyOS Sans',
         }),
       ]),
     );
     expect(payload.resources.iconLibraries).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          cdn: "https://cdn.example.com/remix.js",
-          name: "Remix Icon",
+          cdn: 'https://cdn.example.com/remix.js',
+          name: 'Remix Icon',
         }),
       ]),
     );
-    expect(payload.resources).not.toHaveProperty("tailwind");
+    expect(payload.resources).not.toHaveProperty('tailwind');
   });
 
-  it("sets a resource as default and removes resources", async () => {
+  it('sets a resource as default and removes resources', async () => {
     const user = userEvent.setup();
 
     render(<SettingsControl />);
-    await user.click(screen.getByTitle("设置"));
-    await user.click(await screen.findByRole("button", { name: "资源管理" }));
+    await user.click(screen.getByTitle('设置'));
+    await user.click(await screen.findByRole('button', { name: '资源管理' }));
 
-    await user.click(screen.getByRole("button", { name: /添加字体库/ }));
-    await user.type(screen.getByPlaceholderText("字体库名称"), "HarmonyOS Sans");
+    await user.click(screen.getByRole('button', { name: /添加字体库/ }));
+    await user.type(screen.getByPlaceholderText('字体库名称'), 'HarmonyOS Sans');
     await user.type(
-      screen.getByPlaceholderText("CDN URL (https://...)"),
-      "https://cdn.example.com/harmony.css",
+      screen.getByPlaceholderText('CDN URL (https://...)'),
+      'https://cdn.example.com/harmony.css',
     );
-    await user.click(screen.getByTitle("确认添加"));
+    await user.click(screen.getByTitle('确认添加'));
 
-    await user.click(screen.getAllByRole("button", { name: "设为默认" })[0]);
-    await user.click(screen.getAllByTitle("移除")[0]);
-    await user.click(screen.getByRole("button", { name: "保存设置" }));
+    await user.click(screen.getAllByRole('button', { name: '设为默认' })[0]);
+    await user.click(screen.getAllByTitle('移除')[0]);
+    await user.click(screen.getByRole('button', { name: '保存设置' }));
 
     await waitFor(() =>
       expect(vi.mocked(fetch)).toHaveBeenCalledWith(
-        "/api/settings",
-        expect.objectContaining({ method: "PUT" }),
+        '/api/settings',
+        expect.objectContaining({ method: 'PUT' }),
       ),
     );
-    const putCall = vi
-      .mocked(fetch)
-      .mock.calls.find(([, init]) => init?.method === "PUT");
+    const putCall = vi.mocked(fetch).mock.calls.find(([, init]) => init?.method === 'PUT');
     const payload = JSON.parse(String(putCall?.[1]?.body));
 
     expect(payload.resources.fontLibraries).toEqual([
       expect.objectContaining({
         isDefault: true,
-        name: "HarmonyOS Sans",
+        name: 'HarmonyOS Sans',
       }),
     ]);
   });
 
-  it("discards unsaved draft changes when the panel is reopened", async () => {
+  it('discards unsaved draft changes when the panel is reopened', async () => {
     const user = userEvent.setup();
 
     render(<SettingsControl />);
-    await user.click(screen.getByTitle("设置"));
-    await user.click(await screen.findByRole("button", { name: "资源管理" }));
+    await user.click(screen.getByTitle('设置'));
+    await user.click(await screen.findByRole('button', { name: '资源管理' }));
 
-    await user.click(screen.getByRole("button", { name: /添加字体库/ }));
-    await user.type(screen.getByPlaceholderText("字体库名称"), "Draft Font");
+    await user.click(screen.getByRole('button', { name: /添加字体库/ }));
+    await user.type(screen.getByPlaceholderText('字体库名称'), 'Draft Font');
     await user.type(
-      screen.getByPlaceholderText("CDN URL (https://...)"),
-      "https://cdn.example.com/draft.css",
+      screen.getByPlaceholderText('CDN URL (https://...)'),
+      'https://cdn.example.com/draft.css',
     );
-    await user.click(screen.getByTitle("确认添加"));
-    expect(screen.getByText("Draft Font")).toBeInTheDocument();
+    await user.click(screen.getByTitle('确认添加'));
+    expect(screen.getByText('Draft Font')).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "取消" }));
-    await waitFor(() =>
-      expect(screen.queryByTestId("settings-panel")).not.toBeInTheDocument(),
-    );
+    await user.click(screen.getByRole('button', { name: '取消' }));
+    await waitFor(() => expect(screen.queryByTestId('settings-panel')).not.toBeInTheDocument());
 
-    await user.click(screen.getByTitle("设置"));
-    await user.click(await screen.findByRole("button", { name: "资源管理" }));
+    await user.click(screen.getByTitle('设置'));
+    await user.click(await screen.findByRole('button', { name: '资源管理' }));
 
-    expect(screen.queryByText("Draft Font")).not.toBeInTheDocument();
+    expect(screen.queryByText('Draft Font')).not.toBeInTheDocument();
   });
 
-  it("uses fixed DeepSeek model options", async () => {
+  it('uses fixed DeepSeek model options', async () => {
     const user = userEvent.setup();
     render(<SettingsControl />);
 
-    await user.click(screen.getByTitle("设置"));
-    await user.click(await screen.findByRole("button", { name: "AI 模型" }));
-    await user.click(screen.getByRole("button", { name: /添加模型/ }));
+    await user.click(screen.getByTitle('设置'));
+    await user.click(await screen.findByRole('button', { name: 'AI 模型' }));
+    await user.click(screen.getByRole('button', { name: /添加模型/ }));
 
-    const providerSelect = document.querySelector("select");
+    const providerSelect = document.querySelector('select');
     expect(providerSelect).not.toBeNull();
-    await user.selectOptions(providerSelect!, "deepseek");
+    await user.selectOptions(providerSelect!, 'deepseek');
 
-    const selects = document.querySelectorAll("select");
+    const selects = document.querySelectorAll('select');
     const modelSelect = selects[1];
 
     expect(modelSelect).toBeInTheDocument();
-    expect(
-      Array.from(modelSelect.options).map((option) => option.value),
-    ).toEqual(["deepseek-v4-flash", "deepseek-v4-pro"]);
+    expect(Array.from(modelSelect.options).map((option) => option.value)).toEqual([
+      'deepseek-v4-flash',
+      'deepseek-v4-pro',
+    ]);
   });
 
-  it("saves OpenAI Compatible context size field", async () => {
+  it('saves OpenAI Compatible context size field', async () => {
     const user = userEvent.setup();
     render(<SettingsControl />);
 
-    await user.click(screen.getByTitle("设置"));
-    await user.click(await screen.findByRole("button", { name: "AI 模型" }));
-    await user.click(screen.getByRole("button", { name: /添加模型/ }));
+    await user.click(screen.getByTitle('设置'));
+    await user.click(await screen.findByRole('button', { name: 'AI 模型' }));
+    await user.click(screen.getByRole('button', { name: /添加模型/ }));
 
-    const providerSelect = document.querySelector("select");
+    const providerSelect = document.querySelector('select');
     expect(providerSelect).not.toBeNull();
-    await user.selectOptions(providerSelect!, "openai-compatible");
+    await user.selectOptions(providerSelect!, 'openai-compatible');
 
-    expect(screen.getByText("Context Size (K)")).toBeInTheDocument();
-    await user.type(screen.getByPlaceholderText("例如 gpt-4o"), "gpt-4o");
+    expect(screen.getByText('Context Size (K)')).toBeInTheDocument();
+    await user.type(screen.getByPlaceholderText('例如 gpt-4o'), 'gpt-4o');
     const textInputs = document.querySelectorAll("input[type='text']");
-    await user.type(textInputs[1], "https://api.example.com/v1");
-    await user.type(screen.getByPlaceholderText("sk-..."), "key");
-    await user.type(screen.getByPlaceholderText("200"), "512");
-    await user.click(screen.getByRole("button", { name: "保存设置" }));
+    await user.type(textInputs[1], 'https://api.example.com/v1');
+    await user.type(screen.getByPlaceholderText('sk-...'), 'key');
+    await user.type(screen.getByPlaceholderText('200'), '512');
+    await user.click(screen.getByRole('button', { name: '保存设置' }));
 
     await waitFor(() =>
       expect(vi.mocked(fetch)).toHaveBeenCalledWith(
-        "/api/settings",
-        expect.objectContaining({ method: "PUT" }),
+        '/api/settings',
+        expect.objectContaining({ method: 'PUT' }),
       ),
     );
-    const putCall = vi
-      .mocked(fetch)
-      .mock.calls.find(([, init]) => init?.method === "PUT");
+    const putCall = vi.mocked(fetch).mock.calls.find(([, init]) => init?.method === 'PUT');
     const payload = JSON.parse(String(putCall?.[1]?.body));
 
     expect(payload.modelConfigurations[0]).toMatchObject({
-      contextSizeK: "512",
-      model: "gpt-4o",
-      provider: "openai-compatible",
+      contextSizeK: '512',
+      model: 'gpt-4o',
+      provider: 'openai-compatible',
     });
   });
 
-  it("saves Anthropic without provider options", async () => {
+  it('saves Anthropic without provider options', async () => {
     const user = userEvent.setup();
     render(<SettingsControl />);
 
-    await user.click(screen.getByTitle("设置"));
-    await user.click(await screen.findByRole("button", { name: "AI 模型" }));
-    await user.click(screen.getByRole("button", { name: /添加模型/ }));
+    await user.click(screen.getByTitle('设置'));
+    await user.click(await screen.findByRole('button', { name: 'AI 模型' }));
+    await user.click(screen.getByRole('button', { name: /添加模型/ }));
 
-    const providerSelect = document.querySelector("select");
+    const providerSelect = document.querySelector('select');
     expect(providerSelect).not.toBeNull();
-    await user.selectOptions(providerSelect!, "anthropic");
+    await user.selectOptions(providerSelect!, 'anthropic');
 
-    expect(screen.getByText("Context Size (K)")).toBeInTheDocument();
-    await user.type(screen.getByPlaceholderText("例如 claude-sonnet-4-5"), "claude-sonnet-4-5");
+    expect(screen.getByText('Context Size (K)')).toBeInTheDocument();
+    await user.type(screen.getByPlaceholderText('例如 claude-sonnet-4-5'), 'claude-sonnet-4-5');
     const textInputs = document.querySelectorAll("input[type='text']");
-    await user.type(textInputs[1], "https://proxy.example.com/v1");
-    await user.type(screen.getByPlaceholderText("sk-..."), "key");
-    await user.click(screen.getByRole("button", { name: "保存设置" }));
+    await user.type(textInputs[1], 'https://proxy.example.com/v1');
+    await user.type(screen.getByPlaceholderText('sk-...'), 'key');
+    await user.click(screen.getByRole('button', { name: '保存设置' }));
 
     await waitFor(() =>
       expect(vi.mocked(fetch)).toHaveBeenCalledWith(
-        "/api/settings",
-        expect.objectContaining({ method: "PUT" }),
+        '/api/settings',
+        expect.objectContaining({ method: 'PUT' }),
       ),
     );
-    const putCall = vi
-      .mocked(fetch)
-      .mock.calls.find(([, init]) => init?.method === "PUT");
+    const putCall = vi.mocked(fetch).mock.calls.find(([, init]) => init?.method === 'PUT');
     const payload = JSON.parse(String(putCall?.[1]?.body));
 
     expect(payload.modelConfigurations[0]).toMatchObject({
-      contextSizeK: "200",
-      model: "claude-sonnet-4-5",
-      provider: "anthropic",
+      contextSizeK: '200',
+      model: 'claude-sonnet-4-5',
+      provider: 'anthropic',
     });
-    expect(payload.modelConfigurations[0]).not.toHaveProperty("providerOptions");
+    expect(payload.modelConfigurations[0]).not.toHaveProperty('providerOptions');
   });
 
-  it("closes when clicking the overlay and stays open when clicking the panel", async () => {
+  it('closes when clicking the overlay and stays open when clicking the panel', async () => {
     const user = userEvent.setup();
 
     render(<SettingsControl />);
 
-    await user.click(screen.getByTitle("设置"));
-    expect(await screen.findByTestId("settings-panel")).toBeInTheDocument();
+    await user.click(screen.getByTitle('设置'));
+    expect(await screen.findByTestId('settings-panel')).toBeInTheDocument();
 
-    await user.click(screen.getByTestId("settings-panel"));
-    expect(screen.getByTestId("settings-panel")).toBeInTheDocument();
+    await user.click(screen.getByTestId('settings-panel'));
+    expect(screen.getByTestId('settings-panel')).toBeInTheDocument();
 
     const overlay = document.querySelector('[data-slot="dialog-overlay"]');
     expect(overlay).not.toBeNull();
     await user.click(overlay!);
-    await waitFor(() =>
-      expect(screen.queryByTestId("settings-panel")).not.toBeInTheDocument(),
-    );
+    await waitFor(() => expect(screen.queryByTestId('settings-panel')).not.toBeInTheDocument());
   });
 });

@@ -1,14 +1,14 @@
-import { serve } from "@hono/node-server";
-import path from "node:path";
+import { serve } from '@hono/node-server';
+import path from 'node:path';
 
-import { createOwnDesignApp } from "./app";
+import { createOwnDesignApp } from './app';
 
-const DEFAULT_HOST = "127.0.0.1";
+const DEFAULT_HOST = '127.0.0.1';
 const DEFAULT_PORT = 3711;
 
 const host = process.env.OWNDESIGN_SERVER_HOST ?? DEFAULT_HOST;
 const port = parsePort(process.env.OWNDESIGN_SERVER_PORT ?? String(DEFAULT_PORT));
-const staticRoot = process.env.OWNDESIGN_WEB_ROOT ?? path.resolve(process.cwd(), "web");
+const staticRoot = process.env.OWNDESIGN_WEB_ROOT ?? path.resolve(process.cwd(), 'web');
 
 const app = createOwnDesignApp({
   staticRoot,
@@ -38,15 +38,15 @@ const shutdown = async () => {
     await close();
     process.exit(0);
   } catch (error) {
-    console.error(error instanceof Error ? error.message : "Failed to stop OwnDesign.");
+    console.error(error instanceof Error ? error.message : 'Failed to stop OwnDesign.');
     process.exit(1);
   }
 };
 
-process.once("SIGINT", () => {
+process.once('SIGINT', () => {
   void shutdown();
 });
-process.once("SIGTERM", () => {
+process.once('SIGTERM', () => {
   void shutdown();
 });
 

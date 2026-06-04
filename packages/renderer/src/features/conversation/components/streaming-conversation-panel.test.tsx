@@ -1,18 +1,15 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { useChat } from "@ai-sdk/react";
-import type { UIMessage } from "ai";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { useChat } from '@ai-sdk/react';
+import type { UIMessage } from 'ai';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import {
-  MessageParts,
-  StreamingConversationPanel,
-} from "./streaming-conversation-panel";
-import { setCurrentPreviewPath } from "@/features/preview/preview-path";
+import { MessageParts, StreamingConversationPanel } from './streaming-conversation-panel';
+import { setCurrentPreviewPath } from '@/features/preview/preview-path';
 
 function getProjectOutputUpdatedEvents(dispatchEventSpy: ReturnType<typeof vi.spyOn>) {
   return dispatchEventSpy.mock.calls.filter(
-    ([event]: [Event]) => event.type === "owndesign:project-output-updated",
+    ([event]: [Event]) => event.type === 'owndesign:project-output-updated',
   );
 }
 
@@ -28,7 +25,7 @@ type TestTransport = {
     messageId?: string;
     messages: UIMessage[];
     requestMetadata?: unknown;
-    trigger: "submit-message" | "regenerate-message";
+    trigger: 'submit-message' | 'regenerate-message';
   }) => {
     api?: string;
     body: object;
@@ -37,16 +34,16 @@ type TestTransport = {
   };
 };
 
-vi.mock("@ai-sdk/react", () => ({
+vi.mock('@ai-sdk/react', () => ({
   useChat: vi.fn(),
 }));
 
-vi.mock("@/features/preview/components/frontend-capability-bridge", () => ({
-  FRONTEND_TAB_ID: "tab-1",
+vi.mock('@/features/preview/components/frontend-capability-bridge', () => ({
+  FRONTEND_TAB_ID: 'tab-1',
 }));
 
-vi.mock("ai", async () => {
-  const actual = await vi.importActual<typeof import("ai")>("ai");
+vi.mock('ai', async () => {
+  const actual = await vi.importActual<typeof import('ai')>('ai');
 
   class MockDefaultChatTransport {
     api: string;
@@ -60,7 +57,7 @@ vi.mock("ai", async () => {
       messageId?: string;
       messages: unknown[];
       requestMetadata?: unknown;
-      trigger: "submit-message" | "regenerate-message";
+      trigger: 'submit-message' | 'regenerate-message';
     }) => {
       api?: string;
       body: object;
@@ -81,7 +78,7 @@ vi.mock("ai", async () => {
         messageId?: string;
         messages: unknown[];
         requestMetadata?: unknown;
-        trigger: "submit-message" | "regenerate-message";
+        trigger: 'submit-message' | 'regenerate-message';
       }) => {
         api?: string;
         body: object;
@@ -93,8 +90,7 @@ vi.mock("ai", async () => {
       this.api = options.api;
       this.body = options.body;
       this.prepareSendMessagesRequest = options.prepareSendMessagesRequest;
-      this.prepareReconnectToStreamRequest =
-        options.prepareReconnectToStreamRequest;
+      this.prepareReconnectToStreamRequest = options.prepareReconnectToStreamRequest;
     }
   }
 
@@ -102,45 +98,43 @@ vi.mock("ai", async () => {
     ...actual,
     DefaultChatTransport: MockDefaultChatTransport,
     getToolName: (part: { toolName?: string; type: string }) =>
-      part.type === "dynamic-tool"
-        ? part.toolName
-        : part.type.replace(/^tool-/, ""),
+      part.type === 'dynamic-tool' ? part.toolName : part.type.replace(/^tool-/, ''),
     isToolUIPart: (part: unknown) =>
-      typeof part === "object" &&
+      typeof part === 'object' &&
       part !== null &&
-      "type" in part &&
-      typeof part.type === "string" &&
-      (part.type.startsWith("tool-") || part.type === "dynamic-tool"),
+      'type' in part &&
+      typeof part.type === 'string' &&
+      (part.type.startsWith('tool-') || part.type === 'dynamic-tool'),
   };
 });
 
 beforeEach(() => {
-  window.history.replaceState(null, "", "/");
+  window.history.replaceState(null, '', '/');
   window.localStorage.clear();
   setCurrentPreviewPath(undefined);
-  Object.defineProperty(URL, "createObjectURL", {
+  Object.defineProperty(URL, 'createObjectURL', {
     configurable: true,
     value: vi.fn((file: File) => `blob:${file.name}`),
   });
-  Object.defineProperty(URL, "revokeObjectURL", {
+  Object.defineProperty(URL, 'revokeObjectURL', {
     configurable: true,
     value: vi.fn(),
   });
   vi.stubGlobal(
-    "fetch",
+    'fetch',
     vi.fn(async () =>
       Response.json({
-        defaultModelId: "model-1",
-        interfaceLanguage: "zh-CN",
+        defaultModelId: 'model-1',
+        interfaceLanguage: 'zh-CN',
         modelConfigurations: [
           {
-            apiKey: "",
-            baseUrl: "",
+            apiKey: '',
+            baseUrl: '',
             contextSizeK: 1000,
             hasApiKey: true,
-            id: "model-1",
-            model: "deepseek-v4-flash",
-            provider: "deepseek",
+            id: 'model-1',
+            model: 'deepseek-v4-flash',
+            provider: 'deepseek',
           },
         ],
       }),
@@ -155,20 +149,20 @@ afterEach(() => {
 
 function stubOpenAICompatibleSettings() {
   vi.stubGlobal(
-    "fetch",
+    'fetch',
     vi.fn(async () =>
       Response.json({
-        defaultModelId: "model-1",
-        interfaceLanguage: "zh-CN",
+        defaultModelId: 'model-1',
+        interfaceLanguage: 'zh-CN',
         modelConfigurations: [
           {
-            apiKey: "",
-            baseUrl: "https://example.test/v1",
+            apiKey: '',
+            baseUrl: 'https://example.test/v1',
             contextSizeK: 200,
             hasApiKey: true,
-            id: "model-1",
-            model: "gpt-4o",
-            provider: "openai-compatible",
+            id: 'model-1',
+            model: 'gpt-4o',
+            provider: 'openai-compatible',
           },
         ],
       }),
@@ -178,20 +172,20 @@ function stubOpenAICompatibleSettings() {
 
 function stubAnthropicSettings() {
   vi.stubGlobal(
-    "fetch",
+    'fetch',
     vi.fn(async () =>
       Response.json({
-        defaultModelId: "model-anthropic",
-        interfaceLanguage: "zh-CN",
+        defaultModelId: 'model-anthropic',
+        interfaceLanguage: 'zh-CN',
         modelConfigurations: [
           {
-            apiKey: "",
-            baseUrl: "",
+            apiKey: '',
+            baseUrl: '',
             contextSizeK: 200,
             hasApiKey: true,
-            id: "model-anthropic",
-            model: "claude-sonnet-4-5",
-            provider: "anthropic",
+            id: 'model-anthropic',
+            model: 'claude-sonnet-4-5',
+            provider: 'anthropic',
           },
         ],
       }),
@@ -203,9 +197,9 @@ function prepareChatRequestBody(
   transport: TestTransport | undefined,
   messages: UIMessage[] = [
     {
-      id: "user-1",
-      parts: [{ text: "生成页面", type: "text" }],
-      role: "user",
+      id: 'user-1',
+      parts: [{ text: '生成页面', type: 'text' }],
+      role: 'user',
     },
   ],
   body: Record<string, unknown> = {},
@@ -213,477 +207,473 @@ function prepareChatRequestBody(
   const prepared = transport?.prepareSendMessagesRequest?.({
     api: transport.api,
     body,
-    id: "conversation-1",
+    id: 'conversation-1',
     messageId: undefined,
     messages,
-    trigger: "submit-message",
+    trigger: 'submit-message',
   });
 
   return prepared?.body as Record<string, unknown>;
 }
 
-describe("MessageParts", () => {
-  it("hides completed reasoning parts", () => {
+describe('MessageParts', () => {
+  it('hides completed reasoning parts', () => {
     render(
       <MessageParts
         message={{
-          id: "assistant-1",
+          id: 'assistant-1',
           parts: [
             {
-              state: "done",
-              text: "需要先判断信息架构。",
-              type: "reasoning",
+              state: 'done',
+              text: '需要先判断信息架构。',
+              type: 'reasoning',
             },
           ],
-          role: "assistant",
+          role: 'assistant',
         }}
       />,
     );
 
-    expect(screen.queryByText("思考过程")).not.toBeInTheDocument();
-    expect(screen.queryByText("需要先判断信息架构。")).not.toBeInTheDocument();
+    expect(screen.queryByText('思考过程')).not.toBeInTheDocument();
+    expect(screen.queryByText('需要先判断信息架构。')).not.toBeInTheDocument();
   });
 
-  it("shows only a pending label for streaming reasoning", () => {
-    render(
-      <MessageParts
-        isLastMessage
-        isStreaming
-        message={{
-          id: "assistant-1",
-          parts: [
-            {
-              state: "streaming",
-              text: "需要先判断信息架构。",
-              type: "reasoning",
-            },
-          ],
-          role: "assistant",
-        }}
-      />,
-    );
-
-    expect(screen.getByText("正在思考")).toBeInTheDocument();
-    expect(screen.queryByText("需要先判断信息架构。")).not.toBeInTheDocument();
-  });
-
-  it("does not show reasoning content while streaming", () => {
+  it('shows only a pending label for streaming reasoning', () => {
     render(
       <MessageParts
         isLastMessage
         isStreaming
         message={{
-          id: "assistant-1",
+          id: 'assistant-1',
           parts: [
             {
-              state: "streaming",
-              text: "还在分析布局。",
-              type: "reasoning",
+              state: 'streaming',
+              text: '需要先判断信息架构。',
+              type: 'reasoning',
             },
           ],
-          role: "assistant",
+          role: 'assistant',
         }}
       />,
     );
 
-    expect(screen.getByText("正在思考")).toBeInTheDocument();
-    expect(screen.queryByText("还在分析布局。")).not.toBeInTheDocument();
+    expect(screen.getByText('正在思考')).toBeInTheDocument();
+    expect(screen.queryByText('需要先判断信息架构。')).not.toBeInTheDocument();
   });
 
-  it("renders the streaming assistant text part without markdown parsing", () => {
+  it('does not show reasoning content while streaming', () => {
+    render(
+      <MessageParts
+        isLastMessage
+        isStreaming
+        message={{
+          id: 'assistant-1',
+          parts: [
+            {
+              state: 'streaming',
+              text: '还在分析布局。',
+              type: 'reasoning',
+            },
+          ],
+          role: 'assistant',
+        }}
+      />,
+    );
+
+    expect(screen.getByText('正在思考')).toBeInTheDocument();
+    expect(screen.queryByText('还在分析布局。')).not.toBeInTheDocument();
+  });
+
+  it('renders the streaming assistant text part without markdown parsing', () => {
     const { container } = render(
       <MessageParts
         isLastMessage
         isStreaming
         message={{
-          id: "assistant-1",
-          parts: [{ text: "第一行\n第二行", type: "text" }],
-          role: "assistant",
+          id: 'assistant-1',
+          parts: [{ text: '第一行\n第二行', type: 'text' }],
+          role: 'assistant',
         }}
       />,
     );
 
     const streamingText = container.querySelector('[data-streaming-text="true"]');
 
-    expect(streamingText?.textContent).toBe("第一行\n第二行");
-    expect(streamingText).toHaveClass("whitespace-pre-wrap");
+    expect(streamingText?.textContent).toBe('第一行\n第二行');
+    expect(streamingText).toHaveClass('whitespace-pre-wrap');
   });
 
-  it("uses full markdown rendering after assistant streaming finishes", () => {
+  it('uses full markdown rendering after assistant streaming finishes', () => {
     const { container } = render(
       <MessageParts
         isLastMessage
         isStreaming={false}
         message={{
-          id: "assistant-1",
-          parts: [{ text: "**完成**", type: "text" }],
-          role: "assistant",
+          id: 'assistant-1',
+          parts: [{ text: '**完成**', type: 'text' }],
+          role: 'assistant',
         }}
       />,
     );
 
-    expect(
-      container.querySelector('[data-streaming-text="true"]'),
-    ).not.toBeInTheDocument();
+    expect(container.querySelector('[data-streaming-text="true"]')).not.toBeInTheDocument();
   });
 
-  it("renders user text without markdown parsing", () => {
+  it('renders user text without markdown parsing', () => {
     const { container } = render(
       <MessageParts
         message={{
-          id: "user-1",
-          parts: [{ text: "**不要加粗**\n`code`", type: "text" }],
-          role: "user",
+          id: 'user-1',
+          parts: [{ text: '**不要加粗**\n`code`', type: 'text' }],
+          role: 'user',
         }}
       />,
     );
 
-    expect(container.textContent).toBe("**不要加粗**\n`code`");
-    expect(container.querySelector("strong")).not.toBeInTheDocument();
-    expect(container.querySelector("code")).not.toBeInTheDocument();
+    expect(container.textContent).toBe('**不要加粗**\n`code`');
+    expect(container.querySelector('strong')).not.toBeInTheDocument();
+    expect(container.querySelector('code')).not.toBeInTheDocument();
   });
 
-  it("renders original user prompts without markdown parsing", () => {
+  it('renders original user prompts without markdown parsing', () => {
     const { container } = render(
       <MessageParts
         message={{
-          id: "user-1",
+          id: 'user-1',
           metadata: {
-            originalUserPrompt: "**原始输入**",
+            originalUserPrompt: '**原始输入**',
           },
-          parts: [{ text: "改写后的输入", type: "text" }],
-          role: "user",
+          parts: [{ text: '改写后的输入', type: 'text' }],
+          role: 'user',
         }}
       />,
     );
 
-    expect(screen.getByText("**原始输入**")).toBeInTheDocument();
-    expect(screen.queryByText("改写后的输入")).not.toBeInTheDocument();
-    expect(container.querySelector("strong")).not.toBeInTheDocument();
+    expect(screen.getByText('**原始输入**')).toBeInTheDocument();
+    expect(screen.queryByText('改写后的输入')).not.toBeInTheDocument();
+    expect(container.querySelector('strong')).not.toBeInTheDocument();
   });
 
-  it("does not render streaming reasoning text", () => {
+  it('does not render streaming reasoning text', () => {
     const { container } = render(
       <MessageParts
         isLastMessage
         isStreaming
         message={{
-          id: "assistant-1",
+          id: 'assistant-1',
           parts: [
             {
-              state: "streaming",
-              text: "分析中\n继续分析",
-              type: "reasoning",
+              state: 'streaming',
+              text: '分析中\n继续分析',
+              type: 'reasoning',
             },
           ],
-          role: "assistant",
+          role: 'assistant',
         }}
       />,
     );
 
     const streamingText = container.querySelector('[data-streaming-text="true"]');
 
-    expect(screen.getByText("正在思考")).toBeInTheDocument();
+    expect(screen.getByText('正在思考')).toBeInTheDocument();
     expect(streamingText).not.toBeInTheDocument();
-    expect(screen.queryByText("分析中\n继续分析")).not.toBeInTheDocument();
+    expect(screen.queryByText('分析中\n继续分析')).not.toBeInTheDocument();
   });
 
-  it("hides reasoning indicator after streaming finishes", () => {
+  it('hides reasoning indicator after streaming finishes', () => {
     const message = {
-      id: "assistant-1",
+      id: 'assistant-1',
       parts: [
-            {
-              state: "streaming" as const,
-              text: "还在分析布局。",
-              type: "reasoning" as const,
-            },
+        {
+          state: 'streaming' as const,
+          text: '还在分析布局。',
+          type: 'reasoning' as const,
+        },
       ],
-      role: "assistant" as const,
+      role: 'assistant' as const,
     };
 
-    const { rerender } = render(
-      <MessageParts isLastMessage isStreaming message={message} />,
-    );
+    const { rerender } = render(<MessageParts isLastMessage isStreaming message={message} />);
 
-    expect(screen.getByText("正在思考")).toBeInTheDocument();
+    expect(screen.getByText('正在思考')).toBeInTheDocument();
 
     rerender(<MessageParts isLastMessage isStreaming={false} message={message} />);
 
-    expect(screen.queryByText("正在思考")).not.toBeInTheDocument();
+    expect(screen.queryByText('正在思考')).not.toBeInTheDocument();
   });
 
-  it("shows only the latest streaming reasoning indicator", () => {
+  it('shows only the latest streaming reasoning indicator', () => {
     render(
       <MessageParts
         isLastMessage
         isStreaming
         message={{
-          id: "assistant-1",
+          id: 'assistant-1',
           parts: [
             {
-              state: "done",
-              text: "第一段思考已完成。",
-              type: "reasoning",
+              state: 'done',
+              text: '第一段思考已完成。',
+              type: 'reasoning',
             },
             {
-              state: "streaming",
-              text: "第二段思考还在输出。",
-              type: "reasoning",
+              state: 'streaming',
+              text: '第二段思考还在输出。',
+              type: 'reasoning',
             },
           ],
-          role: "assistant",
+          role: 'assistant',
         }}
       />,
     );
 
-    expect(screen.getAllByText("正在思考")).toHaveLength(1);
-    expect(screen.queryByText("第一段思考已完成。")).not.toBeInTheDocument();
-    expect(screen.queryByText("第二段思考还在输出。")).not.toBeInTheDocument();
+    expect(screen.getAllByText('正在思考')).toHaveLength(1);
+    expect(screen.queryByText('第一段思考已完成。')).not.toBeInTheDocument();
+    expect(screen.queryByText('第二段思考还在输出。')).not.toBeInTheDocument();
   });
 
-  it("hides multiple completed reasoning parts", () => {
+  it('hides multiple completed reasoning parts', () => {
     render(
       <MessageParts
         message={{
-          id: "assistant-1",
+          id: 'assistant-1',
           parts: [
             {
-              state: "done",
-              text: "第一步：判断信息架构。",
-              type: "reasoning",
+              state: 'done',
+              text: '第一步：判断信息架构。',
+              type: 'reasoning',
             },
             {
-              state: "done",
-              text: "第二步：组织首屏层级。",
-              type: "reasoning",
+              state: 'done',
+              text: '第二步：组织首屏层级。',
+              type: 'reasoning',
             },
           ],
-          role: "assistant",
+          role: 'assistant',
         }}
       />,
     );
 
-    expect(screen.queryByText("思考过程")).not.toBeInTheDocument();
-    expect(screen.queryByText("正在思考")).not.toBeInTheDocument();
-    expect(screen.queryByText("第一步：判断信息架构。")).not.toBeInTheDocument();
-    expect(screen.queryByText("第二步：组织首屏层级。")).not.toBeInTheDocument();
+    expect(screen.queryByText('思考过程')).not.toBeInTheDocument();
+    expect(screen.queryByText('正在思考')).not.toBeInTheDocument();
+    expect(screen.queryByText('第一步：判断信息架构。')).not.toBeInTheDocument();
+    expect(screen.queryByText('第二步：组织首屏层级。')).not.toBeInTheDocument();
   });
 
-  it("renders a simple completed edit tool description", () => {
+  it('renders a simple completed edit tool description', () => {
     render(
       <MessageParts
         message={{
-          id: "assistant-1",
+          id: 'assistant-1',
           parts: [
             {
-              input: { path: "index.html", search: "old", replace: "new" },
-              output: { path: "index.html", replacements: 1 },
-              state: "output-available",
-              toolCallId: "call-1",
-              type: "tool-edit",
+              input: { path: 'index.html', search: 'old', replace: 'new' },
+              output: { path: 'index.html', replacements: 1 },
+              state: 'output-available',
+              toolCallId: 'call-1',
+              type: 'tool-edit',
             },
           ],
-          role: "assistant",
+          role: 'assistant',
         }}
       />,
     );
 
-    expect(screen.getByText("已编辑index.html")).toBeInTheDocument();
-    expect(screen.queryByRole("button")).not.toBeInTheDocument();
-    expect(screen.queryByText("参数")).not.toBeInTheDocument();
-    expect(screen.queryByText("结果")).not.toBeInTheDocument();
-    expect(screen.queryByText("old")).not.toBeInTheDocument();
-    expect(screen.queryByText("new")).not.toBeInTheDocument();
+    expect(screen.getByText('已编辑index.html')).toBeInTheDocument();
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+    expect(screen.queryByText('参数')).not.toBeInTheDocument();
+    expect(screen.queryByText('结果')).not.toBeInTheDocument();
+    expect(screen.queryByText('old')).not.toBeInTheDocument();
+    expect(screen.queryByText('new')).not.toBeInTheDocument();
   });
 
-  it("renders a simple running edit tool description", () => {
+  it('renders a simple running edit tool description', () => {
     render(
       <MessageParts
         message={{
-          id: "assistant-1",
+          id: 'assistant-1',
           parts: [
             {
-              input: { path: "index.html", search: "old", replace: "new" },
-              state: "input-available",
-              toolCallId: "call-1",
-              type: "tool-edit",
+              input: { path: 'index.html', search: 'old', replace: 'new' },
+              state: 'input-available',
+              toolCallId: 'call-1',
+              type: 'tool-edit',
             },
           ],
-          role: "assistant",
+          role: 'assistant',
         }}
       />,
     );
 
-    expect(screen.getByText("正在编辑index.html")).toBeInTheDocument();
-    expect(screen.queryByRole("button")).not.toBeInTheDocument();
-    expect(screen.queryByText("参数")).not.toBeInTheDocument();
+    expect(screen.getByText('正在编辑index.html')).toBeInTheDocument();
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+    expect(screen.queryByText('参数')).not.toBeInTheDocument();
   });
 
-  it("renders simple read tool descriptions without output content", () => {
+  it('renders simple read tool descriptions without output content', () => {
     render(
       <MessageParts
         message={{
-          id: "assistant-1",
+          id: 'assistant-1',
           parts: [
             {
-              input: { path: "pending.html" },
-              state: "input-available",
-              toolCallId: "call-1",
-              type: "tool-read",
+              input: { path: 'pending.html' },
+              state: 'input-available',
+              toolCallId: 'call-1',
+              type: 'tool-read',
             },
             {
-              input: { path: "done.html" },
-              output: { content: "Secret Detail", path: "done.html" },
-              state: "output-available",
-              toolCallId: "call-2",
-              type: "tool-read",
+              input: { path: 'done.html' },
+              output: { content: 'Secret Detail', path: 'done.html' },
+              state: 'output-available',
+              toolCallId: 'call-2',
+              type: 'tool-read',
             },
           ],
-          role: "assistant",
+          role: 'assistant',
         }}
       />,
     );
 
-    expect(screen.getByText("正在查看pending.html")).toBeInTheDocument();
-    expect(screen.getByText("已查看done.html")).toBeInTheDocument();
-    expect(screen.queryByText("Secret Detail")).not.toBeInTheDocument();
-    expect(screen.queryByText("参数")).not.toBeInTheDocument();
-    expect(screen.queryByText("结果")).not.toBeInTheDocument();
+    expect(screen.getByText('正在查看pending.html')).toBeInTheDocument();
+    expect(screen.getByText('已查看done.html')).toBeInTheDocument();
+    expect(screen.queryByText('Secret Detail')).not.toBeInTheDocument();
+    expect(screen.queryByText('参数')).not.toBeInTheDocument();
+    expect(screen.queryByText('结果')).not.toBeInTheDocument();
   });
 
-  it("renders preview update tools without a file fallback suffix", () => {
+  it('renders preview update tools without a file fallback suffix', () => {
     render(
       <MessageParts
         message={{
-          id: "assistant-1",
+          id: 'assistant-1',
           parts: [
             {
               input: {},
               output: {},
-              state: "output-available",
-              toolCallId: "call-1",
-              type: "tool-previewRefresh",
+              state: 'output-available',
+              toolCallId: 'call-1',
+              type: 'tool-previewRefresh',
             },
             {
-              input: { path: "index.html" },
-              output: { path: "index.html" },
-              state: "output-available",
-              toolCallId: "call-2",
-              type: "tool-previewSwitchHtml",
+              input: { path: 'index.html' },
+              output: { path: 'index.html' },
+              state: 'output-available',
+              toolCallId: 'call-2',
+              type: 'tool-previewSwitchHtml',
             },
           ],
-          role: "assistant",
+          role: 'assistant',
         }}
       />,
     );
 
-    expect(screen.getByText("已刷新预览")).toBeInTheDocument();
-    expect(screen.getByText("已切换预览index.html")).toBeInTheDocument();
-    expect(screen.queryByText("已刷新预览文件")).not.toBeInTheDocument();
+    expect(screen.getByText('已刷新预览')).toBeInTheDocument();
+    expect(screen.getByText('已切换预览index.html')).toBeInTheDocument();
+    expect(screen.queryByText('已刷新预览文件')).not.toBeInTheDocument();
   });
 
-  it("renders simple tool error descriptions without error details", () => {
+  it('renders simple tool error descriptions without error details', () => {
     render(
       <MessageParts
         message={{
-          id: "assistant-1",
+          id: 'assistant-1',
           parts: [
             {
-              errorText: "权限不足",
-              input: { path: "index.html" },
+              errorText: '权限不足',
+              input: { path: 'index.html' },
               output: undefined,
-              state: "output-error",
-              toolCallId: "call-1",
-              type: "tool-write",
+              state: 'output-error',
+              toolCallId: 'call-1',
+              type: 'tool-write',
             },
           ],
-          role: "assistant",
+          role: 'assistant',
         }}
       />,
     );
 
-    expect(screen.getByText("写入index.html失败")).toBeInTheDocument();
-    expect(screen.queryByText("权限不足")).not.toBeInTheDocument();
-    expect(screen.queryByText("错误")).not.toBeInTheDocument();
+    expect(screen.getByText('写入index.html失败')).toBeInTheDocument();
+    expect(screen.queryByText('权限不足')).not.toBeInTheDocument();
+    expect(screen.queryByText('错误')).not.toBeInTheDocument();
   });
 
-  it("renders failed workspace tool results as failures", () => {
+  it('renders failed workspace tool results as failures', () => {
     render(
       <MessageParts
         message={{
-          id: "assistant-1",
+          id: 'assistant-1',
           parts: [
             {
-              input: { path: "index.html" },
+              input: { path: 'index.html' },
               output: { ok: false },
-              state: "output-available",
-              toolCallId: "call-1",
-              type: "tool-write",
+              state: 'output-available',
+              toolCallId: 'call-1',
+              type: 'tool-write',
             },
             {
-              input: { path: "missing.txt" },
+              input: { path: 'missing.txt' },
               output: { ok: false },
-              state: "output-available",
-              toolCallId: "call-2",
-              type: "tool-read",
+              state: 'output-available',
+              toolCallId: 'call-2',
+              type: 'tool-read',
             },
           ],
-          role: "assistant",
+          role: 'assistant',
         }}
       />,
     );
 
-    expect(screen.getByText("写入index.html失败")).toBeInTheDocument();
-    expect(screen.getByText("查看missing.txt失败")).toBeInTheDocument();
-    expect(screen.queryByText("已写入index.html")).not.toBeInTheDocument();
-    expect(screen.queryByText("已查看missing.txt")).not.toBeInTheDocument();
+    expect(screen.getByText('写入index.html失败')).toBeInTheDocument();
+    expect(screen.getByText('查看missing.txt失败')).toBeInTheDocument();
+    expect(screen.queryByText('已写入index.html')).not.toBeInTheDocument();
+    expect(screen.queryByText('已查看missing.txt')).not.toBeInTheDocument();
   });
 
-  it("uses sanitized output paths before tool input paths", () => {
+  it('uses sanitized output paths before tool input paths', () => {
     render(
       <MessageParts
         message={{
-          id: "assistant-1",
+          id: 'assistant-1',
           parts: [
             {
-              input: { path: "index.html" },
-              output: { ok: true, path: "index.copy.html" },
-              state: "output-available",
-              toolCallId: "call-1",
-              type: "tool-read",
+              input: { path: 'index.html' },
+              output: { ok: true, path: 'index.copy.html' },
+              state: 'output-available',
+              toolCallId: 'call-1',
+              type: 'tool-read',
             },
           ],
-          role: "assistant",
+          role: 'assistant',
         }}
       />,
     );
 
-    expect(screen.getByText("已查看index.copy.html")).toBeInTheDocument();
-    expect(screen.queryByText("已查看index.html")).not.toBeInTheDocument();
+    expect(screen.getByText('已查看index.copy.html')).toBeInTheDocument();
+    expect(screen.queryByText('已查看index.html')).not.toBeInTheDocument();
   });
 
-  it("does not dispatch preview refresh after mutation tool output completes", () => {
-    const dispatchEventSpy = vi.spyOn(window, "dispatchEvent");
+  it('does not dispatch preview refresh after mutation tool output completes', () => {
+    const dispatchEventSpy = vi.spyOn(window, 'dispatchEvent');
     vi.mocked(useChat).mockReturnValue({
       error: undefined,
       messages: [
         {
-          id: "assistant-1",
+          id: 'assistant-1',
           parts: [
             {
-              input: { path: "index.html" },
-              output: { path: "index.html", replacements: 1 },
-              state: "output-available",
-              toolCallId: "call-1",
-              type: "tool-edit",
+              input: { path: 'index.html' },
+              output: { path: 'index.html', replacements: 1 },
+              state: 'output-available',
+              toolCallId: 'call-1',
+              type: 'tool-edit',
             },
           ],
-          role: "assistant",
+          role: 'assistant',
         },
       ],
       addToolApprovalResponse: vi.fn(),
       sendMessage: vi.fn(),
-      status: "ready",
+      status: 'ready',
     } as unknown as ReturnType<typeof useChat>);
 
     render(
@@ -699,7 +689,7 @@ describe("MessageParts", () => {
     dispatchEventSpy.mockRestore();
   });
 
-  it("emits conversation update after generation completes", () => {
+  it('emits conversation update after generation completes', () => {
     const useChatMock = vi.mocked(useChat);
     const onConversationUpdate = vi.fn();
 
@@ -708,13 +698,13 @@ describe("MessageParts", () => {
       error: undefined,
       messages: [
         {
-          id: "user-1",
-          parts: [{ text: "设计一个 CRM 仪表盘", type: "text" }],
-          role: "user",
+          id: 'user-1',
+          parts: [{ text: '设计一个 CRM 仪表盘', type: 'text' }],
+          role: 'user',
         },
       ],
       sendMessage: vi.fn(),
-      status: "streaming",
+      status: 'streaming',
       stop: vi.fn(),
     } as unknown as ReturnType<typeof useChat>);
 
@@ -735,18 +725,18 @@ describe("MessageParts", () => {
       error: undefined,
       messages: [
         {
-          id: "user-1",
-          parts: [{ text: "设计一个 CRM 仪表盘", type: "text" }],
-          role: "user",
+          id: 'user-1',
+          parts: [{ text: '设计一个 CRM 仪表盘', type: 'text' }],
+          role: 'user',
         },
         {
-          id: "assistant-1",
-          parts: [{ text: "已完成。", type: "text" }],
-          role: "assistant",
+          id: 'assistant-1',
+          parts: [{ text: '已完成。', type: 'text' }],
+          role: 'assistant',
         },
       ],
       sendMessage: vi.fn(),
-      status: "ready",
+      status: 'ready',
       stop: vi.fn(),
     } as unknown as ReturnType<typeof useChat>);
 
@@ -762,53 +752,53 @@ describe("MessageParts", () => {
 
     expect(onConversationUpdate).toHaveBeenCalledTimes(1);
     expect(onConversationUpdate.mock.calls[0]?.[0]).toMatchObject({
-      id: "conversation-1",
+      id: 'conversation-1',
       messages: [
         {
-          id: "user-1",
-          parts: [{ text: "设计一个 CRM 仪表盘", type: "text" }],
-          role: "user",
+          id: 'user-1',
+          parts: [{ text: '设计一个 CRM 仪表盘', type: 'text' }],
+          role: 'user',
         },
         {
-          id: "assistant-1",
-          parts: [{ text: "已完成。", type: "text" }],
-          role: "assistant",
+          id: 'assistant-1',
+          parts: [{ text: '已完成。', type: 'text' }],
+          role: 'assistant',
         },
       ],
-      title: "设计一个 CRM 仪表盘",
+      title: '设计一个 CRM 仪表盘',
     });
   });
 
-  it("shows only the last message reasoning indicator while chat streams", () => {
+  it('shows only the last message reasoning indicator while chat streams', () => {
     vi.mocked(useChat).mockReturnValue({
       addToolApprovalResponse: vi.fn(),
       error: undefined,
       messages: [
         {
-          id: "assistant-1",
+          id: 'assistant-1',
           parts: [
             {
-              state: "streaming",
-              text: "第一条思考不应因全局 streaming 显示。",
-              type: "reasoning",
+              state: 'streaming',
+              text: '第一条思考不应因全局 streaming 显示。',
+              type: 'reasoning',
             },
           ],
-          role: "assistant",
+          role: 'assistant',
         },
         {
-          id: "assistant-2",
+          id: 'assistant-2',
           parts: [
             {
-              state: "streaming",
-              text: "最后一条思考应显示。",
-              type: "reasoning",
+              state: 'streaming',
+              text: '最后一条思考应显示。',
+              type: 'reasoning',
             },
           ],
-          role: "assistant",
+          role: 'assistant',
         },
       ],
       sendMessage: vi.fn(),
-      status: "streaming",
+      status: 'streaming',
       stop: vi.fn(),
     } as unknown as ReturnType<typeof useChat>);
 
@@ -821,37 +811,35 @@ describe("MessageParts", () => {
       />,
     );
 
-    expect(screen.getAllByText("正在思考")).toHaveLength(1);
-    expect(
-      screen.queryByText("第一条思考不应因全局 streaming 显示。"),
-    ).not.toBeInTheDocument();
-    expect(screen.queryByText("最后一条思考应显示。")).not.toBeInTheDocument();
+    expect(screen.getAllByText('正在思考')).toHaveLength(1);
+    expect(screen.queryByText('第一条思考不应因全局 streaming 显示。')).not.toBeInTheDocument();
+    expect(screen.queryByText('最后一条思考应显示。')).not.toBeInTheDocument();
   });
 
-  it("hides earlier reasoning when a later non-reasoning message streams", () => {
+  it('hides earlier reasoning when a later non-reasoning message streams', () => {
     vi.mocked(useChat).mockReturnValue({
       addToolApprovalResponse: vi.fn(),
       error: undefined,
       messages: [
         {
-          id: "assistant-1",
+          id: 'assistant-1',
           parts: [
             {
-              state: "streaming",
-              text: "历史思考不应显示。",
-              type: "reasoning",
+              state: 'streaming',
+              text: '历史思考不应显示。',
+              type: 'reasoning',
             },
           ],
-          role: "assistant",
+          role: 'assistant',
         },
         {
-          id: "assistant-2",
-          parts: [{ text: "正在写页面。", type: "text" }],
-          role: "assistant",
+          id: 'assistant-2',
+          parts: [{ text: '正在写页面。', type: 'text' }],
+          role: 'assistant',
         },
       ],
       sendMessage: vi.fn(),
-      status: "streaming",
+      status: 'streaming',
       stop: vi.fn(),
     } as unknown as ReturnType<typeof useChat>);
 
@@ -864,35 +852,35 @@ describe("MessageParts", () => {
       />,
     );
 
-    expect(screen.queryByText("正在思考")).not.toBeInTheDocument();
-    expect(screen.queryByText("历史思考不应显示。")).not.toBeInTheDocument();
+    expect(screen.queryByText('正在思考')).not.toBeInTheDocument();
+    expect(screen.queryByText('历史思考不应显示。')).not.toBeInTheDocument();
   });
 
-  it("does not dispatch preview refresh after createHtml output completes", () => {
-    const dispatchEventSpy = vi.spyOn(window, "dispatchEvent");
+  it('does not dispatch preview refresh after createHtml output completes', () => {
+    const dispatchEventSpy = vi.spyOn(window, 'dispatchEvent');
     vi.mocked(useChat).mockReturnValue({
       addToolApprovalResponse: vi.fn(),
       error: undefined,
       messages: [
         {
-          id: "assistant-1",
+          id: 'assistant-1',
           parts: [
             {
-              input: { path: "index.html" },
+              input: { path: 'index.html' },
               output: {
-                path: "index.html",
-                title: "OwnDesign Preview",
+                path: 'index.html',
+                title: 'OwnDesign Preview',
               },
-              state: "output-available",
-              toolCallId: "call-1",
-              type: "tool-createHtml",
+              state: 'output-available',
+              toolCallId: 'call-1',
+              type: 'tool-createHtml',
             },
           ],
-          role: "assistant",
+          role: 'assistant',
         },
       ],
       sendMessage: vi.fn(),
-      status: "ready",
+      status: 'ready',
     } as unknown as ReturnType<typeof useChat>);
 
     render(
@@ -908,14 +896,14 @@ describe("MessageParts", () => {
     dispatchEventSpy.mockRestore();
   });
 
-  it("includes current preview path in the chat transport body", () => {
-    setCurrentPreviewPath("dashboard.html");
+  it('includes current preview path in the chat transport body', () => {
+    setCurrentPreviewPath('dashboard.html');
     vi.mocked(useChat).mockReturnValue({
       addToolApprovalResponse: vi.fn(),
       error: undefined,
       messages: [],
       sendMessage: vi.fn(),
-      status: "ready",
+      status: 'ready',
       stop: vi.fn(),
     } as unknown as ReturnType<typeof useChat>);
 
@@ -934,31 +922,31 @@ describe("MessageParts", () => {
     const transport = useChatOptions?.transport;
 
     expect(transport).toBeDefined();
-    expect(transport?.api).toBe("/api/chat");
+    expect(transport?.api).toBe('/api/chat');
     expect(prepareChatRequestBody(transport)).toEqual(
       expect.objectContaining({
-        conversationId: "conversation-1",
-        frontendTabId: "tab-1",
+        conversationId: 'conversation-1',
+        frontendTabId: 'tab-1',
         message: {
           files: [],
-          id: "user-1",
-          text: "生成页面",
+          id: 'user-1',
+          text: '生成页面',
         },
-        pageEditMode: "auto",
-        previewPath: "dashboard.html",
-        projectId: "project-1",
+        pageEditMode: 'auto',
+        previewPath: 'dashboard.html',
+        projectId: 'project-1',
       }),
     );
-    expect(prepareChatRequestBody(transport)).not.toHaveProperty("messages");
+    expect(prepareChatRequestBody(transport)).not.toHaveProperty('messages');
   });
 
-  it("extracts only the current user text and files for the chat request body", () => {
+  it('extracts only the current user text and files for the chat request body', () => {
     vi.mocked(useChat).mockReturnValue({
       addToolApprovalResponse: vi.fn(),
       error: undefined,
       messages: [],
       sendMessage: vi.fn(),
-      status: "ready",
+      status: 'ready',
       stop: vi.fn(),
     } as unknown as ReturnType<typeof useChat>);
 
@@ -968,9 +956,9 @@ describe("MessageParts", () => {
         conversationTitle="新建会话"
         initialMessages={[
           {
-            id: "assistant-1",
-            parts: [{ text: "历史回复", type: "text" }],
-            role: "assistant",
+            id: 'assistant-1',
+            parts: [{ text: '历史回复', type: 'text' }],
+            role: 'assistant',
           },
         ]}
         projectId="project-1"
@@ -981,46 +969,43 @@ describe("MessageParts", () => {
       | { transport: TestTransport }
       | undefined;
     const filePart = {
-      filename: "reference.png",
-      mediaType: "image/png",
-      type: "file" as const,
-      url: "data:image/png;base64,AAAA",
+      filename: 'reference.png',
+      mediaType: 'image/png',
+      type: 'file' as const,
+      url: 'data:image/png;base64,AAAA',
     };
 
     expect(
       prepareChatRequestBody(useChatOptions?.transport, [
         {
-          id: "assistant-1",
-          parts: [{ text: "历史回复", type: "text" }],
-          role: "assistant",
+          id: 'assistant-1',
+          parts: [{ text: '历史回复', type: 'text' }],
+          role: 'assistant',
         },
         {
-          id: "user-2",
-          parts: [
-            { text: "当前输入", type: "text" },
-            filePart,
-          ],
-          role: "user",
+          id: 'user-2',
+          parts: [{ text: '当前输入', type: 'text' }, filePart],
+          role: 'user',
         },
       ]),
     ).toEqual(
       expect.objectContaining({
         message: {
           files: [filePart],
-          id: "user-2",
-          text: "当前输入",
+          id: 'user-2',
+          text: '当前输入',
         },
       }),
     );
   });
 
-  it("omits preview path from the chat transport body when no real preview file is published", () => {
+  it('omits preview path from the chat transport body when no real preview file is published', () => {
     vi.mocked(useChat).mockReturnValue({
       addToolApprovalResponse: vi.fn(),
       error: undefined,
       messages: [],
       sendMessage: vi.fn(),
-      status: "ready",
+      status: 'ready',
       stop: vi.fn(),
     } as unknown as ReturnType<typeof useChat>);
 
@@ -1037,12 +1022,10 @@ describe("MessageParts", () => {
       | { transport: TestTransport }
       | undefined;
 
-    expect(prepareChatRequestBody(useChatOptions?.transport)).not.toHaveProperty(
-      "previewPath",
-    );
+    expect(prepareChatRequestBody(useChatOptions?.transport)).not.toHaveProperty('previewPath');
   });
 
-  it("sends Anthropic effort selection in the chat transport body", async () => {
+  it('sends Anthropic effort selection in the chat transport body', async () => {
     const user = userEvent.setup();
     stubAnthropicSettings();
     vi.mocked(useChat).mockReturnValue({
@@ -1050,7 +1033,7 @@ describe("MessageParts", () => {
       error: undefined,
       messages: [],
       sendMessage: vi.fn(),
-      status: "ready",
+      status: 'ready',
       stop: vi.fn(),
     } as unknown as ReturnType<typeof useChat>);
 
@@ -1063,13 +1046,9 @@ describe("MessageParts", () => {
       />,
     );
 
-    await user.click(
-      await screen.findByRole("button", { name: "claude-sonnet-4-5 · high" }),
-    );
-    await user.hover(
-      await screen.findByRole("menuitem", { name: "claude-sonnet-4-5" }),
-    );
-    fireEvent.click(await screen.findByRole("menuitem", { name: "xhigh" }));
+    await user.click(await screen.findByRole('button', { name: 'claude-sonnet-4-5 · high' }));
+    await user.hover(await screen.findByRole('menuitem', { name: 'claude-sonnet-4-5' }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'xhigh' }));
 
     const useChatOptions = vi.mocked(useChat).mock.calls.at(-1)?.[0] as
       | { transport: TestTransport }
@@ -1078,23 +1057,19 @@ describe("MessageParts", () => {
     expect(prepareChatRequestBody(useChatOptions?.transport)).toEqual(
       expect.objectContaining({
         providerOptionsSelection: {
-          anthropic: "xhigh",
+          anthropic: 'xhigh',
         },
       }),
     );
-    expect(
-      JSON.parse(
-        window.localStorage.getItem("owndesign:anthropic-efforts") ?? "{}",
-      ),
-    ).toEqual({
-      "model-anthropic": "xhigh",
+    expect(JSON.parse(window.localStorage.getItem('owndesign:anthropic-efforts') ?? '{}')).toEqual({
+      'model-anthropic': 'xhigh',
     });
   });
 
-  it("restores Anthropic effort selection after refresh", async () => {
+  it('restores Anthropic effort selection after refresh', async () => {
     window.localStorage.setItem(
-      "owndesign:anthropic-efforts",
-      JSON.stringify({ "model-anthropic": "max" }),
+      'owndesign:anthropic-efforts',
+      JSON.stringify({ 'model-anthropic': 'max' }),
     );
     stubAnthropicSettings();
     vi.mocked(useChat).mockReturnValue({
@@ -1102,7 +1077,7 @@ describe("MessageParts", () => {
       error: undefined,
       messages: [],
       sendMessage: vi.fn(),
-      status: "ready",
+      status: 'ready',
       stop: vi.fn(),
     } as unknown as ReturnType<typeof useChat>);
 
@@ -1116,8 +1091,8 @@ describe("MessageParts", () => {
     );
 
     expect(
-      await screen.findByRole("button", {
-        name: "claude-sonnet-4-5 · max",
+      await screen.findByRole('button', {
+        name: 'claude-sonnet-4-5 · max',
       }),
     ).toBeInTheDocument();
 
@@ -1128,20 +1103,20 @@ describe("MessageParts", () => {
     expect(prepareChatRequestBody(useChatOptions?.transport)).toEqual(
       expect.objectContaining({
         providerOptionsSelection: {
-          anthropic: "max",
+          anthropic: 'max',
         },
       }),
     );
   });
 
-  it("renders the page edit mode select in the composer tool area", () => {
+  it('renders the page edit mode select in the composer tool area', () => {
     stubOpenAICompatibleSettings();
     vi.mocked(useChat).mockReturnValue({
       addToolApprovalResponse: vi.fn(),
       error: undefined,
       messages: [],
       sendMessage: vi.fn(),
-      status: "ready",
+      status: 'ready',
       stop: vi.fn(),
     } as unknown as ReturnType<typeof useChat>);
 
@@ -1154,20 +1129,18 @@ describe("MessageParts", () => {
       />,
     );
 
-    expect(screen.getByRole("combobox", { name: "页面模式" })).toHaveTextContent(
-      "自动",
-    );
+    expect(screen.getByRole('combobox', { name: '页面模式' })).toHaveTextContent('自动');
   });
 
-  it("sends the selected page edit mode in the chat transport body", async () => {
+  it('sends the selected page edit mode in the chat transport body', async () => {
     const user = userEvent.setup();
-    setCurrentPreviewPath("index.html");
+    setCurrentPreviewPath('index.html');
     vi.mocked(useChat).mockReturnValue({
       addToolApprovalResponse: vi.fn(),
       error: undefined,
       messages: [],
       sendMessage: vi.fn(),
-      status: "ready",
+      status: 'ready',
       stop: vi.fn(),
     } as unknown as ReturnType<typeof useChat>);
 
@@ -1180,8 +1153,8 @@ describe("MessageParts", () => {
       />,
     );
 
-    await user.click(screen.getByRole("combobox", { name: "页面模式" }));
-    await user.click(await screen.findByRole("option", { name: "直接编辑" }));
+    await user.click(screen.getByRole('combobox', { name: '页面模式' }));
+    await user.click(await screen.findByRole('option', { name: '直接编辑' }));
 
     const useChatOptions = vi.mocked(useChat).mock.calls.at(-1)?.[0] as
       | { transport: TestTransport }
@@ -1189,30 +1162,30 @@ describe("MessageParts", () => {
 
     expect(prepareChatRequestBody(useChatOptions?.transport)).toEqual(
       expect.objectContaining({
-        pageEditMode: "direct_edit",
+        pageEditMode: 'direct_edit',
       }),
     );
     expect(
       prepareChatRequestBody(useChatOptions?.transport, undefined, {
-        pageEditMode: "duplicate_edit",
+        pageEditMode: 'duplicate_edit',
       }),
     ).toEqual(
       expect.objectContaining({
-        pageEditMode: "duplicate_edit",
+        pageEditMode: 'duplicate_edit',
       }),
     );
   });
 
-  it("submits the selected page edit mode in the send request body", async () => {
+  it('submits the selected page edit mode in the send request body', async () => {
     const user = userEvent.setup();
     const sendMessage = vi.fn();
-    setCurrentPreviewPath("index.html");
+    setCurrentPreviewPath('index.html');
     vi.mocked(useChat).mockReturnValue({
       addToolApprovalResponse: vi.fn(),
       error: undefined,
       messages: [],
       sendMessage,
-      status: "ready",
+      status: 'ready',
       stop: vi.fn(),
     } as unknown as ReturnType<typeof useChat>);
 
@@ -1225,23 +1198,23 @@ describe("MessageParts", () => {
       />,
     );
 
-    await user.click(screen.getByRole("combobox", { name: "页面模式" }));
-    await user.click(await screen.findByRole("option", { name: "副本编辑" }));
-    await user.type(screen.getByPlaceholderText(/输入消息/), "移除标题");
-    await user.click(screen.getByRole("button", { name: "提交" }));
+    await user.click(screen.getByRole('combobox', { name: '页面模式' }));
+    await user.click(await screen.findByRole('option', { name: '副本编辑' }));
+    await user.type(screen.getByPlaceholderText(/输入消息/), '移除标题');
+    await user.click(screen.getByRole('button', { name: '提交' }));
 
     await waitFor(() => {
       expect(sendMessage).toHaveBeenCalledTimes(1);
     });
     expect(sendMessage.mock.calls[0]?.[1]).toEqual({
       body: expect.objectContaining({
-        pageEditMode: "duplicate_edit",
-        previewPath: "index.html",
+        pageEditMode: 'duplicate_edit',
+        previewPath: 'index.html',
       }),
     });
   });
 
-  it("enables duplicate edit when the current preview path is published after render", async () => {
+  it('enables duplicate edit when the current preview path is published after render', async () => {
     const user = userEvent.setup();
     const sendMessage = vi.fn();
     vi.mocked(useChat).mockReturnValue({
@@ -1249,7 +1222,7 @@ describe("MessageParts", () => {
       error: undefined,
       messages: [],
       sendMessage,
-      status: "ready",
+      status: 'ready',
       stop: vi.fn(),
     } as unknown as ReturnType<typeof useChat>);
 
@@ -1263,48 +1236,48 @@ describe("MessageParts", () => {
     );
 
     act(() => {
-      setCurrentPreviewPath("generated.html");
+      setCurrentPreviewPath('generated.html');
     });
 
-    await user.click(screen.getByRole("combobox", { name: "页面模式" }));
-    await user.click(await screen.findByRole("option", { name: "副本编辑" }));
-    await user.type(screen.getByPlaceholderText(/输入消息/), "移除标题");
-    await user.click(screen.getByRole("button", { name: "提交" }));
+    await user.click(screen.getByRole('combobox', { name: '页面模式' }));
+    await user.click(await screen.findByRole('option', { name: '副本编辑' }));
+    await user.type(screen.getByPlaceholderText(/输入消息/), '移除标题');
+    await user.click(screen.getByRole('button', { name: '提交' }));
 
     await waitFor(() => {
       expect(sendMessage).toHaveBeenCalledTimes(1);
     });
     expect(sendMessage.mock.calls[0]?.[1]).toEqual({
       body: expect.objectContaining({
-        pageEditMode: "duplicate_edit",
-        previewPath: "generated.html",
+        pageEditMode: 'duplicate_edit',
+        previewPath: 'generated.html',
       }),
     });
   });
 
-  it("configures stream resume for the current conversation active run", async () => {
+  it('configures stream resume for the current conversation active run', async () => {
     const setMessages = vi.fn();
 
     vi.stubGlobal(
-      "fetch",
+      'fetch',
       vi.fn(async (input: RequestInfo | URL) => {
         const url = String(input);
 
-        if (url.includes("/runs/active/snapshot")) {
+        if (url.includes('/runs/active/snapshot')) {
           return Response.json({
             activeRun: {
               chunkCount: 2,
-              conversationId: "conversation-1",
-              createdAt: "2026-01-01T00:00:00.000Z",
-              projectId: "project-1",
-              runId: "run-1",
-              status: "running",
+              conversationId: 'conversation-1',
+              createdAt: '2026-01-01T00:00:00.000Z',
+              projectId: 'project-1',
+              runId: 'run-1',
+              status: 'running',
             },
             messages: [
               {
-                id: "user-1",
-                parts: [{ text: "生成页面", type: "text" }],
-                role: "user",
+                id: 'user-1',
+                parts: [{ text: '生成页面', type: 'text' }],
+                role: 'user',
               },
             ],
             nextChunkIndex: 2,
@@ -1312,8 +1285,8 @@ describe("MessageParts", () => {
         }
 
         return Response.json({
-          defaultModelId: "model-1",
-          interfaceLanguage: "zh-CN",
+          defaultModelId: 'model-1',
+          interfaceLanguage: 'zh-CN',
           modelConfigurations: [],
         });
       }),
@@ -1325,7 +1298,7 @@ describe("MessageParts", () => {
       messages: [],
       sendMessage: vi.fn(),
       setMessages,
-      status: "ready",
+      status: 'ready',
       stop: vi.fn(),
     } as unknown as ReturnType<typeof useChat>);
 
@@ -1336,11 +1309,11 @@ describe("MessageParts", () => {
         initialMessages={[]}
         projectActiveRun={{
           chunkCount: 1,
-          conversationId: "conversation-1",
-          createdAt: "2026-01-01T00:00:00.000Z",
-          projectId: "project-1",
-          runId: "run-1",
-          status: "running",
+          conversationId: 'conversation-1',
+          createdAt: '2026-01-01T00:00:00.000Z',
+          projectId: 'project-1',
+          runId: 'run-1',
+          status: 'running',
         }}
         projectId="project-1"
       />,
@@ -1356,9 +1329,9 @@ describe("MessageParts", () => {
       | undefined;
 
     expect(useChatOptions?.resume).toBe(false);
-    expect(screen.queryByText("运行中")).not.toBeInTheDocument();
+    expect(screen.queryByText('运行中')).not.toBeInTheDocument();
     expect(
-      screen.queryByText("当前会话正在生成，刷新或切换回来会继续显示进度。"),
+      screen.queryByText('当前会话正在生成，刷新或切换回来会继续显示进度。'),
     ).not.toBeInTheDocument();
 
     await waitFor(() => {
@@ -1372,22 +1345,20 @@ describe("MessageParts", () => {
         | undefined;
 
       expect(latestUseChatOptions?.resume).toBe(true);
-      expect(
-        latestUseChatOptions?.transport.prepareReconnectToStreamRequest?.().api,
-      ).toBe(
-        "/api/projects/project-1/conversations/conversation-1/runs/active/stream?after=2",
+      expect(latestUseChatOptions?.transport.prepareReconnectToStreamRequest?.().api).toBe(
+        '/api/projects/project-1/conversations/conversation-1/runs/active/stream?after=2',
       );
     });
     expect(setMessages).toHaveBeenCalledWith([
       {
-        id: "user-1",
-        parts: [{ text: "生成页面", type: "text" }],
-        role: "user",
+        id: 'user-1',
+        parts: [{ text: '生成页面', type: 'text' }],
+        role: 'user',
       },
     ]);
   });
 
-  it("disables input when another conversation in the project is running", async () => {
+  it('disables input when another conversation in the project is running', async () => {
     const user = userEvent.setup();
     const sendMessage = vi.fn();
 
@@ -1396,7 +1367,7 @@ describe("MessageParts", () => {
       error: undefined,
       messages: [],
       sendMessage,
-      status: "ready",
+      status: 'ready',
       stop: vi.fn(),
     } as unknown as ReturnType<typeof useChat>);
 
@@ -1407,11 +1378,11 @@ describe("MessageParts", () => {
         initialMessages={[]}
         projectActiveRun={{
           chunkCount: 1,
-          conversationId: "conversation-1",
-          createdAt: "2026-01-01T00:00:00.000Z",
-          projectId: "project-1",
-          runId: "run-1",
-          status: "running",
+          conversationId: 'conversation-1',
+          createdAt: '2026-01-01T00:00:00.000Z',
+          projectId: 'project-1',
+          runId: 'run-1',
+          status: 'running',
         }}
         projectId="project-1"
       />,
@@ -1419,15 +1390,15 @@ describe("MessageParts", () => {
 
     expect(screen.getByPlaceholderText(/输入消息/)).toBeDisabled();
     expect(
-      screen.getByText("当前项目已有任务正在执行，完成或停止后才能继续输入。"),
+      screen.getByText('当前项目已有任务正在执行，完成或停止后才能继续输入。'),
     ).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "停止" }));
+    await user.click(screen.getByRole('button', { name: '停止' }));
 
     expect(sendMessage).not.toHaveBeenCalled();
   });
 
-  it("stops streaming generation from the composer submit button", async () => {
+  it('stops streaming generation from the composer submit button', async () => {
     const user = userEvent.setup();
     const sendMessage = vi.fn();
     const stop = vi.fn();
@@ -1437,7 +1408,7 @@ describe("MessageParts", () => {
       error: undefined,
       messages: [],
       sendMessage,
-      status: "streaming",
+      status: 'streaming',
       stop,
     } as unknown as ReturnType<typeof useChat>);
 
@@ -1450,7 +1421,7 @@ describe("MessageParts", () => {
       />,
     );
 
-    const stopButton = await screen.findByRole("button", { name: "停止" });
+    const stopButton = await screen.findByRole('button', { name: '停止' });
 
     expect(stopButton).not.toBeDisabled();
 
@@ -1460,7 +1431,7 @@ describe("MessageParts", () => {
     expect(sendMessage).not.toHaveBeenCalled();
   });
 
-  it("stops submitted generation from the composer submit button", async () => {
+  it('stops submitted generation from the composer submit button', async () => {
     const user = userEvent.setup();
     const stop = vi.fn();
 
@@ -1469,7 +1440,7 @@ describe("MessageParts", () => {
       error: undefined,
       messages: [],
       sendMessage: vi.fn(),
-      status: "submitted",
+      status: 'submitted',
       stop,
     } as unknown as ReturnType<typeof useChat>);
 
@@ -1482,7 +1453,7 @@ describe("MessageParts", () => {
       />,
     );
 
-    const stopButton = await screen.findByRole("button", { name: "停止" });
+    const stopButton = await screen.findByRole('button', { name: '停止' });
 
     expect(stopButton).not.toBeDisabled();
 
@@ -1491,13 +1462,13 @@ describe("MessageParts", () => {
     expect(stop).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps the ready submit button disabled when no model is configured", async () => {
+  it('keeps the ready submit button disabled when no model is configured', async () => {
     vi.stubGlobal(
-      "fetch",
+      'fetch',
       vi.fn(async () =>
         Response.json({
           defaultModelId: null,
-          interfaceLanguage: "zh-CN",
+          interfaceLanguage: 'zh-CN',
           modelConfigurations: [],
         }),
       ),
@@ -1507,7 +1478,7 @@ describe("MessageParts", () => {
       error: undefined,
       messages: [],
       sendMessage: vi.fn(),
-      status: "ready",
+      status: 'ready',
       stop: vi.fn(),
     } as unknown as ReturnType<typeof useChat>);
 
@@ -1520,12 +1491,12 @@ describe("MessageParts", () => {
       />,
     );
 
-    expect(await screen.findByRole("button", { name: "提交" })).toBeDisabled();
+    expect(await screen.findByRole('button', { name: '提交' })).toBeDisabled();
   });
 
-  it("renders the attachment action menu", async () => {
+  it('renders the attachment action menu', async () => {
     const user = userEvent.setup();
-    const inputClickSpy = vi.spyOn(HTMLInputElement.prototype, "click");
+    const inputClickSpy = vi.spyOn(HTMLInputElement.prototype, 'click');
     stubOpenAICompatibleSettings();
 
     vi.mocked(useChat).mockReturnValue({
@@ -1533,7 +1504,7 @@ describe("MessageParts", () => {
       error: undefined,
       messages: [],
       sendMessage: vi.fn(),
-      status: "ready",
+      status: 'ready',
       stop: vi.fn(),
     } as unknown as ReturnType<typeof useChat>);
 
@@ -1546,9 +1517,9 @@ describe("MessageParts", () => {
       />,
     );
 
-    await user.click(await screen.findByRole("button", { name: "添加附件" }));
+    await user.click(await screen.findByRole('button', { name: '添加附件' }));
 
-    const addItem = await screen.findByText("添加图片或文件");
+    const addItem = await screen.findByText('添加图片或文件');
     expect(addItem).toBeInTheDocument();
 
     await user.click(addItem);
@@ -1557,13 +1528,13 @@ describe("MessageParts", () => {
     inputClickSpy.mockRestore();
   });
 
-  it("hides attachment controls for DeepSeek models", async () => {
+  it('hides attachment controls for DeepSeek models', async () => {
     vi.mocked(useChat).mockReturnValue({
       addToolApprovalResponse: vi.fn(),
       error: undefined,
       messages: [],
       sendMessage: vi.fn(),
-      status: "ready",
+      status: 'ready',
       stop: vi.fn(),
     } as unknown as ReturnType<typeof useChat>);
 
@@ -1576,35 +1547,35 @@ describe("MessageParts", () => {
       />,
     );
 
-    expect(screen.queryByRole("button", { name: "添加附件" })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '添加附件' })).not.toBeInTheDocument();
   });
 
-  it("clears attachments after switching to a DeepSeek model", async () => {
+  it('clears attachments after switching to a DeepSeek model', async () => {
     const user = userEvent.setup();
     vi.stubGlobal(
-      "fetch",
+      'fetch',
       vi.fn(async () =>
         Response.json({
-          defaultModelId: "model-openai",
-          interfaceLanguage: "zh-CN",
+          defaultModelId: 'model-openai',
+          interfaceLanguage: 'zh-CN',
           modelConfigurations: [
             {
-              apiKey: "",
-              baseUrl: "https://example.test/v1",
+              apiKey: '',
+              baseUrl: 'https://example.test/v1',
               contextSizeK: 200,
               hasApiKey: true,
-              id: "model-openai",
-              model: "gpt-4o",
-              provider: "openai-compatible",
+              id: 'model-openai',
+              model: 'gpt-4o',
+              provider: 'openai-compatible',
             },
             {
-              apiKey: "",
-              baseUrl: "",
+              apiKey: '',
+              baseUrl: '',
               contextSizeK: 1000,
               hasApiKey: true,
-              id: "model-deepseek",
-              model: "deepseek-v4-flash",
-              provider: "deepseek",
+              id: 'model-deepseek',
+              model: 'deepseek-v4-flash',
+              provider: 'deepseek',
             },
           ],
         }),
@@ -1616,7 +1587,7 @@ describe("MessageParts", () => {
       error: undefined,
       messages: [],
       sendMessage: vi.fn(),
-      status: "ready",
+      status: 'ready',
       stop: vi.fn(),
     } as unknown as ReturnType<typeof useChat>);
 
@@ -1630,22 +1601,22 @@ describe("MessageParts", () => {
     );
 
     await user.upload(
-      screen.getByLabelText("上传文件"),
-      new File([new Uint8Array(1024)], "reference.png", {
-        type: "image/png",
+      screen.getByLabelText('上传文件'),
+      new File([new Uint8Array(1024)], 'reference.png', {
+        type: 'image/png',
       }),
     );
 
-    expect(screen.getByText("reference.png")).toBeInTheDocument();
+    expect(screen.getByText('reference.png')).toBeInTheDocument();
 
-    await user.click(await screen.findByRole("button", { name: "gpt-4o" }));
-    await user.click(await screen.findByText("deepseek-v4-flash"));
+    await user.click(await screen.findByRole('button', { name: 'gpt-4o' }));
+    await user.click(await screen.findByText('deepseek-v4-flash'));
 
-    expect(screen.queryByText("reference.png")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "添加附件" })).not.toBeInTheDocument();
+    expect(screen.queryByText('reference.png')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '添加附件' })).not.toBeInTheDocument();
   });
 
-  it("shows image attachment previews", async () => {
+  it('shows image attachment previews', async () => {
     const user = userEvent.setup();
     stubOpenAICompatibleSettings();
 
@@ -1654,7 +1625,7 @@ describe("MessageParts", () => {
       error: undefined,
       messages: [],
       sendMessage: vi.fn(),
-      status: "ready",
+      status: 'ready',
       stop: vi.fn(),
     } as unknown as ReturnType<typeof useChat>);
 
@@ -1667,22 +1638,19 @@ describe("MessageParts", () => {
       />,
     );
 
-    const input = screen.getByLabelText("上传文件");
-    const file = new File([new Uint8Array(1024)], "hero.png", {
-      type: "image/png",
+    const input = screen.getByLabelText('上传文件');
+    const file = new File([new Uint8Array(1024)], 'hero.png', {
+      type: 'image/png',
     });
 
     await user.upload(input, file);
 
-    expect(screen.getByText("hero.png")).toBeInTheDocument();
-    expect(screen.getByText("1 KB")).toBeInTheDocument();
-    expect(screen.getByRole("img", { name: "hero.png" })).toHaveAttribute(
-      "src",
-      "blob:hero.png",
-    );
+    expect(screen.getByText('hero.png')).toBeInTheDocument();
+    expect(screen.getByText('1 KB')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'hero.png' })).toHaveAttribute('src', 'blob:hero.png');
   });
 
-  it("shows file attachment previews and removes them", async () => {
+  it('shows file attachment previews and removes them', async () => {
     const user = userEvent.setup();
     stubOpenAICompatibleSettings();
 
@@ -1691,7 +1659,7 @@ describe("MessageParts", () => {
       error: undefined,
       messages: [],
       sendMessage: vi.fn(),
-      status: "ready",
+      status: 'ready',
       stop: vi.fn(),
     } as unknown as ReturnType<typeof useChat>);
 
@@ -1704,24 +1672,24 @@ describe("MessageParts", () => {
       />,
     );
 
-    const input = screen.getByLabelText("上传文件");
-    const file = new File([new Uint8Array(2048)], "brief.pdf", {
-      type: "application/pdf",
+    const input = screen.getByLabelText('上传文件');
+    const file = new File([new Uint8Array(2048)], 'brief.pdf', {
+      type: 'application/pdf',
     });
 
     await user.upload(input, file);
 
-    expect(screen.getByText("brief.pdf")).toBeInTheDocument();
-    expect(screen.getByText("2 KB")).toBeInTheDocument();
-    expect(screen.queryByRole("img", { name: "brief.pdf" })).not.toBeInTheDocument();
+    expect(screen.getByText('brief.pdf')).toBeInTheDocument();
+    expect(screen.getByText('2 KB')).toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: 'brief.pdf' })).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "移除 brief.pdf" }));
+    await user.click(screen.getByRole('button', { name: '移除 brief.pdf' }));
 
-    expect(screen.queryByText("brief.pdf")).not.toBeInTheDocument();
-    expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:brief.pdf");
+    expect(screen.queryByText('brief.pdf')).not.toBeInTheDocument();
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:brief.pdf');
   });
 
-  it("sends attachment-only messages with files", async () => {
+  it('sends attachment-only messages with files', async () => {
     const user = userEvent.setup();
     const sendMessage = vi.fn();
     stubOpenAICompatibleSettings();
@@ -1731,7 +1699,7 @@ describe("MessageParts", () => {
       error: undefined,
       messages: [],
       sendMessage,
-      status: "ready",
+      status: 'ready',
       stop: vi.fn(),
     } as unknown as ReturnType<typeof useChat>);
 
@@ -1744,36 +1712,36 @@ describe("MessageParts", () => {
       />,
     );
 
-    const input = screen.getByLabelText("上传文件");
-    const file = new File([new Uint8Array(1024)], "reference.png", {
-      type: "image/png",
+    const input = screen.getByLabelText('上传文件');
+    const file = new File([new Uint8Array(1024)], 'reference.png', {
+      type: 'image/png',
     });
 
     await user.upload(input, file);
-    await user.click(await screen.findByRole("button", { name: "提交" }));
+    await user.click(await screen.findByRole('button', { name: '提交' }));
 
     await waitFor(() => {
       expect(sendMessage).toHaveBeenCalledWith(
         {
           files: [
             expect.objectContaining({
-              filename: "reference.png",
-              mediaType: "image/png",
-              type: "file",
+              filename: 'reference.png',
+              mediaType: 'image/png',
+              type: 'file',
             }),
           ],
-          text: "",
+          text: '',
         },
         {
           body: expect.objectContaining({
-            pageEditMode: "auto",
+            pageEditMode: 'auto',
           }),
         },
       );
     });
   });
 
-  it("limits attachment count and size", async () => {
+  it('limits attachment count and size', async () => {
     const user = userEvent.setup();
     stubOpenAICompatibleSettings();
 
@@ -1782,7 +1750,7 @@ describe("MessageParts", () => {
       error: undefined,
       messages: [],
       sendMessage: vi.fn(),
-      status: "ready",
+      status: 'ready',
       stop: vi.fn(),
     } as unknown as ReturnType<typeof useChat>);
 
@@ -1795,36 +1763,36 @@ describe("MessageParts", () => {
       />,
     );
 
-    const input = screen.getByLabelText("上传文件");
-    const files = Array.from({ length: 9 }, (_, index) =>
-      new File([new Uint8Array(1024)], `asset-${index + 1}.txt`, {
-        type: "text/plain",
-      }),
+    const input = screen.getByLabelText('上传文件');
+    const files = Array.from(
+      { length: 9 },
+      (_, index) =>
+        new File([new Uint8Array(1024)], `asset-${index + 1}.txt`, {
+          type: 'text/plain',
+        }),
     );
 
     await user.upload(input, files);
 
-    expect(screen.getByText("asset-8.txt")).toBeInTheDocument();
-    expect(screen.queryByText("asset-9.txt")).not.toBeInTheDocument();
+    expect(screen.getByText('asset-8.txt')).toBeInTheDocument();
+    expect(screen.queryByText('asset-9.txt')).not.toBeInTheDocument();
 
-    const oversized = new File(
-      [new Uint8Array(10 * 1024 * 1024 + 1)],
-      "large.zip",
-      { type: "application/zip" },
-    );
+    const oversized = new File([new Uint8Array(10 * 1024 * 1024 + 1)], 'large.zip', {
+      type: 'application/zip',
+    });
 
     await user.upload(input, oversized);
 
-    expect(screen.queryByText("large.zip")).not.toBeInTheDocument();
+    expect(screen.queryByText('large.zip')).not.toBeInTheDocument();
   });
 
-  it("renders context usage next to model selection", async () => {
+  it('renders context usage next to model selection', async () => {
     vi.mocked(useChat).mockReturnValue({
       addToolApprovalResponse: vi.fn(),
       error: undefined,
       messages: [],
       sendMessage: vi.fn(),
-      status: "ready",
+      status: 'ready',
       stop: vi.fn(),
     } as unknown as ReturnType<typeof useChat>);
 
@@ -1837,16 +1805,16 @@ describe("MessageParts", () => {
       />,
     );
 
-    expect(await screen.findByRole("button", { name: "上下文 0%" })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: '上下文 0%' })).toBeInTheDocument();
   });
 
-  it("updates context usage from latest assistant message metadata", async () => {
+  it('updates context usage from latest assistant message metadata', async () => {
     vi.mocked(useChat).mockReturnValue({
       addToolApprovalResponse: vi.fn(),
       error: undefined,
       messages: [
         {
-          id: "assistant-1",
+          id: 'assistant-1',
           metadata: {
             contextUsage: {
               inputTokens: 8000,
@@ -1854,12 +1822,12 @@ describe("MessageParts", () => {
               totalTokens: 10000,
             },
           },
-          parts: [{ text: "完成。", type: "text" }],
-          role: "assistant",
+          parts: [{ text: '完成。', type: 'text' }],
+          role: 'assistant',
         },
       ],
       sendMessage: vi.fn(),
-      status: "ready",
+      status: 'ready',
       stop: vi.fn(),
     } as unknown as ReturnType<typeof useChat>);
 
@@ -1872,16 +1840,16 @@ describe("MessageParts", () => {
       />,
     );
 
-    expect(await screen.findByRole("button", { name: "上下文 1%" })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: '上下文 1%' })).toBeInTheDocument();
   });
 
-  it("does not configure chat approval continuation", () => {
+  it('does not configure chat approval continuation', () => {
     vi.mocked(useChat).mockReturnValue({
       addToolApprovalResponse: vi.fn(),
       error: undefined,
       messages: [],
       sendMessage: vi.fn(),
-      status: "ready",
+      status: 'ready',
     } as unknown as ReturnType<typeof useChat>);
 
     render(

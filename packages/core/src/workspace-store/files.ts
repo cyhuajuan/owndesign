@@ -1,6 +1,6 @@
-import { open, readFile, stat } from "node:fs/promises";
+import { open, readFile, stat } from 'node:fs/promises';
 
-import { isMissingPathError } from "./paths";
+import { isMissingPathError } from './paths';
 
 export async function readTextFileIfExists(filePath: string) {
   try {
@@ -10,7 +10,7 @@ export async function readTextFileIfExists(filePath: string) {
       return undefined;
     }
 
-    return await readFile(filePath, "utf8");
+    return await readFile(filePath, 'utf8');
   } catch (error) {
     if (isMissingPathError(error)) {
       return undefined;
@@ -21,13 +21,13 @@ export async function readTextFileIfExists(filePath: string) {
 }
 
 export async function readFilePrefix(filePath: string, maxBytes: number) {
-  const handle = await open(filePath, "r");
+  const handle = await open(filePath, 'r');
 
   try {
     const buffer = Buffer.alloc(maxBytes);
     const { bytesRead } = await handle.read(buffer, 0, maxBytes, 0);
 
-    return buffer.subarray(0, bytesRead).toString("utf8");
+    return buffer.subarray(0, bytesRead).toString('utf8');
   } finally {
     await handle.close();
   }

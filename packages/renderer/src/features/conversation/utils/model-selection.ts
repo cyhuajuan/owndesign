@@ -3,37 +3,31 @@ import type {
   DeepSeekThinkingMode,
   PublicModelConfiguration,
   PublicSettings,
-} from "@/features/conversation/types";
+} from '@/features/conversation/types';
 
-export const deepSeekThinkingModes = ["disabled", "high", "max"] as const;
-export const anthropicEfforts = [
-  "low",
-  "medium",
-  "high",
-  "xhigh",
-  "max",
-] as const;
+export const deepSeekThinkingModes = ['disabled', 'high', 'max'] as const;
+export const anthropicEfforts = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
 
 export function getDeepSeekThinkingMode(configuration: {
-  providerOptions?: PublicModelConfiguration["providerOptions"];
+  providerOptions?: PublicModelConfiguration['providerOptions'];
 }) {
-  return configuration.providerOptions?.deepseek?.thinkingMode ?? "high";
+  return configuration.providerOptions?.deepseek?.thinkingMode ?? 'high';
 }
 
 export function getSelectedModelLabel(
   configuration: PublicModelConfiguration | undefined,
   anthropicEffort?: AnthropicEffort,
-  fallback = "",
+  fallback = '',
 ) {
   if (!configuration) {
     return fallback;
   }
 
-  if (configuration.provider === "anthropic") {
-    return `${configuration.model} · ${anthropicEffort ?? "high"}`;
+  if (configuration.provider === 'anthropic') {
+    return `${configuration.model} · ${anthropicEffort ?? 'high'}`;
   }
 
-  if (configuration.provider !== "deepseek") {
+  if (configuration.provider !== 'deepseek') {
     return configuration.model;
   }
 
@@ -49,9 +43,7 @@ export function updateDefaultModel(
     ...settings,
     defaultModelId,
     modelConfigurations: settings.modelConfigurations.map((configuration) =>
-      configuration.id === defaultModelId &&
-      configuration.provider === "deepseek" &&
-      thinkingMode
+      configuration.id === defaultModelId && configuration.provider === 'deepseek' && thinkingMode
         ? {
             ...configuration,
             providerOptions: {

@@ -1,7 +1,7 @@
-import type { UIMessage } from "ai";
+import type { UIMessage } from 'ai';
 
-import { getFirstUserMessageText } from "@owndesign/core/conversations/chat-messages";
-import { FALLBACK_CONVERSATION_TITLE } from "@owndesign/core/conversations/default-title";
+import { getFirstUserMessageText } from '@owndesign/core/conversations/chat-messages';
+import { FALLBACK_CONVERSATION_TITLE } from '@owndesign/core/conversations/default-title';
 
 export function deriveConversationTitle({
   conversationTitle,
@@ -25,6 +25,6 @@ export function deriveConversationTitle({
   const firstUserMessageText = getFirstUserMessageText(messages);
 
   return firstUserMessageText
-    ? firstUserMessageText.trim().replace(/\s+/g, " ").slice(0, 80)
+    ? firstUserMessageText.trim().replace(/\s+/g, ' ').slice(0, 80)
     : conversationTitle;
 }

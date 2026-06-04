@@ -1,10 +1,10 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from 'vitest';
 
-import { SettingsService } from "./settings-service";
+import { SettingsService } from './settings-service';
 
 const tempRoots: string[] = [];
 
@@ -17,107 +17,103 @@ afterEach(async () => {
   );
 });
 
-describe("SettingsService", () => {
-  it("returns default settings when settings.json is missing", async () => {
+describe('SettingsService', () => {
+  it('returns default settings when settings.json is missing', async () => {
     const service = await createService();
 
     await expect(service.getSettings()).resolves.toEqual({
       defaultModelId: null,
-      interfaceLanguage: "zh-CN",
+      interfaceLanguage: 'zh-CN',
       modelConfigurations: [],
       resources: expect.objectContaining({
         fontLibraries: [
           expect.objectContaining({
-            cdn: "https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Noto+Sans+SC:wght@100..900&display=swap",
+            cdn: 'https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Noto+Sans+SC:wght@100..900&display=swap',
             isDefault: true,
-            name: "Google Fonts",
+            name: 'Google Fonts',
           }),
         ],
-        iconLibraries: [
-          expect.objectContaining({ isDefault: true, name: "Lucide Icons" }),
-        ],
+        iconLibraries: [expect.objectContaining({ isDefault: true, name: 'Lucide Icons' })],
       }),
     });
   });
 
-  it("backfills resources for stored settings that do not have them", async () => {
+  it('backfills resources for stored settings that do not have them', async () => {
     const { service, settingsPath } = await createServiceWithPath();
     await mkdir(path.dirname(settingsPath), { recursive: true });
     await writeFile(
       settingsPath,
       JSON.stringify({
         defaultModelId: null,
-        interfaceLanguage: "zh-CN",
+        interfaceLanguage: 'zh-CN',
         modelConfigurations: [],
       }),
-      "utf8",
+      'utf8',
     );
 
     await expect(service.getSettings()).resolves.toMatchObject({
       resources: {
         fontLibraries: [
           expect.objectContaining({
-            cdn: "https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Noto+Sans+SC:wght@100..900&display=swap",
+            cdn: 'https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Noto+Sans+SC:wght@100..900&display=swap',
             isDefault: true,
-            name: "Google Fonts",
+            name: 'Google Fonts',
           }),
         ],
-        iconLibraries: [
-          expect.objectContaining({ isDefault: true, name: "Lucide Icons" }),
-        ],
+        iconLibraries: [expect.objectContaining({ isDefault: true, name: 'Lucide Icons' })],
       },
     });
   });
 
-  it("saves multiple model configurations and auto-selects the first model", async () => {
+  it('saves multiple model configurations and auto-selects the first model', async () => {
     const service = await createService();
     const settings = await service.updateSettings({
       defaultModelId: null,
-      interfaceLanguage: "en-US",
+      interfaceLanguage: 'en-US',
       modelConfigurations: [
         {
-          apiKey: "deepseek-key",
-          baseUrl: "",
-          id: "deepseek-1",
-          model: "deepseek-v4-flash",
-          provider: "deepseek",
+          apiKey: 'deepseek-key',
+          baseUrl: '',
+          id: 'deepseek-1',
+          model: 'deepseek-v4-flash',
+          provider: 'deepseek',
         },
         {
-          apiKey: "openai-compatible-key",
-          baseUrl: "https://api.example.com/v1",
-          id: "compatible-1",
-          model: "gpt-4o",
-          provider: "openai-compatible",
+          apiKey: 'openai-compatible-key',
+          baseUrl: 'https://api.example.com/v1',
+          id: 'compatible-1',
+          model: 'gpt-4o',
+          provider: 'openai-compatible',
         },
       ],
     });
 
-    expect(settings.defaultModelId).toBe("deepseek-1");
+    expect(settings.defaultModelId).toBe('deepseek-1');
     expect(settings.modelConfigurations[0]).toMatchObject({
-      providerOptions: { deepseek: { thinkingMode: "high" } },
+      providerOptions: { deepseek: { thinkingMode: 'high' } },
     });
     await expect(service.getSettings()).resolves.toMatchObject({
-      defaultModelId: "deepseek-1",
-      interfaceLanguage: "en-US",
+      defaultModelId: 'deepseek-1',
+      interfaceLanguage: 'en-US',
       modelConfigurations: [
-        expect.objectContaining({ apiKey: "deepseek-key" }),
-        expect.objectContaining({ apiKey: "openai-compatible-key" }),
+        expect.objectContaining({ apiKey: 'deepseek-key' }),
+        expect.objectContaining({ apiKey: 'openai-compatible-key' }),
       ],
     });
   });
 
-  it("does not expose api keys in public settings", async () => {
+  it('does not expose api keys in public settings', async () => {
     const service = await createService();
     await service.updateSettings({
-      defaultModelId: "deepseek-1",
-      interfaceLanguage: "zh-CN",
+      defaultModelId: 'deepseek-1',
+      interfaceLanguage: 'zh-CN',
       modelConfigurations: [
         {
-          apiKey: "secret-key",
-          baseUrl: "",
-          id: "deepseek-1",
-          model: "deepseek-v4-flash",
-          provider: "deepseek",
+          apiKey: 'secret-key',
+          baseUrl: '',
+          id: 'deepseek-1',
+          model: 'deepseek-v4-flash',
+          provider: 'deepseek',
         },
       ],
     });
@@ -126,7 +122,7 @@ describe("SettingsService", () => {
       expect.objectContaining({
         modelConfigurations: [
           expect.objectContaining({
-            apiKey: "",
+            apiKey: '',
             hasApiKey: true,
           }),
         ],
@@ -134,32 +130,32 @@ describe("SettingsService", () => {
     );
   });
 
-  it("keeps existing api keys when update payload leaves apiKey empty", async () => {
+  it('keeps existing api keys when update payload leaves apiKey empty', async () => {
     const service = await createService();
     await service.updateSettings({
-      defaultModelId: "deepseek-1",
-      interfaceLanguage: "zh-CN",
+      defaultModelId: 'deepseek-1',
+      interfaceLanguage: 'zh-CN',
       modelConfigurations: [
         {
-          apiKey: "secret-key",
-          baseUrl: "",
-          id: "deepseek-1",
-          model: "deepseek-v4-flash",
-          provider: "deepseek",
+          apiKey: 'secret-key',
+          baseUrl: '',
+          id: 'deepseek-1',
+          model: 'deepseek-v4-flash',
+          provider: 'deepseek',
         },
       ],
     });
 
     await service.updateSettings({
-      defaultModelId: "deepseek-1",
-      interfaceLanguage: "zh-CN",
+      defaultModelId: 'deepseek-1',
+      interfaceLanguage: 'zh-CN',
       modelConfigurations: [
         {
-          apiKey: "",
-          baseUrl: "",
-          id: "deepseek-1",
-          model: "deepseek-v4-pro",
-          provider: "deepseek",
+          apiKey: '',
+          baseUrl: '',
+          id: 'deepseek-1',
+          model: 'deepseek-v4-pro',
+          provider: 'deepseek',
         },
       ],
     });
@@ -167,68 +163,68 @@ describe("SettingsService", () => {
     await expect(service.getSettings()).resolves.toMatchObject({
       modelConfigurations: [
         {
-          apiKey: "secret-key",
-          model: "deepseek-v4-pro",
+          apiKey: 'secret-key',
+          model: 'deepseek-v4-pro',
         },
       ],
     });
   });
 
-  it("requires baseUrl for OpenAI Compatible models", async () => {
+  it('requires baseUrl for OpenAI Compatible models', async () => {
     const service = await createService();
 
     await expect(
       service.updateSettings({
         defaultModelId: null,
-        interfaceLanguage: "zh-CN",
+        interfaceLanguage: 'zh-CN',
         modelConfigurations: [
           {
-            apiKey: "key",
-            baseUrl: "",
-            id: "compatible-1",
-            model: "gpt-4o",
-            provider: "openai-compatible",
+            apiKey: 'key',
+            baseUrl: '',
+            id: 'compatible-1',
+            model: 'gpt-4o',
+            provider: 'openai-compatible',
           },
         ],
       }),
-    ).rejects.toThrow("Base URL is required.");
+    ).rejects.toThrow('Base URL is required.');
   });
 
-  it("requires apiKey for new model configurations", async () => {
+  it('requires apiKey for new model configurations', async () => {
     const service = await createService();
 
     await expect(
       service.updateSettings({
         defaultModelId: null,
-        interfaceLanguage: "zh-CN",
+        interfaceLanguage: 'zh-CN',
         modelConfigurations: [
           {
-            apiKey: "",
-            baseUrl: "",
-            id: "deepseek-1",
-            model: "deepseek-v4-flash",
-            provider: "deepseek",
+            apiKey: '',
+            baseUrl: '',
+            id: 'deepseek-1',
+            model: 'deepseek-v4-flash',
+            provider: 'deepseek',
           },
         ],
       }),
-    ).rejects.toThrow("API Key is required.");
+    ).rejects.toThrow('API Key is required.');
   });
 
-  it("saves DeepSeek thinking mode provider options", async () => {
+  it('saves DeepSeek thinking mode provider options', async () => {
     const service = await createService();
 
     await service.updateSettings({
-      defaultModelId: "deepseek-1",
-      interfaceLanguage: "zh-CN",
+      defaultModelId: 'deepseek-1',
+      interfaceLanguage: 'zh-CN',
       modelConfigurations: [
         {
-          apiKey: "key",
-          baseUrl: "",
-          id: "deepseek-1",
-          model: "deepseek-v4-flash",
-          provider: "deepseek",
+          apiKey: 'key',
+          baseUrl: '',
+          id: 'deepseek-1',
+          model: 'deepseek-v4-flash',
+          provider: 'deepseek',
           providerOptions: {
-            deepseek: { thinkingMode: "max" },
+            deepseek: { thinkingMode: 'max' },
           },
         },
       ],
@@ -238,28 +234,28 @@ describe("SettingsService", () => {
       modelConfigurations: [
         {
           providerOptions: {
-            deepseek: { thinkingMode: "max" },
+            deepseek: { thinkingMode: 'max' },
           },
         },
       ],
     });
   });
 
-  it("drops DeepSeek provider options for OpenAI Compatible models", async () => {
+  it('drops DeepSeek provider options for OpenAI Compatible models', async () => {
     const service = await createService();
 
     const settings = await service.updateSettings({
-      defaultModelId: "compatible-1",
-      interfaceLanguage: "zh-CN",
+      defaultModelId: 'compatible-1',
+      interfaceLanguage: 'zh-CN',
       modelConfigurations: [
         {
-          apiKey: "key",
-          baseUrl: "https://api.example.com/v1",
-          id: "compatible-1",
-          model: "gpt-4o",
-          provider: "openai-compatible",
+          apiKey: 'key',
+          baseUrl: 'https://api.example.com/v1',
+          id: 'compatible-1',
+          model: 'gpt-4o',
+          provider: 'openai-compatible',
           providerOptions: {
-            deepseek: { thinkingMode: "max" },
+            deepseek: { thinkingMode: 'max' },
           },
         },
       ],
@@ -268,52 +264,52 @@ describe("SettingsService", () => {
     expect(settings.modelConfigurations[0]?.providerOptions).toBeUndefined();
   });
 
-  it("normalizes DeepSeek context size and legacy model ids", async () => {
+  it('normalizes DeepSeek context size and legacy model ids', async () => {
     const service = await createService();
 
     const settings = await service.updateSettings({
-      defaultModelId: "deepseek-1",
-      interfaceLanguage: "zh-CN",
+      defaultModelId: 'deepseek-1',
+      interfaceLanguage: 'zh-CN',
       modelConfigurations: [
         {
-          apiKey: "key",
-          baseUrl: "",
+          apiKey: 'key',
+          baseUrl: '',
           contextSizeK: 128,
-          id: "deepseek-1",
-          model: "deepseek-chat",
-          provider: "deepseek",
+          id: 'deepseek-1',
+          model: 'deepseek-chat',
+          provider: 'deepseek',
         },
       ],
     });
 
     expect(settings.modelConfigurations[0]).toMatchObject({
       contextSizeK: 1000,
-      model: "deepseek-v4-flash",
+      model: 'deepseek-v4-flash',
     });
     await expect(service.getPublicSettings()).resolves.toMatchObject({
       modelConfigurations: [
         expect.objectContaining({
           contextSizeK: 1000,
-          model: "deepseek-v4-flash",
+          model: 'deepseek-v4-flash',
         }),
       ],
     });
   });
 
-  it("defaults OpenAI Compatible context size to 200K", async () => {
+  it('defaults OpenAI Compatible context size to 200K', async () => {
     const service = await createService();
 
     const settings = await service.updateSettings({
-      defaultModelId: "compatible-1",
-      interfaceLanguage: "zh-CN",
+      defaultModelId: 'compatible-1',
+      interfaceLanguage: 'zh-CN',
       modelConfigurations: [
         {
-          apiKey: "key",
-          baseUrl: "https://api.example.com/v1",
-          contextSizeK: "",
-          id: "compatible-1",
-          model: "gpt-4o",
-          provider: "openai-compatible",
+          apiKey: 'key',
+          baseUrl: 'https://api.example.com/v1',
+          contextSizeK: '',
+          id: 'compatible-1',
+          model: 'gpt-4o',
+          provider: 'openai-compatible',
         },
       ],
     });
@@ -321,20 +317,20 @@ describe("SettingsService", () => {
     expect(settings.modelConfigurations[0]?.contextSizeK).toBe(200);
   });
 
-  it("saves custom OpenAI Compatible context size", async () => {
+  it('saves custom OpenAI Compatible context size', async () => {
     const service = await createService();
 
     const settings = await service.updateSettings({
-      defaultModelId: "compatible-1",
-      interfaceLanguage: "zh-CN",
+      defaultModelId: 'compatible-1',
+      interfaceLanguage: 'zh-CN',
       modelConfigurations: [
         {
-          apiKey: "key",
-          baseUrl: "https://api.example.com/v1",
-          contextSizeK: "512",
-          id: "compatible-1",
-          model: "gpt-4o",
-          provider: "openai-compatible",
+          apiKey: 'key',
+          baseUrl: 'https://api.example.com/v1',
+          contextSizeK: '512',
+          id: 'compatible-1',
+          model: 'gpt-4o',
+          provider: 'openai-compatible',
         },
       ],
     });
@@ -345,127 +341,127 @@ describe("SettingsService", () => {
     });
   });
 
-  it("saves Anthropic models without requiring baseUrl", async () => {
+  it('saves Anthropic models without requiring baseUrl', async () => {
     const service = await createService();
 
     const settings = await service.updateSettings({
-      defaultModelId: "anthropic-1",
-      interfaceLanguage: "zh-CN",
+      defaultModelId: 'anthropic-1',
+      interfaceLanguage: 'zh-CN',
       modelConfigurations: [
         {
-          apiKey: "key",
-          baseUrl: "",
-          contextSizeK: "",
-          id: "anthropic-1",
-          model: "claude-sonnet-4-5",
-          provider: "anthropic",
+          apiKey: 'key',
+          baseUrl: '',
+          contextSizeK: '',
+          id: 'anthropic-1',
+          model: 'claude-sonnet-4-5',
+          provider: 'anthropic',
           providerOptions: {
-            anthropic: { effort: "max" },
+            anthropic: { effort: 'max' },
           },
         },
       ],
     });
 
     expect(settings.modelConfigurations[0]).toMatchObject({
-      baseUrl: "",
+      baseUrl: '',
       contextSizeK: 200,
-      model: "claude-sonnet-4-5",
-      provider: "anthropic",
+      model: 'claude-sonnet-4-5',
+      provider: 'anthropic',
     });
     expect(settings.modelConfigurations[0]?.providerOptions).toBeUndefined();
   });
 
-  it("saves custom Anthropic context size", async () => {
+  it('saves custom Anthropic context size', async () => {
     const service = await createService();
 
     const settings = await service.updateSettings({
-      defaultModelId: "anthropic-1",
-      interfaceLanguage: "zh-CN",
+      defaultModelId: 'anthropic-1',
+      interfaceLanguage: 'zh-CN',
       modelConfigurations: [
         {
-          apiKey: "key",
-          baseUrl: "https://proxy.example.com/v1",
-          contextSizeK: "512",
-          id: "anthropic-1",
-          model: "claude-sonnet-4-5",
-          provider: "Anthropic",
+          apiKey: 'key',
+          baseUrl: 'https://proxy.example.com/v1',
+          contextSizeK: '512',
+          id: 'anthropic-1',
+          model: 'claude-sonnet-4-5',
+          provider: 'Anthropic',
         },
       ],
     });
 
     expect(settings.modelConfigurations[0]).toMatchObject({
-      baseUrl: "https://proxy.example.com/v1",
+      baseUrl: 'https://proxy.example.com/v1',
       contextSizeK: 512,
-      provider: "anthropic",
+      provider: 'anthropic',
     });
   });
 
-  it("rejects invalid OpenAI Compatible context size", async () => {
+  it('rejects invalid OpenAI Compatible context size', async () => {
     const service = await createService();
 
     await expect(
       service.updateSettings({
-        defaultModelId: "compatible-1",
-        interfaceLanguage: "zh-CN",
+        defaultModelId: 'compatible-1',
+        interfaceLanguage: 'zh-CN',
         modelConfigurations: [
           {
-            apiKey: "key",
-            baseUrl: "https://api.example.com/v1",
+            apiKey: 'key',
+            baseUrl: 'https://api.example.com/v1',
             contextSizeK: 0,
-            id: "compatible-1",
-            model: "gpt-4o",
-            provider: "openai-compatible",
+            id: 'compatible-1',
+            model: 'gpt-4o',
+            provider: 'openai-compatible',
           },
         ],
       }),
-    ).rejects.toThrow("Context size must be a positive number.");
+    ).rejects.toThrow('Context size must be a positive number.');
   });
 
-  it("rejects invalid DeepSeek thinking mode provider options", async () => {
+  it('rejects invalid DeepSeek thinking mode provider options', async () => {
     const service = await createService();
 
     await expect(
       service.updateSettings({
         defaultModelId: null,
-        interfaceLanguage: "zh-CN",
+        interfaceLanguage: 'zh-CN',
         modelConfigurations: [
           {
-            apiKey: "key",
-            baseUrl: "",
-            id: "deepseek-1",
-            model: "deepseek-chat",
-            provider: "deepseek",
+            apiKey: 'key',
+            baseUrl: '',
+            id: 'deepseek-1',
+            model: 'deepseek-chat',
+            provider: 'deepseek',
             providerOptions: {
-              deepseek: { thinkingMode: "medium" },
+              deepseek: { thinkingMode: 'medium' },
             },
           },
         ],
       }),
-    ).rejects.toThrow("Invalid DeepSeek thinking mode.");
+    ).rejects.toThrow('Invalid DeepSeek thinking mode.');
   });
 
-  it("saves resource settings and exposes them publicly", async () => {
+  it('saves resource settings and exposes them publicly', async () => {
     const service = await createService();
 
     await service.updateSettings({
       defaultModelId: null,
-      interfaceLanguage: "zh-CN",
+      interfaceLanguage: 'zh-CN',
       modelConfigurations: [],
       resources: {
         fontLibraries: [
           {
-            cdn: "",
-            id: "font-custom",
+            cdn: '',
+            id: 'font-custom',
             isDefault: true,
-            name: "Custom Font",
+            name: 'Custom Font',
           },
         ],
         iconLibraries: [
           {
-            cdn: "https://cdn.example.com/icons.js",
-            id: "icon-custom",
+            cdn: 'https://cdn.example.com/icons.js',
+            id: 'icon-custom',
             isDefault: true,
-            name: "Custom Icons",
+            name: 'Custom Icons',
           },
         ],
       },
@@ -475,48 +471,48 @@ describe("SettingsService", () => {
       resources: {
         fontLibraries: [
           {
-            cdn: "",
-            id: "font-custom",
+            cdn: '',
+            id: 'font-custom',
             isDefault: true,
-            name: "Custom Font",
+            name: 'Custom Font',
           },
         ],
         iconLibraries: [
           {
-            cdn: "https://cdn.example.com/icons.js",
-            id: "icon-custom",
+            cdn: 'https://cdn.example.com/icons.js',
+            id: 'icon-custom',
             isDefault: true,
-            name: "Custom Icons",
+            name: 'Custom Icons',
           },
         ],
       },
     });
     await expect(service.getPublicSettings()).resolves.toMatchObject({
       resources: {
-        fontLibraries: [expect.objectContaining({ name: "Custom Font" })],
-        iconLibraries: [expect.objectContaining({ name: "Custom Icons" })],
+        fontLibraries: [expect.objectContaining({ name: 'Custom Font' })],
+        iconLibraries: [expect.objectContaining({ name: 'Custom Icons' })],
       },
     });
   });
 
-  it("ignores legacy Tailwind resource settings", async () => {
+  it('ignores legacy Tailwind resource settings', async () => {
     const service = await createService();
 
     const settings = await service.updateSettings({
       defaultModelId: null,
-      interfaceLanguage: "zh-CN",
+      interfaceLanguage: 'zh-CN',
       modelConfigurations: [],
       resources: {
         fontLibraries: [],
         iconLibraries: [],
         tailwind: {
-          cdnUrl: "https://cdn.example.com/tailwind.js",
+          cdnUrl: 'https://cdn.example.com/tailwind.js',
           enabled: true,
         },
       },
     });
 
-    expect(settings.resources).not.toHaveProperty("tailwind");
+    expect(settings.resources).not.toHaveProperty('tailwind');
     await expect(service.getPublicSettings()).resolves.toMatchObject({
       resources: expect.not.objectContaining({
         tailwind: expect.anything(),
@@ -524,65 +520,69 @@ describe("SettingsService", () => {
     });
   });
 
-  it("keeps only the first default resource and falls back to the first item", async () => {
+  it('keeps only the first default resource and falls back to the first item', async () => {
     const service = await createService();
     const settings = await service.updateSettings({
       defaultModelId: null,
-      interfaceLanguage: "zh-CN",
+      interfaceLanguage: 'zh-CN',
       modelConfigurations: [],
       resources: {
         fontLibraries: [
           {
-            cdn: "https://cdn.example.com/a.css",
-            id: "font-a",
+            cdn: 'https://cdn.example.com/a.css',
+            id: 'font-a',
             isDefault: true,
-            name: "Font A",
+            name: 'Font A',
           },
           {
-            cdn: "https://cdn.example.com/b.css",
-            id: "font-b",
+            cdn: 'https://cdn.example.com/b.css',
+            id: 'font-b',
             isDefault: true,
-            name: "Font B",
+            name: 'Font B',
           },
         ],
         iconLibraries: [
           {
-            cdn: "https://cdn.example.com/icons-a.js",
-            id: "icon-a",
+            cdn: 'https://cdn.example.com/icons-a.js',
+            id: 'icon-a',
             isDefault: false,
-            name: "Icon A",
+            name: 'Icon A',
           },
           {
-            cdn: "https://cdn.example.com/icons-b.js",
-            id: "icon-b",
+            cdn: 'https://cdn.example.com/icons-b.js',
+            id: 'icon-b',
             isDefault: false,
-            name: "Icon B",
+            name: 'Icon B',
           },
         ],
       },
     });
 
-    expect(settings.resources.fontLibraries.map((library) => library.isDefault))
-      .toEqual([true, false]);
-    expect(settings.resources.iconLibraries.map((library) => library.isDefault))
-      .toEqual([true, false]);
-    expect(settings.resources).not.toHaveProperty("tailwind");
+    expect(settings.resources.fontLibraries.map((library) => library.isDefault)).toEqual([
+      true,
+      false,
+    ]);
+    expect(settings.resources.iconLibraries.map((library) => library.isDefault)).toEqual([
+      true,
+      false,
+    ]);
+    expect(settings.resources).not.toHaveProperty('tailwind');
   });
 
-  it("rejects input resource libraries without names", async () => {
+  it('rejects input resource libraries without names', async () => {
     const service = await createService();
 
     await expect(
       service.updateSettings({
         defaultModelId: null,
-        interfaceLanguage: "zh-CN",
+        interfaceLanguage: 'zh-CN',
         modelConfigurations: [],
         resources: {
-          fontLibraries: [{ cdn: "https://cdn.example.com/font.css", name: " " }],
+          fontLibraries: [{ cdn: 'https://cdn.example.com/font.css', name: ' ' }],
           iconLibraries: [],
         },
       }),
-    ).rejects.toThrow("Resource name is required.");
+    ).rejects.toThrow('Resource name is required.');
   });
 });
 
@@ -593,9 +593,9 @@ async function createService() {
 }
 
 async function createServiceWithPath() {
-  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "owndesign-settings-"));
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'owndesign-settings-'));
   tempRoots.push(tempRoot);
-  const settingsPath = path.join(tempRoot, ".owndesign", "settings.json");
+  const settingsPath = path.join(tempRoot, '.owndesign', 'settings.json');
 
   return {
     service: new SettingsService({ settingsPath }),

@@ -1,13 +1,13 @@
-import { assertCopyFileAllowed } from "@owndesign/core/agent/page-edit-mode";
-import { z } from "zod";
+import { assertCopyFileAllowed } from '@owndesign/core/agent/page-edit-mode';
+import { z } from 'zod';
 
 import {
   normalizeToolPath,
   readProjectWorkspaceFileIfExists,
   writeProjectWorkspaceFileWithCdnGuard,
-} from "./cdn-guard";
-import type { WorkspaceToolDefinition } from "./core";
-import type { CopyFileInput } from "./types";
+} from './cdn-guard';
+import type { WorkspaceToolDefinition } from './core';
+import type { CopyFileInput } from './types';
 
 export function createCopyFileToolDefinition(): WorkspaceToolDefinition<
   CopyFileInput,
@@ -15,14 +15,18 @@ export function createCopyFileToolDefinition(): WorkspaceToolDefinition<
 > {
   return {
     description:
-      "Copy one UTF-8 text file inside the current Project Workspace to a new path. Never overwrites existing files.",
-    inputSchema: z.object({
-      sourcePath: z.string().describe("Relative source file path inside the Project Workspace."),
-      targetPath: z
-        .string()
-        .describe("Relative destination file path inside the Project Workspace. Must not already exist."),
-    }).strict(),
-    name: "copyFile",
+      'Copy one UTF-8 text file inside the current Project Workspace to a new path. Never overwrites existing files.',
+    inputSchema: z
+      .object({
+        sourcePath: z.string().describe('Relative source file path inside the Project Workspace.'),
+        targetPath: z
+          .string()
+          .describe(
+            'Relative destination file path inside the Project Workspace. Must not already exist.',
+          ),
+      })
+      .strict(),
+    name: 'copyFile',
     parallelSafe: false,
     execute: async (
       { sourcePath, targetPath },
@@ -31,11 +35,7 @@ export function createCopyFileToolDefinition(): WorkspaceToolDefinition<
       const normalizedSourcePath = normalizeToolPath(sourcePath);
       const normalizedTargetPath = normalizeToolPath(targetPath);
 
-      assertCopyFileAllowed(
-        pageEditModePolicy,
-        normalizedSourcePath,
-        normalizedTargetPath,
-      );
+      assertCopyFileAllowed(pageEditModePolicy, normalizedSourcePath, normalizedTargetPath);
 
       const existingTarget = await readProjectWorkspaceFileIfExists(
         workspaceStore,
@@ -44,9 +44,7 @@ export function createCopyFileToolDefinition(): WorkspaceToolDefinition<
       );
 
       if (existingTarget !== undefined) {
-        throw new Error(
-          `Project Workspace file already exists: ${normalizedTargetPath}`,
-        );
+        throw new Error(`Project Workspace file already exists: ${normalizedTargetPath}`);
       }
 
       const sourceContent = await workspaceStore.readProjectWorkspaceFile(

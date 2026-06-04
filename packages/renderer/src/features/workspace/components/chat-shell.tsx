@@ -1,23 +1,23 @@
-"use client";
+'use client';
 
-import type { CSSProperties, ReactNode } from "react";
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { useAppNavigate } from "@/lib/router";
+import type { CSSProperties, ReactNode } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useAppNavigate } from '@/lib/router';
 import {
   DownloadIcon,
   ExternalLinkIcon,
   PanelLeftCloseIcon,
   PanelLeftOpenIcon,
   RefreshCwIcon,
-} from "lucide-react";
+} from 'lucide-react';
 
-import { AppBrand } from "@/components/app-brand";
+import { AppBrand } from '@/components/app-brand';
 import {
   Conversation,
   ConversationContent,
   ConversationEmptyState,
-} from "@/components/ai-elements/conversation";
-import { Message, MessageContent } from "@/components/ai-elements/message";
+} from '@/components/ai-elements/conversation';
+import { Message, MessageContent } from '@/components/ai-elements/message';
 import {
   PromptInput,
   PromptInputBody,
@@ -25,17 +25,17 @@ import {
   PromptInputSubmit,
   PromptInputTextarea,
   PromptInputTools,
-} from "@/components/ai-elements/prompt-input";
-import { Button } from "@/components/ui/button";
+} from '@/components/ai-elements/prompt-input';
+import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { SettingsControl } from "@/features/settings/components/settings-control";
-import { useI18n } from "@/features/i18n/context";
-import { Separator } from "@/components/ui/separator";
+} from '@/components/ui/dropdown-menu';
+import { SettingsControl } from '@/features/settings/components/settings-control';
+import { useI18n } from '@/features/i18n/context';
+import { Separator } from '@/components/ui/separator';
 import {
   Select,
   SelectContent,
@@ -43,26 +43,25 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { FrontendCapabilityBridge } from "@/features/preview/components/frontend-capability-bridge";
+} from '@/components/ui/select';
+import { FrontendCapabilityBridge } from '@/features/preview/components/frontend-capability-bridge';
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarInset,
   SidebarProvider,
-} from "@/components/ui/sidebar";
-import { cn } from "@/lib/utils";
-import { useApiClient } from "@/api/context";
+} from '@/components/ui/sidebar';
+import { cn } from '@/lib/utils';
+import { useApiClient } from '@/api/context';
 
-const CONVERSATION_PANE_STORAGE_KEY =
-  "owndesign.app.conversation-pane-collapsed";
-const CONVERSATION_PANE_EVENT = "owndesign:conversation-pane";
-const PREVIEW_REFRESH_EVENT = "owndesign:preview-refresh";
-const PREVIEW_HREF_EVENT = "owndesign:preview-href-updated";
-const PREVIEW_FILES_EVENT = "owndesign:preview-files-updated";
+const CONVERSATION_PANE_STORAGE_KEY = 'owndesign.app.conversation-pane-collapsed';
+const CONVERSATION_PANE_EVENT = 'owndesign:conversation-pane';
+const PREVIEW_REFRESH_EVENT = 'owndesign:preview-refresh';
+const PREVIEW_HREF_EVENT = 'owndesign:preview-href-updated';
+const PREVIEW_FILES_EVENT = 'owndesign:preview-files-updated';
 
-type PreviewStatus = "ready" | "loading" | "error";
+type PreviewStatus = 'ready' | 'loading' | 'error';
 
 export type ChatShellSlots = {
   topBarDragRegion?: ReactNode;
@@ -93,7 +92,7 @@ export function ChatShell({
   previewFilename,
   previewHref,
   previewProjectId,
-  previewStatus = "ready",
+  previewStatus = 'ready',
   shellSlots,
 }: ChatShellProps) {
   const api = useApiClient();
@@ -112,11 +111,10 @@ export function ChatShell({
   const statusClassName = useMemo(
     () =>
       cn(
-        "size-1.5 rounded-full",
-        previewStatus === "ready" && "bg-[var(--status-ready)]",
-        previewStatus === "loading" &&
-          "animate-pulse bg-[var(--status-warning)]",
-        previewStatus === "error" && "bg-destructive",
+        'size-1.5 rounded-full',
+        previewStatus === 'ready' && 'bg-[var(--status-ready)]',
+        previewStatus === 'loading' && 'animate-pulse bg-[var(--status-warning)]',
+        previewStatus === 'error' && 'bg-destructive',
       ),
     [previewStatus],
   );
@@ -127,9 +125,7 @@ export function ChatShell({
         return;
       }
 
-      setSessionPreviewHref(
-        typeof event.detail?.href === "string" ? event.detail.href : undefined,
-      );
+      setSessionPreviewHref(typeof event.detail?.href === 'string' ? event.detail.href : undefined);
     };
 
     window.addEventListener(PREVIEW_HREF_EVENT, handlePreviewHrefUpdated);
@@ -146,14 +142,10 @@ export function ChatShell({
       }
 
       const files = Array.isArray(event.detail?.files)
-        ? event.detail.files.filter((file: unknown): file is string =>
-            typeof file === "string",
-          )
+        ? event.detail.files.filter((file: unknown): file is string => typeof file === 'string')
         : [];
       const activePath =
-        typeof event.detail?.activePath === "string"
-          ? event.detail.activePath
-          : undefined;
+        typeof event.detail?.activePath === 'string' ? event.detail.activePath : undefined;
 
       setPreviewFiles(files);
       setActivePreviewPath(activePath);
@@ -172,7 +164,7 @@ export function ChatShell({
     }
 
     const params = new URLSearchParams(window.location.search);
-    params.set("previewPath", nextPath);
+    params.set('previewPath', nextPath);
     navigate(`${window.location.pathname}?${params.toString()}`, {
       preventScrollReset: true,
       replace: true,
@@ -185,31 +177,26 @@ export function ChatShell({
       onChange={selectPreviewPath}
     />
   );
-  const currentHtmlDownloadUrl = previewProjectId && activePreviewPath
-    ? api.buildUrl(
-        buildProjectDownloadPath(
-          previewProjectId,
-          "current-html",
-          activePreviewPath,
-        ),
-      )
-    : undefined;
+  const currentHtmlDownloadUrl =
+    previewProjectId && activePreviewPath
+      ? api.buildUrl(buildProjectDownloadPath(previewProjectId, 'current-html', activePreviewPath))
+      : undefined;
   const workspaceZipDownloadUrl = previewProjectId
-    ? api.buildUrl(buildProjectDownloadPath(previewProjectId, "workspace-zip"))
+    ? api.buildUrl(buildProjectDownloadPath(previewProjectId, 'workspace-zip'))
     : undefined;
   const statusLabels: Record<PreviewStatus, string> = {
-    error: t("shell.error"),
-    loading: t("app.loading"),
-    ready: t("shell.ready"),
+    error: t('shell.error'),
+    loading: t('app.loading'),
+    ready: t('shell.ready'),
   };
   const demoMessages = [
     {
-      content: t("shell.demoUser"),
-      role: "user" as const,
+      content: t('shell.demoUser'),
+      role: 'user' as const,
     },
     {
-      content: t("shell.demoAssistant"),
-      role: "assistant" as const,
+      content: t('shell.demoAssistant'),
+      role: 'assistant' as const,
     },
   ];
 
@@ -220,8 +207,8 @@ export function ChatShell({
       onOpenChange={(open) => writeConversationPaneState(!open)}
       style={
         {
-          "--sidebar-width": "400px",
-          "--sidebar-width-icon": "0px",
+          '--sidebar-width': '400px',
+          '--sidebar-width-icon': '0px',
         } as CSSProperties
       }
     >
@@ -229,8 +216,8 @@ export function ChatShell({
       <div className="flex h-screen w-full flex-col overflow-hidden bg-background">
         <header
           className={cn(
-            "flex h-11 shrink-0 items-center gap-2 border-b border-border bg-card py-0 pl-3",
-            shellSlots?.topBarTrailing ? "pr-0" : "pr-3",
+            'flex h-11 shrink-0 items-center gap-2 border-b border-border bg-card py-0 pl-3',
+            shellSlots?.topBarTrailing ? 'pr-0' : 'pr-3',
           )}
         >
           <AppBrand />
@@ -247,7 +234,7 @@ export function ChatShell({
 
         <div className="flex min-h-0 flex-1 overflow-hidden">
           <Sidebar
-            aria-label={t("shell.conversationWorkflow")}
+            aria-label={t('shell.conversationWorkflow')}
             className="top-11 h-[calc(100vh-2.75rem)] border-r border-border bg-card"
             collapsible="offcanvas"
             role="region"
@@ -261,10 +248,7 @@ export function ChatShell({
                         <ConversationEmptyState />
                       ) : (
                         demoMessages.map((message, index) => (
-                          <Message
-                            from={message.role}
-                            key={`${message.role}-${index}`}
-                          >
+                          <Message from={message.role} key={`${message.role}-${index}`}>
                             <MessageContent>{message.content}</MessageContent>
                           </Message>
                         ))
@@ -278,7 +262,7 @@ export function ChatShell({
                 {composer ?? (
                   <PromptInput onSubmit={() => {}}>
                     <PromptInputBody>
-                      <PromptInputTextarea placeholder={t("conversation.placeholder")} />
+                      <PromptInputTextarea placeholder={t('conversation.placeholder')} />
                     </PromptInputBody>
                     <PromptInputFooter>
                       <PromptInputTools />
@@ -291,7 +275,7 @@ export function ChatShell({
           </Sidebar>
 
           <SidebarInset
-            aria-label={t("preview.panel")}
+            aria-label={t('preview.panel')}
             className="min-w-0 bg-background"
             role="region"
           >
@@ -300,21 +284,15 @@ export function ChatShell({
                 <Button
                   aria-label={
                     isConversationCollapsed
-                      ? t("shell.expandConversation")
-                      : t("shell.collapseConversation")
+                      ? t('shell.expandConversation')
+                      : t('shell.collapseConversation')
                   }
-                  onClick={() =>
-                    writeConversationPaneState(!isConversationCollapsed)
-                  }
+                  onClick={() => writeConversationPaneState(!isConversationCollapsed)}
                   size="icon-sm"
                   type="button"
                   variant="ghost"
                 >
-                  {isConversationCollapsed ? (
-                    <PanelLeftOpenIcon />
-                  ) : (
-                    <PanelLeftCloseIcon />
-                  )}
+                  {isConversationCollapsed ? <PanelLeftOpenIcon /> : <PanelLeftCloseIcon />}
                 </Button>
 
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -332,7 +310,7 @@ export function ChatShell({
                           disabled={!previewProjectId}
                           render={
                             <Button
-                              aria-label={t("download.label")}
+                              aria-label={t('download.label')}
                               size="icon-sm"
                               type="button"
                               variant="ghost"
@@ -350,7 +328,7 @@ export function ChatShell({
                               }
                             }}
                           >
-                            {t("download.currentHtml")}
+                            {t('download.currentHtml')}
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             disabled={!workspaceZipDownloadUrl}
@@ -360,12 +338,12 @@ export function ChatShell({
                               }
                             }}
                           >
-                            {t("download.zip")}
+                            {t('download.zip')}
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                       <Button
-                        aria-label={t("preview.refresh")}
+                        aria-label={t('preview.refresh')}
                         onClick={() => {
                           window.dispatchEvent(new Event(PREVIEW_REFRESH_EVENT));
                         }}
@@ -376,15 +354,11 @@ export function ChatShell({
                         <RefreshCwIcon />
                       </Button>
                       <Button
-                        aria-label={t("preview.openExternal")}
+                        aria-label={t('preview.openExternal')}
                         disabled={!effectivePreviewHref}
                         onClick={() => {
                           if (effectivePreviewHref) {
-                            window.open(
-                              effectivePreviewHref,
-                              "_blank",
-                              "noopener",
-                            );
+                            window.open(effectivePreviewHref, '_blank', 'noopener');
                           }
                         }}
                         size="icon-sm"
@@ -402,8 +376,8 @@ export function ChatShell({
                 {previewBody ?? (
                   <div className="flex size-full items-center justify-center p-10">
                     <ConversationEmptyState
-                      description={t("preview.emptyDescription")}
-                      title={t("preview.emptyTitle")}
+                      description={t('preview.emptyDescription')}
+                      title={t('preview.emptyTitle')}
                     />
                   </div>
                 )}
@@ -417,7 +391,7 @@ export function ChatShell({
 }
 
 function subscribeToConversationPaneState(onStoreChange: () => void) {
-  if (typeof window === "undefined") {
+  if (typeof window === 'undefined') {
     return () => {};
   }
 
@@ -427,55 +401,50 @@ function subscribeToConversationPaneState(onStoreChange: () => void) {
     }
   };
 
-  window.addEventListener("storage", handleStorage);
+  window.addEventListener('storage', handleStorage);
   window.addEventListener(CONVERSATION_PANE_EVENT, onStoreChange);
 
   return () => {
-    window.removeEventListener("storage", handleStorage);
+    window.removeEventListener('storage', handleStorage);
     window.removeEventListener(CONVERSATION_PANE_EVENT, onStoreChange);
   };
 }
 
 function readConversationPaneState() {
-  if (typeof window === "undefined") {
+  if (typeof window === 'undefined') {
     return false;
   }
 
-  return (
-    window.localStorage.getItem(CONVERSATION_PANE_STORAGE_KEY) === "true"
-  );
+  return window.localStorage.getItem(CONVERSATION_PANE_STORAGE_KEY) === 'true';
 }
 
 function writeConversationPaneState(value: boolean) {
-  if (typeof window === "undefined") {
+  if (typeof window === 'undefined') {
     return;
   }
 
-  window.localStorage.setItem(
-    CONVERSATION_PANE_STORAGE_KEY,
-    String(value),
-  );
+  window.localStorage.setItem(CONVERSATION_PANE_STORAGE_KEY, String(value));
   window.dispatchEvent(new Event(CONVERSATION_PANE_EVENT));
 }
 
 function buildProjectDownloadPath(
   projectId: string,
-  kind: "current-html" | "workspace-zip",
+  kind: 'current-html' | 'workspace-zip',
   previewPath?: string,
 ) {
   const params = new URLSearchParams({ kind });
 
-  if (kind === "current-html" && previewPath) {
-    params.set("previewPath", previewPath);
+  if (kind === 'current-html' && previewPath) {
+    params.set('previewPath', previewPath);
   }
 
   return `/api/projects/${encodeURIComponent(projectId)}/download?${params.toString()}`;
 }
 
 function triggerBrowserDownload(url: string) {
-  const link = document.createElement("a");
+  const link = document.createElement('a');
   link.href = url;
-  link.download = "";
+  link.download = '';
   document.body.append(link);
   link.click();
   link.remove();
@@ -493,11 +462,7 @@ function PreviewFileSelect({
   const { t } = useI18n();
 
   if (files.length === 0) {
-    return (
-      <span className="font-mono text-xs text-muted-foreground">
-        {t("preview.notFound")}
-      </span>
-    );
+    return <span className="font-mono text-xs text-muted-foreground">{t('preview.notFound')}</span>;
   }
 
   return (
@@ -510,16 +475,13 @@ function PreviewFileSelect({
       value={activePath ?? files[0]}
     >
       <SelectTrigger
-        aria-label={t("preview.switchHtml")}
+        aria-label={t('preview.switchHtml')}
         className="h-7 max-w-full border-0 bg-transparent px-1.5 font-mono text-xs text-muted-foreground shadow-none"
         size="sm"
       >
         <SelectValue />
       </SelectTrigger>
-      <SelectContent
-        align="start"
-        className="max-w-[min(420px,calc(100vw-2rem))]"
-      >
+      <SelectContent align="start" className="max-w-[min(420px,calc(100vw-2rem))]">
         <SelectGroup>
           {files.map((file) => (
             <SelectItem key={file} value={file}>

@@ -1,55 +1,42 @@
-import path from "node:path";
+import path from 'node:path';
 
-import { isHtmlPath, normalizeToolPath } from "./tools/cdn-guard";
-import type { WorkspaceStore } from "@owndesign/core/workspace-store";
+import { isHtmlPath, normalizeToolPath } from './tools/cdn-guard';
+import type { WorkspaceStore } from '@owndesign/core/workspace-store';
 
-export const PAGE_EDIT_MODES = [
-  "auto",
-  "new_page",
-  "direct_edit",
-  "duplicate_edit",
-] as const;
+export const PAGE_EDIT_MODES = ['auto', 'new_page', 'direct_edit', 'duplicate_edit'] as const;
 
 export type PageEditMode = (typeof PAGE_EDIT_MODES)[number];
 
 export type PageEditModePolicy =
-  | { mode: "auto" }
+  | { mode: 'auto' }
   | {
       createdHtmlPath?: string;
       currentPreviewPath?: string;
-      mode: "new_page";
+      mode: 'new_page';
     }
   | {
-      mode: "direct_edit";
+      mode: 'direct_edit';
       targetPath: string;
     }
   | {
-      mode: "duplicate_edit";
+      mode: 'duplicate_edit';
       sourcePath: string;
       targetPath: string;
     };
 
-export type HtmlPathOperation =
-  | "copy"
-  | "create"
-  | "delete"
-  | "mutate"
-  | "preview"
-  | "read";
+export type HtmlPathOperation = 'copy' | 'create' | 'delete' | 'mutate' | 'preview' | 'read';
 
 export function parsePageEditMode(value: unknown): PageEditMode | undefined {
-  if (value === undefined || value === null || value === "") {
-    return "auto";
+  if (value === undefined || value === null || value === '') {
+    return 'auto';
   }
 
-  return PAGE_EDIT_MODES.includes(value as PageEditMode)
-    ? (value as PageEditMode)
-    : undefined;
+  return PAGE_EDIT_MODES.includes(value as PageEditMode) ? (value as PageEditMode) : undefined;
 }
 
 export async function buildPageEditModePolicy({
   currentPreviewPath,
-  mode = "auto",
+  mode = 'auto',
   projectId,
   workspaceStore,
 }: {
@@ -58,11 +45,11 @@ export async function buildPageEditModePolicy({
   projectId: string;
   workspaceStore: WorkspaceStore;
 }): Promise<PageEditModePolicy> {
-  if (mode === "auto") {
+  if (mode === 'auto') {
     return { mode };
   }
 
-  if (mode === "new_page") {
+  if (mode === 'new_page') {
     return {
       currentPreviewPath: currentPreviewPath
         ? normalizeRequiredHtmlPath(currentPreviewPath, mode)
@@ -74,18 +61,14 @@ export async function buildPageEditModePolicy({
   const sourcePath = normalizeRequiredHtmlPath(currentPreviewPath, mode);
   await readRequiredHtmlFile(workspaceStore, projectId, sourcePath, mode);
 
-  if (mode === "direct_edit") {
+  if (mode === 'direct_edit') {
     return {
       mode,
       targetPath: sourcePath,
     };
   }
 
-  const targetPath = await resolveUniqueCopyPath(
-    workspaceStore,
-    projectId,
-    sourcePath,
-  );
+  const targetPath = await resolveUniqueCopyPath(workspaceStore, projectId, sourcePath);
 
   return {
     mode,
@@ -98,14 +81,11 @@ export function assertCreateHtmlAllowed(
   policy: PageEditModePolicy | undefined,
   relativePath: string,
 ) {
-  assertHtmlPathOperationAllowed(policy, "create", relativePath);
+  assertHtmlPathOperationAllowed(policy, 'create', relativePath);
 }
 
-export function markCreatedHtmlPath(
-  policy: PageEditModePolicy | undefined,
-  relativePath: string,
-) {
-  if (policy?.mode === "new_page") {
+export function markCreatedHtmlPath(policy: PageEditModePolicy | undefined, relativePath: string) {
+  if (policy?.mode === 'new_page') {
     policy.createdHtmlPath = normalizeToolPath(relativePath);
   }
 }
@@ -115,17 +95,14 @@ export function assertCopyFileAllowed(
   sourcePath: string,
   targetPath: string,
 ) {
-  if (!policy || policy.mode !== "duplicate_edit") {
+  if (!policy || policy.mode !== 'duplicate_edit') {
     return;
   }
 
   const normalizedSourcePath = normalizeToolPath(sourcePath);
   const normalizedTargetPath = normalizeToolPath(targetPath);
 
-  if (
-    normalizedSourcePath !== policy.sourcePath ||
-    normalizedTargetPath !== policy.targetPath
-  ) {
+  if (normalizedSourcePath !== policy.sourcePath || normalizedTargetPath !== policy.targetPath) {
     throw new Error(
       `Page edit mode "duplicate_edit" can only copy ${policy.sourcePath} to ${policy.targetPath}; attempted ${normalizedSourcePath} to ${normalizedTargetPath}.`,
     );
@@ -136,7 +113,7 @@ export function assertHtmlMutationAllowed(
   policy: PageEditModePolicy | undefined,
   relativePath: string,
 ) {
-  assertHtmlPathOperationAllowed(policy, "mutate", relativePath);
+  assertHtmlPathOperationAllowed(policy, 'mutate', relativePath);
 }
 
 export function resolveHtmlOperationPathForPageEditModePolicy(
@@ -144,7 +121,7 @@ export function resolveHtmlOperationPathForPageEditModePolicy(
   operation: HtmlPathOperation,
   relativePath: string,
 ) {
-  if (!policy || policy.mode === "auto") {
+  if (!policy || policy.mode === 'auto') {
     return relativePath;
   }
 
@@ -164,7 +141,7 @@ export function assertHtmlPathOperationAllowed(
   operation: HtmlPathOperation,
   relativePath: string,
 ) {
-  if (!policy || policy.mode !== "duplicate_edit") {
+  if (!policy || policy.mode !== 'duplicate_edit') {
     return;
   }
 
@@ -174,11 +151,11 @@ export function assertHtmlPathOperationAllowed(
     return;
   }
 
-  if (operation === "read") {
+  if (operation === 'read') {
     return;
   }
 
-  if (operation === "copy" && targetPath === policy.targetPath) {
+  if (operation === 'copy' && targetPath === policy.targetPath) {
     return;
   }
 
@@ -190,11 +167,11 @@ export function assertHtmlPathOperationAllowed(
 }
 
 export function getAllowedHtmlPath(policy: PageEditModePolicy | undefined) {
-  if (!policy || policy.mode === "auto") {
+  if (!policy || policy.mode === 'auto') {
     return undefined;
   }
 
-  if (policy.mode === "new_page") {
+  if (policy.mode === 'new_page') {
     return policy.createdHtmlPath;
   }
 
@@ -203,25 +180,22 @@ export function getAllowedHtmlPath(policy: PageEditModePolicy | undefined) {
 
 function formatHtmlOperation(operation: HtmlPathOperation) {
   switch (operation) {
-    case "copy":
-      return "copy";
-    case "create":
-      return "create";
-    case "delete":
-      return "delete";
-    case "mutate":
-      return "edit";
-    case "preview":
-      return "preview";
-    case "read":
-      return "read";
+    case 'copy':
+      return 'copy';
+    case 'create':
+      return 'create';
+    case 'delete':
+      return 'delete';
+    case 'mutate':
+      return 'edit';
+    case 'preview':
+      return 'preview';
+    case 'read':
+      return 'read';
   }
 }
 
-function normalizeRequiredHtmlPath(
-  relativePath: string | undefined,
-  mode: PageEditMode,
-) {
+function normalizeRequiredHtmlPath(relativePath: string | undefined, mode: PageEditMode) {
   if (!relativePath) {
     throw new Error(`Page edit mode "${mode}" requires a current preview page.`);
   }
@@ -229,9 +203,7 @@ function normalizeRequiredHtmlPath(
   const normalizedPath = normalizeToolPath(relativePath);
 
   if (!isHtmlPath(normalizedPath)) {
-    throw new Error(
-      `Page edit mode "${mode}" requires an HTML preview page: ${normalizedPath}`,
-    );
+    throw new Error(`Page edit mode "${mode}" requires an HTML preview page: ${normalizedPath}`);
   }
 
   return normalizedPath;
@@ -258,12 +230,12 @@ async function resolveUniqueCopyPath(
   sourcePath: string,
 ) {
   const parsed = path.posix.parse(sourcePath);
-  const directory = parsed.dir ? `${parsed.dir}/` : "";
+  const directory = parsed.dir ? `${parsed.dir}/` : '';
   const baseName = normalizeCopyBaseName(parsed.name);
-  const extension = parsed.ext || ".html";
+  const extension = parsed.ext || '.html';
 
   for (let index = 1; index < 1000; index += 1) {
-    const suffix = index === 1 ? "copy" : `copy-${index}`;
+    const suffix = index === 1 ? 'copy' : `copy-${index}`;
     const candidatePath = `${directory}${baseName}.${suffix}${extension}`;
 
     try {
@@ -277,5 +249,5 @@ async function resolveUniqueCopyPath(
 }
 
 function normalizeCopyBaseName(baseName: string) {
-  return baseName.replace(/\.copy(?:-\d+)?$/, "");
+  return baseName.replace(/\.copy(?:-\d+)?$/, '');
 }

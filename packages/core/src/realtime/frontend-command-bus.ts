@@ -2,7 +2,7 @@ import type {
   FrontendCapabilityId,
   FrontendCapabilityPayloads,
   FrontendCommand,
-} from "./frontend-capabilities";
+} from './frontend-capabilities';
 
 const KEEPALIVE_INTERVAL_MS = 15_000;
 
@@ -32,11 +32,7 @@ declare global {
 export class FrontendCommandBus {
   private readonly connections = new Map<string, FrontendCommandConnection>();
 
-  registerConnection({
-    frontendTabId,
-    projectId,
-    signal,
-  }: RegisterFrontendConnectionInput) {
+  registerConnection({ frontendTabId, projectId, signal }: RegisterFrontendConnectionInput) {
     const key = buildConnectionKey(projectId, frontendTabId);
     const encoder = new TextEncoder();
     let connection: FrontendCommandConnection | undefined;
@@ -49,15 +45,15 @@ export class FrontendCommandBus {
           controller,
           encoder,
           keepaliveTimer: setInterval(() => {
-            enqueueSseComment(controller, encoder, "keepalive");
+            enqueueSseComment(controller, encoder, 'keepalive');
           }, KEEPALIVE_INTERVAL_MS),
         };
         connection.keepaliveTimer.unref?.();
         this.connections.set(key, connection);
-        enqueueSseComment(controller, encoder, "connected");
+        enqueueSseComment(controller, encoder, 'connected');
 
         signal?.addEventListener(
-          "abort",
+          'abort',
           () => {
             this.unregisterConnection(projectId, frontendTabId);
           },
@@ -78,9 +74,7 @@ export class FrontendCommandBus {
     payload,
     projectId,
   }: SendFrontendCommandInput<Capability>) {
-    const connection = this.connections.get(
-      buildConnectionKey(projectId, frontendTabId),
-    );
+    const connection = this.connections.get(buildConnectionKey(projectId, frontendTabId));
 
     if (!connection) {
       return {
@@ -95,12 +89,7 @@ export class FrontendCommandBus {
       payload,
     } as FrontendCommand;
 
-    enqueueSseEvent(
-      connection.controller,
-      connection.encoder,
-      "frontend-command",
-      command,
-    );
+    enqueueSseEvent(connection.controller, connection.encoder, 'frontend-command', command);
 
     return {
       command,
@@ -144,9 +133,7 @@ export function getFrontendCommandBus() {
   return globalThis.__owndesignFrontendCommandBus;
 }
 
-export function registerFrontendConnection(
-  input: RegisterFrontendConnectionInput,
-) {
+export function registerFrontendConnection(input: RegisterFrontendConnectionInput) {
   return getFrontendCommandBus().registerConnection(input);
 }
 
@@ -162,9 +149,7 @@ function enqueueSseEvent(
   event: string,
   data: unknown,
 ) {
-  controller.enqueue(
-    encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`),
-  );
+  controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
 }
 
 function enqueueSseComment(
@@ -180,13 +165,13 @@ function buildConnectionKey(projectId: string, frontendTabId: string) {
 }
 
 function parseConnectionKey(key: string) {
-  const [projectId = "", frontendTabId = ""] = key.split(":");
+  const [projectId = '', frontendTabId = ''] = key.split(':');
 
   return [decodeURIComponent(projectId), decodeURIComponent(frontendTabId)] as const;
 }
 
 function createCommandId() {
-  return typeof crypto !== "undefined" && "randomUUID" in crypto
+  return typeof crypto !== 'undefined' && 'randomUUID' in crypto
     ? crypto.randomUUID()
     : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }

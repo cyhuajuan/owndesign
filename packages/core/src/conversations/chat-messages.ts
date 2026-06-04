@@ -1,5 +1,5 @@
-import type { UIMessage } from "ai";
-import type { PageEditMode } from "@owndesign/core/agent/page-edit-mode";
+import type { UIMessage } from 'ai';
+import type { PageEditMode } from '@owndesign/core/agent/page-edit-mode';
 
 export type OwnDesignUIMessage = UIMessage;
 
@@ -9,7 +9,7 @@ export type TurnPromptRewriteMetadata = {
     duplicateSourcePath?: string;
     duplicateTargetPath?: string;
     createdAt: string;
-    kind: "turn-prompt-rewriter";
+    kind: 'turn-prompt-rewriter';
     pageEditMode: PageEditMode;
     previewFileExists: boolean;
     previewPath?: string;
@@ -18,12 +18,10 @@ export type TurnPromptRewriteMetadata = {
 
 type LegacyMessage = {
   content: string;
-  role: "assistant" | "user";
+  role: 'assistant' | 'user';
 };
 
-export function normalizeConversationMessages(
-  messages: unknown[],
-): OwnDesignUIMessage[] {
+export function normalizeConversationMessages(messages: unknown[]): OwnDesignUIMessage[] {
   return messages
     .map((message, index) => normalizeConversationMessage(message, index))
     .filter((message): message is OwnDesignUIMessage => Boolean(message));
@@ -31,15 +29,15 @@ export function normalizeConversationMessages(
 
 export function getUIMessageText(message: OwnDesignUIMessage) {
   return message.parts
-    .filter((part) => part.type === "text")
+    .filter((part) => part.type === 'text')
     .map((part) => part.text)
-    .join("");
+    .join('');
 }
 
 export function getFirstUserMessageText(messages: OwnDesignUIMessage[]) {
-  const firstUserMessage = messages.find((message) => message.role === "user");
+  const firstUserMessage = messages.find((message) => message.role === 'user');
 
-  return firstUserMessage ? getUserVisibleMessageText(firstUserMessage) : "";
+  return firstUserMessage ? getUserVisibleMessageText(firstUserMessage) : '';
 }
 
 export function getUserVisibleMessageText(message: OwnDesignUIMessage) {
@@ -50,10 +48,10 @@ export function getOriginalUserPrompt(message: OwnDesignUIMessage) {
   const metadata = message.metadata;
 
   if (
-    typeof metadata === "object" &&
+    typeof metadata === 'object' &&
     metadata !== null &&
-    "originalUserPrompt" in metadata &&
-    typeof metadata.originalUserPrompt === "string"
+    'originalUserPrompt' in metadata &&
+    typeof metadata.originalUserPrompt === 'string'
   ) {
     return metadata.originalUserPrompt;
   }
@@ -75,9 +73,9 @@ function normalizeConversationMessage(
       role: message.role,
       parts: [
         {
-          type: "text",
+          type: 'text',
           text: message.content,
-          state: "done",
+          state: 'done',
         },
       ],
     };
@@ -89,12 +87,12 @@ function normalizeConversationMessage(
 
   return {
     id: `legacy-unknown-${index}`,
-    role: "assistant",
+    role: 'assistant',
     parts: [
       {
-        type: "text",
+        type: 'text',
         text: JSON.stringify(message),
-        state: "done",
+        state: 'done',
       },
     ],
   };
@@ -102,26 +100,24 @@ function normalizeConversationMessage(
 
 function isUIMessage(message: unknown): message is OwnDesignUIMessage {
   return (
-    typeof message === "object" &&
+    typeof message === 'object' &&
     message !== null &&
-    "id" in message &&
-    typeof message.id === "string" &&
-    "role" in message &&
-    (message.role === "assistant" ||
-      message.role === "user" ||
-      message.role === "system") &&
-    "parts" in message &&
+    'id' in message &&
+    typeof message.id === 'string' &&
+    'role' in message &&
+    (message.role === 'assistant' || message.role === 'user' || message.role === 'system') &&
+    'parts' in message &&
     Array.isArray(message.parts)
   );
 }
 
 function isLegacyMessage(message: unknown): message is LegacyMessage {
   return (
-    typeof message === "object" &&
+    typeof message === 'object' &&
     message !== null &&
-    "content" in message &&
-    typeof message.content === "string" &&
-    "role" in message &&
-    (message.role === "assistant" || message.role === "user")
+    'content' in message &&
+    typeof message.content === 'string' &&
+    'role' in message &&
+    (message.role === 'assistant' || message.role === 'user')
   );
 }

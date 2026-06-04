@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import {
   Context,
@@ -11,15 +11,9 @@ import {
   ContextOutputUsage,
   ContextReasoningUsage,
   ContextTrigger,
-} from "@/components/ai-elements/context";
-import type {
-  ContextUsageMetadata,
-  PublicModelConfiguration,
-} from "@/features/conversation/types";
-import {
-  getModelContextSizeK,
-  getUsedTokens,
-} from "@/features/conversation/utils/context-usage";
+} from '@/components/ai-elements/context';
+import type { ContextUsageMetadata, PublicModelConfiguration } from '@/features/conversation/types';
+import { getModelContextSizeK, getUsedTokens } from '@/features/conversation/utils/context-usage';
 
 export function ModelContextUsage({
   configuration,

@@ -1,0 +1,12 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "ignorePatterns": [
+    ".agents/**",
+    ".codex/**",
+    "packages/renderer/src/components/ai-elements/**",
+    "apps/desktop/src-tauri/gen/**",
+    "apps/desktop/src-tauri/resources/**",
+    "apps/desktop/src-tauri/target/**",
+    "pnpm-lock.yaml",
+  ],
+}

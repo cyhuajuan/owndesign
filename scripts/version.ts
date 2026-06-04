@@ -1,20 +1,20 @@
-import { readFile, writeFile } from "node:fs/promises";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { readFile, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-type VersionTrack = "platform" | "web" | "cli" | "desktop";
-type BumpKind = "patch" | "minor" | "major";
+type VersionTrack = 'platform' | 'web' | 'cli' | 'desktop';
+type BumpKind = 'patch' | 'minor' | 'major';
 type Versions = Record<VersionTrack, string>;
 
 type JsonTarget = {
-  kind: "json";
+  kind: 'json';
   track: VersionTrack;
   filePath: string;
   label: string;
 };
 
 type CargoTarget = {
-  kind: "cargo";
+  kind: 'cargo';
   track: VersionTrack;
   filePath: string;
   label: string;
@@ -22,48 +22,48 @@ type CargoTarget = {
 
 type VersionTarget = JsonTarget | CargoTarget;
 
-const repoRoot = path.resolve(fileURLToPath(import.meta.url), "../..");
-const versionsPath = path.join(repoRoot, "versions.json");
-const tracks = ["platform", "web", "cli", "desktop"] as const;
-const bumpKinds = ["patch", "minor", "major"] as const;
+const repoRoot = path.resolve(fileURLToPath(import.meta.url), '../..');
+const versionsPath = path.join(repoRoot, 'versions.json');
+const tracks = ['platform', 'web', 'cli', 'desktop'] as const;
+const bumpKinds = ['patch', 'minor', 'major'] as const;
 const semverPattern = /^\d+\.\d+\.\d+$/;
 
 const targets: VersionTarget[] = [
-  jsonTarget("platform", "package.json", "root package.json"),
-  jsonTarget("platform", "packages/core/package.json", "@owndesign/core"),
-  jsonTarget("platform", "packages/renderer/package.json", "@owndesign/renderer"),
-  jsonTarget("platform", "packages/server/package.json", "@owndesign/server"),
-  jsonTarget("web", "apps/web/package.json", "@owndesign/web"),
-  jsonTarget("cli", "packages/cli/package.json", "owndesign"),
-  jsonTarget("desktop", "apps/desktop/package.json", "@owndesign/desktop"),
-  jsonTarget("desktop", "apps/desktop/src-tauri/tauri.conf.json", "desktop tauri.conf.json"),
-  cargoTarget("desktop", "apps/desktop/src-tauri/Cargo.toml", "desktop Cargo.toml"),
+  jsonTarget('platform', 'package.json', 'root package.json'),
+  jsonTarget('platform', 'packages/core/package.json', '@owndesign/core'),
+  jsonTarget('platform', 'packages/renderer/package.json', '@owndesign/renderer'),
+  jsonTarget('platform', 'packages/server/package.json', '@owndesign/server'),
+  jsonTarget('web', 'apps/web/package.json', '@owndesign/web'),
+  jsonTarget('cli', 'packages/cli/package.json', 'owndesign'),
+  jsonTarget('desktop', 'apps/desktop/package.json', '@owndesign/desktop'),
+  jsonTarget('desktop', 'apps/desktop/src-tauri/tauri.conf.json', 'desktop tauri.conf.json'),
+  cargoTarget('desktop', 'apps/desktop/src-tauri/Cargo.toml', 'desktop Cargo.toml'),
 ];
 
 async function main() {
   const [command, ...args] = process.argv.slice(2);
 
-  if (command === "list") {
+  if (command === 'list') {
     await listVersions();
     return;
   }
 
-  if (command === "check") {
+  if (command === 'check') {
     await checkVersions();
     return;
   }
 
-  if (command === "sync") {
+  if (command === 'sync') {
     await syncVersions();
     return;
   }
 
-  if (command === "bump") {
+  if (command === 'bump') {
     await bumpVersion(args);
     return;
   }
 
-  if (command === "set") {
+  if (command === 'set') {
     await setVersion(args);
     return;
   }
@@ -74,7 +74,7 @@ async function main() {
 
 function jsonTarget(track: VersionTrack, relativePath: string, label: string): JsonTarget {
   return {
-    kind: "json",
+    kind: 'json',
     track,
     filePath: path.join(repoRoot, relativePath),
     label,
@@ -83,7 +83,7 @@ function jsonTarget(track: VersionTrack, relativePath: string, label: string): J
 
 function cargoTarget(track: VersionTrack, relativePath: string, label: string): CargoTarget {
   return {
-    kind: "cargo",
+    kind: 'cargo',
     track,
     filePath: path.join(repoRoot, relativePath),
     label,
@@ -108,20 +108,20 @@ async function checkVersions() {
 
     if (actual !== expected) {
       mismatches.push(
-        `${target.track} ${target.label}: expected ${expected}, found ${actual ?? "missing"}`,
+        `${target.track} ${target.label}: expected ${expected}, found ${actual ?? 'missing'}`,
       );
     }
   }
 
   if (mismatches.length > 0) {
-    console.error("Version check failed:");
+    console.error('Version check failed:');
     for (const mismatch of mismatches) {
       console.error(`- ${mismatch}`);
     }
     process.exit(1);
   }
 
-  console.log("Version check passed.");
+  console.log('Version check passed.');
 }
 
 async function syncVersions() {
@@ -131,7 +131,7 @@ async function syncVersions() {
     await writeTargetVersion(target, versions[target.track]);
   }
 
-  console.log("Versions synced.");
+  console.log('Versions synced.');
 }
 
 async function bumpVersion(args: string[]) {
@@ -150,7 +150,7 @@ async function setVersion(args: string[]) {
   const [trackArg, version] = args;
   const track = parseTrack(trackArg);
 
-  assertSemver(version, "version");
+  assertSemver(version, 'version');
 
   const versions = await readVersions();
   versions[track] = version;
@@ -160,7 +160,7 @@ async function setVersion(args: string[]) {
 }
 
 async function readVersions(): Promise<Versions> {
-  const raw = await readFile(versionsPath, "utf8");
+  const raw = await readFile(versionsPath, 'utf8');
   const data = JSON.parse(raw) as Partial<Versions>;
   const versions = {} as Versions;
 
@@ -178,25 +178,25 @@ async function writeVersions(versions: Versions) {
 }
 
 async function readTargetVersion(target: VersionTarget) {
-  if (target.kind === "json") {
-    const data = JSON.parse(await readFile(target.filePath, "utf8")) as { version?: string };
+  if (target.kind === 'json') {
+    const data = JSON.parse(await readFile(target.filePath, 'utf8')) as { version?: string };
     return data.version;
   }
 
-  const content = await readFile(target.filePath, "utf8");
+  const content = await readFile(target.filePath, 'utf8');
   const match = getCargoPackageVersionMatch(content);
   return match?.[1];
 }
 
 async function writeTargetVersion(target: VersionTarget, version: string) {
-  if (target.kind === "json") {
-    const data = JSON.parse(await readFile(target.filePath, "utf8")) as { version?: string };
+  if (target.kind === 'json') {
+    const data = JSON.parse(await readFile(target.filePath, 'utf8')) as { version?: string };
     data.version = version;
     await writeJson(target.filePath, data);
     return;
   }
 
-  const content = await readFile(target.filePath, "utf8");
+  const content = await readFile(target.filePath, 'utf8');
   const match = getCargoPackageVersionMatch(content);
 
   if (!match) {
@@ -204,7 +204,7 @@ async function writeTargetVersion(target: VersionTarget, version: string) {
   }
 
   const nextContent = content.replace(match[0], match[0].replace(match[1], version));
-  await writeFile(target.filePath, nextContent, "utf8");
+  await writeFile(target.filePath, nextContent, 'utf8');
 }
 
 function getCargoPackageVersionMatch(content: string) {
@@ -213,7 +213,7 @@ function getCargoPackageVersionMatch(content: string) {
 }
 
 async function writeJson(filePath: string, data: unknown) {
-  await writeFile(filePath, `${JSON.stringify(data, null, 2)}\n`, "utf8");
+  await writeFile(filePath, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
 }
 
 function parseTrack(value: string | undefined): VersionTrack {
@@ -221,7 +221,7 @@ function parseTrack(value: string | undefined): VersionTrack {
     return value as VersionTrack;
   }
 
-  throw new Error(`Invalid track: ${value ?? "missing"}. Expected ${tracks.join(", ")}.`);
+  throw new Error(`Invalid track: ${value ?? 'missing'}. Expected ${tracks.join(', ')}.`);
 }
 
 function parseBumpKind(value: string | undefined): BumpKind {
@@ -229,17 +229,17 @@ function parseBumpKind(value: string | undefined): BumpKind {
     return value as BumpKind;
   }
 
-  throw new Error(`Invalid bump kind: ${value ?? "missing"}. Expected ${bumpKinds.join(", ")}.`);
+  throw new Error(`Invalid bump kind: ${value ?? 'missing'}. Expected ${bumpKinds.join(', ')}.`);
 }
 
 function bumpSemver(version: string, kind: BumpKind) {
-  const [major, minor, patch] = version.split(".").map(Number) as [number, number, number];
+  const [major, minor, patch] = version.split('.').map(Number) as [number, number, number];
 
-  if (kind === "major") {
+  if (kind === 'major') {
     return `${major + 1}.0.0`;
   }
 
-  if (kind === "minor") {
+  if (kind === 'minor') {
     return `${major}.${minor + 1}.0`;
   }
 
@@ -247,7 +247,7 @@ function bumpSemver(version: string, kind: BumpKind) {
 }
 
 function assertSemver(value: unknown, label: string): asserts value is string {
-  if (typeof value !== "string" || !semverPattern.test(value)) {
+  if (typeof value !== 'string' || !semverPattern.test(value)) {
     throw new Error(`${label} must be x.y.z semver.`);
   }
 }
@@ -262,6 +262,6 @@ function printUsage() {
 }
 
 main().catch((error: unknown) => {
-  console.error(error instanceof Error ? error.message : "Version command failed.");
+  console.error(error instanceof Error ? error.message : 'Version command failed.');
   process.exit(1);
 });

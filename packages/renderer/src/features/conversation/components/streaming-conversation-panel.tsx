@@ -1,23 +1,16 @@
-"use client";
+'use client';
 
-import { useChat } from "@ai-sdk/react";
-import {
-  DefaultChatTransport,
-  type FileUIPart,
-  type UIMessage,
-} from "ai";
-import { AlertCircleIcon } from "lucide-react";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useChat } from '@ai-sdk/react';
+import { DefaultChatTransport, type FileUIPart, type UIMessage } from 'ai';
+import { AlertCircleIcon } from 'lucide-react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   Conversation,
   ConversationContent,
   ConversationEmptyState,
-} from "@/components/ai-elements/conversation";
-import {
-  Message,
-  MessageContent,
-} from "@/components/ai-elements/message";
+} from '@/components/ai-elements/conversation';
+import { Message, MessageContent } from '@/components/ai-elements/message';
 import {
   PromptInput,
   PromptInputAttachments,
@@ -31,25 +24,25 @@ import {
   PromptInputSelectValue,
   PromptInputSubmit,
   PromptInputTextarea,
-} from "@/components/ai-elements/prompt-input";
-import { MessageParts } from "@/features/conversation/components/message-parts";
-import { ModelContextUsage } from "@/features/conversation/components/model-context-usage";
-import { ModelSelect } from "@/features/conversation/components/model-select";
-import { PromptAttachmentControls } from "@/features/conversation/components/prompt-attachment-controls";
-import { useConversationSettings } from "@/features/conversation/hooks/use-conversation-settings";
-import { getLatestContextUsage } from "@/features/conversation/utils/context-usage";
-import { deriveConversationTitle } from "@/features/conversation/utils/conversation-title";
+} from '@/components/ai-elements/prompt-input';
+import { MessageParts } from '@/features/conversation/components/message-parts';
+import { ModelContextUsage } from '@/features/conversation/components/model-context-usage';
+import { ModelSelect } from '@/features/conversation/components/model-select';
+import { PromptAttachmentControls } from '@/features/conversation/components/prompt-attachment-controls';
+import { useConversationSettings } from '@/features/conversation/hooks/use-conversation-settings';
+import { getLatestContextUsage } from '@/features/conversation/utils/context-usage';
+import { deriveConversationTitle } from '@/features/conversation/utils/conversation-title';
 import {
   anthropicEfforts,
   getDeepSeekThinkingMode,
-} from "@/features/conversation/utils/model-selection";
-import { FRONTEND_TAB_ID } from "@/features/preview/components/frontend-capability-bridge";
-import { useApiClient } from "@/api/context";
-import { useI18n } from "@/features/i18n/context";
-import { useCurrentPreviewPath } from "@/features/preview/preview-path";
-import type { ActiveRun, ActiveRunSnapshot } from "@/api/client";
-import type { AnthropicEffort } from "@/features/conversation/types";
-import type { PageEditMode } from "@owndesign/core/agent/page-edit-mode";
+} from '@/features/conversation/utils/model-selection';
+import { FRONTEND_TAB_ID } from '@/features/preview/components/frontend-capability-bridge';
+import { useApiClient } from '@/api/context';
+import { useI18n } from '@/features/i18n/context';
+import { useCurrentPreviewPath } from '@/features/preview/preview-path';
+import type { ActiveRun, ActiveRunSnapshot } from '@/api/client';
+import type { AnthropicEffort } from '@/features/conversation/types';
+import type { PageEditMode } from '@owndesign/core/agent/page-edit-mode';
 
 type StreamingConversationPanelProps = {
   conversationId: string;
@@ -71,20 +64,20 @@ export type ConversationPanelUpdate = {
 };
 
 const PAGE_EDIT_MODE_OPTIONS = [
-  { labelKey: "conversation.pageModeAuto", value: "auto" },
-  { labelKey: "conversation.pageModeNewPage", value: "new_page" },
-  { labelKey: "conversation.pageModeDirectEdit", value: "direct_edit" },
-  { labelKey: "conversation.pageModeDuplicateEdit", value: "duplicate_edit" },
+  { labelKey: 'conversation.pageModeAuto', value: 'auto' },
+  { labelKey: 'conversation.pageModeNewPage', value: 'new_page' },
+  { labelKey: 'conversation.pageModeDirectEdit', value: 'direct_edit' },
+  { labelKey: 'conversation.pageModeDuplicateEdit', value: 'duplicate_edit' },
 ] satisfies Array<{
   labelKey:
-    | "conversation.pageModeAuto"
-    | "conversation.pageModeNewPage"
-    | "conversation.pageModeDirectEdit"
-    | "conversation.pageModeDuplicateEdit";
+    | 'conversation.pageModeAuto'
+    | 'conversation.pageModeNewPage'
+    | 'conversation.pageModeDirectEdit'
+    | 'conversation.pageModeDuplicateEdit';
   value: PageEditMode;
 }>;
 
-const ANTHROPIC_EFFORT_STORAGE_KEY = "owndesign:anthropic-efforts";
+const ANTHROPIC_EFFORT_STORAGE_KEY = 'owndesign:anthropic-efforts';
 
 export function StreamingConversationPanel({
   conversationId,
@@ -98,14 +91,12 @@ export function StreamingConversationPanel({
 }: StreamingConversationPanelProps) {
   const api = useApiClient();
   const { t } = useI18n();
-  const { handleModelSelect, selectedModel, selectedModelId, settings } =
-    useConversationSettings();
-  const previousStatusRef = useRef("ready");
+  const { handleModelSelect, selectedModel, selectedModelId, settings } = useConversationSettings();
+  const previousStatusRef = useRef('ready');
   const reconnectState = useMemo(() => ({ afterChunkIndex: 0 }), []);
   const [localSubmitStarted, setLocalSubmitStarted] = useState(false);
-  const [pageEditMode, setPageEditMode] = useState<PageEditMode>("auto");
-  const [selectedAnthropicEffort, setSelectedAnthropicEffort] =
-    useState<AnthropicEffort>("high");
+  const [pageEditMode, setPageEditMode] = useState<PageEditMode>('auto');
+  const [selectedAnthropicEffort, setSelectedAnthropicEffort] = useState<AnthropicEffort>('high');
   const [resumeSnapshot, setResumeSnapshot] = useState<
     | {
         nextChunkIndex: number;
@@ -114,18 +105,13 @@ export function StreamingConversationPanel({
     | undefined
   >();
   const selectedDeepSeekThinkingMode =
-    selectedModel?.provider === "deepseek"
-      ? getDeepSeekThinkingMode(selectedModel)
-      : undefined;
-  const handleAnthropicEffortSelect = useCallback(
-    (modelId: string, effort: AnthropicEffort) => {
-      setSelectedAnthropicEffort(effort);
-      saveStoredAnthropicEffort(modelId, effort);
-    },
-    [],
-  );
+    selectedModel?.provider === 'deepseek' ? getDeepSeekThinkingMode(selectedModel) : undefined;
+  const handleAnthropicEffortSelect = useCallback((modelId: string, effort: AnthropicEffort) => {
+    setSelectedAnthropicEffort(effort);
+    saveStoredAnthropicEffort(modelId, effort);
+  }, []);
   const selectedProviderOptionsSelection = useMemo(() => {
-    if (selectedModel?.provider === "anthropic") {
+    if (selectedModel?.provider === 'anthropic') {
       return { anthropic: selectedAnthropicEffort };
     }
 
@@ -134,20 +120,14 @@ export function StreamingConversationPanel({
     }
 
     return undefined;
-  }, [
-    selectedAnthropicEffort,
-    selectedDeepSeekThinkingMode,
-    selectedModel?.provider,
-  ]);
+  }, [selectedAnthropicEffort, selectedDeepSeekThinkingMode, selectedModel?.provider]);
   const currentPreviewPath = useCurrentPreviewPath();
-  const hasProjectActiveRun = projectActiveRun?.status === "running";
+  const hasProjectActiveRun = projectActiveRun?.status === 'running';
   const activeRunId = projectActiveRun?.runId;
   const activeRunBelongsToConversation =
     hasProjectActiveRun && projectActiveRun.conversationId === conversationId;
   const shouldResumeFromSnapshot =
-    activeRunBelongsToConversation &&
-    !localSubmitStarted &&
-    resumeSnapshot?.runId === activeRunId;
+    activeRunBelongsToConversation && !localSubmitStarted && resumeSnapshot?.runId === activeRunId;
   const buildChatRequestBody = useCallback(
     () => ({
       conversationId,
@@ -195,13 +175,7 @@ export function StreamingConversationPanel({
           }),
         }),
       }),
-    [
-      conversationId,
-      api,
-      buildChatRequestBody,
-      projectId,
-      reconnectState,
-    ],
+    [conversationId, api, buildChatRequestBody, projectId, reconnectState],
   );
   const { error, messages, sendMessage, setMessages, status, stop } = useChat({
     id: conversationId,
@@ -219,78 +193,70 @@ export function StreamingConversationPanel({
           onProjectRunChange?.((await response.json()) as ActiveRun);
         }
       });
-      window.dispatchEvent(new Event("owndesign:workspace-refresh"));
+      window.dispatchEvent(new Event('owndesign:workspace-refresh'));
     },
   });
   const contextUsage = useMemo(() => getLatestContextUsage(messages), [messages]);
-  const isGenerating = status === "submitted" || status === "streaming";
+  const isGenerating = status === 'submitted' || status === 'streaming';
   const isProjectBusy = Boolean(hasProjectActiveRun);
   const canSend = Boolean(selectedModel) && !isGenerating && !isProjectBusy;
-  const submitStatus = isProjectBusy && !isGenerating ? "streaming" : status;
-  const busyMessage = t("conversation.busyMessage");
+  const submitStatus = isProjectBusy && !isGenerating ? 'streaming' : status;
+  const busyMessage = t('conversation.busyMessage');
   const requiresCurrentPreview =
-    pageEditMode === "direct_edit" || pageEditMode === "duplicate_edit";
+    pageEditMode === 'direct_edit' || pageEditMode === 'duplicate_edit';
   const handleStop = useCallback(() => {
     void api.cancelActiveRun(projectId).finally(() => {
       stop();
       setLocalSubmitStarted(false);
       setResumeSnapshot(undefined);
       onProjectRunChange?.(undefined);
-      window.dispatchEvent(new Event("owndesign:workspace-refresh"));
+      window.dispatchEvent(new Event('owndesign:workspace-refresh'));
     });
   }, [api, onProjectRunChange, projectId, setResumeSnapshot, stop]);
 
   useEffect(() => {
-    if (selectedModel?.provider !== "anthropic") {
+    if (selectedModel?.provider !== 'anthropic') {
       return;
     }
 
-    setSelectedAnthropicEffort(
-      getStoredAnthropicEffort(selectedModel.id) ?? "high",
-    );
+    setSelectedAnthropicEffort(getStoredAnthropicEffort(selectedModel.id) ?? 'high');
   }, [selectedModel?.id, selectedModel?.provider]);
 
   useEffect(() => {
-    if (
-      !activeRunBelongsToConversation ||
-      !activeRunId ||
-      localSubmitStarted
-    ) {
+    if (!activeRunBelongsToConversation || !activeRunId || localSubmitStarted) {
       return;
     }
 
     let isActive = true;
 
-    void api
-      .getActiveConversationRunSnapshot(projectId, conversationId)
-      .then(async (response) => {
-        if (!isActive) {
-          return;
-        }
+    void api.getActiveConversationRunSnapshot(projectId, conversationId).then(async (response) => {
+      if (!isActive) {
+        return;
+      }
 
-        if (response.status === 204) {
-          onProjectRunChange?.(undefined);
-          return;
-        }
+      if (response.status === 204) {
+        onProjectRunChange?.(undefined);
+        return;
+      }
 
-        if (!response.ok) {
-          return;
-        }
+      if (!response.ok) {
+        return;
+      }
 
-        const snapshot = (await response.json()) as ActiveRunSnapshot;
+      const snapshot = (await response.json()) as ActiveRunSnapshot;
 
-        if (!isActive || snapshot.activeRun.runId !== activeRunId) {
-          return;
-        }
+      if (!isActive || snapshot.activeRun.runId !== activeRunId) {
+        return;
+      }
 
-        reconnectState.afterChunkIndex = snapshot.nextChunkIndex;
-        setMessages(snapshot.messages);
-        setResumeSnapshot({
-          nextChunkIndex: snapshot.nextChunkIndex,
-          runId: snapshot.activeRun.runId,
-        });
-        onProjectRunChange?.(snapshot.activeRun);
+      reconnectState.afterChunkIndex = snapshot.nextChunkIndex;
+      setMessages(snapshot.messages);
+      setResumeSnapshot({
+        nextChunkIndex: snapshot.nextChunkIndex,
+        runId: snapshot.activeRun.runId,
       });
+      onProjectRunChange?.(snapshot.activeRun);
+    });
 
     return () => {
       isActive = false;
@@ -309,10 +275,9 @@ export function StreamingConversationPanel({
 
   useEffect(() => {
     const previousStatus = previousStatusRef.current;
-    const wasGenerating =
-      previousStatus === "submitted" || previousStatus === "streaming";
+    const wasGenerating = previousStatus === 'submitted' || previousStatus === 'streaming';
 
-    if (wasGenerating && status === "ready") {
+    if (wasGenerating && status === 'ready') {
       const timestamp = new Date().toISOString();
 
       onConversationUpdate?.({
@@ -330,7 +295,7 @@ export function StreamingConversationPanel({
       setLocalSubmitStarted(false);
       setResumeSnapshot(undefined);
       onProjectRunChange?.(undefined);
-      window.dispatchEvent(new Event("owndesign:workspace-refresh"));
+      window.dispatchEvent(new Event('owndesign:workspace-refresh'));
     }
 
     previousStatusRef.current = status;
@@ -351,8 +316,8 @@ export function StreamingConversationPanel({
         <ConversationContent className="gap-2 p-4">
           {messages.length === 0 ? (
             <ConversationEmptyState
-              description={t("conversation.titleHint")}
-              title={t("conversation.emptyTitle")}
+              description={t('conversation.titleHint')}
+              title={t('conversation.emptyTitle')}
             />
           ) : (
             messages.map((message, index) => {
@@ -361,7 +326,7 @@ export function StreamingConversationPanel({
               return (
                 <ConversationMessageItem
                   isLastMessage={isLastMessage}
-                  isStreaming={status === "streaming" && isLastMessage}
+                  isStreaming={status === 'streaming' && isLastMessage}
                   key={getMessageKey(message, index)}
                   message={message}
                 />
@@ -373,7 +338,7 @@ export function StreamingConversationPanel({
               <MessageContent className="w-full">
                 <div className="flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-destructive text-sm">
                   <AlertCircleIcon className="size-4 shrink-0" />
-                  <span>{t("conversation.generationFailed", { message: error.message })}</span>
+                  <span>{t('conversation.generationFailed', { message: error.message })}</span>
                 </div>
               </MessageContent>
             </Message>
@@ -409,13 +374,10 @@ export function StreamingConversationPanel({
               conversationId,
               createdAt: new Date().toISOString(),
               projectId,
-              runId: "pending",
-              status: "running",
+              runId: 'pending',
+              status: 'running',
             });
-            await sendMessage(
-              { files, text: trimmedText },
-              { body: buildChatRequestBody() },
-            );
+            await sendMessage({ files, text: trimmedText }, { body: buildChatRequestBody() });
           }}
         >
           <PromptInputHeader>
@@ -425,7 +387,7 @@ export function StreamingConversationPanel({
             <PromptInputTextarea
               className="min-h-13 text-[13px]"
               disabled={isGenerating || isProjectBusy}
-              placeholder={t("conversation.placeholder")}
+              placeholder={t('conversation.placeholder')}
             />
           </PromptInputBody>
           <PromptInputFooter className="px-2 pb-1">
@@ -439,10 +401,7 @@ export function StreamingConversationPanel({
               />
             </div>
             <div className="flex min-w-0 items-center gap-1">
-              <ModelContextUsage
-                configuration={selectedModel}
-                usage={contextUsage}
-              />
+              <ModelContextUsage configuration={selectedModel} usage={contextUsage} />
               <ModelSelect
                 onAnthropicEffortSelect={handleAnthropicEffortSelect}
                 onSelect={handleModelSelect}
@@ -465,22 +424,21 @@ export function StreamingConversationPanel({
 }
 
 function createCurrentChatRequestMessage(messages: UIMessage[]) {
-  const lastUserMessage = [...messages].reverse().find(
-    (message) => message.role === "user",
-  );
+  const lastUserMessage = [...messages].reverse().find((message) => message.role === 'user');
 
   return {
     files: lastUserMessage?.parts.filter(isFilePart) ?? [],
     id: lastUserMessage?.id,
-    text: lastUserMessage?.parts
-      .filter((part) => part.type === "text")
-      .map((part) => part.text)
-      .join("") ?? "",
+    text:
+      lastUserMessage?.parts
+        .filter((part) => part.type === 'text')
+        .map((part) => part.text)
+        .join('') ?? '',
   };
 }
 
-function isFilePart(part: UIMessage["parts"][number]): part is FileUIPart {
-  return part.type === "file";
+function isFilePart(part: UIMessage['parts'][number]): part is FileUIPart {
+  return part.type === 'file';
 }
 
 function PageEditModeSelect({
@@ -502,20 +460,17 @@ function PageEditModeSelect({
       value={value}
     >
       <PromptInputSelectTrigger
-        aria-label={t("conversation.pageMode")}
+        aria-label={t('conversation.pageMode')}
         className="h-7 max-w-24 px-2 text-xs"
         disabled={disabled}
         size="sm"
       >
-        <PromptInputSelectValue>
-          {getPageEditModeLabel(value, t)}
-        </PromptInputSelectValue>
+        <PromptInputSelectValue>{getPageEditModeLabel(value, t)}</PromptInputSelectValue>
       </PromptInputSelectTrigger>
       <PromptInputSelectContent side="top" sideOffset={6}>
         {PAGE_EDIT_MODE_OPTIONS.map((option) => {
           const optionRequiresPreview =
-            option.value === "direct_edit" ||
-            option.value === "duplicate_edit";
+            option.value === 'direct_edit' || option.value === 'duplicate_edit';
 
           return (
             <PromptInputSelectItem
@@ -532,13 +487,10 @@ function PageEditModeSelect({
   );
 }
 
-function getPageEditModeLabel(
-  value: PageEditMode,
-  t: ReturnType<typeof useI18n>["t"],
-) {
+function getPageEditModeLabel(value: PageEditMode, t: ReturnType<typeof useI18n>['t']) {
   const option = PAGE_EDIT_MODE_OPTIONS.find((item) => item.value === value);
 
-  return option ? t(option.labelKey) : t("conversation.pageModeAuto");
+  return option ? t(option.labelKey) : t('conversation.pageModeAuto');
 }
 
 function getStoredAnthropicEffort(modelId: string): AnthropicEffort | undefined {
@@ -557,14 +509,11 @@ function saveStoredAnthropicEffort(modelId: string, effort: AnthropicEffort) {
     const stored = window.localStorage.getItem(ANTHROPIC_EFFORT_STORAGE_KEY);
     const parsed = stored ? JSON.parse(stored) : {};
     const next =
-      parsed && typeof parsed === "object"
+      parsed && typeof parsed === 'object'
         ? { ...parsed, [modelId]: effort }
         : { [modelId]: effort };
 
-    window.localStorage.setItem(
-      ANTHROPIC_EFFORT_STORAGE_KEY,
-      JSON.stringify(next),
-    );
+    window.localStorage.setItem(ANTHROPIC_EFFORT_STORAGE_KEY, JSON.stringify(next));
   } catch {
     // Ignore storage failures; runtime selection still works for this session.
   }
@@ -586,14 +535,8 @@ const ConversationMessageItem = memo(
   }) {
     return (
       <Message from={message.role}>
-        <MessageContent
-          className={message.role === "assistant" ? "w-full" : undefined}
-        >
-          <MessageParts
-            isLastMessage={isLastMessage}
-            isStreaming={isStreaming}
-            message={message}
-          />
+        <MessageContent className={message.role === 'assistant' ? 'w-full' : undefined}>
+          <MessageParts isLastMessage={isLastMessage} isStreaming={isStreaming} message={message} />
         </MessageContent>
       </Message>
     );
@@ -608,4 +551,4 @@ function getMessageKey(message: UIMessage, index: number) {
   return message.id || `message-${index}`;
 }
 
-export { MessageParts } from "@/features/conversation/components/message-parts";
+export { MessageParts } from '@/features/conversation/components/message-parts';

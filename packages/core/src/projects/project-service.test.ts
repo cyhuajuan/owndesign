@@ -1,11 +1,11 @@
-import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
+import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from 'vitest';
 
-import { ProjectService } from "./project-service";
-import { WorkspaceStore } from "@owndesign/core/workspace-store";
+import { ProjectService } from './project-service';
+import { WorkspaceStore } from '@owndesign/core/workspace-store';
 
 const tempRoots: string[] = [];
 
@@ -18,83 +18,85 @@ afterEach(async () => {
 });
 
 async function createWorkspaceStore() {
-  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "owndesign-project-service-"));
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'owndesign-project-service-'));
   tempRoots.push(tempRoot);
 
   return new WorkspaceStore({
-    workspaceRoot: path.join(tempRoot, ".owndesign"),
+    workspaceRoot: path.join(tempRoot, '.owndesign'),
   });
 }
 
-describe("ProjectService", () => {
-  it("creates a Project and auto-creates its first Conversation without global state", async () => {
+describe('ProjectService', () => {
+  it('creates a Project and auto-creates its first Conversation without global state', async () => {
     const workspaceStore = await createWorkspaceStore();
     const projectService = new ProjectService({ workspaceStore });
 
-    const { conversation, project: createdProject } =
-      await projectService.createProject({
-      name: "Landing Redesign",
-      description: "Marketing refresh",
+    const { conversation, project: createdProject } = await projectService.createProject({
+      name: 'Landing Redesign',
+      description: 'Marketing refresh',
     });
     const state = await projectService.getProjectState();
 
-    expect(createdProject.name).toBe("Landing Redesign");
-    expect(createdProject.outputType).toBe("html");
+    expect(createdProject.name).toBe('Landing Redesign');
+    expect(createdProject.outputType).toBe('html');
     expect(state.projects).toHaveLength(1);
     await expect(
-      stat(path.join(workspaceStore.getWorkspaceRoot(), "state.json")),
+      stat(path.join(workspaceStore.getWorkspaceRoot(), 'state.json')),
     ).rejects.toThrow();
 
     const conversationJson = JSON.parse(
       await readFile(
         path.join(
           workspaceStore.getWorkspaceRoot(),
-          "projects",
+          'projects',
           createdProject.id,
-          "conversations",
+          'conversations',
           `${conversation.id}.json`,
         ),
-        "utf8",
+        'utf8',
       ),
     );
 
     expect(conversationJson.projectId).toBe(createdProject.id);
-    expect(conversationJson.title).toBe("新建会话");
+    expect(conversationJson.title).toBe('新建会话');
     expect(conversationJson.messages).toEqual([]);
   });
 
-  it("renames a Project and updates Project Updated Time", async () => {
+  it('renames a Project and updates Project Updated Time', async () => {
     const workspaceStore = await createWorkspaceStore();
-    const projectService = new ProjectService({ workspaceStore, now: () => "2026-05-14T10:00:00.000Z" });
+    const projectService = new ProjectService({
+      workspaceStore,
+      now: () => '2026-05-14T10:00:00.000Z',
+    });
 
     const { project: createdProject } = await projectService.createProject({
-      name: "Old Name",
+      name: 'Old Name',
     });
 
     const renamedService = new ProjectService({
       workspaceStore,
-      now: () => "2026-05-14T11:00:00.000Z",
+      now: () => '2026-05-14T11:00:00.000Z',
     });
     const renamedProject = await renamedService.renameProject(createdProject.id, {
-      name: "New Name",
-      description: "Sharper summary",
+      name: 'New Name',
+      description: 'Sharper summary',
     });
 
-    expect(renamedProject.name).toBe("New Name");
-    expect(renamedProject.description).toBe("Sharper summary");
-    expect(renamedProject.updatedAt).toBe("2026-05-14T11:00:00.000Z");
+    expect(renamedProject.name).toBe('New Name');
+    expect(renamedProject.description).toBe('Sharper summary');
+    expect(renamedProject.updatedAt).toBe('2026-05-14T11:00:00.000Z');
 
     await expect(workspaceStore.listProjects()).resolves.toEqual([renamedProject]);
   });
 
-  it("lists Projects without restoring global active state after reload", async () => {
+  it('lists Projects without restoring global active state after reload', async () => {
     const workspaceStore = await createWorkspaceStore();
     const projectService = new ProjectService({ workspaceStore });
     const { project: firstProject } = await projectService.createProject({
-      name: "First Project",
+      name: 'First Project',
     });
     const { project: secondProject } = await projectService.createProject({
-      name: "Second Project",
+      name: 'Second Project',
     });
 
     const reloadedService = new ProjectService({ workspaceStore });
@@ -106,14 +108,14 @@ describe("ProjectService", () => {
     ]);
   });
 
-  it("deletes a Project without writing fallback state", async () => {
+  it('deletes a Project without writing fallback state', async () => {
     const workspaceStore = await createWorkspaceStore();
     const projectService = new ProjectService({ workspaceStore });
     const { project: firstProject } = await projectService.createProject({
-      name: "First Project",
+      name: 'First Project',
     });
     const { project: secondProject } = await projectService.createProject({
-      name: "Second Project",
+      name: 'Second Project',
     });
 
     await projectService.deleteProject(firstProject.id);
@@ -122,7 +124,7 @@ describe("ProjectService", () => {
 
     expect(state.projects.map((project) => project.id)).toEqual([secondProject.id]);
     await expect(
-      stat(path.join(workspaceStore.getWorkspaceRoot(), "state.json")),
+      stat(path.join(workspaceStore.getWorkspaceRoot(), 'state.json')),
     ).rejects.toThrow();
   });
 });

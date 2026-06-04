@@ -2,12 +2,11 @@
   "name": "@owndesign/monorepo",
   "version": "0.1.1",
   "private": true,
-  "type": "module",
-  "packageManager": "pnpm@11.3.0",
   "workspaces": [
     "apps/*",
     "packages/*"
   ],
+  "type": "module",
   "scripts": {
     "dev": "concurrently --raw -k \"pnpm --filter @owndesign/server dev\" \"pnpm --filter @owndesign/web dev\"",
     "desktop:dev": "pnpm --filter @owndesign/desktop dev",
@@ -19,6 +18,8 @@
     "version:bump": "tsx scripts/version.ts bump",
     "version:set": "tsx scripts/version.ts set",
     "lint": "oxlint .",
+    "format": "oxfmt . --write",
+    "format:check": "oxfmt . --check",
     "typecheck": "concurrently -n core,renderer,server,web,desktop,cli -c blue,green,magenta,cyan,yellow,red \"pnpm --filter @owndesign/core typecheck\" \"pnpm --filter @owndesign/renderer typecheck\" \"pnpm --filter @owndesign/server typecheck\" \"pnpm --filter @owndesign/web typecheck\" \"pnpm --filter @owndesign/desktop typecheck\" \"pnpm --filter owndesign typecheck\"",
     "test": "concurrently -n core,renderer,server,web,desktop,cli -c blue,green,magenta,cyan,yellow,red \"pnpm --filter @owndesign/core test\" \"pnpm --filter @owndesign/renderer test\" \"pnpm --filter @owndesign/server test\" \"pnpm --filter @owndesign/web test\" \"pnpm --filter @owndesign/desktop test\" \"pnpm --filter owndesign test\"",
     "test:watch": "concurrently -k -n core,renderer,server,web,desktop,cli -c blue,green,magenta,cyan,yellow,red \"pnpm --filter @owndesign/core test:watch\" \"pnpm --filter @owndesign/renderer test:watch\" \"pnpm --filter @owndesign/server test:watch\" \"pnpm --filter @owndesign/web test:watch\" \"pnpm --filter @owndesign/desktop test:watch\" \"pnpm --filter owndesign test:watch\""
@@ -35,10 +36,12 @@
     "@vitejs/plugin-react": "^6.0.2",
     "concurrently": "^9.2.1",
     "jsdom": "^29.1.1",
+    "oxfmt": "^0.53.0",
     "oxlint": "^1.68.0",
     "tsx": "^4.22.3",
     "typescript": "^6.0.3",
     "vite": "^8.0.14",
     "vitest": "^4.1.7"
-  }
+  },
+  "packageManager": "pnpm@11.3.0"
 }

@@ -1,7 +1,7 @@
-import { ConversationService } from "@owndesign/core/conversations/conversation-service";
-import { getPreviewServerManager } from "@owndesign/core/preview/preview-server-manager";
-import { ProjectService } from "@owndesign/core/projects/project-service";
-import { WorkspaceStore } from "@owndesign/core/workspace-store";
+import { ConversationService } from '@owndesign/core/conversations/conversation-service';
+import { getPreviewServerManager } from '@owndesign/core/preview/preview-server-manager';
+import { ProjectService } from '@owndesign/core/projects/project-service';
+import { WorkspaceStore } from '@owndesign/core/workspace-store';
 
 export function createWorkspaceStore() {
   return new WorkspaceStore();

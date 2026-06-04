@@ -1,20 +1,17 @@
-import type { ResourceLibrary } from "@owndesign/core/settings/settings-service";
-import { z } from "zod";
+import type { ResourceLibrary } from '@owndesign/core/settings/settings-service';
+import { z } from 'zod';
 
-import {
-  assertCreateHtmlAllowed,
-  markCreatedHtmlPath,
-} from "@owndesign/core/agent/page-edit-mode";
+import { assertCreateHtmlAllowed, markCreatedHtmlPath } from '@owndesign/core/agent/page-edit-mode';
 import {
   buildCdnTag,
   isHtmlPath,
   normalizeToolPath,
   readProjectWorkspaceFileIfExists,
-} from "./cdn-guard";
-import type { WorkspaceToolDefinition } from "./core";
-import type { CreateHtmlInput } from "./types";
+} from './cdn-guard';
+import type { WorkspaceToolDefinition } from './core';
+import type { CreateHtmlInput } from './types';
 
-const DEFAULT_TITLE = "OwnDesign Preview";
+const DEFAULT_TITLE = 'OwnDesign Preview';
 
 export function createCreateHtmlToolDefinition(): WorkspaceToolDefinition<
   CreateHtmlInput,
@@ -27,32 +24,35 @@ export function createCreateHtmlToolDefinition(): WorkspaceToolDefinition<
 > {
   return {
     description:
-      "Create a new previewable HTML file from the configured resource template before designing a missing target HTML page. Never overwrites existing files.",
-    inputSchema: z.object({
-      fontLibraryName: z
-        .string()
-        .describe("Optional configured font library name. Omit to use the default font library. Pass an empty string to disable font resources.")
-        .optional(),
-      iconLibraryName: z
-        .string()
-        .describe("Optional configured icon library name. Omit to use the default icon library. Pass an empty string to disable icon resources.")
-        .optional(),
-      path: z
-        .string()
-        .describe("Relative HTML file path inside the Project Workspace, such as index.html or pages/detail.html."),
-      title: z
-        .string()
-        .describe("Optional document title. Defaults to OwnDesign Preview.")
-        .optional(),
-    }).strict(),
-    name: "createHtml",
+      'Create a new previewable HTML file from the configured resource template before designing a missing target HTML page. Never overwrites existing files.',
+    inputSchema: z
+      .object({
+        fontLibraryName: z
+          .string()
+          .describe(
+            'Optional configured font library name. Omit to use the default font library. Pass an empty string to disable font resources.',
+          )
+          .optional(),
+        iconLibraryName: z
+          .string()
+          .describe(
+            'Optional configured icon library name. Omit to use the default icon library. Pass an empty string to disable icon resources.',
+          )
+          .optional(),
+        path: z
+          .string()
+          .describe(
+            'Relative HTML file path inside the Project Workspace, such as index.html or pages/detail.html.',
+          ),
+        title: z
+          .string()
+          .describe('Optional document title. Defaults to OwnDesign Preview.')
+          .optional(),
+      })
+      .strict(),
+    name: 'createHtml',
     parallelSafe: false,
-    execute: async (input, {
-      pageEditModePolicy,
-      projectId,
-      resources,
-      workspaceStore,
-    }) => {
+    execute: async (input, { pageEditModePolicy, projectId, resources, workspaceStore }) => {
       const targetPath = normalizeToolPath(input.path);
       assertCreateHtmlAllowed(pageEditModePolicy, targetPath);
 
@@ -70,16 +70,8 @@ export function createCreateHtmlToolDefinition(): WorkspaceToolDefinition<
         throw new Error(`Project Workspace HTML file already exists: ${targetPath}`);
       }
 
-      const fontLibrary = selectLibrary(
-        resources.fontLibraries,
-        input.fontLibraryName,
-        "font",
-      );
-      const iconLibrary = selectLibrary(
-        resources.iconLibraries,
-        input.iconLibraryName,
-        "icon",
-      );
+      const fontLibrary = selectLibrary(resources.fontLibraries, input.fontLibraryName, 'font');
+      const iconLibrary = selectLibrary(resources.iconLibraries, input.iconLibraryName, 'icon');
       const html = buildHtmlTemplate({
         fontLibrary,
         iconLibrary,
@@ -102,9 +94,9 @@ export function createCreateHtmlToolDefinition(): WorkspaceToolDefinition<
 function selectLibrary(
   libraries: ResourceLibrary[],
   name: string | undefined,
-  kind: "font" | "icon",
+  kind: 'font' | 'icon',
 ) {
-  if (name === "") {
+  if (name === '') {
     return undefined;
   }
 
@@ -131,46 +123,44 @@ function buildHtmlTemplate({
   title: string;
 }) {
   const headTags = [
-    fontLibrary?.cdn
-      ? buildCdnTag({ resourceType: "style-import", url: fontLibrary.cdn })
-      : "",
-    iconLibrary?.cdn && inferIconLibraryResourceType(iconLibrary.cdn) === "stylesheet"
-      ? buildCdnTag({ resourceType: "stylesheet", url: iconLibrary.cdn })
-      : "",
+    fontLibrary?.cdn ? buildCdnTag({ resourceType: 'style-import', url: fontLibrary.cdn }) : '',
+    iconLibrary?.cdn && inferIconLibraryResourceType(iconLibrary.cdn) === 'stylesheet'
+      ? buildCdnTag({ resourceType: 'stylesheet', url: iconLibrary.cdn })
+      : '',
   ].filter(Boolean);
   const bodyScripts = [
-    iconLibrary?.cdn && inferIconLibraryResourceType(iconLibrary.cdn) === "script"
-      ? buildCdnTag({ resourceType: "script", url: iconLibrary.cdn })
-      : "",
-    isLucideLibrary(iconLibrary) ? "  <script>window.lucide?.createIcons?.();</script>" : "",
+    iconLibrary?.cdn && inferIconLibraryResourceType(iconLibrary.cdn) === 'script'
+      ? buildCdnTag({ resourceType: 'script', url: iconLibrary.cdn })
+      : '',
+    isLucideLibrary(iconLibrary) ? '  <script>window.lucide?.createIcons?.();</script>' : '',
   ].filter(Boolean);
 
   return [
-    "<!doctype html>",
+    '<!doctype html>',
     '<html lang="zh-CN">',
-    "<head>",
+    '<head>',
     '  <meta charset="utf-8">',
     '  <meta name="viewport" content="width=device-width, initial-scale=1">',
     `  <title>${escapeHtmlText(title)}</title>`,
-    ...headTags.map((tag) => indentMultiline(tag, "  ")),
-    "</head>",
-    "<body>",
+    ...headTags.map((tag) => indentMultiline(tag, '  ')),
+    '</head>',
+    '<body>',
     '  <main id="app"></main>',
-    ...bodyScripts.map((tag) => indentMultiline(tag, "  ")),
-    "</body>",
-    "</html>",
-    "",
-  ].join("\n");
+    ...bodyScripts.map((tag) => indentMultiline(tag, '  ')),
+    '</body>',
+    '</html>',
+    '',
+  ].join('\n');
 }
 
-function inferIconLibraryResourceType(cdn: string): "script" | "stylesheet" {
+function inferIconLibraryResourceType(cdn: string): 'script' | 'stylesheet' {
   const normalized = cdn.toLowerCase();
 
-  return normalized.includes(".css") ||
-    normalized.includes("/css/") ||
-    normalized.includes("font-awesome")
-    ? "stylesheet"
-    : "script";
+  return normalized.includes('.css') ||
+    normalized.includes('/css/') ||
+    normalized.includes('font-awesome')
+    ? 'stylesheet'
+    : 'script';
 }
 
 function isLucideLibrary(library: ResourceLibrary | undefined) {
@@ -180,7 +170,7 @@ function isLucideLibrary(library: ResourceLibrary | undefined) {
 
   const value = `${library.name} ${library.cdn}`.toLowerCase();
 
-  return value.includes("lucide");
+  return value.includes('lucide');
 }
 
 function formatSelectedLibrary(library: ResourceLibrary | undefined) {
@@ -194,14 +184,11 @@ function formatSelectedLibrary(library: ResourceLibrary | undefined) {
 
 function indentMultiline(value: string, indent: string) {
   return value
-    .split("\n")
+    .split('\n')
     .map((line) => `${indent}${line}`)
-    .join("\n");
+    .join('\n');
 }
 
 function escapeHtmlText(value: string) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;");
+  return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
 }

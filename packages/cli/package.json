@@ -2,16 +2,13 @@
   "name": "owndesign",
   "version": "0.1.7",
   "private": false,
-  "type": "module",
   "bin": {
     "owndesign": "./dist/index.js"
   },
   "files": [
     "dist"
   ],
-  "engines": {
-    "node": ">=22"
-  },
+  "type": "module",
   "scripts": {
     "build": "pnpm --filter @owndesign/server build && pnpm --filter @owndesign/web build && node scripts/build.mjs",
     "typecheck": "tsc -p tsconfig.json",
@@ -20,5 +17,8 @@
   },
   "devDependencies": {
     "esbuild": "^0.28.0"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

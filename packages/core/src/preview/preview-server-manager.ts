@@ -1,11 +1,11 @@
-import { access, readFile } from "node:fs/promises";
-import path from "node:path";
+import { access, readFile } from 'node:fs/promises';
+import path from 'node:path';
 
-import { serve, type ServerType } from "@hono/node-server";
-import { serveStatic } from "@hono/node-server/serve-static";
-import { Hono } from "hono";
+import { serve, type ServerType } from '@hono/node-server';
+import { serveStatic } from '@hono/node-server/serve-static';
+import { Hono } from 'hono';
 
-import { WorkspaceStore } from "@owndesign/core/workspace-store";
+import { WorkspaceStore } from '@owndesign/core/workspace-store';
 
 type PreviewServerManagerOptions = {
   cleanupIntervalMs?: number;
@@ -25,8 +25,8 @@ type PreviewServerEntry = {
 
 const DEFAULT_CLEANUP_INTERVAL_MS = 30_000;
 const DEFAULT_LEASE_TTL_MS = 90_000;
-const PREVIEW_HOST = "127.0.0.1";
-const PREVIEW_CACHE_CONTROL = "no-store";
+const PREVIEW_HOST = '127.0.0.1';
+const PREVIEW_CACHE_CONTROL = 'no-store';
 
 declare global {
   var __owndesignPreviewServerManager: PreviewServerManager | undefined;
@@ -42,8 +42,7 @@ export class PreviewServerManager {
   private cleanupTimer: ReturnType<typeof setInterval> | undefined;
 
   constructor(options: PreviewServerManagerOptions) {
-    this.cleanupIntervalMs =
-      options.cleanupIntervalMs ?? DEFAULT_CLEANUP_INTERVAL_MS;
+    this.cleanupIntervalMs = options.cleanupIntervalMs ?? DEFAULT_CLEANUP_INTERVAL_MS;
     this.leaseTtlMs = options.leaseTtlMs ?? DEFAULT_LEASE_TTL_MS;
     this.now = options.now ?? Date.now;
     this.workspaceStore = options.workspaceStore;
@@ -52,10 +51,7 @@ export class PreviewServerManager {
   async ensure(projectId: string, clientId: string, previewPath?: string) {
     const entry = await this.getOrStartEntry(projectId, clientId);
     const files = await this.workspaceStore.listProjectHtmlFiles(projectId);
-    const activePath = resolveActivePreviewPath(
-      files,
-      previewPath ?? entry.activePath,
-    );
+    const activePath = resolveActivePreviewPath(files, previewPath ?? entry.activePath);
 
     entry.activePath = activePath;
     this.touchLease(entry);
@@ -107,9 +103,8 @@ export class PreviewServerManager {
   }
 
   getLeaseCount(projectId: string) {
-    return Array.from(this.entries.values()).filter(
-      (entry) => entry.projectId === projectId,
-    ).length;
+    return Array.from(this.entries.values()).filter((entry) => entry.projectId === projectId)
+      .length;
   }
 
   async cleanupExpiredLeases() {
@@ -148,38 +143,37 @@ export class PreviewServerManager {
     }
   }
 
-  private async startEntry(
-    projectId: string,
-    key: string,
-  ): Promise<PreviewServerEntry> {
+  private async startEntry(projectId: string, key: string): Promise<PreviewServerEntry> {
     await this.workspaceStore.getProject(projectId);
 
-    const workspaceDirectory =
-      this.workspaceStore.getProjectWorkspaceDirectory(projectId);
+    const workspaceDirectory = this.workspaceStore.getProjectWorkspaceDirectory(projectId);
     const app = new Hono();
     const entry: PreviewServerEntry = {
-      baseUrl: "",
+      baseUrl: '',
       expiresAt: this.now() + this.leaseTtlMs,
       key,
       projectId,
     };
 
-    app.get("/", async () =>
+    app.get('/', async () =>
       htmlResponse(await readIndexHtmlOrEmptyPreview(workspaceDirectory, entry)),
     );
-    app.get("/index.html", async () =>
+    app.get('/index.html', async () =>
       htmlResponse(await readIndexHtmlOrEmptyPreview(workspaceDirectory, entry)),
     );
-    app.use("*", async (context, next) => {
-      context.header("Cache-Control", PREVIEW_CACHE_CONTROL);
+    app.use('*', async (context, next) => {
+      context.header('Cache-Control', PREVIEW_CACHE_CONTROL);
       await next();
     });
-    app.use("*", serveStatic({
-      onFound: (filePath) => {
-        recordServedStaticPath(entry, workspaceDirectory, filePath);
-      },
-      root: workspaceDirectory,
-    }));
+    app.use(
+      '*',
+      serveStatic({
+        onFound: (filePath) => {
+          recordServedStaticPath(entry, workspaceDirectory, filePath);
+        },
+        root: workspaceDirectory,
+      }),
+    );
 
     const server = await listenOnRandomPort(app);
     entry.server = server.server;
@@ -227,8 +221,8 @@ export class PreviewServerManager {
 function htmlResponse(html: string) {
   return new Response(html, {
     headers: {
-      "Cache-Control": PREVIEW_CACHE_CONTROL,
-      "Content-Type": "text/html; charset=utf-8",
+      'Cache-Control': PREVIEW_CACHE_CONTROL,
+      'Content-Type': 'text/html; charset=utf-8',
     },
   });
 }
@@ -276,16 +270,13 @@ export function getPreviewServerManager(workspaceStore: WorkspaceStore) {
   return globalThis.__owndesignPreviewServerManager;
 }
 
-async function readIndexHtmlOrEmptyPreview(
-  workspaceDirectory: string,
-  entry: PreviewServerEntry,
-) {
-  const indexPath = path.join(workspaceDirectory, "index.html");
+async function readIndexHtmlOrEmptyPreview(workspaceDirectory: string, entry: PreviewServerEntry) {
+  const indexPath = path.join(workspaceDirectory, 'index.html');
 
   try {
     await access(indexPath);
-    entry.activePath = "index.html";
-    return readFile(indexPath, "utf8");
+    entry.activePath = 'index.html';
+    return readFile(indexPath, 'utf8');
   } catch {
     return buildEmptyPreviewHtml();
   }
@@ -397,8 +388,8 @@ function resolveActivePreviewPath(files: string[], previewPath?: string) {
     return previewPath;
   }
 
-  if (files.includes("index.html")) {
-    return "index.html";
+  if (files.includes('index.html')) {
+    return 'index.html';
   }
 
   return files[0];
@@ -409,7 +400,7 @@ function buildPreviewUrl(baseUrl: string, previewPath?: string) {
     return baseUrl;
   }
 
-  return `${baseUrl}/${previewPath.split("/").map(encodeURIComponent).join("/")}`;
+  return `${baseUrl}/${previewPath.split('/').map(encodeURIComponent).join('/')}`;
 }
 
 function buildEntryKey(projectId: string, clientId: string) {
@@ -421,16 +412,13 @@ function recordServedHtmlPath(
   workspaceDirectory: string,
   filePath: string,
 ) {
-  if (!filePath.toLowerCase().endsWith(".html")) {
+  if (!filePath.toLowerCase().endsWith('.html')) {
     return;
   }
 
-  const relativePath = path
-    .relative(workspaceDirectory, filePath)
-    .split(path.sep)
-    .join("/");
+  const relativePath = path.relative(workspaceDirectory, filePath).split(path.sep).join('/');
 
-  if (!relativePath || relativePath.startsWith("..")) {
+  if (!relativePath || relativePath.startsWith('..')) {
     return;
   }
 
@@ -444,7 +432,7 @@ function recordServedStaticPath(
 ) {
   const filePath = path.isAbsolute(servedPath)
     ? servedPath
-    : path.join(workspaceDirectory, servedPath.replace(/^[/\\]+/, ""));
+    : path.join(workspaceDirectory, servedPath.replace(/^[/\\]+/, ''));
 
   recordServedHtmlPath(entry, workspaceDirectory, filePath);
 }

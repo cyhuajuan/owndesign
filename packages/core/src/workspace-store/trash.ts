@@ -1,8 +1,8 @@
-import { execFile } from "node:child_process";
-import process from "node:process";
-import { promisify } from "node:util";
+import { execFile } from 'node:child_process';
+import process from 'node:process';
+import { promisify } from 'node:util';
 
-import trash from "trash";
+import trash from 'trash';
 
 const execFileAsync = promisify(execFile);
 
@@ -13,7 +13,7 @@ export async function movePathToTrash(
     runWindowsRecycleCommand: (targetPath: string) => Promise<void>;
   },
 ) {
-  if (options.platform === "win32") {
+  if (options.platform === 'win32') {
     await options.runWindowsRecycleCommand(targetPath);
     return;
   }
@@ -34,15 +34,8 @@ if ($item.PSIsContainer) {
 `;
 
   await execFileAsync(
-    "powershell.exe",
-    [
-      "-NoProfile",
-      "-NonInteractive",
-      "-ExecutionPolicy",
-      "Bypass",
-      "-Command",
-      recycleScript,
-    ],
+    'powershell.exe',
+    ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', recycleScript],
     {
       env: {
         ...process.env,

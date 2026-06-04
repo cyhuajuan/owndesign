@@ -1,78 +1,73 @@
-import { useState } from "react";
+import { useState } from 'react';
 
-import { render, screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { describe, expect, it } from 'vitest';
 
-import { ControlBar } from "./control-bar";
+import { ControlBar } from './control-bar';
 
-describe("ControlBar", () => {
-  it("switches Project through searchable switcher", async () => {
+describe('ControlBar', () => {
+  it('switches Project through searchable switcher', async () => {
     const user = userEvent.setup();
 
     render(<ControlBarHarness />);
 
     await user.click(
-      screen.getByRole("button", {
-        name: "项目切换器 Alpha Website",
+      screen.getByRole('button', {
+        name: '项目切换器 Alpha Website',
       }),
     );
 
-    await user.type(
-      screen.getByPlaceholderText("搜索项目..."),
-      "mobile",
-    );
-    await user.click(
-      screen.getByRole("option", { name: "Mobile App Refresh" }),
-    );
+    await user.type(screen.getByPlaceholderText('搜索项目...'), 'mobile');
+    await user.click(screen.getByRole('option', { name: 'Mobile App Refresh' }));
 
     expect(
-      screen.getByRole("button", {
-        name: "项目切换器 Mobile App Refresh",
+      screen.getByRole('button', {
+        name: '项目切换器 Mobile App Refresh',
       }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", {
-        name: "会话切换器 Navigation audit",
+      screen.getByRole('button', {
+        name: '会话切换器 Navigation audit',
       }),
     ).toBeInTheDocument();
   });
 
-  it("shows optimistic project and hides stale conversations while switching", async () => {
+  it('shows optimistic project and hides stale conversations while switching', async () => {
     const user = userEvent.setup();
     const projects = [
       {
-        id: "project-alpha",
-        name: "Alpha Website",
-        outputType: "html" as const,
-        createdAt: "2026-05-14T10:00:00.000Z",
-        updatedAt: "2026-05-14T10:00:00.000Z",
+        id: 'project-alpha',
+        name: 'Alpha Website',
+        outputType: 'html' as const,
+        createdAt: '2026-05-14T10:00:00.000Z',
+        updatedAt: '2026-05-14T10:00:00.000Z',
       },
       {
-        id: "project-beta",
-        name: "Mobile App Refresh",
-        outputType: "html" as const,
-        createdAt: "2026-05-14T11:00:00.000Z",
-        updatedAt: "2026-05-14T11:00:00.000Z",
+        id: 'project-beta',
+        name: 'Mobile App Refresh',
+        outputType: 'html' as const,
+        createdAt: '2026-05-14T11:00:00.000Z',
+        updatedAt: '2026-05-14T11:00:00.000Z',
       },
     ];
     const alphaConversations = [
       {
-        id: "conversation-alpha-1",
-        projectId: "project-alpha",
-        title: "Landing page polish",
-        createdAt: "2026-05-14T10:00:00.000Z",
-        updatedAt: "2026-05-14T10:00:00.000Z",
+        id: 'conversation-alpha-1',
+        projectId: 'project-alpha',
+        title: 'Landing page polish',
+        createdAt: '2026-05-14T10:00:00.000Z',
+        updatedAt: '2026-05-14T10:00:00.000Z',
         messages: [],
       },
     ];
     const betaConversations = [
       {
-        id: "conversation-beta-1",
-        projectId: "project-beta",
-        title: "Navigation audit",
-        createdAt: "2026-05-14T11:00:00.000Z",
-        updatedAt: "2026-05-14T11:00:00.000Z",
+        id: 'conversation-beta-1',
+        projectId: 'project-beta',
+        title: 'Navigation audit',
+        createdAt: '2026-05-14T11:00:00.000Z',
+        updatedAt: '2026-05-14T11:00:00.000Z',
         messages: [],
       },
     ];
@@ -95,25 +90,21 @@ describe("ControlBar", () => {
     );
 
     await user.click(
-      screen.getByRole("button", {
-        name: "项目切换器 Alpha Website",
+      screen.getByRole('button', {
+        name: '项目切换器 Alpha Website',
       }),
     );
-    await user.click(
-      screen.getByRole("option", { name: "Mobile App Refresh" }),
-    );
+    await user.click(screen.getByRole('option', { name: 'Mobile App Refresh' }));
 
     expect(
-      screen.getByRole("button", {
-        name: "项目切换器 Mobile App Refresh",
+      screen.getByRole('button', {
+        name: '项目切换器 Mobile App Refresh',
       }),
     ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '会话切换器 加载会话...' })).toBeDisabled();
     expect(
-      screen.getByRole("button", { name: "会话切换器 加载会话..." }),
-    ).toBeDisabled();
-    expect(
-      screen.queryByRole("button", {
-        name: "会话切换器 Landing page polish",
+      screen.queryByRole('button', {
+        name: '会话切换器 Landing page polish',
       }),
     ).not.toBeInTheDocument();
 
@@ -136,148 +127,142 @@ describe("ControlBar", () => {
 
     await waitFor(() =>
       expect(
-        screen.getByRole("button", {
-          name: "会话切换器 Navigation audit",
+        screen.getByRole('button', {
+          name: '会话切换器 Navigation audit',
         }),
       ).toBeInTheDocument(),
     );
   });
 
-  it("switches Conversation through searchable switcher", async () => {
+  it('switches Conversation through searchable switcher', async () => {
     const user = userEvent.setup();
 
     render(<ControlBarHarness />);
 
     await user.click(
-      screen.getByRole("button", {
-        name: "会话切换器 Landing page polish",
+      screen.getByRole('button', {
+        name: '会话切换器 Landing page polish',
       }),
     );
 
-    await user.click(screen.getByRole("option", { name: "Hero messaging" }));
+    await user.click(screen.getByRole('option', { name: 'Hero messaging' }));
 
     expect(
-      screen.getByRole("button", {
-        name: "会话切换器 Hero messaging",
+      screen.getByRole('button', {
+        name: '会话切换器 Hero messaging',
       }),
     ).toBeInTheDocument();
   });
 
-  it("creates Project from Project switcher action", async () => {
+  it('creates Project from Project switcher action', async () => {
     const user = userEvent.setup();
 
     render(<ControlBarHarness />);
 
     await user.click(
-      screen.getByRole("button", {
-        name: "项目切换器 Alpha Website",
+      screen.getByRole('button', {
+        name: '项目切换器 Alpha Website',
       }),
     );
-    await user.click(screen.getByRole("option", { name: "新建项目" }));
-    await user.type(screen.getByLabelText("项目名称"), "Control Bar Launch");
-    await user.click(screen.getByRole("button", { name: "创建项目" }));
+    await user.click(screen.getByRole('option', { name: '新建项目' }));
+    await user.type(screen.getByLabelText('项目名称'), 'Control Bar Launch');
+    await user.click(screen.getByRole('button', { name: '创建项目' }));
 
     expect(
-      screen.getByRole("button", {
-        name: "项目切换器 Control Bar Launch",
+      screen.getByRole('button', {
+        name: '项目切换器 Control Bar Launch',
       }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", {
-        name: "会话切换器 新建会话",
-      }),
-    ).toBeInTheDocument();
-  });
-
-  it("creates Conversation from Conversation switcher action", async () => {
-    const user = userEvent.setup();
-
-    render(<ControlBarHarness />);
-
-    await user.click(
-      screen.getByRole("button", {
-        name: "会话切换器 Landing page polish",
-      }),
-    );
-    await user.click(screen.getByRole("option", { name: "新建会话" }));
-
-    expect(
-      screen.getByRole("button", {
-        name: "会话切换器 新建会话 3",
+      screen.getByRole('button', {
+        name: '会话切换器 新建会话',
       }),
     ).toBeInTheDocument();
   });
 
-  it("renames Project from Project switcher item menu", async () => {
+  it('creates Conversation from Conversation switcher action', async () => {
     const user = userEvent.setup();
 
     render(<ControlBarHarness />);
 
     await user.click(
-      screen.getByRole("button", {
-        name: "项目切换器 Alpha Website",
+      screen.getByRole('button', {
+        name: '会话切换器 Landing page polish',
       }),
     );
-    const alphaOption = screen.getByRole("option", { name: /Alpha Website/ });
-    await user.click(
-      within(alphaOption).getByRole("button", { name: "重命名" }),
-    );
-    await user.clear(screen.getByLabelText("新名称"));
-    await user.type(screen.getByLabelText("新名称"), "Alpha Redesign");
-    await user.click(screen.getByRole("button", { name: "保存" }));
+    await user.click(screen.getByRole('option', { name: '新建会话' }));
 
     expect(
-      screen.getByRole("button", {
-        name: "项目切换器 Alpha Redesign",
+      screen.getByRole('button', {
+        name: '会话切换器 新建会话 3',
       }),
     ).toBeInTheDocument();
   });
 
-  it("deletes Conversation through confirmation dialog", async () => {
+  it('renames Project from Project switcher item menu', async () => {
     const user = userEvent.setup();
 
     render(<ControlBarHarness />);
 
     await user.click(
-      screen.getByRole("button", {
-        name: "会话切换器 Landing page polish",
+      screen.getByRole('button', {
+        name: '项目切换器 Alpha Website',
       }),
     );
-    const heroOption = screen.getByRole("option", { name: /Hero messaging/ });
+    const alphaOption = screen.getByRole('option', { name: /Alpha Website/ });
+    await user.click(within(alphaOption).getByRole('button', { name: '重命名' }));
+    await user.clear(screen.getByLabelText('新名称'));
+    await user.type(screen.getByLabelText('新名称'), 'Alpha Redesign');
+    await user.click(screen.getByRole('button', { name: '保存' }));
+
+    expect(
+      screen.getByRole('button', {
+        name: '项目切换器 Alpha Redesign',
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it('deletes Conversation through confirmation dialog', async () => {
+    const user = userEvent.setup();
+
+    render(<ControlBarHarness />);
+
     await user.click(
-      within(heroOption).getByRole("button", { name: "删除" }),
+      screen.getByRole('button', {
+        name: '会话切换器 Landing page polish',
+      }),
     );
-    await user.click(screen.getByRole("button", { name: "删除" }));
+    const heroOption = screen.getByRole('option', { name: /Hero messaging/ });
+    await user.click(within(heroOption).getByRole('button', { name: '删除' }));
+    await user.click(screen.getByRole('button', { name: '删除' }));
     await user.click(
-      screen.getByRole("button", {
-        name: "会话切换器 Landing page polish",
+      screen.getByRole('button', {
+        name: '会话切换器 Landing page polish',
       }),
     );
 
-    expect(
-      screen.queryByRole("option", { name: /Hero messaging/ }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /Hero messaging/ })).not.toBeInTheDocument();
   });
 });
 
 function ControlBarHarness() {
   const [projects, setProjects] = useState([
     {
-      id: "project-alpha",
-      name: "Alpha Website",
-      outputType: "html" as const,
-      createdAt: "2026-05-14T10:00:00.000Z",
-      updatedAt: "2026-05-14T10:00:00.000Z",
+      id: 'project-alpha',
+      name: 'Alpha Website',
+      outputType: 'html' as const,
+      createdAt: '2026-05-14T10:00:00.000Z',
+      updatedAt: '2026-05-14T10:00:00.000Z',
     },
     {
-      id: "project-beta",
-      name: "Mobile App Refresh",
-      outputType: "html" as const,
-      createdAt: "2026-05-14T11:00:00.000Z",
-      updatedAt: "2026-05-14T11:00:00.000Z",
+      id: 'project-beta',
+      name: 'Mobile App Refresh',
+      outputType: 'html' as const,
+      createdAt: '2026-05-14T11:00:00.000Z',
+      updatedAt: '2026-05-14T11:00:00.000Z',
     },
   ]);
-  const [activeProjectId, setActiveProjectId] = useState("project-alpha");
+  const [activeProjectId, setActiveProjectId] = useState('project-alpha');
   const [conversationsByProject, setConversationsByProject] = useState<
     Record<
       string,
@@ -291,40 +276,38 @@ function ControlBarHarness() {
       }>
     >
   >({
-    "project-alpha": [
+    'project-alpha': [
       {
-        id: "conversation-alpha-1",
-        projectId: "project-alpha",
-        title: "Landing page polish",
-        createdAt: "2026-05-14T10:00:00.000Z",
-        updatedAt: "2026-05-14T10:00:00.000Z",
+        id: 'conversation-alpha-1',
+        projectId: 'project-alpha',
+        title: 'Landing page polish',
+        createdAt: '2026-05-14T10:00:00.000Z',
+        updatedAt: '2026-05-14T10:00:00.000Z',
         messages: [],
       },
       {
-        id: "conversation-alpha-2",
-        projectId: "project-alpha",
-        title: "Hero messaging",
-        createdAt: "2026-05-14T10:30:00.000Z",
-        updatedAt: "2026-05-14T10:30:00.000Z",
+        id: 'conversation-alpha-2',
+        projectId: 'project-alpha',
+        title: 'Hero messaging',
+        createdAt: '2026-05-14T10:30:00.000Z',
+        updatedAt: '2026-05-14T10:30:00.000Z',
         messages: [],
       },
     ],
-    "project-beta": [
+    'project-beta': [
       {
-        id: "conversation-beta-1",
-        projectId: "project-beta",
-        title: "Navigation audit",
-        createdAt: "2026-05-14T11:00:00.000Z",
-        updatedAt: "2026-05-14T11:00:00.000Z",
+        id: 'conversation-beta-1',
+        projectId: 'project-beta',
+        title: 'Navigation audit',
+        createdAt: '2026-05-14T11:00:00.000Z',
+        updatedAt: '2026-05-14T11:00:00.000Z',
         messages: [],
       },
     ],
   });
-  const [activeConversationIds, setActiveConversationIds] = useState<
-    Record<string, string>
-  >({
-    "project-alpha": "conversation-alpha-1",
-    "project-beta": "conversation-beta-1",
+  const [activeConversationIds, setActiveConversationIds] = useState<Record<string, string>>({
+    'project-alpha': 'conversation-alpha-1',
+    'project-beta': 'conversation-beta-1',
   });
 
   return (
@@ -339,8 +322,8 @@ function ControlBarHarness() {
           id: nextConversationId,
           projectId: activeProjectId,
           title: `新建会话 ${nextCount}`,
-          createdAt: "2026-05-14T12:30:00.000Z",
-          updatedAt: "2026-05-14T12:30:00.000Z",
+          createdAt: '2026-05-14T12:30:00.000Z',
+          updatedAt: '2026-05-14T12:30:00.000Z',
           messages: [],
         };
 
@@ -364,9 +347,9 @@ function ControlBarHarness() {
             id: nextProjectId,
             name,
             description,
-            outputType: "html",
-            createdAt: "2026-05-14T12:00:00.000Z",
-            updatedAt: "2026-05-14T12:00:00.000Z",
+            outputType: 'html',
+            createdAt: '2026-05-14T12:00:00.000Z',
+            updatedAt: '2026-05-14T12:00:00.000Z',
           },
         ]);
         setConversationsByProject((current) => ({
@@ -375,9 +358,9 @@ function ControlBarHarness() {
             {
               id: nextConversationId,
               projectId: nextProjectId,
-              title: "新建会话",
-              createdAt: "2026-05-14T12:00:00.000Z",
-              updatedAt: "2026-05-14T12:00:00.000Z",
+              title: '新建会话',
+              createdAt: '2026-05-14T12:00:00.000Z',
+              updatedAt: '2026-05-14T12:00:00.000Z',
               messages: [],
             },
           ],
@@ -397,32 +380,24 @@ function ControlBarHarness() {
         }));
       }}
       onDeleteProject={async (projectId) => {
-        setProjects((current) =>
-          current.filter((project) => project.id !== projectId),
-        );
+        setProjects((current) => current.filter((project) => project.id !== projectId));
         if (activeProjectId === projectId) {
-          const fallbackProject = projects.find(
-            (project) => project.id !== projectId,
-          );
-          setActiveProjectId(fallbackProject?.id ?? "");
+          const fallbackProject = projects.find((project) => project.id !== projectId);
+          setActiveProjectId(fallbackProject?.id ?? '');
         }
       }}
       onRenameConversation={async (conversationId, title) => {
         setConversationsByProject((current) => ({
           ...current,
           [activeProjectId]: current[activeProjectId].map((conversation) =>
-            conversation.id === conversationId
-              ? { ...conversation, title }
-              : conversation,
+            conversation.id === conversationId ? { ...conversation, title } : conversation,
           ),
         }));
       }}
       onRenameProject={async (projectId, name, description) => {
         setProjects((current) =>
           current.map((project) =>
-            project.id === projectId
-              ? { ...project, name, description }
-              : project,
+            project.id === projectId ? { ...project, name, description } : project,
           ),
         );
       }}

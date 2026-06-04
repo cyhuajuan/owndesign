@@ -1,24 +1,24 @@
 export const FRONTEND_CAPABILITIES = {
-  "preview.refresh": {
-    description: "Refresh the current Preview Pane without changing HTML file.",
+  'preview.refresh': {
+    description: 'Refresh the current Preview Pane without changing HTML file.',
     payloadSchema: {
-      type: "object",
+      type: 'object',
       properties: {},
       additionalProperties: false,
     },
   },
-  "preview.switchHtml": {
-    description: "Switch the Preview Pane to an existing HTML file.",
+  'preview.switchHtml': {
+    description: 'Switch the Preview Pane to an existing HTML file.',
     payloadSchema: {
-      type: "object",
+      type: 'object',
       properties: {
         path: {
-          type: "string",
+          type: 'string',
           description:
-            "Relative HTML file path inside the Project Workspace to show in the Preview Pane.",
+            'Relative HTML file path inside the Project Workspace to show in the Preview Pane.',
         },
       },
-      required: ["path"],
+      required: ['path'],
       additionalProperties: false,
     },
   },
@@ -27,8 +27,8 @@ export const FRONTEND_CAPABILITIES = {
 export type FrontendCapabilityId = keyof typeof FRONTEND_CAPABILITIES;
 
 export type FrontendCapabilityPayloads = {
-  "preview.refresh": Record<string, never>;
-  "preview.switchHtml": {
+  'preview.refresh': Record<string, never>;
+  'preview.switchHtml': {
     path: string;
   };
 };
@@ -41,16 +41,11 @@ export type FrontendCommand = {
   };
 }[FrontendCapabilityId];
 
-export const FRONTEND_CAPABILITY_IDS = Object.keys(
-  FRONTEND_CAPABILITIES,
-) as FrontendCapabilityId[];
+export const FRONTEND_CAPABILITY_IDS = Object.keys(FRONTEND_CAPABILITIES) as FrontendCapabilityId[];
 
-export function isFrontendCapabilityId(
-  value: unknown,
-): value is FrontendCapabilityId {
+export function isFrontendCapabilityId(value: unknown): value is FrontendCapabilityId {
   return (
-    typeof value === "string" &&
-    FRONTEND_CAPABILITY_IDS.includes(value as FrontendCapabilityId)
+    typeof value === 'string' && FRONTEND_CAPABILITY_IDS.includes(value as FrontendCapabilityId)
   );
 }
 
@@ -58,24 +53,20 @@ export function validateFrontendCapabilityPayload(
   capability: FrontendCapabilityId,
   payload: unknown,
 ) {
-  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
     throw new Error(`Frontend capability payload must be an object: ${capability}`);
   }
 
-  if (capability === "preview.refresh") {
+  if (capability === 'preview.refresh') {
     if (Object.keys(payload).length > 0) {
-      throw new Error("preview.refresh payload must be empty.");
+      throw new Error('preview.refresh payload must be empty.');
     }
 
     return {};
   }
 
-  if (
-    !("path" in payload) ||
-    typeof payload.path !== "string" ||
-    !payload.path.trim()
-  ) {
-    throw new Error("preview.switchHtml payload.path must be a non-empty string.");
+  if (!('path' in payload) || typeof payload.path !== 'string' || !payload.path.trim()) {
+    throw new Error('preview.switchHtml payload.path must be a non-empty string.');
   }
 
   return {
@@ -85,21 +76,19 @@ export function validateFrontendCapabilityPayload(
 
 export function buildFrontendCapabilityPrompt() {
   return [
-    "## Frontend Capabilities",
-    "Use preview tools only to notify the browser UI after Project Workspace file changes are complete. They do not create, edit, or validate files.",
-    "After successful previewable HTML changes, call exactly one preview tool before the final user-facing summary.",
-    "Do not call a preview tool when no previewable HTML file changed or the file operation failed.",
-    "Use the current user request to decide which preview tool is needed:",
-    "- Use `previewSwitchHtml` only when the Preview Pane should move to a different existing relative `.html` file inside the Project Workspace.",
-    "- Use `previewRefresh` when the Preview Pane is already showing the correct page and only needs to reload changed HTML.",
-    "Do not use workspace file tools to simulate preview switching or refreshing.",
-    "Available capabilities:",
+    '## Frontend Capabilities',
+    'Use preview tools only to notify the browser UI after Project Workspace file changes are complete. They do not create, edit, or validate files.',
+    'After successful previewable HTML changes, call exactly one preview tool before the final user-facing summary.',
+    'Do not call a preview tool when no previewable HTML file changed or the file operation failed.',
+    'Use the current user request to decide which preview tool is needed:',
+    '- Use `previewSwitchHtml` only when the Preview Pane should move to a different existing relative `.html` file inside the Project Workspace.',
+    '- Use `previewRefresh` when the Preview Pane is already showing the correct page and only needs to reload changed HTML.',
+    'Do not use workspace file tools to simulate preview switching or refreshing.',
+    'Available capabilities:',
     ...FRONTEND_CAPABILITY_IDS.map((capability) => {
-      const schema = JSON.stringify(
-        FRONTEND_CAPABILITIES[capability].payloadSchema,
-      );
+      const schema = JSON.stringify(FRONTEND_CAPABILITIES[capability].payloadSchema);
 
       return `- ${capability}: ${FRONTEND_CAPABILITIES[capability].description} Payload schema: ${schema}`;
     }),
-  ].join("\n");
+  ].join('\n');
 }

@@ -1,13 +1,8 @@
-import { createAnthropic } from "@ai-sdk/anthropic";
-import { createDeepSeek } from "@ai-sdk/deepseek";
-import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
-import type { LanguageModelV3 } from "@ai-sdk/provider";
-import {
-  stepCountIs,
-  ToolLoopAgent,
-  type LanguageModel,
-  type ToolLoopAgentSettings,
-} from "ai";
+import { createAnthropic } from '@ai-sdk/anthropic';
+import { createDeepSeek } from '@ai-sdk/deepseek';
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
+import type { LanguageModelV3 } from '@ai-sdk/provider';
+import { stepCountIs, ToolLoopAgent, type LanguageModel, type ToolLoopAgentSettings } from 'ai';
 
 import {
   createSettingsService,
@@ -16,17 +11,17 @@ import {
   type ModelConfiguration,
   type ResourceLibrary,
   type ResourceSettings,
-} from "@owndesign/core/settings/settings-service";
-import type { ProjectOutputType } from "@owndesign/core/workspace-store";
-import { WorkspaceStore } from "@owndesign/core/workspace-store";
-import { createProjectWorkspaceTools } from "@owndesign/core/agent/tools/project-workspace-tools";
-import { loadPrompt } from "@owndesign/core/prompts";
-import { buildFrontendCapabilityPrompt } from "@owndesign/core/realtime/frontend-capabilities";
+} from '@owndesign/core/settings/settings-service';
+import type { ProjectOutputType } from '@owndesign/core/workspace-store';
+import { WorkspaceStore } from '@owndesign/core/workspace-store';
+import { createProjectWorkspaceTools } from '@owndesign/core/agent/tools/project-workspace-tools';
+import { loadPrompt } from '@owndesign/core/prompts';
+import { buildFrontendCapabilityPrompt } from '@owndesign/core/realtime/frontend-capabilities';
 import {
   buildPageEditModePolicy,
   type PageEditMode,
   type PageEditModePolicy,
-} from "@owndesign/core/agent/page-edit-mode";
+} from '@owndesign/core/agent/page-edit-mode';
 
 export const DESIGN_PAGE_AGENT_PROMPT_VERSION = 1;
 
@@ -41,9 +36,7 @@ export type DesignPageAgentResult = {
 };
 
 export type DesignPageAgent = {
-  generateProjectOutput(
-    input: DesignPageAgentInput,
-  ): Promise<DesignPageAgentResult>;
+  generateProjectOutput(input: DesignPageAgentInput): Promise<DesignPageAgentResult>;
 };
 
 type CreateDesignPageAgentInput = {
@@ -54,7 +47,7 @@ type CreateDesignPageAgentInput = {
   outputType: ProjectOutputType;
   pageEditMode?: PageEditMode;
   pageEditModePolicy?: PageEditModePolicy;
-  providerOptions?: ToolLoopAgentSettings["providerOptions"];
+  providerOptions?: ToolLoopAgentSettings['providerOptions'];
   projectId: string;
   resources: ResourceSettings;
   workspaceStore: WorkspaceStore;
@@ -87,7 +80,7 @@ export class AiSdkDesignPageAgent implements DesignPageAgent {
   constructor(private readonly workspaceStore: WorkspaceStore) {}
 
   async generateProjectOutput(input: DesignPageAgentInput) {
-    if (input.outputType !== "html") {
+    if (input.outputType !== 'html') {
       throw new Error(`Unsupported Project Output Type: ${input.outputType}`);
     }
 
@@ -103,7 +96,7 @@ export class AiSdkDesignPageAgent implements DesignPageAgent {
     });
 
     return {
-      content: result.text || "已处理请求。",
+      content: result.text || '已处理请求。',
     };
   }
 }
@@ -113,12 +106,12 @@ export async function createDesignPageAgentContext({
   frontendTabId,
   modelConfigurationId,
   outputType,
-  pageEditMode = "auto",
+  pageEditMode = 'auto',
   projectId,
   providerOptionsSelection,
   workspaceStore,
 }: CreateDesignPageAgentContextInput): Promise<DesignAgentContext> {
-  if (outputType !== "html") {
+  if (outputType !== 'html') {
     throw new Error(`Unsupported Project Output Type: ${outputType}`);
   }
 
@@ -142,10 +135,7 @@ export async function createDesignPageAgentContext({
     outputType,
     pageEditMode,
     pageEditModePolicy,
-    providerOptions: buildProviderOptions(
-      modelConfiguration,
-      providerOptionsSelection,
-    ),
+    providerOptions: buildProviderOptions(modelConfiguration, providerOptionsSelection),
     projectId,
     resources: settings.resources,
     workspaceStore,
@@ -182,23 +172,19 @@ export function createDesignPageWorkspaceTools({
   });
 }
 
-export function buildDesignPageInstructions({
-  resources,
-}: DesignAgentContext) {
+export function buildDesignPageInstructions({ resources }: DesignAgentContext) {
   return buildDesignPageConversationInstructions(resources);
 }
 
-export function buildLanguageModel(
-  configuration: ModelConfiguration,
-): LanguageModelV3 {
-  if (configuration.provider === "deepseek") {
+export function buildLanguageModel(configuration: ModelConfiguration): LanguageModelV3 {
+  if (configuration.provider === 'deepseek') {
     return createDeepSeek({
       apiKey: configuration.apiKey || undefined,
       baseURL: configuration.baseUrl || undefined,
     })(configuration.model);
   }
 
-  if (configuration.provider === "anthropic") {
+  if (configuration.provider === 'anthropic') {
     return createAnthropic({
       apiKey: configuration.apiKey || undefined,
       baseURL: configuration.baseUrl || undefined,
@@ -206,7 +192,7 @@ export function buildLanguageModel(
   }
 
   return createOpenAICompatible({
-    name: "openaiCompatible",
+    name: 'openaiCompatible',
     apiKey: configuration.apiKey || undefined,
     baseURL: configuration.baseUrl,
   })(configuration.model);
@@ -215,75 +201,69 @@ export function buildLanguageModel(
 export function buildProviderOptions(
   configuration: ModelConfiguration,
   selection?: ProviderOptionsSelection,
-): ToolLoopAgentSettings["providerOptions"] {
-  if (configuration.provider === "anthropic") {
+): ToolLoopAgentSettings['providerOptions'] {
+  if (configuration.provider === 'anthropic') {
     if (!selection?.anthropic) {
       return undefined;
     }
 
     return {
       anthropic: {
-        thinking: { type: "adaptive" },
+        thinking: { type: 'adaptive' },
         effort: selection.anthropic,
       },
     };
   }
 
-  if (configuration.provider !== "deepseek") {
+  if (configuration.provider !== 'deepseek') {
     return undefined;
   }
 
   const thinkingMode =
-    selection?.deepseek ??
-    configuration.providerOptions?.deepseek?.thinkingMode ??
-    "high";
+    selection?.deepseek ?? configuration.providerOptions?.deepseek?.thinkingMode ?? 'high';
 
-  if (thinkingMode === "disabled") {
+  if (thinkingMode === 'disabled') {
     return {
       deepseek: {
-        thinking: { type: "disabled" },
+        thinking: { type: 'disabled' },
       },
     };
   }
 
   return {
     deepseek: {
-      thinking: { type: "enabled" },
+      thinking: { type: 'enabled' },
       reasoningEffort: thinkingMode,
     },
   };
 }
 
-export function buildDesignPageAgentInstructions(
-  resources?: ResourceSettings,
-) {
+export function buildDesignPageAgentInstructions(resources?: ResourceSettings) {
   return buildDesignPageConversationInstructions(resources);
 }
 
-export function buildDesignPageConversationInstructions(
-  resources?: ResourceSettings,
-) {
+export function buildDesignPageConversationInstructions(resources?: ResourceSettings) {
   const sections: DesignPromptSection[] = [
     {
-      tag: "design_agent_core",
+      tag: 'design_agent_core',
       content: loadDesignPageAgentCorePrompt(),
     },
     {
-      tag: "page_target_protocol",
+      tag: 'page_target_protocol',
       content: buildPageTargetProtocolPrompt(),
     },
     {
-      tag: "tool_workflow",
+      tag: 'tool_workflow',
       content: buildToolWorkflowPrompt(),
     },
     {
-      tag: "frontend_capabilities",
+      tag: 'frontend_capabilities',
       content: buildFrontendCapabilityPrompt(),
     },
     ...(resources
       ? [
           {
-            tag: "resource_policy",
+            tag: 'resource_policy',
             content: buildResourcePolicyPrompt(resources),
           },
         ]
@@ -300,69 +280,69 @@ export function renderDesignPromptSections(sections: DesignPromptSection[]) {
 
       return `<${tag}>\n${trimmedContent}\n</${tag}>`;
     })
-    .join("\n\n");
+    .join('\n\n');
 }
 
 export function loadDesignPageAgentCorePrompt() {
-  return loadPrompt("agents/design-page");
+  return loadPrompt('agents/design-page');
 }
 
 export function buildPageTargetProtocolPrompt() {
   return [
-    "## Page Target Protocol",
-    "",
-    "Resolve the target HTML page before creating or updating previewable output.",
-    "",
-    "Target resolution:",
-    "- All previewable pages must be relative workspace paths ending in `.html`.",
-    "- If the user names a file, path, or page type, use that explicit target.",
+    '## Page Target Protocol',
+    '',
+    'Resolve the target HTML page before creating or updating previewable output.',
+    '',
+    'Target resolution:',
+    '- All previewable pages must be relative workspace paths ending in `.html`.',
+    '- If the user names a file, path, or page type, use that explicit target.',
     "- Each turn's user message has already been rewritten with the current preview page and page edit mode when those matter.",
-    "- If the user uses a relative page reference such as \"this page\", \"current page\", \"here\", \"top\", or \"bottom\", use the target page stated in the current user message when available.",
-    "- If the user asks for a home, main, landing, or first page, use `index.html`.",
-    "- If the user asks for a new named page, choose a semantic filename such as `login.html`, `settings.html`, or `pages/detail.html`.",
-    "- If no target is specified and no multi-page structure is evident, default to `index.html`.",
-    "- If multiple HTML files exist, no current preview page is available, and the target remains ambiguous after inspection, ask one concise follow-up question.",
-    "- Do not ask a follow-up question just because the request is brief; act when the target can be resolved from the current user message, an explicit filename, or the `index.html` default.",
-    "",
-    "- Do not overwrite `index.html` for a new page unless the user intent points to the home or main page.",
-  ].join("\n");
+    '- If the user uses a relative page reference such as "this page", "current page", "here", "top", or "bottom", use the target page stated in the current user message when available.',
+    '- If the user asks for a home, main, landing, or first page, use `index.html`.',
+    '- If the user asks for a new named page, choose a semantic filename such as `login.html`, `settings.html`, or `pages/detail.html`.',
+    '- If no target is specified and no multi-page structure is evident, default to `index.html`.',
+    '- If multiple HTML files exist, no current preview page is available, and the target remains ambiguous after inspection, ask one concise follow-up question.',
+    '- Do not ask a follow-up question just because the request is brief; act when the target can be resolved from the current user message, an explicit filename, or the `index.html` default.',
+    '',
+    '- Do not overwrite `index.html` for a new page unless the user intent points to the home or main page.',
+  ].join('\n');
 }
 
 export function buildToolWorkflowPrompt() {
   return [
-    "## Tool Workflow",
-    "Use the narrowest reliable tool for each task; inspect before writing, recover before retrying.",
-    "",
-    "Inspect before changing files:",
-    "- Use `glob` to discover files.",
-    "- Use `grep` to locate relevant code or markup.",
-    "- Use `read` before editing any existing target file.",
-    "- Always inspect before coordinated edits across existing files.",
-    "",
-    "Choose the write tool by intent:",
-    "- Use `edit` for small, focused replacements in one existing file.",
-    "- Use `patch` for coordinated changes, repeated replacements, or multi-file edits.",
-    "- Use `write` only for non-HTML files or deliberate full-file overwrites; never use it to create initial HTML pages.",
-    "- Do not use `write` for ordinary HTML page edits. Use it for HTML only when the user explicitly asks to rebuild the whole file.",
-    "- Use `delete` only after using `grep` or direct inspection to confirm the file is no longer referenced by any page or build target.",
-    "- Use `copyFile` when the current user message asks you to duplicate an existing file before editing the duplicate.",
-    "",
-    "For HTML pages:",
-    "- Do not modify unrelated HTML files unless the requested change requires coordinated edits.",
-    "- Use `createHtml` when the target HTML file does not exist; do not create initial HTML with `write`.",
-    "- For `createHtml`, pass the resolved target path. Pass `fontLibraryName` or `iconLibraryName` only when the user explicitly names a font or icon library; otherwise omit them so the tool reads configured defaults.",
-    "- After `createHtml`, immediately use `read` on that file before editing it.",
-    "- If the target HTML file exists, use `read` before editing it; do not call `createHtml`.",
-    "- Use `edit` or `patch` for HTML changes after reading the file.",
-    "",
-    "Recover from tool failures:",
-    "- If `edit` cannot find the expected text, `read` the file again and retry with a smaller replacement or `patch`.",
-    "- If a write tool returns an error or produces unexpected output, read the file again before retrying.",
-    "",
-    "Resource constraints:",
-    "- Only use CDNs already listed in resource settings; do not add others.",
-    "- `write`, `edit`, and `patch` will reject HTML with unlisted CDN tags - if rejected, fall back to configured libraries, system fonts, inline SVG, or local CSS.",
-  ].join("\n");
+    '## Tool Workflow',
+    'Use the narrowest reliable tool for each task; inspect before writing, recover before retrying.',
+    '',
+    'Inspect before changing files:',
+    '- Use `glob` to discover files.',
+    '- Use `grep` to locate relevant code or markup.',
+    '- Use `read` before editing any existing target file.',
+    '- Always inspect before coordinated edits across existing files.',
+    '',
+    'Choose the write tool by intent:',
+    '- Use `edit` for small, focused replacements in one existing file.',
+    '- Use `patch` for coordinated changes, repeated replacements, or multi-file edits.',
+    '- Use `write` only for non-HTML files or deliberate full-file overwrites; never use it to create initial HTML pages.',
+    '- Do not use `write` for ordinary HTML page edits. Use it for HTML only when the user explicitly asks to rebuild the whole file.',
+    '- Use `delete` only after using `grep` or direct inspection to confirm the file is no longer referenced by any page or build target.',
+    '- Use `copyFile` when the current user message asks you to duplicate an existing file before editing the duplicate.',
+    '',
+    'For HTML pages:',
+    '- Do not modify unrelated HTML files unless the requested change requires coordinated edits.',
+    '- Use `createHtml` when the target HTML file does not exist; do not create initial HTML with `write`.',
+    '- For `createHtml`, pass the resolved target path. Pass `fontLibraryName` or `iconLibraryName` only when the user explicitly names a font or icon library; otherwise omit them so the tool reads configured defaults.',
+    '- After `createHtml`, immediately use `read` on that file before editing it.',
+    '- If the target HTML file exists, use `read` before editing it; do not call `createHtml`.',
+    '- Use `edit` or `patch` for HTML changes after reading the file.',
+    '',
+    'Recover from tool failures:',
+    '- If `edit` cannot find the expected text, `read` the file again and retry with a smaller replacement or `patch`.',
+    '- If a write tool returns an error or produces unexpected output, read the file again before retrying.',
+    '',
+    'Resource constraints:',
+    '- Only use CDNs already listed in resource settings; do not add others.',
+    '- `write`, `edit`, and `patch` will reject HTML with unlisted CDN tags - if rejected, fall back to configured libraries, system fonts, inline SVG, or local CSS.',
+  ].join('\n');
 }
 
 export function buildResourcePolicyPrompt(resources: ResourceSettings) {
@@ -372,26 +352,26 @@ export function buildResourcePolicyPrompt(resources: ResourceSettings) {
   const iconLines = formatResourceLibraryList(resources.iconLibraries);
 
   return [
-    "## Resource Policy",
-    "Use these global resource settings when designing HTML preview pages.",
+    '## Resource Policy',
+    'Use these global resource settings when designing HTML preview pages.',
     defaultFontLibrary
       ? `Default font library: ${defaultFontLibrary.name}.`
-      : "Default font library: none configured.",
+      : 'Default font library: none configured.',
     defaultIconLibrary
       ? `Default icon library: ${defaultIconLibrary.name}.`
-      : "Default icon library: none configured.",
-    "If the user prompt explicitly names a configured font or icon library, use that named library; otherwise use the default library.",
-    "Only use configured font libraries or system fonts. Do not reference any unconfigured external font service or font CDN.",
-    "Prefer configured icon libraries for icons. Use inline SVG only when no icon library is configured or when the configured libraries cannot provide a suitable icon.",
-    "Do not reference any unconfigured external icon service or icon CDN.",
-    "When a configured library has no CDN, follow the library choice in CSS naming only and do not add a CDN tag for it.",
-    "Configured font libraries:",
-    fontLines.length ? fontLines.join("\n") : "- none",
-    "Configured icon libraries:",
-    iconLines.length ? iconLines.join("\n") : "- none",
-    "Use regular inline CSS as the primary styling method.",
-    "Do not add new CDN resources. If a needed resource is not configured, use system fonts, inline SVG, local CSS, or explain the limitation.",
-  ].join("\n");
+      : 'Default icon library: none configured.',
+    'If the user prompt explicitly names a configured font or icon library, use that named library; otherwise use the default library.',
+    'Only use configured font libraries or system fonts. Do not reference any unconfigured external font service or font CDN.',
+    'Prefer configured icon libraries for icons. Use inline SVG only when no icon library is configured or when the configured libraries cannot provide a suitable icon.',
+    'Do not reference any unconfigured external icon service or icon CDN.',
+    'When a configured library has no CDN, follow the library choice in CSS naming only and do not add a CDN tag for it.',
+    'Configured font libraries:',
+    fontLines.length ? fontLines.join('\n') : '- none',
+    'Configured icon libraries:',
+    iconLines.length ? iconLines.join('\n') : '- none',
+    'Use regular inline CSS as the primary styling method.',
+    'Do not add new CDN resources. If a needed resource is not configured, use system fonts, inline SVG, local CSS, or explain the limitation.',
+  ].join('\n');
 }
 
 export function buildApprovedCdnUrls(resources: ResourceSettings) {
@@ -410,6 +390,6 @@ function getDefaultResourceLibrary(libraries: ResourceLibrary[]) {
 function formatResourceLibraryList(libraries: ResourceLibrary[]) {
   return libraries.map(
     (library) =>
-      `- ${library.name}${library.isDefault ? " (default)" : ""}${library.cdn ? " (configured CDN)" : " (no CDN)"}`,
+      `- ${library.name}${library.isDefault ? ' (default)' : ''}${library.cdn ? ' (configured CDN)' : ' (no CDN)'}`,
   );
 }

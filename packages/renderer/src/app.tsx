@@ -1,33 +1,24 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ReactNode } from "react";
-import {
-  BrowserRouter,
-  useNavigate,
-  useParams,
-  Routes,
-  Route,
-} from "react-router";
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
+import { BrowserRouter, useNavigate, useParams, Routes, Route } from 'react-router';
 
-import { AppBrand } from "@/components/app-brand";
-import { Separator } from "@/components/ui/separator";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { ApiClientProvider, useApiClient } from "@/api/context";
-import { InitialSetupGuide } from "@/features/onboarding/components/initial-setup-guide";
-import { LanguageProvider, useI18n } from "@/features/i18n/context";
-import { WorkspaceShell } from "@/features/workspace/components/workspace-shell";
-import type { WorkspaceShellSlots } from "@/features/workspace/components/workspace-shell";
-import type { WorkspaceState } from "@/api/client";
-import { buildWorkspaceHref } from "@owndesign/core/navigation";
+import { AppBrand } from '@/components/app-brand';
+import { Separator } from '@/components/ui/separator';
+import { TooltipProvider } from '@/components/ui/tooltip';
+import { ApiClientProvider, useApiClient } from '@/api/context';
+import { InitialSetupGuide } from '@/features/onboarding/components/initial-setup-guide';
+import { LanguageProvider, useI18n } from '@/features/i18n/context';
+import { WorkspaceShell } from '@/features/workspace/components/workspace-shell';
+import type { WorkspaceShellSlots } from '@/features/workspace/components/workspace-shell';
+import type { WorkspaceState } from '@/api/client';
+import { buildWorkspaceHref } from '@owndesign/core/navigation';
 
 export type OwnDesignAppProps = {
   apiBaseUrl?: string;
   shellSlots?: WorkspaceShellSlots;
 };
 
-export function OwnDesignApp({
-  apiBaseUrl = "",
-  shellSlots,
-}: OwnDesignAppProps) {
+export function OwnDesignApp({ apiBaseUrl = '', shellSlots }: OwnDesignAppProps) {
   return (
     <ApiClientProvider baseUrl={apiBaseUrl}>
       <BrowserRouter>
@@ -67,10 +58,10 @@ function WorkspaceRoute({ shellSlots }: { shellSlots?: WorkspaceShellSlots }) {
   useEffect(() => {
     const handleRefresh = () => refresh();
 
-    window.addEventListener("owndesign:workspace-refresh", handleRefresh);
+    window.addEventListener('owndesign:workspace-refresh', handleRefresh);
 
     return () => {
-      window.removeEventListener("owndesign:workspace-refresh", handleRefresh);
+      window.removeEventListener('owndesign:workspace-refresh', handleRefresh);
     };
   }, [refresh]);
 
@@ -87,11 +78,7 @@ function WorkspaceRoute({ shellSlots }: { shellSlots?: WorkspaceShellSlots }) {
       })
       .catch((loadError: unknown) => {
         if (isActive) {
-          setError(
-            loadError instanceof Error
-              ? loadError.message
-              : "Workspace load failed.",
-          );
+          setError(loadError instanceof Error ? loadError.message : 'Workspace load failed.');
         }
       });
 
@@ -145,9 +132,7 @@ function WorkspaceRoute({ shellSlots }: { shellSlots?: WorkspaceShellSlots }) {
           : undefined,
       onRenameProject: api.renameProject,
       onSelectConversation: (targetConversationId: string) =>
-        activeProjectId
-          ? api.selectConversation(activeProjectId, targetConversationId)
-          : undefined,
+        activeProjectId ? api.selectConversation(activeProjectId, targetConversationId) : undefined,
       onSelectProject: (targetProjectId: string) => ({
         href: buildWorkspaceHref({ projectId: targetProjectId }),
       }),
@@ -166,16 +151,13 @@ function WorkspaceRoute({ shellSlots }: { shellSlots?: WorkspaceShellSlots }) {
   if (!state) {
     return renderStandaloneRouteContent(
       <div className="flex min-h-screen items-center justify-center bg-background text-muted-foreground">
-        {t("app.loading")}
+        {t('app.loading')}
       </div>,
       shellSlots,
     );
   }
 
-  if (
-    state.projects.length === 0 &&
-    state.settings.modelConfigurations.length === 0
-  ) {
+  if (state.projects.length === 0 && state.settings.modelConfigurations.length === 0) {
     return renderStandaloneRouteContent(
       <InitialSetupGuide
         onComplete={async (input) => {
@@ -198,7 +180,7 @@ function WorkspaceRoute({ shellSlots }: { shellSlots?: WorkspaceShellSlots }) {
       activeProject={state.activeProject}
       activeRun={state.activeRun}
       conversations={state.conversations}
-      key={state.activeProject?.id ?? "empty-workspace"}
+      key={state.activeProject?.id ?? 'empty-workspace'}
       projects={state.projects}
       shellSlots={shellSlots}
       {...actions}
@@ -206,10 +188,7 @@ function WorkspaceRoute({ shellSlots }: { shellSlots?: WorkspaceShellSlots }) {
   );
 }
 
-function renderStandaloneRouteContent(
-  content: ReactNode,
-  shellSlots?: WorkspaceShellSlots,
-) {
+function renderStandaloneRouteContent(content: ReactNode, shellSlots?: WorkspaceShellSlots) {
   if (!shellSlots) {
     return content;
   }

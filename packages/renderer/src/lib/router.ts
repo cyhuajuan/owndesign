@@ -3,7 +3,7 @@ import {
   useLocation as useReactRouterLocation,
   useNavigate as useReactRouterNavigate,
   useSearchParams as useReactRouterSearchParams,
-} from "react-router";
+} from 'react-router';
 
 export function useAppLocation() {
   try {
@@ -11,8 +11,8 @@ export function useAppLocation() {
   } catch {
     return {
       hash: window.location.hash,
-      key: "fallback",
-      pathname: window.location.pathname || "/",
+      key: 'fallback',
+      pathname: window.location.pathname || '/',
       search: window.location.search,
       state: null,
     };
@@ -24,7 +24,7 @@ export function useAppNavigate() {
     return useReactRouterNavigate();
   } catch {
     return ((to: string) => {
-      window.history.pushState(null, "", to);
+      window.history.pushState(null, '', to);
     }) as NavigateFunction;
   }
 }

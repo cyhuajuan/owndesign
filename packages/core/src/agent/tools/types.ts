@@ -1,6 +1,6 @@
-import type { WorkspaceStore } from "@owndesign/core/workspace-store";
-import type { ResourceSettings } from "@owndesign/core/settings/settings-service";
-import type { PageEditModePolicy } from "@owndesign/core/agent/page-edit-mode";
+import type { WorkspaceStore } from '@owndesign/core/workspace-store';
+import type { ResourceSettings } from '@owndesign/core/settings/settings-service';
+import type { PageEditModePolicy } from '@owndesign/core/agent/page-edit-mode';
 
 export type ProjectWorkspaceToolContext = {
   approvedCdnUrls?: string[];
@@ -49,18 +49,18 @@ export type PatchInput = {
   changes: Array<
     | {
         content: string;
-        operation: "add" | "write";
+        operation: 'add' | 'write';
         path: string;
       }
     | {
         newString: string;
         oldString: string;
-        operation: "edit";
+        operation: 'edit';
         path: string;
         replaceAll?: boolean;
       }
     | {
-        operation: "delete";
+        operation: 'delete';
         path: string;
       }
   >;

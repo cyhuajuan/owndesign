@@ -3,14 +3,11 @@ import {
   readUIMessageStream,
   type UIMessage,
   type UIMessageChunk,
-} from "ai";
+} from 'ai';
 
-import {
-  sanitizePublicUIMessage,
-  sanitizePublicUIMessageChunk,
-} from "./sanitize-ui-message";
+import { sanitizePublicUIMessage, sanitizePublicUIMessageChunk } from './sanitize-ui-message';
 
-export type ChatRunStatus = "running" | "completed" | "failed" | "cancelled";
+export type ChatRunStatus = 'running' | 'completed' | 'failed' | 'cancelled';
 
 export type ChatRunSummary = {
   chunkCount: number;
@@ -27,7 +24,7 @@ export type ChatRunSnapshot = {
   nextChunkIndex: number;
 };
 
-type ChatRun = Omit<ChatRunSummary, "chunkCount"> & {
+type ChatRun = Omit<ChatRunSummary, 'chunkCount'> & {
   abortController: AbortController;
   chunks: UIMessageChunk[];
   completedAt?: string;
@@ -68,9 +65,7 @@ type StartChatRunResult =
     };
 
 declare global {
-  var __owndesignChatRunManagers:
-    | Map<string, ChatRunManager>
-    | undefined;
+  var __owndesignChatRunManagers: Map<string, ChatRunManager> | undefined;
 }
 
 const LIVE_BROADCAST_INTERVAL_MS = 100;
@@ -81,7 +76,7 @@ export class ChatRunManager {
   startRun(input: StartChatRunInput): StartChatRunResult {
     const activeRun = this.activeRunsByProjectId.get(input.projectId);
 
-    if (activeRun?.status === "running") {
+    if (activeRun?.status === 'running') {
       return {
         activeRun: summarizeRun(activeRun),
         ok: false,
@@ -101,7 +96,7 @@ export class ChatRunManager {
       safeMessages: input.initialMessages,
       safeResumeChunkIndex: 0,
       safeSnapshotChunkIndex: 0,
-      status: "running",
+      status: 'running',
       streamState: createResumableStreamState(),
       subscribers: new Set(),
     };
@@ -119,13 +114,13 @@ export class ChatRunManager {
   getActiveRun(projectId: string) {
     const run = this.activeRunsByProjectId.get(projectId);
 
-    return run?.status === "running" ? summarizeRun(run) : undefined;
+    return run?.status === 'running' ? summarizeRun(run) : undefined;
   }
 
   getActiveRunSnapshot(projectId: string, conversationId: string) {
     const run = this.activeRunsByProjectId.get(projectId);
 
-    if (!run || run.status !== "running" || run.conversationId !== conversationId) {
+    if (!run || run.status !== 'running' || run.conversationId !== conversationId) {
       return undefined;
     }
 
@@ -136,14 +131,10 @@ export class ChatRunManager {
     } satisfies ChatRunSnapshot;
   }
 
-  subscribeActiveRun(
-    projectId: string,
-    conversationId: string,
-    afterChunkIndex = 0,
-  ) {
+  subscribeActiveRun(projectId: string, conversationId: string, afterChunkIndex = 0) {
     const run = this.activeRunsByProjectId.get(projectId);
 
-    if (!run || run.status !== "running" || run.conversationId !== conversationId) {
+    if (!run || run.status !== 'running' || run.conversationId !== conversationId) {
       return undefined;
     }
 
@@ -153,15 +144,15 @@ export class ChatRunManager {
   cancelActiveRun(projectId: string) {
     const run = this.activeRunsByProjectId.get(projectId);
 
-    if (!run || run.status !== "running") {
+    if (!run || run.status !== 'running') {
       return undefined;
     }
 
-    run.status = "cancelled";
+    run.status = 'cancelled';
     run.completedAt = new Date().toISOString();
-    run.abortController.abort("cancelled");
+    run.abortController.abort('cancelled');
     this.flushPendingLiveChunks(run);
-    this.publish(run, { type: "abort", reason: "cancelled" }, { immediate: true });
+    this.publish(run, { type: 'abort', reason: 'cancelled' }, { immediate: true });
     this.closeSubscribers(run);
 
     return summarizeRun(run);
@@ -169,8 +160,8 @@ export class ChatRunManager {
 
   clear() {
     for (const run of this.activeRunsByProjectId.values()) {
-      if (run.status === "running") {
-        run.abortController.abort("cleared");
+      if (run.status === 'running') {
+        run.abortController.abort('cleared');
       }
       this.closeSubscribers(run);
     }
@@ -200,20 +191,23 @@ export class ChatRunManager {
 
       await messagesPromise;
 
-      if (run.status === "running") {
-        run.status = "completed";
+      if (run.status === 'running') {
+        run.status = 'completed';
       }
     } catch (error) {
-      if (run.status === "cancelled") {
+      if (run.status === 'cancelled') {
         // Explicit cancellation is handled by cancelActiveRun.
       } else {
-        run.status = "failed";
+        run.status = 'failed';
         this.flushPendingLiveChunks(run);
-        this.publish(run, {
-          errorText:
-            error instanceof Error ? error.message : "生成失败：Unknown error",
-          type: "error",
-        }, { immediate: true });
+        this.publish(
+          run,
+          {
+            errorText: error instanceof Error ? error.message : '生成失败：Unknown error',
+            type: 'error',
+          },
+          { immediate: true },
+        );
       }
     } finally {
       run.completedAt = run.completedAt ?? new Date().toISOString();
@@ -230,18 +224,12 @@ export class ChatRunManager {
     }
   }
 
-  private async trackMessages(
-    run: ChatRun,
-    stream: ReadableStream<UIMessageChunk>,
-  ) {
+  private async trackMessages(run: ChatRun, stream: ReadableStream<UIMessageChunk>) {
     for await (const responseMessage of readUIMessageStream({
       message: getLastAssistantMessage(run.initialMessages),
       stream,
     })) {
-      run.latestMessages = mergeResponseMessage(
-        run.initialMessages,
-        responseMessage,
-      );
+      run.latestMessages = mergeResponseMessage(run.initialMessages, responseMessage);
 
       if (isRunAtResumableBoundary(run)) {
         run.safeMessages = run.latestMessages;
@@ -251,9 +239,7 @@ export class ChatRunManager {
   }
 
   private subscribe(run: ChatRun, afterChunkIndex = 0) {
-    let controllerRef:
-      | ReadableStreamDefaultController<UIMessageChunk>
-      | undefined;
+    let controllerRef: ReadableStreamDefaultController<UIMessageChunk> | undefined;
 
     return new ReadableStream<UIMessageChunk>({
       start: (controller) => {
@@ -268,7 +254,7 @@ export class ChatRunManager {
           }
         }
 
-        if (run.status === "running") {
+        if (run.status === 'running') {
           run.subscribers.add(controller);
         } else {
           controller.close();
@@ -282,11 +268,7 @@ export class ChatRunManager {
     });
   }
 
-  private publish(
-    run: ChatRun,
-    chunk: UIMessageChunk,
-    options: { immediate?: boolean } = {},
-  ) {
+  private publish(run: ChatRun, chunk: UIMessageChunk, options: { immediate?: boolean } = {}) {
     run.chunks.push(chunk);
     updateResumableStreamState(run, chunk);
     run.pendingLiveChunks.push(chunk);
@@ -353,7 +335,7 @@ export class ChatRunManager {
   }
 }
 
-export function getChatRunManager(key = "default") {
+export function getChatRunManager(key = 'default') {
   globalThis.__owndesignChatRunManagers ??= new Map();
 
   const existing = globalThis.__owndesignChatRunManagers.get(key);
@@ -367,9 +349,7 @@ export function getChatRunManager(key = "default") {
   return manager;
 }
 
-export function createChatRunStreamResponse(
-  stream: ReadableStream<UIMessageChunk>,
-) {
+export function createChatRunStreamResponse(stream: ReadableStream<UIMessageChunk>) {
   return createUIMessageStreamResponse({ stream });
 }
 
@@ -394,26 +374,26 @@ function createResumableStreamState(): ResumableStreamState {
 
 function updateResumableStreamState(run: ChatRun, chunk: UIMessageChunk) {
   switch (chunk.type) {
-    case "text-start":
+    case 'text-start':
       run.streamState.textPartIds.add(chunk.id);
       break;
-    case "text-end":
+    case 'text-end':
       run.streamState.textPartIds.delete(chunk.id);
       break;
-    case "reasoning-start":
+    case 'reasoning-start':
       run.streamState.reasoningPartIds.add(chunk.id);
       break;
-    case "reasoning-end":
+    case 'reasoning-end':
       run.streamState.reasoningPartIds.delete(chunk.id);
       break;
-    case "tool-input-start":
+    case 'tool-input-start':
       run.streamState.toolInputCallIds.add(chunk.toolCallId);
       break;
-    case "tool-input-available":
-    case "tool-input-error":
+    case 'tool-input-available':
+    case 'tool-input-error':
       run.streamState.toolInputCallIds.delete(chunk.toolCallId);
       break;
-    case "finish-step":
+    case 'finish-step':
       run.streamState.textPartIds.clear();
       run.streamState.reasoningPartIds.clear();
       break;
@@ -433,7 +413,7 @@ function isRunAtResumableBoundary(run: ChatRun) {
 }
 
 function createRunId() {
-  return typeof crypto !== "undefined" && "randomUUID" in crypto
+  return typeof crypto !== 'undefined' && 'randomUUID' in crypto
     ? crypto.randomUUID()
     : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
@@ -441,16 +421,13 @@ function createRunId() {
 function getLastAssistantMessage(messages: UIMessage[]) {
   const lastMessage = messages.at(-1);
 
-  return lastMessage?.role === "assistant" ? lastMessage : undefined;
+  return lastMessage?.role === 'assistant' ? lastMessage : undefined;
 }
 
-function mergeResponseMessage(
-  messages: UIMessage[],
-  responseMessage: UIMessage,
-) {
+function mergeResponseMessage(messages: UIMessage[], responseMessage: UIMessage) {
   const lastMessage = messages.at(-1);
 
-  if (lastMessage?.role === "assistant" && lastMessage.id === responseMessage.id) {
+  if (lastMessage?.role === 'assistant' && lastMessage.id === responseMessage.id) {
     return [...messages.slice(0, -1), responseMessage];
   }
 

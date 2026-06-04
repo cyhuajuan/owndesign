@@ -1,72 +1,72 @@
-import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { InitialSetupGuide } from "./initial-setup-guide";
+import { InitialSetupGuide } from './initial-setup-guide';
 
 beforeEach(() => {
-  vi.stubGlobal("crypto", {
-    randomUUID: vi.fn(() => "model-1"),
+  vi.stubGlobal('crypto', {
+    randomUUID: vi.fn(() => 'model-1'),
   });
-  window.history.replaceState(null, "", "/");
+  window.history.replaceState(null, '', '/');
 });
 
 afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("InitialSetupGuide", () => {
-  it("defaults to simplified Chinese", () => {
+describe('InitialSetupGuide', () => {
+  it('defaults to simplified Chinese', () => {
     render(<InitialSetupGuide onComplete={vi.fn()} />);
 
-    expect(screen.getByText("选择界面语言")).toBeInTheDocument();
-    expect(screen.getByText("简体中文")).toBeInTheDocument();
-    expect(screen.getByText("Chinese (Simplified)")).toBeInTheDocument();
+    expect(screen.getByText('选择界面语言')).toBeInTheDocument();
+    expect(screen.getByText('简体中文')).toBeInTheDocument();
+    expect(screen.getByText('Chinese (Simplified)')).toBeInTheDocument();
   });
 
-  it("switches language and summarizes configured model", async () => {
+  it('switches language and summarizes configured model', async () => {
     const user = userEvent.setup();
 
     render(<InitialSetupGuide onComplete={vi.fn()} />);
 
-    await user.click(screen.getByRole("button", { name: /English English \(US\)/ }));
+    await user.click(screen.getByRole('button', { name: /English English \(US\)/ }));
     await user.click(getLastButton());
     await user.click(getLastButton());
 
     expect(
-      screen.queryByText("确认你的初始设置，随时可以进入主界面开始设计。"),
+      screen.queryByText('确认你的初始设置，随时可以进入主界面开始设计。'),
     ).not.toBeInTheDocument();
-    expect(screen.getByText("English")).toBeInTheDocument();
+    expect(screen.getByText('English')).toBeInTheDocument();
     expect(
-      screen.getByText((content) =>
-        content.includes("OpenAI Compatible") && content.includes("gpt-4o"),
+      screen.getByText(
+        (content) => content.includes('OpenAI Compatible') && content.includes('gpt-4o'),
       ),
     ).toBeInTheDocument();
   });
 
-  it("completes setup and navigates to returned href", async () => {
+  it('completes setup and navigates to returned href', async () => {
     const user = userEvent.setup();
     const onComplete = vi.fn().mockResolvedValue({
-      href: "/projects/project-1/conversations/conversation-1",
+      href: '/projects/project-1/conversations/conversation-1',
     });
 
     render(<InitialSetupGuide onComplete={onComplete} />);
 
-    await user.click(screen.getByRole("button", { name: /继续/ }));
-    await user.click(screen.getByRole("button", { name: /继续/ }));
-    await user.click(screen.getByRole("button", { name: /进入主界面/ }));
+    await user.click(screen.getByRole('button', { name: /继续/ }));
+    await user.click(screen.getByRole('button', { name: /继续/ }));
+    await user.click(screen.getByRole('button', { name: /进入主界面/ }));
 
     await waitFor(() =>
       expect(onComplete).toHaveBeenCalledWith({
-        interfaceLanguage: "zh-CN",
+        interfaceLanguage: 'zh-CN',
         modelConfigurations: [
           expect.objectContaining({
-            apiKey: "sk-...",
-            baseUrl: "https://api.openai.com/v1",
+            apiKey: 'sk-...',
+            baseUrl: 'https://api.openai.com/v1',
             contextSizeK: 200,
-            id: "model-1",
-            model: "gpt-4o",
-            provider: "openai-compatible",
+            id: 'model-1',
+            model: 'gpt-4o',
+            provider: 'openai-compatible',
           }),
         ],
       }),
@@ -74,9 +74,7 @@ describe("InitialSetupGuide", () => {
 
     await waitFor(
       () => {
-        expect(window.location.pathname).toBe(
-          "/projects/project-1/conversations/conversation-1",
-        );
+        expect(window.location.pathname).toBe('/projects/project-1/conversations/conversation-1');
       },
       { timeout: 2000 },
     );
@@ -84,7 +82,7 @@ describe("InitialSetupGuide", () => {
 });
 
 function getLastButton() {
-  const buttons = screen.getAllByRole("button");
+  const buttons = screen.getAllByRole('button');
 
   return buttons[buttons.length - 1];
 }

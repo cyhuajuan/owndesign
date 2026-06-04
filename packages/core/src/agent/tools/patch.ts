@@ -1,9 +1,9 @@
-import { resolveHtmlOperationPathForPageEditModePolicy } from "@owndesign/core/agent/page-edit-mode";
-import { z } from "zod";
+import { resolveHtmlOperationPathForPageEditModePolicy } from '@owndesign/core/agent/page-edit-mode';
+import { z } from 'zod';
 
-import { applyProjectWorkspacePatchWithCdnGuard } from "./cdn-guard";
-import type { WorkspaceToolDefinition } from "./core";
-import type { PatchInput } from "./types";
+import { applyProjectWorkspacePatchWithCdnGuard } from './cdn-guard';
+import type { WorkspaceToolDefinition } from './core';
+import type { PatchInput } from './types';
 
 export function createPatchToolDefinition(): WorkspaceToolDefinition<
   PatchInput,
@@ -11,44 +11,58 @@ export function createPatchToolDefinition(): WorkspaceToolDefinition<
 > {
   return {
     description:
-      "Apply coordinated UTF-8 file changes inside the current Project Workspace. Supports add/write, edit, and delete changes.",
-    inputSchema: z.object({
-      changes: z.array(z.discriminatedUnion("operation", [
-        z.object({
-          content: z.string().describe("Complete file content for add operations."),
-          operation: z.literal("add"),
-          path: z
-            .string()
-            .describe("Relative file or directory path inside the Project Workspace."),
-        }).strict(),
-        z.object({
-          content: z.string().describe("Complete file content for write operations."),
-          operation: z.literal("write"),
-          path: z
-            .string()
-            .describe("Relative file or directory path inside the Project Workspace."),
-        }).strict(),
-        z.object({
-          newString: z.string().describe("Replacement text for edit operations."),
-          oldString: z.string().describe("Text to replace for edit operations."),
-          operation: z.literal("edit"),
-          path: z
-            .string()
-            .describe("Relative file or directory path inside the Project Workspace."),
-          replaceAll: z
-            .boolean()
-            .describe("For edit operations, replace every occurrence of oldString.")
-            .optional(),
-        }).strict(),
-        z.object({
-          operation: z.literal("delete"),
-          path: z
-            .string()
-            .describe("Relative file or directory path inside the Project Workspace."),
-        }).strict(),
-      ])).min(1),
-    }).strict(),
-    name: "patch",
+      'Apply coordinated UTF-8 file changes inside the current Project Workspace. Supports add/write, edit, and delete changes.',
+    inputSchema: z
+      .object({
+        changes: z
+          .array(
+            z.discriminatedUnion('operation', [
+              z
+                .object({
+                  content: z.string().describe('Complete file content for add operations.'),
+                  operation: z.literal('add'),
+                  path: z
+                    .string()
+                    .describe('Relative file or directory path inside the Project Workspace.'),
+                })
+                .strict(),
+              z
+                .object({
+                  content: z.string().describe('Complete file content for write operations.'),
+                  operation: z.literal('write'),
+                  path: z
+                    .string()
+                    .describe('Relative file or directory path inside the Project Workspace.'),
+                })
+                .strict(),
+              z
+                .object({
+                  newString: z.string().describe('Replacement text for edit operations.'),
+                  oldString: z.string().describe('Text to replace for edit operations.'),
+                  operation: z.literal('edit'),
+                  path: z
+                    .string()
+                    .describe('Relative file or directory path inside the Project Workspace.'),
+                  replaceAll: z
+                    .boolean()
+                    .describe('For edit operations, replace every occurrence of oldString.')
+                    .optional(),
+                })
+                .strict(),
+              z
+                .object({
+                  operation: z.literal('delete'),
+                  path: z
+                    .string()
+                    .describe('Relative file or directory path inside the Project Workspace.'),
+                })
+                .strict(),
+            ]),
+          )
+          .min(1),
+      })
+      .strict(),
+    name: 'patch',
     parallelSafe: false,
     execute: async (
       { changes },
@@ -58,10 +72,10 @@ export function createPatchToolDefinition(): WorkspaceToolDefinition<
         ...change,
         path: resolveHtmlOperationPathForPageEditModePolicy(
           pageEditModePolicy,
-          change.operation === "delete" ? "delete" : "mutate",
+          change.operation === 'delete' ? 'delete' : 'mutate',
           change.path,
         ),
-      })) as PatchInput["changes"];
+      })) as PatchInput['changes'];
 
       return applyProjectWorkspacePatchWithCdnGuard(
         workspaceStore,

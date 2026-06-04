@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { startTransition, useState } from "react";
+import { startTransition, useState } from 'react';
 
 import {
   PromptInput,
@@ -15,8 +15,8 @@ import {
   PromptInputSubmit,
   PromptInputTextarea,
   PromptInputTools,
-} from "@/components/ai-elements/prompt-input";
-import { useI18n } from "@/features/i18n/context";
+} from '@/components/ai-elements/prompt-input';
+import { useI18n } from '@/features/i18n/context';
 
 type MessageComposerProps = {
   action: (formData: FormData) => Promise<void>;
@@ -24,11 +24,7 @@ type MessageComposerProps = {
   projectId: string;
 };
 
-export function MessageComposer({
-  action,
-  conversationId,
-  projectId,
-}: MessageComposerProps) {
+export function MessageComposer({ action, conversationId, projectId }: MessageComposerProps) {
   const { t } = useI18n();
   const [isPending, setIsPending] = useState(false);
 
@@ -46,9 +42,9 @@ export function MessageComposer({
         }
 
         const formData = new FormData();
-        formData.set("projectId", projectId);
-        formData.set("conversationId", conversationId);
-        formData.set("content", trimmedText);
+        formData.set('projectId', projectId);
+        formData.set('conversationId', conversationId);
+        formData.set('content', trimmedText);
 
         setIsPending(true);
         startTransition(async () => {
@@ -66,15 +62,13 @@ export function MessageComposer({
       <PromptInputBody>
         <PromptInputTextarea
           disabled={isPending}
-          placeholder={t("conversation.historyPlaceholder")}
+          placeholder={t('conversation.historyPlaceholder')}
         />
       </PromptInputBody>
       <PromptInputFooter>
         <PromptInputTools>
           <PromptInputActionMenu>
-            <PromptInputActionMenuTrigger
-              aria-label={t("conversation.addAttachment")}
-            />
+            <PromptInputActionMenuTrigger aria-label={t('conversation.addAttachment')} />
             <PromptInputActionMenuContent side="top" sideOffset={6}>
               <PromptInputActionAddAttachments />
             </PromptInputActionMenuContent>

@@ -1,7 +1,4 @@
-import {
-  DEEPSEEK_MODELS,
-  type ModelProvider,
-} from "@owndesign/core/settings/model-utils";
+import { DEEPSEEK_MODELS, type ModelProvider } from '@owndesign/core/settings/model-utils';
 
 export {
   DEEPSEEK_CONTEXT_SIZE_K,
@@ -11,40 +8,36 @@ export {
   type AnthropicEffort,
   type DeepSeekThinkingMode,
   type ModelProvider,
-} from "@owndesign/core/settings/model-utils";
+} from '@owndesign/core/settings/model-utils';
 
-export function getProviderLabel(provider: ModelProvider | "") {
-  if (provider === "deepseek") {
-    return "DeepSeek";
+export function getProviderLabel(provider: ModelProvider | '') {
+  if (provider === 'deepseek') {
+    return 'DeepSeek';
   }
 
-  if (provider === "openai-compatible") {
-    return "OpenAI Compatible";
+  if (provider === 'openai-compatible') {
+    return 'OpenAI Compatible';
   }
 
-  if (provider === "anthropic") {
-    return "Anthropic";
+  if (provider === 'anthropic') {
+    return 'Anthropic';
   }
 
-  return "";
+  return '';
 }
 
-export function getBaseUrlPlaceholder(provider: ModelProvider | "") {
-  if (provider === "deepseek") {
-    return "https://api.deepseek.com";
+export function getBaseUrlPlaceholder(provider: ModelProvider | '') {
+  if (provider === 'deepseek') {
+    return 'https://api.deepseek.com';
   }
 
-  if (provider === "anthropic") {
-    return "https://api.anthropic.com/v1";
+  if (provider === 'anthropic') {
+    return 'https://api.anthropic.com/v1';
   }
 
-  return "";
+  return '';
 }
 
-export function isDeepSeekModel(
-  model: string,
-): model is (typeof DEEPSEEK_MODELS)[number] {
-  return DEEPSEEK_MODELS.includes(
-    model as (typeof DEEPSEEK_MODELS)[number],
-  );
+export function isDeepSeekModel(model: string): model is (typeof DEEPSEEK_MODELS)[number] {
+  return DEEPSEEK_MODELS.includes(model as (typeof DEEPSEEK_MODELS)[number]);
 }

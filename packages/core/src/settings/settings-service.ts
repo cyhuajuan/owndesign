@@ -1,7 +1,7 @@
-import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
-import { randomUUID } from "node:crypto";
+import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 
 import {
   DEEPSEEK_CONTEXT_SIZE_K,
@@ -11,11 +11,11 @@ import {
   type AnthropicEffort,
   type DeepSeekThinkingMode,
   type ModelProvider,
-} from "@owndesign/core/settings/model-utils";
+} from '@owndesign/core/settings/model-utils';
 
-export const SETTINGS_UPDATED_EVENT = "owndesign:settings-updated";
+export const SETTINGS_UPDATED_EVENT = 'owndesign:settings-updated';
 
-export type InterfaceLanguage = "zh-CN" | "en-US";
+export type InterfaceLanguage = 'zh-CN' | 'en-US';
 export {
   DEEPSEEK_CONTEXT_SIZE_K,
   DEEPSEEK_MODELS,
@@ -42,8 +42,8 @@ export type ModelConfiguration = {
   providerOptions?: ModelProviderOptions;
 };
 
-export type PublicModelConfiguration = Omit<ModelConfiguration, "apiKey"> & {
-  apiKey: "";
+export type PublicModelConfiguration = Omit<ModelConfiguration, 'apiKey'> & {
+  apiKey: '';
   hasApiKey: boolean;
 };
 
@@ -66,7 +66,7 @@ export type AppSettings = {
   resources: ResourceSettings;
 };
 
-export type PublicAppSettings = Omit<AppSettings, "modelConfigurations"> & {
+export type PublicAppSettings = Omit<AppSettings, 'modelConfigurations'> & {
   modelConfigurations: PublicModelConfiguration[];
 };
 
@@ -81,22 +81,22 @@ type SettingsCacheEntry = {
 
 const DEFAULT_SETTINGS: AppSettings = {
   defaultModelId: null,
-  interfaceLanguage: "zh-CN",
+  interfaceLanguage: 'zh-CN',
   modelConfigurations: [],
   resources: {
     fontLibraries: [
       {
-        id: "font-1",
-        name: "Google Fonts",
-        cdn: "https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Noto+Sans+SC:wght@100..900&display=swap",
+        id: 'font-1',
+        name: 'Google Fonts',
+        cdn: 'https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Noto+Sans+SC:wght@100..900&display=swap',
         isDefault: true,
       },
     ],
     iconLibraries: [
       {
-        id: "icon-1",
-        name: "Lucide Icons",
-        cdn: "https://unpkg.com/lucide@latest/dist/umd/lucide.js",
+        id: 'icon-1',
+        name: 'Lucide Icons',
+        cdn: 'https://unpkg.com/lucide@latest/dist/umd/lucide.js',
         isDefault: true,
       },
     ],
@@ -110,7 +110,7 @@ export class SettingsService {
 
   constructor(options: SettingsServiceOptions = {}) {
     this.settingsPath =
-      options.settingsPath ?? path.join(os.homedir(), ".owndesign", "settings.json");
+      options.settingsPath ?? path.join(os.homedir(), '.owndesign', 'settings.json');
   }
 
   static clearSettingsCache() {
@@ -153,7 +153,7 @@ export class SettingsService {
       settings.modelConfigurations[0];
 
     if (!configuration) {
-      throw new Error("请先在设置中添加 AI 模型配置。");
+      throw new Error('请先在设置中添加 AI 模型配置。');
     }
 
     return configuration;
@@ -168,7 +168,7 @@ export class SettingsService {
         return cached.settings;
       }
 
-      const content = await readFile(this.settingsPath, "utf8");
+      const content = await readFile(this.settingsPath, 'utf8');
       const settings = parseStoredSettings(JSON.parse(content));
 
       SettingsService.cache.set(this.settingsPath, {
@@ -188,11 +188,7 @@ export class SettingsService {
 
   private async writeSettings(settings: AppSettings) {
     await mkdir(path.dirname(this.settingsPath), { recursive: true });
-    await writeFile(
-      this.settingsPath,
-      `${JSON.stringify(settings, null, 2)}\n`,
-      "utf8",
-    );
+    await writeFile(this.settingsPath, `${JSON.stringify(settings, null, 2)}\n`, 'utf8');
 
     try {
       const fileStats = await stat(this.settingsPath);
@@ -222,7 +218,7 @@ export function toPublicSettings(settings: AppSettings): PublicAppSettings {
       baseUrl: configuration.baseUrl,
       contextSizeK: configuration.contextSizeK,
       providerOptions: configuration.providerOptions,
-      apiKey: "",
+      apiKey: '',
       hasApiKey: Boolean(configuration.apiKey),
     })),
     resources: settings.resources,
@@ -235,15 +231,12 @@ function parseStoredSettings(value: unknown): AppSettings {
   }
 
   return {
-    defaultModelId:
-      typeof value.defaultModelId === "string" ? value.defaultModelId : null,
+    defaultModelId: typeof value.defaultModelId === 'string' ? value.defaultModelId : null,
     interfaceLanguage: parseInterfaceLanguage(value.interfaceLanguage),
     modelConfigurations: Array.isArray(value.modelConfigurations)
       ? value.modelConfigurations
           .map((configuration) => parseStoredModelConfiguration(configuration))
-          .filter((configuration): configuration is ModelConfiguration =>
-            Boolean(configuration),
-          )
+          .filter((configuration): configuration is ModelConfiguration => Boolean(configuration))
       : [],
     resources: parseStoredResourceSettings(value.resources),
   };
@@ -251,7 +244,7 @@ function parseStoredSettings(value: unknown): AppSettings {
 
 function parseSettingsInput(value: unknown, previous: AppSettings): AppSettings {
   if (!isRecord(value)) {
-    throw new Error("Invalid settings payload.");
+    throw new Error('Invalid settings payload.');
   }
 
   const modelConfigurations = Array.isArray(value.modelConfigurations)
@@ -261,17 +254,14 @@ function parseSettingsInput(value: unknown, previous: AppSettings): AppSettings 
     : [];
 
   return {
-    defaultModelId:
-      typeof value.defaultModelId === "string" ? value.defaultModelId : null,
+    defaultModelId: typeof value.defaultModelId === 'string' ? value.defaultModelId : null,
     interfaceLanguage: parseInterfaceLanguage(value.interfaceLanguage),
     modelConfigurations,
     resources: parseInputResourceSettings(value.resources, previous.resources),
   };
 }
 
-function parseStoredModelConfiguration(
-  value: unknown,
-): ModelConfiguration | undefined {
+function parseStoredModelConfiguration(value: unknown): ModelConfiguration | undefined {
   if (!isRecord(value)) {
     return undefined;
   }
@@ -296,12 +286,9 @@ function parseStoredModelConfiguration(
   };
 }
 
-function parseInputModelConfiguration(
-  value: unknown,
-  previous: AppSettings,
-): ModelConfiguration {
+function parseInputModelConfiguration(value: unknown, previous: AppSettings): ModelConfiguration {
   if (!isRecord(value)) {
-    throw new Error("Invalid model configuration.");
+    throw new Error('Invalid model configuration.');
   }
 
   const id = asTrimmedString(value.id) || randomUUID();
@@ -311,24 +298,23 @@ function parseInputModelConfiguration(
   const contextSizeK = parseInputContextSizeK(value.contextSizeK, provider);
   const incomingApiKey = asTrimmedString(value.apiKey);
   const previousApiKey =
-    previous.modelConfigurations.find((configuration) => configuration.id === id)
-      ?.apiKey ?? "";
+    previous.modelConfigurations.find((configuration) => configuration.id === id)?.apiKey ?? '';
   const apiKey = incomingApiKey || previousApiKey;
 
   if (!provider) {
-    throw new Error("Provider is required.");
+    throw new Error('Provider is required.');
   }
 
   if (!model) {
-    throw new Error("Model is required.");
+    throw new Error('Model is required.');
   }
 
-  if (provider === "openai-compatible" && !baseUrl) {
-    throw new Error("Base URL is required.");
+  if (provider === 'openai-compatible' && !baseUrl) {
+    throw new Error('Base URL is required.');
   }
 
   if (!apiKey) {
-    throw new Error("API Key is required.");
+    throw new Error('API Key is required.');
   }
 
   const providerOptions = parseProviderOptions(value.providerOptions, provider);
@@ -357,10 +343,7 @@ function normalizeSettings(settings: AppSettings): AppSettings {
       baseUrl: configuration.baseUrl.trim(),
       model: normalizeModelId(configuration.model.trim(), configuration.provider),
       apiKey: configuration.apiKey.trim(),
-      contextSizeK: normalizeContextSizeK(
-        configuration.contextSizeK,
-        configuration.provider,
-      ),
+      contextSizeK: normalizeContextSizeK(configuration.contextSizeK, configuration.provider),
       ...(providerOptions ? { providerOptions } : {}),
     };
   });
@@ -368,7 +351,7 @@ function normalizeSettings(settings: AppSettings): AppSettings {
     (configuration) => configuration.id === settings.defaultModelId,
   )
     ? settings.defaultModelId
-    : modelConfigurations[0]?.id ?? null;
+    : (modelConfigurations[0]?.id ?? null);
 
   return {
     defaultModelId,
@@ -397,10 +380,7 @@ function parseStoredResourceSettings(value: unknown): ResourceSettings {
   };
 }
 
-function parseInputResourceSettings(
-  value: unknown,
-  previous: ResourceSettings,
-): ResourceSettings {
+function parseInputResourceSettings(value: unknown, previous: ResourceSettings): ResourceSettings {
   if (!isRecord(value)) {
     return previous;
   }
@@ -438,7 +418,7 @@ function parseInputResourceLibrary(value: unknown): ResourceLibrary {
   const library = parseResourceLibrary(value);
 
   if (!library) {
-    throw new Error("Resource name is required.");
+    throw new Error('Resource name is required.');
   }
 
   return library;
@@ -465,30 +445,25 @@ function normalizeResourceLibraries(libraries: ResourceLibrary[]) {
 
   return normalized.map((library, index) => ({
     ...library,
-    isDefault:
-      firstDefaultIndex >= 0 ? index === firstDefaultIndex : index === 0,
+    isDefault: firstDefaultIndex >= 0 ? index === firstDefaultIndex : index === 0,
   }));
 }
 
 function parseInterfaceLanguage(value: unknown): InterfaceLanguage {
-  return value === "en-US" || value === "en" ? "en-US" : "zh-CN";
+  return value === 'en-US' || value === 'en' ? 'en-US' : 'zh-CN';
 }
 
 function parseModelProvider(value: unknown): ModelProvider | undefined {
-  if (value === "deepseek" || value === "DeepSeek") {
-    return "deepseek";
+  if (value === 'deepseek' || value === 'DeepSeek') {
+    return 'deepseek';
   }
 
-  if (
-    value === "openai-compatible" ||
-    value === "OpenAI Compatible" ||
-    value === "OpenAI"
-  ) {
-    return "openai-compatible";
+  if (value === 'openai-compatible' || value === 'OpenAI Compatible' || value === 'OpenAI') {
+    return 'openai-compatible';
   }
 
-  if (value === "anthropic" || value === "Anthropic") {
-    return "anthropic";
+  if (value === 'anthropic' || value === 'Anthropic') {
+    return 'anthropic';
   }
 
   return undefined;
@@ -498,61 +473,55 @@ function parseProviderOptions(
   value: unknown,
   provider: ModelProvider,
 ): ModelProviderOptions | undefined {
-  if (provider !== "deepseek") {
+  if (provider !== 'deepseek') {
     return undefined;
   }
 
   if (!isRecord(value) || !isRecord(value.deepseek)) {
-    return { deepseek: { thinkingMode: "high" } };
+    return { deepseek: { thinkingMode: 'high' } };
   }
 
   const thinkingMode = parseDeepSeekThinkingMode(value.deepseek.thinkingMode);
 
   if (!thinkingMode) {
-    throw new Error("Invalid DeepSeek thinking mode.");
+    throw new Error('Invalid DeepSeek thinking mode.');
   }
 
   return { deepseek: { thinkingMode } };
 }
 
-function parseInputContextSizeK(
-  value: unknown,
-  provider: ModelProvider | undefined,
-) {
-  if (provider === "deepseek") {
+function parseInputContextSizeK(value: unknown, provider: ModelProvider | undefined) {
+  if (provider === 'deepseek') {
     return DEEPSEEK_CONTEXT_SIZE_K;
   }
 
-  if (value === undefined || value === null || value === "") {
+  if (value === undefined || value === null || value === '') {
     return DEFAULT_OPENAI_COMPATIBLE_CONTEXT_SIZE_K;
   }
 
   const numericValue =
-    typeof value === "number"
+    typeof value === 'number'
       ? value
-      : typeof value === "string"
+      : typeof value === 'string'
         ? Number(value.trim())
         : Number.NaN;
 
   if (!Number.isFinite(numericValue) || numericValue <= 0) {
-    throw new Error("Context size must be a positive number.");
+    throw new Error('Context size must be a positive number.');
   }
 
   return Math.round(numericValue);
 }
 
-function normalizeContextSizeK(
-  value: unknown,
-  provider: ModelProvider | undefined,
-) {
-  if (provider === "deepseek") {
+function normalizeContextSizeK(value: unknown, provider: ModelProvider | undefined) {
+  if (provider === 'deepseek') {
     return DEEPSEEK_CONTEXT_SIZE_K;
   }
 
   const numericValue =
-    typeof value === "number"
+    typeof value === 'number'
       ? value
-      : typeof value === "string"
+      : typeof value === 'string'
         ? Number(value.trim())
         : Number.NaN;
 
@@ -562,7 +531,7 @@ function normalizeContextSizeK(
 }
 
 function normalizeModelId(model: string, provider: ModelProvider | undefined) {
-  if (provider !== "deepseek") {
+  if (provider !== 'deepseek') {
     return model;
   }
 
@@ -575,50 +544,39 @@ function normalizeProviderOptions(
   value: ModelProviderOptions | undefined,
   provider: ModelProvider,
 ): ModelProviderOptions | undefined {
-  if (provider !== "deepseek") {
+  if (provider !== 'deepseek') {
     return undefined;
   }
 
   return {
     deepseek: {
-      thinkingMode: value?.deepseek?.thinkingMode ?? "high",
+      thinkingMode: value?.deepseek?.thinkingMode ?? 'high',
     },
   };
 }
 
-export function parseDeepSeekThinkingMode(
-  value: unknown,
-): DeepSeekThinkingMode | undefined {
-  return value === "disabled" || value === "high" || value === "max"
-    ? value
-    : undefined;
+export function parseDeepSeekThinkingMode(value: unknown): DeepSeekThinkingMode | undefined {
+  return value === 'disabled' || value === 'high' || value === 'max' ? value : undefined;
 }
 
-export function parseAnthropicEffort(
-  value: unknown,
-): AnthropicEffort | undefined {
-  return value === "low" ||
-    value === "medium" ||
-    value === "high" ||
-    value === "xhigh" ||
-    value === "max"
+export function parseAnthropicEffort(value: unknown): AnthropicEffort | undefined {
+  return value === 'low' ||
+    value === 'medium' ||
+    value === 'high' ||
+    value === 'xhigh' ||
+    value === 'max'
     ? value
     : undefined;
 }
 
 function asTrimmedString(value: unknown) {
-  return typeof value === "string" ? value.trim() : "";
+  return typeof value === 'string' ? value.trim() : '';
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
+  return typeof value === 'object' && value !== null;
 }
 
 function isMissingPathError(error: unknown) {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    error.code === "ENOENT"
-  );
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === 'ENOENT';
 }

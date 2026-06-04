@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useMemo, useState, useTransition } from "react";
-import type { ReactNode } from "react";
-import { useAppNavigate } from "@/lib/router";
+import { useMemo, useState, useTransition } from 'react';
+import type { ReactNode } from 'react';
+import { useAppNavigate } from '@/lib/router';
 import {
   CheckIcon,
   ChevronLeftIcon,
@@ -10,12 +10,12 @@ import {
   LayoutPanelLeftIcon,
   PlusIcon,
   XIcon,
-} from "lucide-react";
+} from 'lucide-react';
 
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -23,12 +23,9 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { cn } from "@/lib/utils";
-import {
-  translations,
-  type TranslationKey,
-} from "@/features/i18n/translations";
+} from '@/components/ui/select';
+import { cn } from '@/lib/utils';
+import { translations, type TranslationKey } from '@/features/i18n/translations';
 import {
   LanguageCard,
   PanelDescription,
@@ -37,11 +34,11 @@ import {
   StepLine,
   SummaryCard,
   GlobeIcon,
-} from "@/features/onboarding/components/setup-widgets";
+} from '@/features/onboarding/components/setup-widgets';
 import type {
   InterfaceLanguage,
   ModelProviderOptions,
-} from "@owndesign/core/settings/settings-service";
+} from '@owndesign/core/settings/settings-service';
 import {
   DEEPSEEK_CONTEXT_SIZE_K,
   DEEPSEEK_MODELS,
@@ -51,7 +48,7 @@ import {
   isDeepSeekModel,
   type DeepSeekThinkingMode,
   type ModelProvider,
-} from "@/features/settings/model-utils";
+} from '@/features/settings/model-utils';
 
 type InitialModelConfiguration = {
   id: string;
@@ -84,23 +81,22 @@ type ModelForm = {
   providerOptions?: ModelProviderOptions;
 };
 
-
 export function InitialSetupGuide({ onComplete }: InitialSetupGuideProps) {
   const navigate = useAppNavigate();
   const [currentStep, setCurrentStep] = useState<Step>(1);
-  const [language, setLanguage] = useState<InterfaceLanguage>("zh-CN");
+  const [language, setLanguage] = useState<InterfaceLanguage>('zh-CN');
   const [models, setModels] = useState<ModelForm[]>([
     {
       id: createId(),
-      provider: "openai-compatible",
-      model: "gpt-4o",
-      baseUrl: "https://api.openai.com/v1",
-      apiKey: "sk-...",
+      provider: 'openai-compatible',
+      model: 'gpt-4o',
+      baseUrl: 'https://api.openai.com/v1',
+      apiKey: 'sk-...',
       contextSizeK: String(DEFAULT_OPENAI_COMPATIBLE_CONTEXT_SIZE_K),
     },
   ]);
   const [toast, setToast] = useState<
-    { id: number; message: string; type: "success" | "error" | "info" } | undefined
+    { id: number; message: string; type: 'success' | 'error' | 'info' } | undefined
   >();
   const [isFinishing, setIsFinishing] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -108,7 +104,7 @@ export function InitialSetupGuide({ onComplete }: InitialSetupGuideProps) {
   const summaryModels = useMemo(
     () =>
       models.map(
-        (model) => getProviderLabel(model.provider) || model.model || localT("onboarding.unnamed"),
+        (model) => getProviderLabel(model.provider) || model.model || localT('onboarding.unnamed'),
       ),
     [language, models],
   );
@@ -122,45 +118,43 @@ export function InitialSetupGuide({ onComplete }: InitialSetupGuideProps) {
             OwnDesign
           </div>
           <div className="ml-auto text-[13px] text-[#6b6b76]">
-            {localT("onboarding.setupTitle")}
+            {localT('onboarding.setupTitle')}
           </div>
         </div>
 
         <div className="flex shrink-0 items-center px-7 pt-5 pb-2">
           <StepItem active={currentStep === 1} done={currentStep > 1} number="1">
-            {localT("onboarding.languageStepLabel")}
+            {localT('onboarding.languageStepLabel')}
           </StepItem>
           <StepLine done={currentStep > 1} />
           <StepItem active={currentStep === 2} done={currentStep > 2} number="2">
-            {localT("onboarding.modelStepLabel")}
+            {localT('onboarding.modelStepLabel')}
           </StepItem>
           <StepLine done={currentStep > 2} />
           <StepItem active={currentStep === 3} done={false} number="3">
-            {localT("onboarding.readyLabel")}
+            {localT('onboarding.readyLabel')}
           </StepItem>
         </div>
 
         <CardContent className="min-h-0 flex-1 overflow-y-auto px-7 pt-4 pb-0">
           {currentStep === 1 ? (
             <section className="animate-[panelIn_0.3s_ease]">
-              <PanelTitle>{localT("onboarding.languageTitle")}</PanelTitle>
-              <PanelDescription>
-                {localT("onboarding.languageDescription")}
-              </PanelDescription>
+              <PanelTitle>{localT('onboarding.languageTitle')}</PanelTitle>
+              <PanelDescription>{localT('onboarding.languageDescription')}</PanelDescription>
               <div className="grid grid-cols-2 gap-2.5 pb-2 max-sm:grid-cols-1">
                 <LanguageCard
                   icon="中"
                   nativeName="Chinese (Simplified)"
                   name="简体中文"
-                  selected={language === "zh-CN"}
-                  onClick={() => setLanguage("zh-CN")}
+                  selected={language === 'zh-CN'}
+                  onClick={() => setLanguage('zh-CN')}
                 />
                 <LanguageCard
                   icon="EN"
                   nativeName="English (US)"
                   name="English"
-                  selected={language === "en-US"}
-                  onClick={() => setLanguage("en-US")}
+                  selected={language === 'en-US'}
+                  onClick={() => setLanguage('en-US')}
                 />
               </div>
             </section>
@@ -168,14 +162,12 @@ export function InitialSetupGuide({ onComplete }: InitialSetupGuideProps) {
 
           {currentStep === 2 ? (
             <section className="animate-[panelIn_0.3s_ease]">
-              <PanelTitle>{localT("onboarding.addModelTitle")}</PanelTitle>
-              <PanelDescription>
-                {localT("onboarding.modelDescription")}
-              </PanelDescription>
+              <PanelTitle>{localT('onboarding.addModelTitle')}</PanelTitle>
+              <PanelDescription>{localT('onboarding.modelDescription')}</PanelDescription>
               <div className="mb-3 flex flex-col gap-2">
                 {models.length === 0 ? (
                   <div className="px-3 py-6 text-center text-[13px] text-[#6b6b76]">
-                    {localT("onboarding.modelEmpty")}
+                    {localT('onboarding.modelEmpty')}
                   </div>
                 ) : (
                   models.map((model, index) => (
@@ -207,10 +199,10 @@ export function InitialSetupGuide({ onComplete }: InitialSetupGuideProps) {
                     ...current,
                     {
                       id: createId(),
-                      provider: "openai-compatible",
-                      model: "",
-                      baseUrl: "",
-                      apiKey: "",
+                      provider: 'openai-compatible',
+                      model: '',
+                      baseUrl: '',
+                      apiKey: '',
                       contextSizeK: String(DEFAULT_OPENAI_COMPATIBLE_CONTEXT_SIZE_K),
                     },
                   ])
@@ -218,25 +210,23 @@ export function InitialSetupGuide({ onComplete }: InitialSetupGuideProps) {
                 type="button"
               >
                 <PlusIcon />
-                {localT("onboarding.addAnotherModel")}
+                {localT('onboarding.addAnotherModel')}
               </button>
             </section>
           ) : null}
 
           {currentStep === 3 ? (
             <section className="animate-[panelIn_0.3s_ease]">
-              <PanelTitle>{localT("onboarding.readyTitle")}</PanelTitle>
-              <PanelDescription>
-                {localT("onboarding.confirmDescription")}
-              </PanelDescription>
+              <PanelTitle>{localT('onboarding.readyTitle')}</PanelTitle>
+              <PanelDescription>{localT('onboarding.confirmDescription')}</PanelDescription>
               <div className="mb-3 flex flex-col gap-3">
-                <SummaryCard label={localT("onboarding.reviewLanguage")}>
+                <SummaryCard label={localT('onboarding.reviewLanguage')}>
                   <div className="flex items-center gap-2 text-sm font-medium text-[#fafafa]">
                     <GlobeIcon />
-                    <span>{language === "zh-CN" ? "简体中文" : "English"}</span>
+                    <span>{language === 'zh-CN' ? '简体中文' : 'English'}</span>
                   </div>
                 </SummaryCard>
-                <SummaryCard label={localT("onboarding.reviewModels")}>
+                <SummaryCard label={localT('onboarding.reviewModels')}>
                   <div className="flex flex-col gap-1">
                     {summaryModels.map((name, index) => (
                       <div
@@ -245,7 +235,7 @@ export function InitialSetupGuide({ onComplete }: InitialSetupGuideProps) {
                       >
                         <CheckIcon className="size-3.5 shrink-0 text-[#2ecc71]" />
                         <span>
-                          {name} - {models[index]?.model || "-"}
+                          {name} - {models[index]?.model || '-'}
                         </span>
                       </div>
                     ))}
@@ -262,14 +252,12 @@ export function InitialSetupGuide({ onComplete }: InitialSetupGuideProps) {
             {currentStep > 1 ? (
               <Button
                 className="h-8 gap-1.5 rounded-md bg-[#252528] px-[18px] text-[13px] font-medium text-[#a1a1aa] hover:bg-[#2e2e32] hover:text-[#fafafa]"
-                onClick={() =>
-                  setCurrentStep((step) => (step === 3 ? 2 : 1) as Step)
-                }
+                onClick={() => setCurrentStep((step) => (step === 3 ? 2 : 1) as Step)}
                 type="button"
                 variant="ghost"
               >
                 <ChevronLeftIcon data-icon="inline-start" />
-                {localT("onboarding.previous")}
+                {localT('onboarding.previous')}
               </Button>
             ) : null}
             <Button
@@ -278,7 +266,7 @@ export function InitialSetupGuide({ onComplete }: InitialSetupGuideProps) {
               onClick={handleNext}
               type="button"
             >
-              {currentStep === 3 ? localT("onboarding.enterApp") : localT("onboarding.next")}
+              {currentStep === 3 ? localT('onboarding.enterApp') : localT('onboarding.next')}
               <ChevronRightIcon data-icon="inline-end" />
             </Button>
           </div>
@@ -287,23 +275,23 @@ export function InitialSetupGuide({ onComplete }: InitialSetupGuideProps) {
 
       <div
         className={cn(
-          "pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-[#0a0a0b] opacity-0 transition-opacity duration-400",
-          isFinishing && "pointer-events-auto opacity-100",
+          'pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-[#0a0a0b] opacity-0 transition-opacity duration-400',
+          isFinishing && 'pointer-events-auto opacity-100',
         )}
       >
         <div className="flex animate-[toPulse_0.6s_ease] flex-col items-center gap-4">
           <LayoutPanelLeftIcon className="size-12 text-[#6c5ce7]" />
           <div className="text-base font-semibold text-[#fafafa]">
-            {localT("onboarding.entering")}
+            {localT('onboarding.entering')}
           </div>
-          <div className="text-[13px] text-[#6b6b76]">{localT("onboarding.loadingWorkspace")}</div>
+          <div className="text-[13px] text-[#6b6b76]">{localT('onboarding.loadingWorkspace')}</div>
         </div>
       </div>
 
       {toast ? (
         <div className="pointer-events-none fixed bottom-6 left-1/2 z-40 flex -translate-x-1/2 flex-col items-center gap-2">
           <div className="pointer-events-auto flex max-w-[380px] animate-[toastIn_0.25s_ease] items-center gap-2 rounded-[10px] border border-[#27272a] bg-[#18181b] px-[18px] py-2.5 text-[13px] shadow-md">
-            {toast.type === "error" ? (
+            {toast.type === 'error' ? (
               <XIcon className="size-4 shrink-0 text-[#e74c3c]" />
             ) : (
               <CheckIcon className="size-4 shrink-0 text-[#2ecc71]" />
@@ -323,7 +311,7 @@ export function InitialSetupGuide({ onComplete }: InitialSetupGuideProps) {
 
     if (currentStep === 2) {
       if (models.length === 0) {
-        showToast(localT("onboarding.needModel"), "error");
+        showToast(localT('onboarding.needModel'), 'error');
         return;
       }
 
@@ -332,19 +320,19 @@ export function InitialSetupGuide({ onComplete }: InitialSetupGuideProps) {
     }
 
     setIsFinishing(true);
-    showToast(localT("onboarding.initialized"), "success");
+    showToast(localT('onboarding.initialized'), 'success');
     startTransition(async () => {
       const result = await onComplete({
         interfaceLanguage: language,
         modelConfigurations: models.map(normalizeModelForSubmit),
       });
       window.setTimeout(() => {
-        navigate(result?.href ?? "/");
+        navigate(result?.href ?? '/');
       }, 1200);
     });
   }
 
-  function showToast(message: string, type: "success" | "error" | "info") {
+  function showToast(message: string, type: 'success' | 'error' | 'info') {
     const id = Date.now();
     setToast({ id, message, type });
     window.setTimeout(() => {
@@ -366,22 +354,20 @@ function ModelEntry({
   onRemove: () => void;
   t: (key: TranslationKey) => string;
 }) {
-  const label = getProviderLabel(model.provider) || model.model || t("onboarding.unnamedModel");
+  const label = getProviderLabel(model.provider) || model.model || t('onboarding.unnamedModel');
 
   return (
     <div className="overflow-hidden rounded-[10px] border border-[#27272a] bg-[#1c1c20] transition-colors duration-150 hover:border-[#3f3f46]">
       <div className="flex cursor-pointer select-none items-center gap-2 px-3.5 py-2.5">
-        <span className="min-w-0 flex-1 truncate text-[13px] font-medium">
-          {label}
-        </span>
+        <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{label}</span>
         <span className="rounded-[10px] bg-[rgba(108,92,231,0.14)] px-2 py-0.5 text-[10px] font-semibold tracking-[0.3px] text-[#6c5ce7]">
-          {getProviderLabel(model.provider) || t("onboarding.notSet")}
+          {getProviderLabel(model.provider) || t('onboarding.notSet')}
         </span>
         {removable ? (
           <button
             className="flex size-6 items-center justify-center rounded-md text-[#6b6b76] transition-all duration-150 hover:bg-[rgba(231,76,60,0.1)] hover:text-[#e74c3c] [&_svg]:size-3.5"
             onClick={onRemove}
-            title={t("common.remove")}
+            title={t('common.remove')}
             type="button"
           >
             <XIcon />
@@ -396,21 +382,18 @@ function ModelEntry({
               onChange({
                 ...model,
                 provider,
-                ...(provider === "deepseek"
+                ...(provider === 'deepseek'
                   ? {
-                      model: isDeepSeekModel(model.model)
-                        ? model.model
-                        : DEFAULT_DEEPSEEK_MODEL,
-                      baseUrl: model.baseUrl || "https://api.deepseek.com",
+                      model: isDeepSeekModel(model.model) ? model.model : DEFAULT_DEEPSEEK_MODEL,
+                      baseUrl: model.baseUrl || 'https://api.deepseek.com',
                       contextSizeK: String(DEEPSEEK_CONTEXT_SIZE_K),
                       providerOptions: {
-                        deepseek: { thinkingMode: "high" as DeepSeekThinkingMode },
+                        deepseek: { thinkingMode: 'high' as DeepSeekThinkingMode },
                       },
                     }
                   : {
                       contextSizeK:
-                        model.contextSizeK ||
-                        String(DEFAULT_OPENAI_COMPATIBLE_CONTEXT_SIZE_K),
+                        model.contextSizeK || String(DEFAULT_OPENAI_COMPATIBLE_CONTEXT_SIZE_K),
                       providerOptions: undefined,
                     }),
               });
@@ -418,7 +401,7 @@ function ModelEntry({
             value={model.provider}
           >
             <SelectTrigger className={selectClassName}>
-              <SelectValue placeholder={t("onboarding.selectProvider")} />
+              <SelectValue placeholder={t('onboarding.selectProvider')} />
             </SelectTrigger>
             <SelectContent>
               <SelectGroup>
@@ -430,7 +413,7 @@ function ModelEntry({
           </Select>
         </ModelField>
         <ModelField label="Model">
-          {model.provider === "deepseek" ? (
+          {model.provider === 'deepseek' ? (
             <Select
               onValueChange={(value) =>
                 onChange({
@@ -458,9 +441,7 @@ function ModelEntry({
             <Input
               className={inputClassName}
               onChange={(event) => onChange({ ...model, model: event.target.value })}
-              placeholder={
-                model.provider === "anthropic" ? "claude-sonnet-4-5" : "gpt-4o"
-              }
+              placeholder={model.provider === 'anthropic' ? 'claude-sonnet-4-5' : 'gpt-4o'}
               type="text"
               value={model.model}
             />
@@ -471,9 +452,9 @@ function ModelEntry({
             className={inputClassName}
             onChange={(event) => onChange({ ...model, baseUrl: event.target.value })}
             placeholder={
-              model.provider === "anthropic"
-                ? "https://api.anthropic.com/v1"
-                : "https://api.openai.com/v1"
+              model.provider === 'anthropic'
+                ? 'https://api.anthropic.com/v1'
+                : 'https://api.openai.com/v1'
             }
             type="text"
             value={model.baseUrl}
@@ -488,14 +469,12 @@ function ModelEntry({
             value={model.apiKey}
           />
         </ModelField>
-        {model.provider !== "deepseek" ? (
+        {model.provider !== 'deepseek' ? (
           <ModelField label="Context Size (K)">
             <Input
               className={inputClassName}
               min={1}
-              onChange={(event) =>
-                onChange({ ...model, contextSizeK: event.target.value })
-              }
+              onChange={(event) => onChange({ ...model, contextSizeK: event.target.value })}
               placeholder={String(DEFAULT_OPENAI_COMPATIBLE_CONTEXT_SIZE_K)}
               type="number"
               value={model.contextSizeK}
@@ -507,13 +486,7 @@ function ModelEntry({
   );
 }
 
-function ModelField({
-  children,
-  label,
-}: {
-  children: ReactNode;
-  label: string;
-}) {
+function ModelField({ children, label }: { children: ReactNode; label: string }) {
   return (
     <Field className="gap-[3px]">
       <FieldLabel className="text-[10px] font-semibold tracking-[0.4px] text-[#6b6b76] uppercase">
@@ -526,29 +499,28 @@ function ModelField({
 
 function getHint(step: Step, t: (key: TranslationKey) => string) {
   if (step === 1) {
-    return t("onboarding.languageStep");
+    return t('onboarding.languageStep');
   }
 
   if (step === 2) {
-    return t("onboarding.modelStep");
+    return t('onboarding.modelStep');
   }
 
-  return t("onboarding.confirmStep");
+  return t('onboarding.confirmStep');
 }
 
 function normalizeModelForSubmit(model: ModelForm): InitialModelConfiguration {
-  const provider = model.provider || "openai-compatible";
+  const provider = model.provider || 'openai-compatible';
   const contextSizeK =
-    provider === "deepseek"
+    provider === 'deepseek'
       ? DEEPSEEK_CONTEXT_SIZE_K
-      : Number.parseInt(model.contextSizeK, 10) ||
-        DEFAULT_OPENAI_COMPATIBLE_CONTEXT_SIZE_K;
+      : Number.parseInt(model.contextSizeK, 10) || DEFAULT_OPENAI_COMPATIBLE_CONTEXT_SIZE_K;
 
   return {
     id: model.id,
     provider,
     model:
-      provider === "deepseek"
+      provider === 'deepseek'
         ? isDeepSeekModel(model.model)
           ? model.model
           : DEFAULT_DEEPSEEK_MODEL
@@ -556,10 +528,10 @@ function normalizeModelForSubmit(model: ModelForm): InitialModelConfiguration {
     baseUrl: model.baseUrl,
     apiKey: model.apiKey,
     contextSizeK,
-    ...(provider === "deepseek"
+    ...(provider === 'deepseek'
       ? {
           providerOptions: model.providerOptions ?? {
-            deepseek: { thinkingMode: "high" },
+            deepseek: { thinkingMode: 'high' },
           },
         }
       : {}),
@@ -571,7 +543,7 @@ function createId() {
 }
 
 const inputClassName =
-  "h-[34px] rounded-md border-[#27272a] bg-[#18181b] px-2.5 py-[7px] text-[13px] text-[#fafafa] shadow-none outline-none transition-colors duration-150 placeholder:text-[#6b6b76] focus-visible:border-[#6c5ce7] focus-visible:ring-0";
+  'h-[34px] rounded-md border-[#27272a] bg-[#18181b] px-2.5 py-[7px] text-[13px] text-[#fafafa] shadow-none outline-none transition-colors duration-150 placeholder:text-[#6b6b76] focus-visible:border-[#6c5ce7] focus-visible:ring-0';
 
 const selectClassName =
-  "h-[34px] w-full rounded-md border-[#27272a] bg-[#18181b] px-2.5 py-[7px] text-[13px] text-[#fafafa] shadow-none outline-none transition-colors duration-150 hover:border-[#3f3f46] focus-visible:border-[#6c5ce7] focus-visible:ring-0";
+  'h-[34px] w-full rounded-md border-[#27272a] bg-[#18181b] px-2.5 py-[7px] text-[13px] text-[#fafafa] shadow-none outline-none transition-colors duration-150 hover:border-[#3f3f46] focus-visible:border-[#6c5ce7] focus-visible:ring-0';

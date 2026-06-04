@@ -1,7 +1,7 @@
 'use client';
 
 import type { CSSProperties, ReactNode } from 'react';
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useAppNavigate } from '@/lib/router';
 import {
   DownloadIcon,
@@ -57,6 +57,7 @@ import { cn } from '@/lib/utils';
 import { useApiClient } from '@/api/context';
 
 const CONVERSATION_PANE_STORAGE_KEY = 'owndesign.app.conversation-pane-collapsed';
+const PREVIEW_DEVICE_BY_HTML_STORAGE_KEY = 'owndesign.app.preview-device-by-html';
 const CONVERSATION_PANE_EVENT = 'owndesign:conversation-pane';
 const PREVIEW_REFRESH_EVENT = 'owndesign:preview-refresh';
 const PREVIEW_HREF_EVENT = 'owndesign:preview-href-updated';
@@ -106,6 +107,7 @@ export function ChatShell({
   const navigate = useAppNavigate();
   const [sessionPreviewHref, setSessionPreviewHref] = useState<string>();
   const [previewDevice, setPreviewDevice] = useState<PreviewDevice>('desktop');
+  const previewDeviceRef = useRef<PreviewDevice>('desktop');
   const [previewFiles, setPreviewFiles] = useState<string[]>([]);
   const [activePreviewPath, setActivePreviewPath] = useState<string>();
   const isConversationCollapsed = useSyncExternalStore(
@@ -125,6 +127,26 @@ export function ChatShell({
       ),
     [previewStatus],
   );
+
+  useEffect(() => {
+    previewDeviceRef.current = previewDevice;
+  }, [previewDevice]);
+
+  useEffect(() => {
+    if (!previewProjectId || !activePreviewPath) {
+      return;
+    }
+
+    const storedDevice = readStoredPreviewDevice(previewProjectId, activePreviewPath);
+
+    if (storedDevice) {
+      previewDeviceRef.current = storedDevice;
+      setPreviewDevice(storedDevice);
+      return;
+    }
+
+    writeStoredPreviewDevice(previewProjectId, activePreviewPath, previewDeviceRef.current);
+  }, [activePreviewPath, previewProjectId]);
 
   useEffect(() => {
     const handlePreviewHrefUpdated = (event: Event) => {
@@ -181,6 +203,18 @@ export function ChatShell({
       preventScrollReset: true,
       replace: true,
     });
+  };
+  const handlePreviewDeviceChange = (value: string | null) => {
+    if (value !== 'desktop' && value !== 'mobile') {
+      return;
+    }
+
+    previewDeviceRef.current = value;
+    setPreviewDevice(value);
+
+    if (previewProjectId && activePreviewPath) {
+      writeStoredPreviewDevice(previewProjectId, activePreviewPath, value);
+    }
   };
   const previewFilenameNode = previewFilename ?? (
     <PreviewFileSelect
@@ -320,11 +354,7 @@ export function ChatShell({
                   {previewActions ?? (
                     <>
                       <Select
-                        onValueChange={(value) => {
-                          if (value === 'desktop' || value === 'mobile') {
-                            setPreviewDevice(value);
-                          }
-                        }}
+                        onValueChange={handlePreviewDeviceChange}
                         value={previewDevice}
                       >
                         <SelectTrigger
@@ -465,6 +495,49 @@ function writeConversationPaneState(value: boolean) {
 
   window.localStorage.setItem(CONVERSATION_PANE_STORAGE_KEY, String(value));
   window.dispatchEvent(new Event(CONVERSATION_PANE_EVENT));
+}
+
+function readStoredPreviewDevice(projectId: string, previewPath: string): PreviewDevice | undefined {
+  const storedDevices = readStoredPreviewDevices();
+  const value = storedDevices[buildPreviewDeviceStorageKey(projectId, previewPath)];
+
+  return isPreviewDevice(value) ? value : undefined;
+}
+
+function writeStoredPreviewDevice(
+  projectId: string,
+  previewPath: string,
+  previewDevice: PreviewDevice,
+) {
+  try {
+    const storedDevices = readStoredPreviewDevices();
+    storedDevices[buildPreviewDeviceStorageKey(projectId, previewPath)] = previewDevice;
+    window.localStorage.setItem(PREVIEW_DEVICE_BY_HTML_STORAGE_KEY, JSON.stringify(storedDevices));
+  } catch {
+    // Ignore storage failures; runtime selection still works for this session.
+  }
+}
+
+function readStoredPreviewDevices() {
+  try {
+    const parsed = JSON.parse(
+      window.localStorage.getItem(PREVIEW_DEVICE_BY_HTML_STORAGE_KEY) ?? '{}',
+    );
+
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+function buildPreviewDeviceStorageKey(projectId: string, previewPath: string) {
+  return JSON.stringify([projectId, previewPath]);
+}
+
+function isPreviewDevice(value: unknown): value is PreviewDevice {
+  return value === 'desktop' || value === 'mobile';
 }
 
 function buildProjectDownloadPath(

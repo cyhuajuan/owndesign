@@ -1,4 +1,4 @@
-import { act, render, screen, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -174,6 +174,73 @@ describe('ChatShell', () => {
     await user.click(await screen.findByRole('option', { name: '移动端' }));
 
     expect(deviceSelect).toHaveTextContent('移动端');
+  });
+
+  it('persists preview device per project html and uses the current device for new html', async () => {
+    const user = userEvent.setup();
+
+    render(<ChatShell previewProjectId="project-1" />);
+
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent('owndesign:preview-files-updated', {
+          detail: {
+            activePath: 'index.html',
+            files: ['index.html', 'dashboard.html'],
+          },
+        }),
+      );
+    });
+
+    const previewPane = screen.getByRole('region', { name: '预览面板' });
+    const deviceSelect = within(previewPane).getByRole('combobox', { name: '预览设备' });
+
+    await user.click(deviceSelect);
+    await user.click(await screen.findByRole('option', { name: '移动端' }));
+    expect(deviceSelect).toHaveTextContent('移动端');
+
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent('owndesign:preview-files-updated', {
+          detail: {
+            activePath: 'dashboard.html',
+            files: ['index.html', 'dashboard.html'],
+          },
+        }),
+      );
+    });
+
+    await waitFor(() => expect(deviceSelect).toHaveTextContent('移动端'));
+
+    await user.click(deviceSelect);
+    await user.click(await screen.findByRole('option', { name: '桌面端' }));
+    expect(deviceSelect).toHaveTextContent('桌面端');
+
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent('owndesign:preview-files-updated', {
+          detail: {
+            activePath: 'index.html',
+            files: ['index.html', 'dashboard.html'],
+          },
+        }),
+      );
+    });
+
+    await waitFor(() => expect(deviceSelect).toHaveTextContent('移动端'));
+
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent('owndesign:preview-files-updated', {
+          detail: {
+            activePath: 'dashboard.html',
+            files: ['index.html', 'dashboard.html'],
+          },
+        }),
+      );
+    });
+
+    await waitFor(() => expect(deviceSelect).toHaveTextContent('桌面端'));
   });
 
   it('disables the download trigger when no active project exists', () => {

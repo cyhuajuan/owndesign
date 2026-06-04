@@ -45,6 +45,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { FrontendCapabilityBridge } from '@/features/preview/components/frontend-capability-bridge';
+import type { PreviewDevice } from '@/features/preview/preview-device';
 import {
   Sidebar,
   SidebarContent,
@@ -64,6 +65,10 @@ const PREVIEW_MANUAL_SWITCH_EVENT = 'owndesign:preview-manual-switch';
 
 type PreviewStatus = 'ready' | 'loading' | 'error';
 
+type PreviewBodyContext = {
+  previewDevice: PreviewDevice;
+};
+
 export type ChatShellSlots = {
   topBarDragRegion?: ReactNode;
   topBarTrailing?: ReactNode;
@@ -75,7 +80,7 @@ type ChatShellProps = {
   controlBar?: ReactNode;
   messageHistory?: ReactNode;
   previewActions?: ReactNode;
-  previewBody?: ReactNode;
+  previewBody?: ReactNode | ((context: PreviewBodyContext) => ReactNode);
   previewFilename?: ReactNode;
   previewHref?: string;
   previewProjectId?: string;
@@ -100,6 +105,7 @@ export function ChatShell({
   const { t } = useI18n();
   const navigate = useAppNavigate();
   const [sessionPreviewHref, setSessionPreviewHref] = useState<string>();
+  const [previewDevice, setPreviewDevice] = useState<PreviewDevice>('desktop');
   const [previewFiles, setPreviewFiles] = useState<string[]>([]);
   const [activePreviewPath, setActivePreviewPath] = useState<string>();
   const isConversationCollapsed = useSyncExternalStore(
@@ -205,6 +211,8 @@ export function ChatShell({
       role: 'assistant' as const,
     },
   ];
+  const previewBodyNode =
+    typeof previewBody === 'function' ? previewBody({ previewDevice }) : previewBody;
 
   return (
     <SidebarProvider
@@ -311,6 +319,32 @@ export function ChatShell({
                 <div className="flex items-center gap-1">
                   {previewActions ?? (
                     <>
+                      <Select
+                        onValueChange={(value) => {
+                          if (value === 'desktop' || value === 'mobile') {
+                            setPreviewDevice(value);
+                          }
+                        }}
+                        value={previewDevice}
+                      >
+                        <SelectTrigger
+                          aria-label={t('preview.device')}
+                          className="h-7 w-22 px-2 text-xs"
+                          size="sm"
+                        >
+                          <SelectValue>
+                            {previewDevice === 'desktop'
+                              ? t('preview.deviceDesktop')
+                              : t('preview.deviceMobile')}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent align="end" className="min-w-28">
+                          <SelectGroup>
+                            <SelectItem value="desktop">{t('preview.deviceDesktop')}</SelectItem>
+                            <SelectItem value="mobile">{t('preview.deviceMobile')}</SelectItem>
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
                       <DropdownMenu>
                         <DropdownMenuTrigger
                           disabled={!previewProjectId}
@@ -379,7 +413,7 @@ export function ChatShell({
               </div>
 
               <div className="relative min-h-0 flex-1 overflow-hidden">
-                {previewBody ?? (
+                {previewBodyNode ?? (
                   <div className="flex size-full items-center justify-center p-10">
                     <ConversationEmptyState
                       description={t('preview.emptyDescription')}

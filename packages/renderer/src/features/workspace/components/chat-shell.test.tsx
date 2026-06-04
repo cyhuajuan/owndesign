@@ -137,12 +137,17 @@ describe('ChatShell', () => {
     render(<ChatShell previewProjectId="project-1" />);
 
     const previewPane = screen.getByRole('region', { name: '预览面板' });
+    const deviceSelect = within(previewPane).getByRole('combobox', { name: '预览设备' });
     const downloadButton = within(previewPane).getByRole('button', { name: '下载' });
     const refreshButton = within(previewPane).getByRole('button', {
       name: '刷新预览',
     });
     const headerButtons = within(previewPane).getAllByRole('button');
 
+    expect(deviceSelect).toHaveTextContent('桌面端');
+    expect(deviceSelect.compareDocumentPosition(downloadButton)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
     expect(headerButtons.indexOf(downloadButton)).toBeLessThan(
       headerButtons.indexOf(refreshButton),
     );
@@ -153,6 +158,22 @@ describe('ChatShell', () => {
 
     expect(await screen.findByText('下载当前HTML')).toBeInTheDocument();
     expect(await screen.findByText('下载全部打包成ZIP')).toBeInTheDocument();
+  });
+
+  it('switches the preview device selector to mobile', async () => {
+    const user = userEvent.setup();
+
+    render(<ChatShell />);
+
+    const previewPane = screen.getByRole('region', { name: '预览面板' });
+    const deviceSelect = within(previewPane).getByRole('combobox', { name: '预览设备' });
+
+    expect(deviceSelect).toHaveTextContent('桌面端');
+
+    await user.click(deviceSelect);
+    await user.click(await screen.findByRole('option', { name: '移动端' }));
+
+    expect(deviceSelect).toHaveTextContent('移动端');
   });
 
   it('disables the download trigger when no active project exists', () => {

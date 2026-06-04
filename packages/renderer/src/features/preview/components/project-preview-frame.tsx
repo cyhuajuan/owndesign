@@ -6,10 +6,12 @@ import { FolderIcon, LoaderCircleIcon } from 'lucide-react';
 import { PreviewEmptyState } from '@/features/preview/components/preview-empty-state';
 import { useApiClient } from '@/api/context';
 import { useI18n } from '@/features/i18n/context';
+import type { PreviewDevice } from '@/features/preview/preview-device';
 import { setCurrentPreviewPath, usePreviewPath } from '@/features/preview/preview-path';
 
 type ProjectPreviewFrameProps = {
   initialUpdatedAt: string;
+  previewDevice?: PreviewDevice;
   projectId: string;
   projectName: string;
 };
@@ -29,6 +31,7 @@ const HEARTBEAT_INTERVAL_MS = 30_000;
 
 export function ProjectPreviewFrame({
   initialUpdatedAt,
+  previewDevice = 'desktop',
   projectId,
   projectName,
 }: ProjectPreviewFrameProps) {
@@ -311,7 +314,7 @@ export function ProjectPreviewFrame({
     );
   }
 
-  return (
+  const previewFrame = (
     <iframe
       className="size-full border-0 bg-white"
       key={`${refreshKey}:${manualSwitchKey}`}
@@ -323,6 +326,18 @@ export function ProjectPreviewFrame({
       title={t('preview.htmlTitle', { projectName })}
     />
   );
+
+  if (previewDevice === 'mobile') {
+    return (
+      <div className="flex size-full overflow-auto bg-muted/40 p-4" data-testid="mobile-preview">
+        <div className="m-auto h-[844px] max-h-full w-[390px] shrink-0 overflow-hidden border border-border bg-white shadow-xl">
+          {previewFrame}
+        </div>
+      </div>
+    );
+  }
+
+  return previewFrame;
 }
 
 function createClientId() {

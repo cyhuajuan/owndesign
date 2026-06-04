@@ -152,11 +152,12 @@ export const WorkspaceShell = memo(function WorkspaceShell({
           />
         )
       }
-      previewBody={
+      previewBody={({ previewDevice }) =>
         activeProject ? (
           <ProjectPreviewFrame
             initialUpdatedAt={activeProject.updatedAt}
             key={activeProject.id}
+            previewDevice={previewDevice}
             projectId={activeProject.id}
             projectName={activeProject.name}
           />
@@ -167,8 +168,7 @@ export const WorkspaceShell = memo(function WorkspaceShell({
             icon={<FolderIcon />}
             title={t('preview.emptyTitle')}
           />
-        )
-      }
+        )}
       previewProjectId={activeProject?.id}
       shellSlots={shellSlots}
     />

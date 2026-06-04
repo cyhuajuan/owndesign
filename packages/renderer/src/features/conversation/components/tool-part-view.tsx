@@ -26,7 +26,7 @@ function getToolDescription(part: ToolLikePart, t: ReturnType<typeof useI18n>['t
   const toolName = getToolName(part);
   const target = getToolTarget(part);
   const verb = getToolVerb(toolName, t);
-  const suffix = target ?? (isPreviewTool(toolName) ? '' : t('conversation.file'));
+  const suffix = target ? ` ${target} ` : isPreviewTool(toolName) ? '' : t('conversation.file');
 
   if (isFailedToolPart(part)) {
     return t('tool.failed', { suffix, verb });

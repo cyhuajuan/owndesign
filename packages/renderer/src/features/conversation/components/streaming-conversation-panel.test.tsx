@@ -478,7 +478,7 @@ describe('MessageParts', () => {
       />,
     );
 
-    expect(screen.getByText('已编辑index.html')).toBeInTheDocument();
+    expect(screen.getByText('已编辑 index.html')).toBeInTheDocument();
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
     expect(screen.queryByText('参数')).not.toBeInTheDocument();
     expect(screen.queryByText('结果')).not.toBeInTheDocument();
@@ -504,7 +504,7 @@ describe('MessageParts', () => {
       />,
     );
 
-    expect(screen.getByText('正在编辑index.html')).toBeInTheDocument();
+    expect(screen.getByText('正在编辑 index.html')).toBeInTheDocument();
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
     expect(screen.queryByText('参数')).not.toBeInTheDocument();
   });
@@ -534,8 +534,8 @@ describe('MessageParts', () => {
       />,
     );
 
-    expect(screen.getByText('正在查看pending.html')).toBeInTheDocument();
-    expect(screen.getByText('已查看done.html')).toBeInTheDocument();
+    expect(screen.getByText('正在查看 pending.html')).toBeInTheDocument();
+    expect(screen.getByText('已查看 done.html')).toBeInTheDocument();
     expect(screen.queryByText('Secret Detail')).not.toBeInTheDocument();
     expect(screen.queryByText('参数')).not.toBeInTheDocument();
     expect(screen.queryByText('结果')).not.toBeInTheDocument();
@@ -568,7 +568,7 @@ describe('MessageParts', () => {
     );
 
     expect(screen.getByText('已刷新预览')).toBeInTheDocument();
-    expect(screen.getByText('已切换预览index.html')).toBeInTheDocument();
+    expect(screen.getByText('已切换预览 index.html')).toBeInTheDocument();
     expect(screen.queryByText('已刷新预览文件')).not.toBeInTheDocument();
   });
 
@@ -592,7 +592,7 @@ describe('MessageParts', () => {
       />,
     );
 
-    expect(screen.getByText('写入index.html失败')).toBeInTheDocument();
+    expect(screen.getByText('写入 index.html 失败')).toBeInTheDocument();
     expect(screen.queryByText('权限不足')).not.toBeInTheDocument();
     expect(screen.queryByText('错误')).not.toBeInTheDocument();
   });
@@ -623,10 +623,10 @@ describe('MessageParts', () => {
       />,
     );
 
-    expect(screen.getByText('写入index.html失败')).toBeInTheDocument();
-    expect(screen.getByText('查看missing.txt失败')).toBeInTheDocument();
-    expect(screen.queryByText('已写入index.html')).not.toBeInTheDocument();
-    expect(screen.queryByText('已查看missing.txt')).not.toBeInTheDocument();
+    expect(screen.getByText('写入 index.html 失败')).toBeInTheDocument();
+    expect(screen.getByText('查看 missing.txt 失败')).toBeInTheDocument();
+    expect(screen.queryByText('已写入 index.html')).not.toBeInTheDocument();
+    expect(screen.queryByText('已查看 missing.txt')).not.toBeInTheDocument();
   });
 
   it('uses sanitized output paths before tool input paths', () => {
@@ -648,8 +648,8 @@ describe('MessageParts', () => {
       />,
     );
 
-    expect(screen.getByText('已查看index.copy.html')).toBeInTheDocument();
-    expect(screen.queryByText('已查看index.html')).not.toBeInTheDocument();
+    expect(screen.getByText('已查看 index.copy.html')).toBeInTheDocument();
+    expect(screen.queryByText('已查看 index.html')).not.toBeInTheDocument();
   });
 
   it('does not dispatch preview refresh after mutation tool output completes', () => {

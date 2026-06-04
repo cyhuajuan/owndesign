@@ -155,12 +155,8 @@ export class PreviewServerManager {
       projectId,
     };
 
-    app.get('/', async () =>
-      htmlResponse(await readIndexHtmlOrEmptyPreview(workspaceDirectory, entry)),
-    );
-    app.get('/index.html', async () =>
-      htmlResponse(await readIndexHtmlOrEmptyPreview(workspaceDirectory, entry)),
-    );
+    app.get('/', async () => readIndexHtmlOrNotFound(workspaceDirectory, entry));
+    app.get('/index.html', async () => readIndexHtmlOrNotFound(workspaceDirectory, entry));
     app.use('*', async (context, next) => {
       context.header('Cache-Control', PREVIEW_CACHE_CONTROL);
       await next();
@@ -270,117 +266,21 @@ export function getPreviewServerManager(workspaceStore: WorkspaceStore) {
   return globalThis.__owndesignPreviewServerManager;
 }
 
-async function readIndexHtmlOrEmptyPreview(workspaceDirectory: string, entry: PreviewServerEntry) {
+async function readIndexHtmlOrNotFound(workspaceDirectory: string, entry: PreviewServerEntry) {
   const indexPath = path.join(workspaceDirectory, 'index.html');
 
   try {
     await access(indexPath);
     entry.activePath = 'index.html';
-    return readFile(indexPath, 'utf8');
+    return htmlResponse(await readFile(indexPath, 'utf8'));
   } catch {
-    return buildEmptyPreviewHtml();
+    return new Response(null, {
+      headers: {
+        'Cache-Control': PREVIEW_CACHE_CONTROL,
+      },
+      status: 404,
+    });
   }
-}
-
-function buildEmptyPreviewHtml() {
-  return `<!doctype html>
-<html lang="zh-CN">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>OwnDesign Preview</title>
-  <style>
-    :root {
-      color-scheme: dark;
-      --bg-base: #0a0a0b;
-      --bg-surface: #141416;
-      --bg-elevated: #1c1c1f;
-      --border-color: #2a2a2e;
-      --border-light: #38383d;
-      --text-primary: #f0f0f2;
-      --text-secondary: #a0a0ab;
-      --text-tertiary: #6b6b76;
-      --shadow-lg: 0 18px 48px rgba(0, 0, 0, 0.45);
-    }
-    * {
-      box-sizing: border-box;
-    }
-    html {
-      height: 100%;
-      background: var(--bg-base);
-    }
-    body {
-      margin: 0;
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 24px;
-      background:
-        radial-gradient(circle at top, rgba(255,255,255,0.04), transparent 34%),
-        var(--bg-base);
-      color: var(--text-primary);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans SC", sans-serif;
-    }
-    main {
-      width: min(100%, 28rem);
-      padding: 2rem;
-      border: 1px solid var(--border-color);
-      border-radius: 24px;
-      background: var(--bg-surface);
-      text-align: center;
-      box-shadow: var(--shadow-lg);
-    }
-    .icon {
-      width: 56px;
-      height: 56px;
-      margin: 0 auto;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border-radius: 18px;
-      border: 1px solid var(--border-light);
-      background: var(--bg-elevated);
-      color: var(--text-secondary);
-      box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
-    }
-    .badge {
-      margin-top: 20px;
-      color: var(--text-tertiary);
-      font-size: 11px;
-      font-weight: 600;
-      letter-spacing: 0.24em;
-      text-transform: uppercase;
-    }
-    h1 {
-      margin: 8px 0 0;
-      color: var(--text-primary);
-      font-size: 1.125rem;
-      font-weight: 600;
-      letter-spacing: -0.02em;
-    }
-    p {
-      margin: 10px auto 0;
-      max-width: 22rem;
-      color: var(--text-secondary);
-      font-size: 14px;
-      line-height: 1.7;
-    }
-  </style>
-</head>
-<body>
-  <main>
-    <div class="icon" aria-hidden="true">
-      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H10l2 2h5.5A2.5 2.5 0 0 1 20 9.5v7A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5z" />
-      </svg>
-    </div>
-    <div class="badge">Preview</div>
-    <h1>等待生成 HTML</h1>
-    <p>在左侧输入“设计一个 XXX 的界面”，生成结果会显示在这里。</p>
-  </main>
-</body>
-</html>`;
 }
 
 function resolveActivePreviewPath(files: string[], previewPath?: string) {

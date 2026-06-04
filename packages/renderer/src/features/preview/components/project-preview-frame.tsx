@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { LoaderCircleIcon } from 'lucide-react';
+import { FolderIcon, LoaderCircleIcon } from 'lucide-react';
 
 import { PreviewEmptyState } from '@/features/preview/components/preview-empty-state';
 import { useApiClient } from '@/api/context';
@@ -19,6 +19,8 @@ type PreviewSessionResponse = {
   files: string[];
   url: string;
 };
+
+type PreviewSessionStatus = 'empty' | 'loading' | 'ready';
 
 const PREVIEW_HREF_EVENT = 'owndesign:preview-href-updated';
 const PREVIEW_FILES_EVENT = 'owndesign:preview-files-updated';
@@ -38,17 +40,55 @@ export function ProjectPreviewFrame({
   const previewProjectIdRef = useRef<string | undefined>(undefined);
   const previewUrlRef = useRef<string | undefined>(undefined);
   const [previewUrl, setPreviewUrl] = useState<string>();
+  const [previewSessionStatus, setPreviewSessionStatus] =
+    useState<PreviewSessionStatus>('loading');
   const [refreshKey, setRefreshKey] = useState(initialUpdatedAt);
   const [manualSwitchKey, setManualSwitchKey] = useState('');
+  const requestPreviewSession = useCallback(
+    async (endpoint: string, previewPath?: string) => {
+      const body: { clientId: string; previewPath?: string } = {
+        clientId: clientId.current,
+      };
+
+      if (previewPath) {
+        body.previewPath = previewPath;
+      }
+
+      const response = await fetch(endpoint, {
+        body: JSON.stringify(body),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        throw new Error(`Preview session request failed: ${response.status}`);
+      }
+
+      return (await response.json()) as PreviewSessionResponse;
+    },
+    [],
+  );
   const applyPreviewSession = useCallback(
     (session: PreviewSessionResponse, { updateFrameSrc }: { updateFrameSrc: boolean }) => {
       previewProjectIdRef.current = projectId;
+      if (session.files.length === 0) {
+        previewUrlRef.current = undefined;
+        setCurrentPreviewPath(undefined);
+        publishPreviewHref(undefined);
+        publishPreviewFiles([]);
+        setPreviewUrl(undefined);
+        setPreviewSessionStatus('empty');
+        return;
+      }
+
+      const hadPreviewUrl = Boolean(previewUrlRef.current);
       previewUrlRef.current = session.url;
       setCurrentPreviewPath(session.activePath);
       publishPreviewHref(session.url);
       publishPreviewFiles(session.files, session.activePath);
+      setPreviewSessionStatus('ready');
 
-      if (updateFrameSrc) {
+      if (updateFrameSrc || !hadPreviewUrl) {
         setPreviewUrl(session.url);
       }
     },
@@ -62,32 +102,6 @@ export function ProjectPreviewFrame({
 
     if (selectedPreviewPath && pendingRouteSyncPathRef.current === selectedPreviewPath) {
       pendingRouteSyncPathRef.current = undefined;
-    }
-
-    const buildSessionBody = (previewPath?: string) => {
-      const body: { clientId: string; previewPath?: string } = {
-        clientId: clientId.current,
-      };
-
-      if (previewPath) {
-        body.previewPath = previewPath;
-      }
-
-      return JSON.stringify(body);
-    };
-
-    async function requestPreviewSession(endpoint: string, previewPath?: string) {
-      const response = await fetch(endpoint, {
-        body: buildSessionBody(previewPath),
-        headers: { 'Content-Type': 'application/json' },
-        method: 'POST',
-      });
-
-      if (!response.ok) {
-        throw new Error(`Preview session request failed: ${response.status}`);
-      }
-
-      return (await response.json()) as PreviewSessionResponse;
     }
 
     async function acquirePreviewSession() {
@@ -115,6 +129,7 @@ export function ProjectPreviewFrame({
         if (isActive && !canKeepCurrentPreview) {
           setPreviewUrl(undefined);
           previewUrlRef.current = undefined;
+          setPreviewSessionStatus('loading');
           publishPreviewHref(undefined);
           publishPreviewFiles([]);
         }
@@ -140,6 +155,7 @@ export function ProjectPreviewFrame({
           if (isActive) {
             setPreviewUrl(undefined);
             previewUrlRef.current = undefined;
+            setPreviewSessionStatus('loading');
             publishPreviewHref(undefined);
             publishPreviewFiles([]);
           }
@@ -150,7 +166,7 @@ export function ProjectPreviewFrame({
       isActive = false;
       window.clearInterval(heartbeatTimer);
     };
-  }, [api, applyPreviewSession, projectId, selectedPreviewPath]);
+  }, [api, applyPreviewSession, projectId, requestPreviewSession, selectedPreviewPath]);
 
   const syncPreviewSession = async () => {
     try {
@@ -183,6 +199,7 @@ export function ProjectPreviewFrame({
     } catch {
       setPreviewUrl(undefined);
       previewUrlRef.current = undefined;
+      setPreviewSessionStatus('loading');
       publishPreviewHref(undefined);
       publishPreviewFiles([]);
     }
@@ -211,18 +228,38 @@ export function ProjectPreviewFrame({
       if (event.type === 'owndesign:preview-refresh') {
         if (previewUrlRef.current) {
           setPreviewUrl(previewUrlRef.current);
+          setRefreshKey(String(Date.now()));
+          return;
         }
 
-        setRefreshKey(String(Date.now()));
+        void requestPreviewSession(
+          api.buildUrl(`/api/projects/${encodeURIComponent(projectId)}/preview-session/heartbeat`),
+        )
+          .then((session) => {
+            applyPreviewSession(session, { updateFrameSrc: true });
+          })
+          .catch(() => {
+            setPreviewSessionStatus('loading');
+          });
         return;
       }
 
       if (event instanceof CustomEvent && event.detail?.projectId === projectId) {
         if (previewUrlRef.current) {
           setPreviewUrl(previewUrlRef.current);
+          setRefreshKey(String(Date.now()));
+          return;
         }
 
-        setRefreshKey(String(Date.now()));
+        void requestPreviewSession(
+          api.buildUrl(`/api/projects/${encodeURIComponent(projectId)}/preview-session/heartbeat`),
+        )
+          .then((session) => {
+            applyPreviewSession(session, { updateFrameSrc: true });
+          })
+          .catch(() => {
+            setPreviewSessionStatus('loading');
+          });
       }
     };
 
@@ -233,7 +270,7 @@ export function ProjectPreviewFrame({
       window.removeEventListener('owndesign:project-output-updated', handleProjectOutputUpdated);
       window.removeEventListener('owndesign:preview-refresh', handleProjectOutputUpdated);
     };
-  }, [projectId]);
+  }, [api, applyPreviewSession, projectId, requestPreviewSession]);
 
   useEffect(() => {
     const handleManualPreviewSwitch = (event: Event) => {
@@ -251,6 +288,17 @@ export function ProjectPreviewFrame({
       window.removeEventListener(PREVIEW_MANUAL_SWITCH_EVENT, handleManualPreviewSwitch);
     };
   }, []);
+
+  if (previewSessionStatus === 'empty') {
+    return (
+      <PreviewEmptyState
+        badge="Preview"
+        description={t('preview.emptyDescription')}
+        icon={<FolderIcon />}
+        title={t('preview.emptyTitle')}
+      />
+    );
+  }
 
   if (!previewUrl) {
     return (

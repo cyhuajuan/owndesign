@@ -225,20 +225,17 @@ describe('PreviewServerManager', () => {
     await expect(response.text()).resolves.toContain('Landing');
   });
 
-  it('serves styled empty preview HTML without publishing a fake active path', async () => {
+  it('returns 404 for the preview root without publishing a fake active path when no HTML exists', async () => {
     const { manager, workspaceStore } = await createPreviewManager();
     await createProject(workspaceStore);
 
     const session = await manager.ensure('project-1', 'client-1');
     const response = await fetch(session.url);
-    const html = await response.text();
 
-    expect(html).toContain('<!doctype html>');
+    expect(response.status).toBe(404);
+    expect(response.headers.get('Cache-Control')).toBe('no-store');
     expect(session).not.toHaveProperty('activePath');
     expect(session.files).toEqual([]);
-    expect(html).toContain('等待生成 HTML');
-    expect(html).toContain('class="badge">Preview');
-    expect(html).toContain('--bg-base: #0a0a0b');
   });
 });
 

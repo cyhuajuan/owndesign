@@ -69,6 +69,13 @@ describe('ProjectPreviewFrame', () => {
 
   it('does not publish a fake current preview path for an empty workspace', async () => {
     const fetchMock = mockEmptyPreviewFetch();
+    const publishedHrefs: unknown[] = [];
+    const handlePreviewHref = (event: Event) => {
+      if (event instanceof CustomEvent) {
+        publishedHrefs.push(event.detail?.href);
+      }
+    };
+    window.addEventListener('owndesign:preview-href-updated', handlePreviewHref);
 
     render(
       <ProjectPreviewFrame
@@ -78,11 +85,46 @@ describe('ProjectPreviewFrame', () => {
       />,
     );
 
-    await screen.findByTitle('Project One HTML 预览');
+    await screen.findByText('尚无预览内容');
 
     expect(getSessionPosts(fetchMock)).toHaveLength(1);
     expect(getCurrentPreviewPath()).toBeUndefined();
     expect(window.location.search).toBe('');
+    expect(screen.queryByTitle('Project One HTML 预览')).not.toBeInTheDocument();
+    expect(publishedHrefs.at(-1)).toBeUndefined();
+    window.removeEventListener('owndesign:preview-href-updated', handlePreviewHref);
+  });
+
+  it('renders the iframe after an empty preview refresh finds HTML', async () => {
+    const fetchMock = mockEmptyPreviewFetch();
+
+    render(
+      <ProjectPreviewFrame
+        initialUpdatedAt="2026-05-15T00:00:00.000Z"
+        projectId="project-1"
+        projectName="Project One"
+      />,
+    );
+
+    await screen.findByText('尚无预览内容');
+
+    fetchMock.mockImplementation(async (_input, init) => {
+      if (init?.method === 'DELETE') {
+        return new Response(null, { status: 204 });
+      }
+
+      return Response.json({
+        activePath: 'index.html',
+        files: ['index.html'],
+        url: 'http://127.0.0.1:3000/index.html',
+      });
+    });
+
+    fireEvent(window, new Event('owndesign:preview-refresh'));
+
+    await screen.findByTitle('Project One HTML 预览');
+    expect(getHeartbeatPosts(fetchMock)).toHaveLength(1);
+    expect(getCurrentPreviewPath()).toBe('index.html');
   });
 
   it('does not release the preview session when only the preview path changes', async () => {

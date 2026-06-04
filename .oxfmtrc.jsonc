@@ -9,4 +9,15 @@
     "apps/desktop/src-tauri/target/**",
     "pnpm-lock.yaml",
   ],
+  "singleQuote": true,
+  "jsxSingleQuote": false,
+  "semi": true,
+  "overrides": [
+    {
+      "files": ["**/*.css"],
+      "options": {
+        "singleQuote": false,
+      },
+    },
+  ]
 }

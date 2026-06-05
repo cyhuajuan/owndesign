@@ -1,7 +1,7 @@
 'use client';
 
 import type { CSSProperties, ReactNode } from 'react';
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useAppNavigate } from '@/lib/router';
 import {
   DownloadIcon,
@@ -45,6 +45,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { FrontendCapabilityBridge } from '@/features/preview/components/frontend-capability-bridge';
+import type { PreviewDevice } from '@/features/preview/preview-device';
 import {
   Sidebar,
   SidebarContent,
@@ -56,6 +57,7 @@ import { cn } from '@/lib/utils';
 import { useApiClient } from '@/api/context';
 
 const CONVERSATION_PANE_STORAGE_KEY = 'owndesign.app.conversation-pane-collapsed';
+const PREVIEW_DEVICE_BY_HTML_STORAGE_KEY = 'owndesign.app.preview-device-by-html';
 const CONVERSATION_PANE_EVENT = 'owndesign:conversation-pane';
 const PREVIEW_REFRESH_EVENT = 'owndesign:preview-refresh';
 const PREVIEW_HREF_EVENT = 'owndesign:preview-href-updated';
@@ -63,6 +65,10 @@ const PREVIEW_FILES_EVENT = 'owndesign:preview-files-updated';
 const PREVIEW_MANUAL_SWITCH_EVENT = 'owndesign:preview-manual-switch';
 
 type PreviewStatus = 'ready' | 'loading' | 'error';
+
+type PreviewBodyContext = {
+  previewDevice: PreviewDevice;
+};
 
 export type ChatShellSlots = {
   topBarDragRegion?: ReactNode;
@@ -75,7 +81,7 @@ type ChatShellProps = {
   controlBar?: ReactNode;
   messageHistory?: ReactNode;
   previewActions?: ReactNode;
-  previewBody?: ReactNode;
+  previewBody?: ReactNode | ((context: PreviewBodyContext) => ReactNode);
   previewFilename?: ReactNode;
   previewHref?: string;
   previewProjectId?: string;
@@ -100,6 +106,8 @@ export function ChatShell({
   const { t } = useI18n();
   const navigate = useAppNavigate();
   const [sessionPreviewHref, setSessionPreviewHref] = useState<string>();
+  const [previewDevice, setPreviewDevice] = useState<PreviewDevice>('desktop');
+  const previewDeviceRef = useRef<PreviewDevice>('desktop');
   const [previewFiles, setPreviewFiles] = useState<string[]>([]);
   const [activePreviewPath, setActivePreviewPath] = useState<string>();
   const isConversationCollapsed = useSyncExternalStore(
@@ -119,6 +127,26 @@ export function ChatShell({
       ),
     [previewStatus],
   );
+
+  useEffect(() => {
+    previewDeviceRef.current = previewDevice;
+  }, [previewDevice]);
+
+  useEffect(() => {
+    if (!previewProjectId || !activePreviewPath) {
+      return;
+    }
+
+    const storedDevice = readStoredPreviewDevice(previewProjectId, activePreviewPath);
+
+    if (storedDevice) {
+      previewDeviceRef.current = storedDevice;
+      setPreviewDevice(storedDevice);
+      return;
+    }
+
+    writeStoredPreviewDevice(previewProjectId, activePreviewPath, previewDeviceRef.current);
+  }, [activePreviewPath, previewProjectId]);
 
   useEffect(() => {
     const handlePreviewHrefUpdated = (event: Event) => {
@@ -176,6 +204,18 @@ export function ChatShell({
       replace: true,
     });
   };
+  const handlePreviewDeviceChange = (value: string | null) => {
+    if (value !== 'desktop' && value !== 'mobile') {
+      return;
+    }
+
+    previewDeviceRef.current = value;
+    setPreviewDevice(value);
+
+    if (previewProjectId && activePreviewPath) {
+      writeStoredPreviewDevice(previewProjectId, activePreviewPath, value);
+    }
+  };
   const previewFilenameNode = previewFilename ?? (
     <PreviewFileSelect
       activePath={activePreviewPath}
@@ -205,6 +245,8 @@ export function ChatShell({
       role: 'assistant' as const,
     },
   ];
+  const previewBodyNode =
+    typeof previewBody === 'function' ? previewBody({ previewDevice }) : previewBody;
 
   return (
     <SidebarProvider
@@ -311,6 +353,28 @@ export function ChatShell({
                 <div className="flex items-center gap-1">
                   {previewActions ?? (
                     <>
+                      <Select
+                        onValueChange={handlePreviewDeviceChange}
+                        value={previewDevice}
+                      >
+                        <SelectTrigger
+                          aria-label={t('preview.device')}
+                          className="h-7 w-22 px-2 text-xs"
+                          size="sm"
+                        >
+                          <SelectValue>
+                            {previewDevice === 'desktop'
+                              ? t('preview.deviceDesktop')
+                              : t('preview.deviceMobile')}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent align="end" className="min-w-28">
+                          <SelectGroup>
+                            <SelectItem value="desktop">{t('preview.deviceDesktop')}</SelectItem>
+                            <SelectItem value="mobile">{t('preview.deviceMobile')}</SelectItem>
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
                       <DropdownMenu>
                         <DropdownMenuTrigger
                           disabled={!previewProjectId}
@@ -379,7 +443,7 @@ export function ChatShell({
               </div>
 
               <div className="relative min-h-0 flex-1 overflow-hidden">
-                {previewBody ?? (
+                {previewBodyNode ?? (
                   <div className="flex size-full items-center justify-center p-10">
                     <ConversationEmptyState
                       description={t('preview.emptyDescription')}
@@ -431,6 +495,49 @@ function writeConversationPaneState(value: boolean) {
 
   window.localStorage.setItem(CONVERSATION_PANE_STORAGE_KEY, String(value));
   window.dispatchEvent(new Event(CONVERSATION_PANE_EVENT));
+}
+
+function readStoredPreviewDevice(projectId: string, previewPath: string): PreviewDevice | undefined {
+  const storedDevices = readStoredPreviewDevices();
+  const value = storedDevices[buildPreviewDeviceStorageKey(projectId, previewPath)];
+
+  return isPreviewDevice(value) ? value : undefined;
+}
+
+function writeStoredPreviewDevice(
+  projectId: string,
+  previewPath: string,
+  previewDevice: PreviewDevice,
+) {
+  try {
+    const storedDevices = readStoredPreviewDevices();
+    storedDevices[buildPreviewDeviceStorageKey(projectId, previewPath)] = previewDevice;
+    window.localStorage.setItem(PREVIEW_DEVICE_BY_HTML_STORAGE_KEY, JSON.stringify(storedDevices));
+  } catch {
+    // Ignore storage failures; runtime selection still works for this session.
+  }
+}
+
+function readStoredPreviewDevices() {
+  try {
+    const parsed = JSON.parse(
+      window.localStorage.getItem(PREVIEW_DEVICE_BY_HTML_STORAGE_KEY) ?? '{}',
+    );
+
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+function buildPreviewDeviceStorageKey(projectId: string, previewPath: string) {
+  return JSON.stringify([projectId, previewPath]);
+}
+
+function isPreviewDevice(value: unknown): value is PreviewDevice {
+  return value === 'desktop' || value === 'mobile';
 }
 
 function buildProjectDownloadPath(

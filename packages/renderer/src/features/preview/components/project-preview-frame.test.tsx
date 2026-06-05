@@ -67,6 +67,58 @@ describe('ProjectPreviewFrame', () => {
     expect(getCurrentPreviewPath()).toBe('generated.html');
   });
 
+  it('renders the desktop preview iframe with the existing full-size class by default', async () => {
+    mockPreviewFetch();
+
+    render(
+      <ProjectPreviewFrame
+        initialUpdatedAt="2026-05-15T00:00:00.000Z"
+        projectId="project-1"
+        projectName="Project One"
+      />,
+    );
+
+    expect(await screen.findByTitle('Project One HTML 预览')).toHaveClass(
+      'size-full',
+      'border-0',
+      'bg-white',
+    );
+  });
+
+  it('renders the mobile preview in a fixed phone-sized frame without changing session body', async () => {
+    const fetchMock = mockPreviewFetch();
+
+    const { rerender } = render(
+      <ProjectPreviewFrame
+        initialUpdatedAt="2026-05-15T00:00:00.000Z"
+        projectId="project-1"
+        projectName="Project One"
+      />,
+    );
+
+    await screen.findByTitle('Project One HTML 预览');
+
+    rerender(
+      <ProjectPreviewFrame
+        initialUpdatedAt="2026-05-15T00:00:00.000Z"
+        previewDevice="mobile"
+        projectId="project-1"
+        projectName="Project One"
+      />,
+    );
+
+    const mobilePreview = screen.getByTestId('mobile-preview');
+    const phoneFrame = mobilePreview.firstElementChild;
+
+    expect(mobilePreview).toHaveClass('size-full', 'overflow-auto', 'bg-muted/40', 'p-4');
+    expect(phoneFrame).toHaveClass('h-[844px]', 'max-h-full', 'w-[390px]');
+    expect(screen.getByTitle('Project One HTML 预览')).toHaveClass('size-full');
+    expect(getSessionPosts(fetchMock)).toHaveLength(1);
+    expect(parseBody(getSessionPosts(fetchMock)[0])).toEqual({
+      clientId: expect.any(String),
+    });
+  });
+
   it('does not publish a fake current preview path for an empty workspace', async () => {
     const fetchMock = mockEmptyPreviewFetch();
     const publishedHrefs: unknown[] = [];

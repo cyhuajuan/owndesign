@@ -220,6 +220,45 @@ describe('PreviewServerManager', () => {
     await expect(response.text()).resolves.toContain('Index v3');
   });
 
+  it('returns the page manifest with the preview session', async () => {
+    const { manager, workspaceStore } = await createPreviewManager();
+    await createProject(workspaceStore);
+    await workspaceStore.writeProjectWorkspaceFile(
+      'project-1',
+      'index-v1.html',
+      '<main>Index</main>',
+    );
+    await workspaceStore.writeProjectWorkspaceFile(
+      'project-1',
+      '.owndesign-pages.json',
+      JSON.stringify({
+        pages: [{ displayName: '小说阅读器首页', slug: 'index' }],
+      }),
+    );
+
+    const session = await manager.ensure('project-1', 'client-1');
+
+    expect(session.pageManifest).toEqual({
+      pages: [{ displayName: '小说阅读器首页', slug: 'index' }],
+    });
+    expect(session.activePath).toBe('index-v1.html');
+  });
+
+  it('uses an empty manifest when the page manifest is missing', async () => {
+    const { manager, workspaceStore } = await createPreviewManager();
+    await createProject(workspaceStore);
+    await workspaceStore.writeProjectWorkspaceFile(
+      'project-1',
+      'index-v1.html',
+      '<main>Index</main>',
+    );
+
+    const session = await manager.ensure('project-1', 'client-1');
+
+    expect(session.pageManifest).toEqual({ pages: [] });
+    expect(session.activePath).toBe('index-v1.html');
+  });
+
   it('defaults to the first page group latest version when no index group exists', async () => {
     const { manager, workspaceStore } = await createPreviewManager();
     await createProject(workspaceStore);

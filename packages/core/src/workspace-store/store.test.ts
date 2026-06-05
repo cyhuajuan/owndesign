@@ -124,6 +124,27 @@ describe('WorkspaceStore', () => {
     ]);
   });
 
+  it('reads the Project HTML page manifest with empty fallback', async () => {
+    const workspaceRoot = path.join(await createTempWorkspaceRoot(), '.owndesign');
+    const store = new WorkspaceStore({ workspaceRoot });
+    const project = buildProject({ id: 'project-page-manifest' });
+
+    await store.createProject(project);
+    await expect(store.readProjectHtmlPageManifest(project.id)).resolves.toEqual({ pages: [] });
+
+    await store.writeProjectWorkspaceFile(
+      project.id,
+      '.owndesign-pages.json',
+      JSON.stringify({
+        pages: [{ displayName: '小说阅读器首页', slug: 'index' }],
+      }),
+    );
+
+    await expect(store.readProjectHtmlPageManifest(project.id)).resolves.toEqual({
+      pages: [{ displayName: '小说阅读器首页', slug: 'index' }],
+    });
+  });
+
   it('searches Project Workspace text files with line previews', async () => {
     const workspaceRoot = path.join(await createTempWorkspaceRoot(), '.owndesign');
     const store = new WorkspaceStore({ workspaceRoot });

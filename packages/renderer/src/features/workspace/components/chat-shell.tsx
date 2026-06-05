@@ -60,6 +60,8 @@ import {
 } from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
 import { useApiClient } from '@/api/context';
+import type { HtmlPageManifest } from '@owndesign/core/html-page-manifest';
+import { getHtmlPageDisplayName } from '@owndesign/core/html-page-manifest';
 import { groupHtmlVersionFiles, parseHtmlVersionPath } from '@owndesign/core/html-versioning';
 
 const CONVERSATION_PANE_STORAGE_KEY = 'owndesign.app.conversation-pane-collapsed';
@@ -115,6 +117,7 @@ export function ChatShell({
   const [previewDevice, setPreviewDevice] = useState<PreviewDevice>('desktop');
   const previewDeviceRef = useRef<PreviewDevice>('desktop');
   const [previewFiles, setPreviewFiles] = useState<string[]>([]);
+  const [previewPageManifest, setPreviewPageManifest] = useState<HtmlPageManifest>({ pages: [] });
   const [activePreviewPath, setActivePreviewPath] = useState<string>();
   const isConversationCollapsed = useSyncExternalStore(
     subscribeToConversationPaneState,
@@ -181,8 +184,11 @@ export function ChatShell({
         : [];
       const activePath =
         typeof event.detail?.activePath === 'string' ? event.detail.activePath : undefined;
+      const pageManifest =
+        isHtmlPageManifest(event.detail?.pageManifest) ? event.detail.pageManifest : { pages: [] };
 
       setPreviewFiles(files);
+      setPreviewPageManifest(pageManifest);
       setActivePreviewPath(activePath);
     };
 
@@ -226,6 +232,7 @@ export function ChatShell({
     <PreviewFileSelect
       activePath={activePreviewPath}
       files={previewFiles}
+      pageManifest={previewPageManifest}
       onChange={selectPreviewPath}
     />
   );
@@ -572,10 +579,12 @@ function triggerBrowserDownload(url: string) {
 function PreviewFileSelect({
   activePath,
   files,
+  pageManifest,
   onChange,
 }: {
   activePath?: string;
   files: string[];
+  pageManifest: HtmlPageManifest;
   onChange: (path: string) => void;
 }) {
   const { t } = useI18n();
@@ -585,7 +594,7 @@ function PreviewFileSelect({
     ? groupedFiles.groups.find((group) => group.slug === activeVersionFile.slug)
     : undefined;
   const activeLabel = activeVersionFile
-    ? `${activeVersionFile.slug} / v${activeVersionFile.version}`
+    ? `${getHtmlPageDisplayName(pageManifest, activeVersionFile.slug)} / v${activeVersionFile.version}`
     : (activePath ?? files[0]);
 
   if (files.length === 0) {
@@ -622,7 +631,12 @@ function PreviewFileSelect({
                   onChange(group.latestPath);
                 }}
               >
-                <span className="min-w-0 flex-1 truncate font-mono text-xs">{group.slug}</span>
+                <span className="min-w-0 flex-1 truncate text-xs">
+                  {getHtmlPageDisplayName(pageManifest, group.slug)}
+                </span>
+                <span className="min-w-0 truncate font-mono text-xs text-muted-foreground">
+                  {group.slug}
+                </span>
                 <span className="text-xs text-muted-foreground">v{group.latestVersion}</span>
                 {activePath === group.latestPath ? <CheckIcon /> : null}
               </DropdownMenuItem>
@@ -634,7 +648,9 @@ function PreviewFileSelect({
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
               <DropdownMenuLabel>
-                {t('preview.versions', { slug: activeGroup.slug })}
+                {t('preview.versions', {
+                  slug: getHtmlPageDisplayName(pageManifest, activeGroup.slug),
+                })}
               </DropdownMenuLabel>
               {activeGroup.versions.map((versionFile) => (
                 <DropdownMenuItem
@@ -680,5 +696,24 @@ function PreviewFileSelect({
         ) : null}
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+function isHtmlPageManifest(value: unknown): value is HtmlPageManifest {
+  if (!value || typeof value !== 'object' || !('pages' in value)) {
+    return false;
+  }
+
+  const pages = (value as HtmlPageManifest).pages;
+
+  return (
+    Array.isArray(pages) &&
+    pages.every(
+      (page) =>
+        Boolean(page) &&
+        typeof page === 'object' &&
+        typeof page.slug === 'string' &&
+        typeof page.displayName === 'string',
+    )
   );
 }

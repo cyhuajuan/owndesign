@@ -1295,7 +1295,15 @@ describe('AiSdkDesignPageAgent', () => {
     );
     expect(config.instructions).toContain('will reject HTML with unlisted CDN tags');
     expect(config.instructions).toContain('semantic slug');
+    expect(config.instructions).toContain('.owndesign-pages.json');
+    expect(config.instructions).toContain('displayName');
+    expect(config.instructions).toContain('`index` -> `小说阅读器首页`');
+    expect(config.instructions).toContain('create `index-v1.html`');
+    expect(config.instructions).toContain('create `{slug}-v1.html`');
     expect(config.instructions).toContain('Do not overwrite an existing HTML version');
+    expect(config.instructions).toContain(
+      'In duplicate_edit mode, do not update `.owndesign-pages.json`',
+    );
     expect(config.instructions).toContain('Only use CDNs already listed in resource settings');
     expect(config.instructions).toContain('Configured Font');
     expect(config.instructions).toContain('Configured Icons');

@@ -110,7 +110,7 @@ describe('ChatShell', () => {
     expect(screen.getAllByRole('button', { name: '展开会话面板' })).not.toHaveLength(0);
   });
 
-  it('renders preview HTML selector from preview file events', async () => {
+  it('renders grouped preview HTML selector from preview file events', async () => {
     const user = userEvent.setup();
 
     render(<ChatShell />);
@@ -118,17 +118,46 @@ describe('ChatShell', () => {
       window.dispatchEvent(
         new CustomEvent('owndesign:preview-files-updated', {
           detail: {
-            activePath: 'index.html',
-            files: ['index.html', 'dashboard.html', 'pages/detail.html'],
+            activePath: 'index-v2.html',
+            files: ['index-v1.html', 'index-v2.html', 'detail-v3.html', 'legacy.html'],
           },
         }),
       );
     });
 
-    await user.click(screen.getByRole('combobox', { name: '切换预览 HTML' }));
-    await user.click(await screen.findByRole('option', { name: 'dashboard.html' }));
+    const switchButton = screen.getByRole('button', { name: '切换预览 HTML' });
+    expect(switchButton).toHaveTextContent('index / v2');
 
-    expect(window.location.search).toBe('?previewPath=dashboard.html');
+    await user.click(switchButton);
+    await user.click(await screen.findByText('detail'));
+
+    expect(window.location.search).toBe('?previewPath=detail-v3.html');
+  });
+
+  it('switches old versions and other files from the preview HTML selector', async () => {
+    const user = userEvent.setup();
+
+    render(<ChatShell />);
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent('owndesign:preview-files-updated', {
+          detail: {
+            activePath: 'index-v2.html',
+            files: ['index-v1.html', 'index-v2.html', 'legacy.html'],
+          },
+        }),
+      );
+    });
+
+    await user.click(screen.getByRole('button', { name: '切换预览 HTML' }));
+    await user.click(await screen.findByText('index-v1.html'));
+
+    expect(window.location.search).toBe('?previewPath=index-v1.html');
+
+    await user.click(screen.getByRole('button', { name: '切换预览 HTML' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'legacy.html' }));
+
+    expect(window.location.search).toBe('?previewPath=legacy.html');
   });
 
   it('renders icon-only download menu before refresh button and shows both download actions', async () => {

@@ -1,6 +1,5 @@
-import path from 'node:path';
-
 import { isHtmlPath, normalizeToolPath } from './tools/cdn-guard';
+import { resolveNextHtmlVersionPath } from '@owndesign/core/html-versioning';
 import type { WorkspaceStore } from '@owndesign/core/workspace-store';
 
 export const PAGE_EDIT_MODES = ['auto', 'new_page', 'direct_edit', 'duplicate_edit'] as const;
@@ -229,25 +228,14 @@ async function resolveUniqueCopyPath(
   projectId: string,
   sourcePath: string,
 ) {
-  const parsed = path.posix.parse(sourcePath);
-  const directory = parsed.dir ? `${parsed.dir}/` : '';
-  const baseName = normalizeCopyBaseName(parsed.name);
-  const extension = parsed.ext || '.html';
+  const htmlFiles = await workspaceStore.listProjectHtmlFiles(projectId);
+  const candidatePath = resolveNextHtmlVersionPath(htmlFiles, sourcePath);
 
-  for (let index = 1; index < 1000; index += 1) {
-    const suffix = index === 1 ? 'copy' : `copy-${index}`;
-    const candidatePath = `${directory}${baseName}.${suffix}${extension}`;
-
-    try {
-      await workspaceStore.readProjectWorkspaceFile(projectId, candidatePath);
-    } catch {
-      return candidatePath;
-    }
+  try {
+    await workspaceStore.readProjectWorkspaceFile(projectId, candidatePath);
+  } catch {
+    return candidatePath;
   }
 
-  throw new Error(`Could not create a unique copy path for ${sourcePath}.`);
-}
-
-function normalizeCopyBaseName(baseName: string) {
-  return baseName.replace(/\.copy(?:-\d+)?$/, '');
+  throw new Error(`Could not create a unique version path for ${sourcePath}.`);
 }

@@ -193,6 +193,54 @@ describe('PreviewServerManager', () => {
     expect(nextSession.url).toMatch(/\/index\.html$/);
   });
 
+  it('defaults to the latest index page version', async () => {
+    const { manager, workspaceStore } = await createPreviewManager();
+    await createProject(workspaceStore);
+    await workspaceStore.writeProjectWorkspaceFile(
+      'project-1',
+      'index-v1.html',
+      '<main>Index v1</main>',
+    );
+    await workspaceStore.writeProjectWorkspaceFile(
+      'project-1',
+      'index-v3.html',
+      '<main>Index v3</main>',
+    );
+    await workspaceStore.writeProjectWorkspaceFile(
+      'project-1',
+      'detail-v2.html',
+      '<main>Detail v2</main>',
+    );
+
+    const session = await manager.ensure('project-1', 'client-1');
+    const response = await fetch(session.url);
+
+    expect(session.activePath).toBe('index-v3.html');
+    expect(session.url).toMatch(/\/index-v3\.html$/);
+    await expect(response.text()).resolves.toContain('Index v3');
+  });
+
+  it('defaults to the first page group latest version when no index group exists', async () => {
+    const { manager, workspaceStore } = await createPreviewManager();
+    await createProject(workspaceStore);
+    await workspaceStore.writeProjectWorkspaceFile(
+      'project-1',
+      'profile-v1.html',
+      '<main>Profile v1</main>',
+    );
+    await workspaceStore.writeProjectWorkspaceFile(
+      'project-1',
+      'detail-v2.html',
+      '<main>Detail v2</main>',
+    );
+
+    const session = await manager.ensure('project-1', 'client-1');
+    const response = await fetch(session.url);
+
+    expect(session.activePath).toBe('detail-v2.html');
+    await expect(response.text()).resolves.toContain('Detail v2');
+  });
+
   it('falls back to index.html when the requested HTML file is missing', async () => {
     const { manager, workspaceStore } = await createPreviewManager();
     await createProject(workspaceStore);

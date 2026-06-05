@@ -463,7 +463,7 @@ describe('createOwnDesignApp static hosting', () => {
     );
 
     aiMocks.generateText.mockResolvedValueOnce({
-      text: 'Copy dashboard.html to dashboard.copy.html with copyFile, then apply: 复制后修改',
+      text: 'Copy dashboard.html to dashboard-v1.html with copyFile, then apply: 复制后修改',
     });
     const response = await app.fetch(
       new Request('http://localhost/api/chat', {
@@ -486,13 +486,13 @@ describe('createOwnDesignApp static hosting', () => {
     const conversation = await workspaceStore.getConversation(projectId, conversationId);
 
     expect(getMessageText(conversation.messages[0] as UIMessage)).toBe(
-      'Copy dashboard.html to dashboard.copy.html with copyFile, then apply: 复制后修改',
+      'Copy dashboard.html to dashboard-v1.html with copyFile, then apply: 复制后修改',
     );
     expect((conversation.messages[0] as UIMessage).metadata).toMatchObject({
       originalUserPrompt: '复制后修改',
       promptRewrite: {
         duplicateSourcePath: 'dashboard.html',
-        duplicateTargetPath: 'dashboard.copy.html',
+        duplicateTargetPath: 'dashboard-v1.html',
         kind: 'turn-prompt-rewriter',
         pageEditMode: 'duplicate_edit',
         previewFileExists: true,

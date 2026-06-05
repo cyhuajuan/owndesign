@@ -5,6 +5,7 @@ import { serve, type ServerType } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { Hono } from 'hono';
 
+import { groupHtmlVersionFiles } from '@owndesign/core/html-versioning';
 import { WorkspaceStore } from '@owndesign/core/workspace-store';
 
 type PreviewServerManagerOptions = {
@@ -286,6 +287,17 @@ async function readIndexHtmlOrNotFound(workspaceDirectory: string, entry: Previe
 function resolveActivePreviewPath(files: string[], previewPath?: string) {
   if (previewPath && files.includes(previewPath)) {
     return previewPath;
+  }
+
+  const groupedFiles = groupHtmlVersionFiles(files);
+  const indexGroup = groupedFiles.groups.find((group) => group.slug === 'index');
+
+  if (indexGroup) {
+    return indexGroup.latestPath;
+  }
+
+  if (groupedFiles.groups[0]) {
+    return groupedFiles.groups[0].latestPath;
   }
 
   if (files.includes('index.html')) {

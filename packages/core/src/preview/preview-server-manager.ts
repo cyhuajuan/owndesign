@@ -5,6 +5,8 @@ import { serve, type ServerType } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { Hono } from 'hono';
 
+import type { HtmlPageManifest } from '@owndesign/core/html-page-manifest';
+import { groupHtmlVersionFiles } from '@owndesign/core/html-versioning';
 import { WorkspaceStore } from '@owndesign/core/workspace-store';
 
 type PreviewServerManagerOptions = {
@@ -21,6 +23,13 @@ type PreviewServerEntry = {
   key: string;
   projectId: string;
   server?: ServerType;
+};
+
+export type PreviewSession = {
+  activePath?: string;
+  files: string[];
+  pageManifest?: HtmlPageManifest;
+  url: string;
 };
 
 const DEFAULT_CLEANUP_INTERVAL_MS = 30_000;
@@ -50,7 +59,10 @@ export class PreviewServerManager {
 
   async ensure(projectId: string, clientId: string, previewPath?: string) {
     const entry = await this.getOrStartEntry(projectId, clientId);
-    const files = await this.workspaceStore.listProjectHtmlFiles(projectId);
+    const [files, pageManifest] = await Promise.all([
+      this.workspaceStore.listProjectHtmlFiles(projectId),
+      this.workspaceStore.readProjectHtmlPageManifest(projectId),
+    ]);
     const activePath = resolveActivePreviewPath(files, previewPath ?? entry.activePath);
 
     entry.activePath = activePath;
@@ -60,8 +72,9 @@ export class PreviewServerManager {
     return {
       ...(activePath ? { activePath } : {}),
       files,
+      pageManifest,
       url: buildPreviewUrl(entry.baseUrl, activePath),
-    };
+    } satisfies PreviewSession;
   }
 
   async heartbeat(projectId: string, clientId: string, previewPath?: string) {
@@ -286,6 +299,17 @@ async function readIndexHtmlOrNotFound(workspaceDirectory: string, entry: Previe
 function resolveActivePreviewPath(files: string[], previewPath?: string) {
   if (previewPath && files.includes(previewPath)) {
     return previewPath;
+  }
+
+  const groupedFiles = groupHtmlVersionFiles(files);
+  const indexGroup = groupedFiles.groups.find((group) => group.slug === 'index');
+
+  if (indexGroup) {
+    return indexGroup.latestPath;
+  }
+
+  if (groupedFiles.groups[0]) {
+    return groupedFiles.groups[0].latestPath;
   }
 
   if (files.includes('index.html')) {

@@ -51,6 +51,10 @@ describe('ProjectPreviewFrame', () => {
 
   it('publishes the active preview path returned by the initial preview session', async () => {
     const fetchMock = mockPreviewFetch('generated.html');
+    const previewFilesEvents: CustomEvent[] = [];
+    window.addEventListener('owndesign:preview-files-updated', (event) => {
+      previewFilesEvents.push(event as CustomEvent);
+    });
 
     render(
       <ProjectPreviewFrame
@@ -65,6 +69,13 @@ describe('ProjectPreviewFrame', () => {
     expect(getSessionPosts(fetchMock)).toHaveLength(1);
     expect(window.location.search).toBe('');
     expect(getCurrentPreviewPath()).toBe('generated.html');
+    expect(previewFilesEvents.at(-1)?.detail).toMatchObject({
+      activePath: 'generated.html',
+      files: ['index.html', 'dashboard.html'],
+      pageManifest: {
+        pages: [{ displayName: '小说首页', slug: 'index' }],
+      },
+    });
   });
 
   it('renders the desktop preview iframe with the existing full-size class by default', async () => {
@@ -429,6 +440,9 @@ function mockPreviewFetch(defaultActivePath = 'index.html') {
     return Response.json({
       activePath,
       files: ['index.html', 'dashboard.html'],
+      pageManifest: {
+        pages: [{ displayName: '小说首页', slug: 'index' }],
+      },
       url: `http://127.0.0.1:3000/${activePath}`,
     });
   }) as unknown as typeof fetch & ReturnType<typeof vi.fn>;

@@ -8,6 +8,7 @@ import { useApiClient } from '@/api/context';
 import { useI18n } from '@/features/i18n/context';
 import type { PreviewDevice } from '@/features/preview/preview-device';
 import { setCurrentPreviewPath, usePreviewPath } from '@/features/preview/preview-path';
+import type { HtmlPageManifest } from '@owndesign/core/html-page-manifest';
 
 type ProjectPreviewFrameProps = {
   initialUpdatedAt: string;
@@ -19,6 +20,7 @@ type ProjectPreviewFrameProps = {
 type PreviewSessionResponse = {
   activePath?: string;
   files: string[];
+  pageManifest?: HtmlPageManifest;
   url: string;
 };
 
@@ -88,7 +90,7 @@ export function ProjectPreviewFrame({
       previewUrlRef.current = session.url;
       setCurrentPreviewPath(session.activePath);
       publishPreviewHref(session.url);
-      publishPreviewFiles(session.files, session.activePath);
+      publishPreviewFiles(session.files, session.activePath, session.pageManifest);
       setPreviewSessionStatus('ready');
 
       if (updateFrameSrc || !hadPreviewUrl) {
@@ -354,10 +356,14 @@ function publishPreviewHref(href: string | undefined) {
   );
 }
 
-function publishPreviewFiles(files: string[], activePath?: string) {
+function publishPreviewFiles(
+  files: string[],
+  activePath?: string,
+  pageManifest?: HtmlPageManifest,
+) {
   window.dispatchEvent(
     new CustomEvent(PREVIEW_FILES_EVENT, {
-      detail: { activePath, files },
+      detail: { activePath, files, pageManifest },
     }),
   );
 }

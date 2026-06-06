@@ -462,10 +462,12 @@ describe('createOwnDesignApp static hosting', () => {
     const conversation = await workspaceStore.getConversation(projectId, conversationId);
 
     const rewrittenPrompt = getMessageText(conversation.messages[0] as UIMessage);
-    expect(rewrittenPrompt).toContain('当前任务要求基于已有页面创建副本并编辑');
+    expect(rewrittenPrompt).toContain('我要基于现有页面创建一个副本并修改');
     expect(rewrittenPrompt).toContain('copyFile');
+    expect(rewrittenPrompt).toContain('把 dashboard.html 复制到 dashboard-v1.html');
     expect(rewrittenPrompt).toContain('源页面：dashboard.html');
     expect(rewrittenPrompt).toContain('目标页面：dashboard-v1.html');
+    expect(rewrittenPrompt).toContain('共享导航链接指向最新版本');
     expect(rewrittenPrompt).toContain('复制后修改');
     expect((conversation.messages[0] as UIMessage).metadata).toMatchObject({
       originalUserPrompt: '复制后修改',

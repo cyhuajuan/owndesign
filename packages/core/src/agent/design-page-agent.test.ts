@@ -157,9 +157,9 @@ describe('AiSdkDesignPageAgent', () => {
   });
 
   it('loads turn prompt templates from the prompt registry', () => {
-    expect(loadPrompt('turn-templates/new-page')).toContain('当前任务要求设计一个新页面');
+    expect(loadPrompt('turn-templates/new-page')).toContain('我要新建一个页面');
     expect(loadPrompt('turn-templates/duplicate-edit')).toContain('copyFile');
-    expect(loadPrompt('turn-templates/direct-edit')).toContain('当前任务要求编辑指定页面');
+    expect(loadPrompt('turn-templates/direct-edit')).toContain('我要直接修改');
   });
 
   it('writes Project Workspace files when the model calls write', async () => {
@@ -1902,13 +1902,17 @@ describe('AiSdkDesignPageAgent', () => {
       previewPath: 'dashboard.html',
     });
 
-    expect(prompt).toContain('当前任务要求基于已有页面创建副本并编辑');
+    expect(prompt).toContain('我要基于现有页面创建一个副本并修改');
     expect(prompt).toContain('copyFile');
+    expect(prompt).toContain('把 dashboard.html 复制到 dashboard-v1.html');
     expect(prompt).toContain('源页面：dashboard.html');
     expect(prompt).toContain('目标页面：dashboard-v1.html');
     expect(prompt).toContain('当前预览页面：dashboard.html');
-    expect(prompt).toContain('不要修改其他 HTML 页面');
+    expect(prompt).toContain('只修改 dashboard-v1.html');
     expect(prompt).toContain('共享组件、共享导航或导航链接维护规则');
+    expect(prompt).toContain('共享导航链接指向最新版本');
+    expect(prompt).toContain('具体要求：');
+    expect(prompt).not.toContain('用户具体要求');
     expect(prompt).toContain('精简布局');
   });
 
@@ -1932,14 +1936,19 @@ describe('AiSdkDesignPageAgent', () => {
       previewPath: 'index.html',
     });
 
-    expect(directPrompt).toContain('当前任务要求编辑指定页面');
-    expect(directPrompt).toContain('目标页面：index.html');
-    expect(directPrompt).toContain('不要创建新页面版本');
+    expect(directPrompt).toContain('我要直接修改 index.html');
+    expect(directPrompt).toContain('不要创建新页面或新版本');
+    expect(directPrompt).toContain('共享组件 marker');
+    expect(directPrompt).toContain('具体要求：');
+    expect(directPrompt).not.toContain('用户具体要求');
     expect(directPrompt).toContain('调小标题');
-    expect(newPagePrompt).toContain('当前任务要求设计一个新页面');
+    expect(newPagePrompt).toContain('我要新建一个页面');
     expect(newPagePrompt).toContain('不要覆盖已有 HTML 页面');
-    expect(newPagePrompt).toContain('共享导航、共享组件和相关链接');
+    expect(newPagePrompt).toContain('页面 slug');
+    expect(newPagePrompt).toContain('共享导航、页面目录和页面间链接');
     expect(newPagePrompt).toContain('当前预览页面：index.html');
+    expect(newPagePrompt).toContain('具体要求：');
+    expect(newPagePrompt).not.toContain('用户具体要求');
     expect(newPagePrompt).toContain('加一个设置页');
   });
 

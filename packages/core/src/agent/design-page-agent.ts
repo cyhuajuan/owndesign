@@ -22,6 +22,11 @@ import {
   type PageEditMode,
   type PageEditModePolicy,
 } from '@owndesign/core/agent/page-edit-mode';
+import {
+  runComponentAudit,
+  type ComponentAuditFinding,
+  type ComponentAuditResult,
+} from './component-audit-agent';
 
 export const DESIGN_PAGE_AGENT_PROMPT_VERSION = 1;
 
@@ -89,14 +94,41 @@ export class AiSdkDesignPageAgent implements DesignPageAgent {
       projectId: input.projectId,
       workspaceStore: this.workspaceStore,
     });
-    const agent = createDesignPageAgent(context);
+    let agent = createDesignPageAgent(context);
 
-    const result = await agent.generate({
+    let result = await agent.generate({
       prompt: input.content,
     });
+    let finalText = result.text || '已处理请求。';
+    let audit = await runComponentAudit(context, {
+      assistantResponse: finalText,
+      userPrompt: input.content,
+    });
+    const seenHighFindingSignatures = new Set<string>();
+
+    while (hasHighComponentAuditFindings(audit)) {
+      const signature = getHighComponentAuditFindingSignature(audit.findings);
+      if (seenHighFindingSignatures.has(signature)) {
+        break;
+      }
+      seenHighFindingSignatures.add(signature);
+
+      agent = createDesignPageAgent(context);
+      result = await agent.generate({
+        prompt: buildComponentAuditRepairPrompt({
+          audit,
+          originalUserPrompt: input.content,
+        }),
+      });
+      finalText = result.text || finalText;
+      audit = await runComponentAudit(context, {
+        assistantResponse: finalText,
+        userPrompt: input.content,
+      });
+    }
 
     return {
-      content: result.text || '已处理请求。',
+      content: finalText,
     };
   }
 }
@@ -174,6 +206,52 @@ export function createDesignPageWorkspaceTools({
 
 export function buildDesignPageInstructions({ resources }: DesignAgentContext) {
   return buildDesignPageConversationInstructions(resources);
+}
+
+export function buildComponentAuditRepairPrompt({
+  audit,
+  originalUserPrompt,
+}: {
+  audit: ComponentAuditResult;
+  originalUserPrompt: string;
+}) {
+  const highFindings = audit.findings.filter((finding) => finding.severity === 'high');
+
+  return [
+    'The completed HTML task failed the shared component audit. Fix the high severity findings now.',
+    '',
+    'Original user task:',
+    originalUserPrompt,
+    '',
+    'High severity audit findings:',
+    JSON.stringify(highFindings, null, 2),
+    '',
+    'Repair rules:',
+    '- Treat high severity findings as required fixes.',
+    '- For navigation findings, create or reuse a `navigation` shared component and call `syncSharedComponent`.',
+    '- Do not solve component-level findings by only hand-editing the current page marker instance.',
+    '- After fixing previewable HTML, use the normal preview tool workflow.',
+    '',
+    'Reply concisely with what you changed.',
+  ].join('\n');
+}
+
+function hasHighComponentAuditFindings(audit: ComponentAuditResult) {
+  return audit.findings.some((finding) => finding.severity === 'high');
+}
+
+function getHighComponentAuditFindingSignature(findings: ComponentAuditFinding[]) {
+  return JSON.stringify(
+    findings
+      .filter((finding) => finding.severity === 'high')
+      .map((finding) => ({
+        message: finding.message,
+        path: finding.path,
+        recommendedAction: finding.recommendedAction,
+        type: finding.type,
+      }))
+      .sort((a, b) => `${a.path ?? ''}:${a.type}`.localeCompare(`${b.path ?? ''}:${b.type}`)),
+  );
 }
 
 export function buildLanguageModel(configuration: ModelConfiguration): LanguageModelV3 {

@@ -6,10 +6,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   AiSdkDesignPageAgent,
+  buildComponentAuditRepairPrompt,
   buildDesignPageAgentInstructions,
   createDesignPageAgentContext,
   buildProviderOptions,
 } from './design-page-agent';
+import {
+  buildComponentAuditInstructions,
+  parseComponentAuditResult,
+} from './component-audit-agent';
 import { buildTurnPromptRewriterPrompt, rewriteTurnPrompt } from './turn-prompt-rewriter';
 import { createWorkspaceToolRegistry } from './tools/core';
 import { createProjectWorkspaceToolDefinitions } from './tools/project-workspace-tools';
@@ -107,6 +112,13 @@ beforeEach(() => {
   aiMocks.createAnthropic.mockClear();
   aiMocks.createOpenAICompatible.mockClear();
   aiMocks.generate.mockReset();
+  aiMocks.generate.mockResolvedValue({
+    text: JSON.stringify({
+      findings: [],
+      passed: true,
+      summary: 'No component audit findings.',
+    }),
+  });
   aiMocks.generateText.mockReset();
   aiMocks.generateText.mockResolvedValue({ text: 'rewritten prompt' });
   aiMocks.getSettings.mockReset();
@@ -138,6 +150,10 @@ afterEach(async () => {
 describe('AiSdkDesignPageAgent', () => {
   it('loads design page prompt from the prompt registry', () => {
     expect(loadPrompt('agents/design-page')).toContain('# Design Page Agent');
+  });
+
+  it('loads component audit prompt from the prompt registry', () => {
+    expect(loadPrompt('agents/component-audit')).toContain('# Component Audit Agent');
   });
 
   it('writes Project Workspace files when the model calls write', async () => {
@@ -196,6 +212,138 @@ describe('AiSdkDesignPageAgent', () => {
     await expect(workspaceStore.readProjectOutput('project-1', 'html')).rejects.toMatchObject({
       code: 'ENOENT',
     });
+  });
+
+  it('runs component audit after a completed task, not during workspace tool calls', async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    const agent = new AiSdkDesignPageAgent(workspaceStore);
+    aiMocks.generate
+      .mockImplementationOnce(
+        async function (this: {
+          config: {
+            tools: {
+              write: {
+                execute: (input: { content: string; path: string }) => Promise<unknown>;
+              };
+            };
+          };
+        }) {
+          await this.config.tools.write.execute({
+            content: '<!doctype html><html><body><main>Home</main></body></html>',
+            path: 'index.html',
+          });
+          expect(aiMocks.toolLoopAgent).toHaveBeenCalledTimes(1);
+
+          return { text: '页面已更新。' };
+        },
+      )
+      .mockResolvedValueOnce({
+        text: JSON.stringify({
+          findings: [],
+          passed: true,
+          summary: 'No component audit findings.',
+        }),
+      });
+
+    await agent.generateProjectOutput(buildInput());
+
+    expect(aiMocks.toolLoopAgent).toHaveBeenCalledTimes(2);
+    expect(aiMocks.generate).toHaveBeenNthCalledWith(1, {
+      prompt: '设计一个 CRM 仪表盘的界面',
+    });
+    expect(aiMocks.generate).toHaveBeenNthCalledWith(2, {
+      prompt: expect.stringContaining('Audit the completed OwnDesign HTML task.'),
+    });
+  });
+
+  it('gives the component audit agent only read-only workspace tools', async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    const agent = new AiSdkDesignPageAgent(workspaceStore);
+    aiMocks.generate.mockResolvedValueOnce({ text: '页面已更新。' }).mockResolvedValueOnce({
+      text: JSON.stringify({
+        findings: [],
+        passed: true,
+        summary: 'No component audit findings.',
+      }),
+    });
+
+    await agent.generateProjectOutput(buildInput());
+
+    const auditConfig = aiMocks.toolLoopAgent.mock.calls[1]?.[0] as {
+      instructions: string;
+      tools: Record<string, unknown>;
+    };
+    expect(Object.keys(auditConfig.tools).sort()).toEqual(['glob', 'grep', 'read']);
+    expect(auditConfig.instructions).toContain('# Component Audit Agent');
+    expect(auditConfig.instructions).toContain('Use only read, glob, and grep tools');
+    expect(auditConfig.instructions).toContain('Navigation is the highest-priority');
+  });
+
+  it('automatically asks the main agent to repair high severity component audit findings', async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    const agent = new AiSdkDesignPageAgent(workspaceStore);
+    const highFinding = {
+      message: 'Page has top navigation but no shared navigation component marker.',
+      path: 'index.html',
+      recommendedAction: 'create_or_reuse_navigation_component',
+      severity: 'high',
+      type: 'missing_navigation_component',
+    };
+    aiMocks.generate
+      .mockResolvedValueOnce({ text: '页面已更新。' })
+      .mockResolvedValueOnce({
+        text: JSON.stringify({
+          findings: [highFinding],
+          passed: false,
+          summary: 'Navigation needs a shared component.',
+        }),
+      })
+      .mockResolvedValueOnce({ text: '已修复导航组件。' })
+      .mockResolvedValueOnce({
+        text: JSON.stringify({
+          findings: [],
+          passed: true,
+          summary: 'No component audit findings.',
+        }),
+      });
+
+    const result = await agent.generateProjectOutput(buildInput());
+
+    expect(result).toEqual({ content: '已修复导航组件。' });
+    expect(aiMocks.toolLoopAgent).toHaveBeenCalledTimes(4);
+    expect(aiMocks.generate).toHaveBeenNthCalledWith(3, {
+      prompt: expect.stringContaining('Fix the high severity findings now'),
+    });
+    expect(aiMocks.generate).toHaveBeenNthCalledWith(3, {
+      prompt: expect.stringContaining('call `syncSharedComponent`'),
+    });
+  });
+
+  it('does not auto-repair medium and low component audit findings', async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    const agent = new AiSdkDesignPageAgent(workspaceStore);
+    aiMocks.generate.mockResolvedValueOnce({ text: '页面已更新。' }).mockResolvedValueOnce({
+      text: JSON.stringify({
+        findings: [
+          {
+            message: 'Footer could become an exact shared component.',
+            severity: 'medium',
+            type: 'footer_exact_component_suggestion',
+          },
+        ],
+        passed: false,
+        summary: 'Only suggestions.',
+      }),
+    });
+
+    const result = await agent.generateProjectOutput(buildInput());
+
+    expect(result).toEqual({ content: '页面已更新。' });
+    expect(aiMocks.toolLoopAgent).toHaveBeenCalledTimes(2);
   });
 
   it('configures the agent to ask follow-up questions only when page target remains ambiguous', async () => {
@@ -490,6 +638,64 @@ describe('AiSdkDesignPageAgent', () => {
       'Avoid extracting one-off sections, content-heavy sections, or modules that are intentionally different on each page',
     );
     expect(instructions).toContain('<!-- owndesign:component {name} start -->');
+  });
+
+  it('includes component audit prompt rules and parses invalid audit output as a diagnostic failure', () => {
+    const instructions = buildComponentAuditInstructions();
+
+    expect(instructions).toContain('Navigation is the highest-priority shared component');
+    expect(instructions).toContain('<!-- owndesign:component nav start -->');
+    expect(instructions).toContain('syncMode: "navigation"');
+    expect(instructions).toContain('data-owndesign-nav-item');
+    expect(instructions).toContain('odc-nav');
+    expect(instructions).toContain('data-owndesign-component="nav"');
+    expect(instructions).toContain('Footer, CTA, newsletter, testimonial');
+    expect(instructions).toContain('pattern');
+    expect(instructions).toContain('Do not report one-off sections');
+
+    expect(parseComponentAuditResult('not json')).toEqual({
+      findings: [
+        {
+          message: 'Component audit returned invalid JSON.',
+          recommendedAction: 'Review component audit output format.',
+          severity: 'medium',
+          type: 'component_audit_invalid_output',
+        },
+      ],
+      passed: false,
+      summary: 'Component audit returned invalid JSON.',
+    });
+  });
+
+  it('builds a repair prompt that requires high findings and navigation shared component sync', () => {
+    const prompt = buildComponentAuditRepairPrompt({
+      audit: {
+        findings: [
+          {
+            message: 'Navigation is not shared.',
+            recommendedAction: 'create_or_reuse_navigation_component',
+            severity: 'high',
+            type: 'missing_navigation_component',
+          },
+          {
+            message: 'Footer could be shared.',
+            severity: 'medium',
+            type: 'footer_exact_component_suggestion',
+          },
+        ],
+        passed: false,
+        summary: 'Navigation must be fixed.',
+      },
+      originalUserPrompt: '新增详情页',
+    });
+
+    expect(prompt).toContain('Fix the high severity findings now');
+    expect(prompt).toContain('Treat high severity findings as required fixes');
+    expect(prompt).toContain('create or reuse a `navigation` shared component');
+    expect(prompt).toContain('call `syncSharedComponent`');
+    expect(prompt).toContain('Do not solve component-level findings');
+    expect(prompt).toContain('missing_navigation_component');
+    expect(prompt).not.toContain('footer_exact_component_suggestion');
   });
 
   it('syncs shared component source into marked HTML pages', async () => {

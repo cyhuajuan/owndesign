@@ -74,7 +74,9 @@ export type ReadInput = {
 
 export type SyncSharedComponentInput = {
   content?: string;
+  description?: string;
   name: string;
+  syncMode?: 'exact' | 'navigation' | 'pattern';
   usedBy?: string[];
 };
 

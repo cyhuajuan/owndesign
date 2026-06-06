@@ -2,10 +2,12 @@ import {
   HTML_SHARED_COMPONENTS_MANIFEST_PATH,
   parseHtmlSharedComponentsManifest,
   replaceHtmlSharedComponentMarkerContent,
+  renderNavigationSharedComponentContent,
   serializeHtmlSharedComponentsManifest,
   type HtmlSharedComponentsManifest,
+  type HtmlSharedComponentSyncMode,
 } from '@owndesign/core/html-shared-components';
-import type { WorkspacePatchChange } from '@owndesign/core/workspace-store';
+import type { WorkspacePatchChange, WorkspaceStore } from '@owndesign/core/workspace-store';
 import { z } from 'zod';
 
 import {
@@ -39,11 +41,21 @@ export function createSyncSharedComponentToolDefinition(): WorkspaceToolDefiniti
             'Complete shared component HTML fragment. Omit to reuse the current source file.',
           )
           .optional(),
+        description: z
+          .string()
+          .describe('Short natural-language description of the shared component.')
+          .optional(),
         name: z
           .string()
           .describe(
             'Shared component slug, such as nav. Use lowercase letters, digits, and hyphens.',
           ),
+        syncMode: z
+          .enum(['exact', 'navigation', 'pattern'])
+          .describe(
+            'Sync behavior: exact copies markup, navigation injects active state per page, pattern only updates the template.',
+          )
+          .optional(),
         usedBy: z
           .array(
             z.string().describe('Relative HTML page path that already contains the marker block.'),
@@ -53,7 +65,10 @@ export function createSyncSharedComponentToolDefinition(): WorkspaceToolDefiniti
       .strict(),
     name: 'syncSharedComponent',
     parallelSafe: false,
-    execute: async ({ content, name, usedBy }, { approvedCdnUrls, projectId, workspaceStore }) => {
+    execute: async (
+      { content, description, name, syncMode, usedBy },
+      { approvedCdnUrls, projectId, workspaceStore },
+    ) => {
       const componentName = name.trim();
 
       if (!COMPONENT_NAME_PATTERN.test(componentName)) {
@@ -68,20 +83,31 @@ export function createSyncSharedComponentToolDefinition(): WorkspaceToolDefiniti
           HTML_SHARED_COMPONENTS_MANIFEST_PATH,
         ),
       );
-      const componentContent =
+      const rawComponentContent =
         content ?? (await readProjectWorkspaceFileIfExists(workspaceStore, projectId, source));
 
-      if (componentContent === undefined) {
+      if (rawComponentContent === undefined) {
         throw new Error(`Shared component source was not found: ${source}`);
       }
 
-      const targetPages = await resolveTargetPages({
-        componentName,
-        manifest,
-        projectId,
-        usedBy,
-        workspaceStore,
-      });
+      const existingComponent = manifest.components.find(
+        (component) => component.name === componentName,
+      );
+      const resolvedSyncMode = syncMode ?? existingComponent?.syncMode ?? 'exact';
+      const componentContent =
+        resolvedSyncMode === 'navigation'
+          ? renderNavigationSharedComponentContent(rawComponentContent, '')
+          : rawComponentContent;
+      const targetPages =
+        resolvedSyncMode === 'pattern'
+          ? []
+          : await resolveTargetPages({
+              componentName,
+              manifest,
+              projectId,
+              usedBy,
+              workspaceStore,
+            });
       const changes: WorkspacePatchChange[] = [];
       const skippedPages: string[] = [];
       const updatedPages: string[] = [];
@@ -99,10 +125,15 @@ export function createSyncSharedComponentToolDefinition(): WorkspaceToolDefiniti
           continue;
         }
 
+        const pageComponentContent = renderSharedComponentContentForPage(
+          componentContent,
+          resolvedSyncMode,
+          pagePath,
+        );
         const updatedHtml = replaceHtmlSharedComponentMarkerContent(
           html,
           componentName,
-          componentContent,
+          pageComponentContent,
         );
 
         if (updatedHtml === undefined) {
@@ -133,9 +164,14 @@ export function createSyncSharedComponentToolDefinition(): WorkspaceToolDefiniti
         HTML_SHARED_COMPONENTS_MANIFEST_PATH,
         serializeHtmlSharedComponentsManifest(
           upsertSharedComponent(manifest, {
+            description: description?.trim() || existingComponent?.description,
             name: componentName,
             source,
-            usedBy: updatedPages,
+            syncMode: resolvedSyncMode,
+            usedBy:
+              resolvedSyncMode === 'pattern'
+                ? uniquePaths(usedBy ?? existingComponent?.usedBy ?? [])
+                : updatedPages,
           }),
         ),
       );
@@ -161,7 +197,7 @@ async function resolveTargetPages({
   manifest: HtmlSharedComponentsManifest;
   projectId: string;
   usedBy?: string[];
-  workspaceStore: import('@owndesign/core/workspace-store').WorkspaceStore;
+  workspaceStore: WorkspaceStore;
 }) {
   if (usedBy) {
     return uniquePaths(usedBy);
@@ -182,6 +218,18 @@ async function resolveTargetPages({
   }
 
   return uniquePaths([...manifestPages, ...markerPages]);
+}
+
+function renderSharedComponentContentForPage(
+  content: string,
+  syncMode: HtmlSharedComponentSyncMode,
+  pagePath: string,
+) {
+  if (syncMode === 'navigation') {
+    return renderNavigationSharedComponentContent(content, pagePath);
+  }
+
+  return content;
 }
 
 function upsertSharedComponent(

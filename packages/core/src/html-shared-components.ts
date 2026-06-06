@@ -1,8 +1,12 @@
 export type HtmlSharedComponent = {
+  description?: string;
   name: string;
   source: string;
+  syncMode: HtmlSharedComponentSyncMode;
   usedBy: string[];
 };
+
+export type HtmlSharedComponentSyncMode = 'exact' | 'navigation' | 'pattern';
 
 export type HtmlSharedComponentsManifest = {
   components: HtmlSharedComponent[];
@@ -36,8 +40,13 @@ export function parseHtmlSharedComponentsManifest(
   const components = value.components
     .filter(isRecord)
     .map((component) => ({
+      description:
+        typeof component.description === 'string' && component.description.trim()
+          ? component.description.trim()
+          : undefined,
       name: typeof component.name === 'string' ? component.name.trim() : '',
       source: typeof component.source === 'string' ? component.source.trim() : '',
+      syncMode: parseHtmlSharedComponentSyncMode(component.syncMode),
       usedBy: Array.isArray(component.usedBy)
         ? component.usedBy.filter((path): path is string => typeof path === 'string')
         : [],
@@ -90,8 +99,89 @@ export function replaceHtmlSharedComponentMarkerContent(
   return html.replace(pattern, replacement);
 }
 
+export function renderNavigationSharedComponentContent(content: string, pagePath: string) {
+  const pageSlug = getHtmlPageSlug(pagePath);
+
+  return content.replace(/<([a-z][\w:-]*)(?=[^>]*\sdata-owndesign-nav-item\s*=)[^>]*>/gi, (tag) => {
+    const itemSlug = getHtmlAttribute(tag, 'data-owndesign-nav-item');
+    let updatedTag = removeHtmlAttribute(tag, 'aria-current');
+    updatedTag = setClassTokens(
+      updatedTag,
+      getClassTokens(updatedTag).filter((className) => className !== 'active'),
+    );
+
+    if (itemSlug === pageSlug) {
+      updatedTag = setClassTokens(updatedTag, [...getClassTokens(updatedTag), 'active']);
+      updatedTag = setHtmlAttribute(updatedTag, 'aria-current', 'page');
+    }
+
+    return updatedTag;
+  });
+}
+
+export function getHtmlPageSlug(pagePath: string) {
+  const fileName = pagePath.replaceAll('\\', '/').split('/').pop() ?? pagePath;
+  const withoutExtension = fileName.replace(/\.html$/i, '');
+
+  return withoutExtension.replace(/-v[1-9]\d*$/i, '');
+}
+
+function parseHtmlSharedComponentSyncMode(value: unknown): HtmlSharedComponentSyncMode {
+  if (value === 'navigation' || value === 'pattern') {
+    return value;
+  }
+
+  return 'exact';
+}
+
+function getClassTokens(tag: string) {
+  return (getHtmlAttribute(tag, 'class') ?? '').split(/\s+/).filter(Boolean);
+}
+
+function setClassTokens(tag: string, classNames: string[]) {
+  const uniqueClassNames = Array.from(new Set(classNames));
+
+  if (!uniqueClassNames.length) {
+    return removeHtmlAttribute(tag, 'class');
+  }
+
+  return setHtmlAttribute(tag, 'class', uniqueClassNames.join(' '));
+}
+
+function getHtmlAttribute(tag: string, name: string) {
+  const pattern = new RegExp(`\\s${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, 'i');
+  const match = tag.match(pattern);
+
+  return match?.[1] ?? match?.[2] ?? match?.[3];
+}
+
+function removeHtmlAttribute(tag: string, name: string) {
+  const pattern = new RegExp(`\\s${name}\\s*=\\s*(?:"[^"]*"|'[^']*'|[^\\s>]+)`, 'i');
+
+  return tag.replace(pattern, '');
+}
+
+function setHtmlAttribute(tag: string, name: string, value: string) {
+  const pattern = new RegExp(`\\s${name}\\s*=\\s*(?:"[^"]*"|'[^']*'|[^\\s>]+)`, 'i');
+  const attribute = ` ${name}="${escapeHtmlAttribute(value)}"`;
+
+  if (pattern.test(tag)) {
+    return tag.replace(pattern, attribute);
+  }
+
+  return tag.replace(/>$/, `${attribute}>`);
+}
+
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function escapeHtmlAttribute(value: string) {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('"', '&quot;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;');
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

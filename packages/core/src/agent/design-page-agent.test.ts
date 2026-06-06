@@ -406,7 +406,9 @@ describe('AiSdkDesignPageAgent', () => {
     expect(
       config.tools.syncSharedComponent.inputSchema.safeParse({
         content: '<nav>Updated</nav>',
+        description: '全站顶部导航',
         name: 'nav',
+        syncMode: 'navigation',
         usedBy: ['index.html'],
       }).success,
     ).toBe(true);
@@ -452,10 +454,26 @@ describe('AiSdkDesignPageAgent', () => {
   });
 
   it('includes shared component workflow instructions', () => {
-    expect(buildDesignPageAgentInstructions(defaultResources)).toContain('syncSharedComponent');
-    expect(buildDesignPageAgentInstructions(defaultResources)).toContain(
-      '<!-- owndesign:component nav start -->',
+    const instructions = buildDesignPageAgentInstructions(defaultResources);
+
+    expect(instructions).toContain('syncSharedComponent');
+    expect(instructions).toContain('syncMode');
+    expect(instructions).toContain('pattern');
+    expect(instructions).toContain('data-owndesign-nav-item');
+    expect(instructions).toContain('ordinary `<style>` plus HTML markup');
+    expect(instructions).toContain('do not use the obsolete `<style scoped>` attribute');
+    expect(instructions).toContain('data-owndesign-component="{name}"');
+    expect(instructions).toContain('odc-{name}');
+    expect(instructions).toContain('.odc-nav .nav-link.active');
+    expect(instructions).toContain('Avoid broad component styles like `body`, `a`, `button`');
+    expect(instructions).toContain('structure and styling sync together');
+    expect(instructions).toContain('Navigation is the highest-priority shared component');
+    expect(instructions).toContain('expanding a one-page site into a second page');
+    expect(instructions).toContain('reuse shared navigation before inventing a new visual variant');
+    expect(instructions).toContain(
+      'Avoid extracting one-off sections, content-heavy sections, or modules that are intentionally different on each page',
     );
+    expect(instructions).toContain('<!-- owndesign:component {name} start -->');
   });
 
   it('syncs shared component source into marked HTML pages', async () => {
@@ -503,26 +521,164 @@ describe('AiSdkDesignPageAgent', () => {
         updatedPages: string[];
       }>(
         tools.syncSharedComponent.execute({
-          content: '<nav>New</nav>',
+          content: [
+            '<style>',
+            '.odc-nav { display: flex; gap: 16px; }',
+            '</style>',
+            '<nav class="odc-nav" data-owndesign-component="nav">New</nav>',
+          ].join('\n'),
           name: 'nav',
-          usedBy: ['index.html', 'detail.html', 'plain.html'],
+          usedBy: ['index.html', 'detail.html', 'plain.html', 'notes.txt', 'missing.html'],
         }),
       ),
     ).resolves.toEqual({
       manifestUpdated: true,
-      skippedPages: ['plain.html'],
+      skippedPages: ['plain.html', 'notes.txt', 'missing.html'],
       source: 'components/nav.html',
       updatedPages: ['index.html', 'detail.html'],
     });
     await expect(
       workspaceStore.readProjectWorkspaceFile('project-1', 'components/nav.html'),
-    ).resolves.toBe('<nav>New</nav>');
+    ).resolves.toBe(
+      [
+        '<style>',
+        '.odc-nav { display: flex; gap: 16px; }',
+        '</style>',
+        '<nav class="odc-nav" data-owndesign-component="nav">New</nav>',
+      ].join('\n'),
+    );
     await expect(
       workspaceStore.readProjectWorkspaceFile('project-1', 'index.html'),
-    ).resolves.toContain('<nav>New</nav>');
+    ).resolves.toContain('.odc-nav { display: flex; gap: 16px; }');
+    await expect(
+      workspaceStore.readProjectWorkspaceFile('project-1', 'index.html'),
+    ).resolves.toContain('<nav class="odc-nav" data-owndesign-component="nav">New</nav>');
     await expect(
       workspaceStore.readProjectWorkspaceFile('project-1', HTML_SHARED_COMPONENTS_MANIFEST_PATH),
     ).resolves.toContain('"usedBy": [\n        "index.html",\n        "detail.html"\n      ]');
+  });
+
+  it('syncs navigation active state for each target page', async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    const markedNav = [
+      '<!-- owndesign:component nav start -->',
+      '<nav>Old</nav>',
+      '<!-- owndesign:component nav end -->',
+    ].join('\n');
+    await workspaceStore.writeProjectWorkspaceFile('project-1', 'index-v1.html', markedNav);
+    await workspaceStore.writeProjectWorkspaceFile('project-1', 'products-v2.html', markedNav);
+    const tools = createWorkspaceToolRegistry(createProjectWorkspaceToolDefinitions(), {
+      approvedCdnUrls: ['https://cdn.example.com/font.css', 'https://cdn.example.com/icons.js'],
+      projectId: 'project-1',
+      resources: defaultResources,
+      workspaceStore,
+    }) as unknown as {
+      syncSharedComponent: {
+        execute: (input: {
+          content: string;
+          name: string;
+          syncMode: 'navigation';
+          usedBy: string[];
+        }) => Promise<unknown>;
+      };
+    };
+
+    await expectWorkspaceToolOk(
+      tools.syncSharedComponent.execute({
+        content: [
+          '<style>',
+          '.odc-nav { display: flex; gap: 16px; }',
+          '.odc-nav .nav-link.active { font-weight: 700; }',
+          '</style>',
+          '<nav class="odc-nav" data-owndesign-component="nav">',
+          '<a class="nav-link active" aria-current="page" href="index-v1.html" data-owndesign-nav-item="index">Home</a>',
+          '<a class="nav-link" href="products-v2.html" data-owndesign-nav-item="products">Products</a>',
+          '</nav>',
+        ].join('\n'),
+        name: 'nav',
+        syncMode: 'navigation',
+        usedBy: ['index-v1.html', 'products-v2.html'],
+      }),
+    );
+
+    await expect(
+      workspaceStore.readProjectWorkspaceFile('project-1', 'index-v1.html'),
+    ).resolves.toContain('.odc-nav .nav-link.active { font-weight: 700; }');
+    await expect(
+      workspaceStore.readProjectWorkspaceFile('project-1', 'index-v1.html'),
+    ).resolves.toContain(
+      '<a class="nav-link active" href="index-v1.html" data-owndesign-nav-item="index" aria-current="page">Home</a>',
+    );
+    await expect(
+      workspaceStore.readProjectWorkspaceFile('project-1', 'products-v2.html'),
+    ).resolves.toContain(
+      '<a class="nav-link active" href="products-v2.html" data-owndesign-nav-item="products" aria-current="page">Products</a>',
+    );
+    await expect(
+      workspaceStore.readProjectWorkspaceFile('project-1', 'products-v2.html'),
+    ).resolves.toContain(
+      '<a class="nav-link" href="index-v1.html" data-owndesign-nav-item="index">Home</a>',
+    );
+    await expect(
+      workspaceStore.readProjectWorkspaceFile('project-1', 'components/nav.html'),
+    ).resolves.toContain(
+      '<a class="nav-link" href="index-v1.html" data-owndesign-nav-item="index">Home</a>',
+    );
+  });
+
+  it('updates pattern components without syncing page instances', async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    await workspaceStore.writeProjectWorkspaceFile(
+      'project-1',
+      'index.html',
+      [
+        '<!-- owndesign:component product-card start -->',
+        '<article>Old instance</article>',
+        '<!-- owndesign:component product-card end -->',
+      ].join('\n'),
+    );
+    const tools = createWorkspaceToolRegistry(createProjectWorkspaceToolDefinitions(), {
+      approvedCdnUrls: ['https://cdn.example.com/font.css', 'https://cdn.example.com/icons.js'],
+      projectId: 'project-1',
+      resources: defaultResources,
+      workspaceStore,
+    }) as unknown as {
+      syncSharedComponent: {
+        execute: (input: {
+          content: string;
+          description: string;
+          name: string;
+          syncMode: 'pattern';
+          usedBy: string[];
+        }) => Promise<unknown>;
+      };
+    };
+
+    await expect(
+      expectWorkspaceToolOk<{ skippedPages: string[]; updatedPages: string[] }>(
+        tools.syncSharedComponent.execute({
+          content: '<article>Template only</article>',
+          description: '商品卡片视觉模板',
+          name: 'product-card',
+          syncMode: 'pattern',
+          usedBy: ['index.html'],
+        }),
+      ),
+    ).resolves.toMatchObject({
+      skippedPages: [],
+      updatedPages: [],
+    });
+    await expect(
+      workspaceStore.readProjectWorkspaceFile('project-1', 'components/product-card.html'),
+    ).resolves.toBe('<article>Template only</article>');
+    await expect(
+      workspaceStore.readProjectWorkspaceFile('project-1', 'index.html'),
+    ).resolves.toContain('<article>Old instance</article>');
+    await expect(
+      workspaceStore.readProjectWorkspaceFile('project-1', HTML_SHARED_COMPONENTS_MANIFEST_PATH),
+    ).resolves.toContain('"syncMode": "pattern"');
   });
 
   it('finds marked pages when sync shared component usedBy is omitted', async () => {
@@ -1513,6 +1669,7 @@ describe('AiSdkDesignPageAgent', () => {
     expect(prompt).toContain('duplicateSourcePath: dashboard.html');
     expect(prompt).toContain('duplicateTargetPath: dashboard-v1.html');
     expect(prompt).toContain('use copyFile');
+    expect(prompt).toContain('forbid modifying any HTML page except the target page');
     expect(prompt).toContain('精简布局');
   });
 
@@ -1540,6 +1697,8 @@ describe('AiSdkDesignPageAgent', () => {
     expect(directPrompt).toContain('targetPath: index.html');
     expect(newPagePrompt).toContain('For new_page');
     expect(newPagePrompt).toContain('do not forbid related edits');
+    expect(newPagePrompt).toContain('shared component reuse');
+    expect(newPagePrompt).toContain('inserting shared component markers');
   });
 
   it('rewrites turn prompts as plain text', async () => {

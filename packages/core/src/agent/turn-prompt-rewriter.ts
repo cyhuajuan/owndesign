@@ -64,7 +64,7 @@ export function buildTurnPromptRewriterPrompt({
     '- Make the target page/action explicit when the edit mode provides one.',
     '- For duplicate_edit, tell the agent to use copyFile to copy the source page to the target page, then modify only the target HTML page.',
     '- For duplicate_edit, allow inspection of other files but forbid modifying any HTML page except the target page.',
-    '- For new_page, tell the agent to create a new page, but do not forbid related edits such as navigation links.',
+    '- For new_page, tell the agent to create a new page, but do not forbid related edits such as navigation links, shared component reuse, or inserting shared component markers.',
     '- For direct_edit, tell the agent to edit the current preview page directly.',
     '',
     'Original user request:',

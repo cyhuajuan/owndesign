@@ -257,6 +257,10 @@ export function buildDesignPageConversationInstructions(resources?: ResourceSett
       content: buildToolWorkflowPrompt(),
     },
     {
+      tag: 'shared_components',
+      content: buildSharedComponentsPrompt(),
+    },
+    {
       tag: 'frontend_capabilities',
       content: buildFrontendCapabilityPrompt(),
     },
@@ -350,6 +354,27 @@ export function buildToolWorkflowPrompt() {
     'Resource constraints:',
     '- Only use CDNs already listed in resource settings; do not add others.',
     '- `write`, `edit`, and `patch` will reject HTML with unlisted CDN tags - if rejected, fall back to configured libraries, system fonts, inline SVG, or local CSS.',
+  ].join('\n');
+}
+
+export function buildSharedComponentsPrompt() {
+  return [
+    '## Shared Components',
+    'Use shared component fragments for repeated navigation in multi-page HTML projects.',
+    '',
+    'Shared navigation convention:',
+    '- Store the source fragment at `components/nav.html`.',
+    '- Insert the expanded navigation markup into each HTML page inside these markers:',
+    '  `<!-- owndesign:component nav start -->`',
+    '  `<nav>...</nav>`',
+    '  `<!-- owndesign:component nav end -->`',
+    '- Maintain `.owndesign-components.json` with `{ "components": [{ "name": "nav", "source": "components/nav.html", "usedBy": ["index-v1.html"] }] }`.',
+    '',
+    'Workflow:',
+    '- When creating a multi-page project with a shared top navigation, create `components/nav.html` and add marker-wrapped expanded nav markup to each page.',
+    '- When the user asks to change the navigation, top nav, menu, or whole-site nav, use `syncSharedComponent` so all marked pages stay in sync.',
+    '- `syncSharedComponent` only updates pages that already contain matching markers; insert markers with normal HTML edits when adding a new page.',
+    '- For a one-page local navigation change, edit the current HTML page directly.',
   ].join('\n');
 }
 

@@ -13,6 +13,7 @@ import {
 import { buildTurnPromptRewriterPrompt, rewriteTurnPrompt } from './turn-prompt-rewriter';
 import { createWorkspaceToolRegistry } from './tools/core';
 import { createProjectWorkspaceToolDefinitions } from './tools/project-workspace-tools';
+import { HTML_SHARED_COMPONENTS_MANIFEST_PATH } from '@owndesign/core/html-shared-components';
 import { loadPrompt } from '@owndesign/core/prompts';
 import { WorkspaceStore } from '@owndesign/core/workspace-store';
 
@@ -357,6 +358,7 @@ describe('AiSdkDesignPageAgent', () => {
       'previewRefresh',
       'previewSwitchHtml',
       'read',
+      'syncSharedComponent',
       'write',
     ]);
     expect(config.tools).not.toHaveProperty('callFrontendCapability');
@@ -379,6 +381,9 @@ describe('AiSdkDesignPageAgent', () => {
         previewRefresh: { inputSchema: { safeParse: (input: unknown) => { success: boolean } } };
         previewSwitchHtml: { inputSchema: { safeParse: (input: unknown) => { success: boolean } } };
         read: { inputSchema: { safeParse: (input: unknown) => { success: boolean } } };
+        syncSharedComponent: {
+          inputSchema: { safeParse: (input: unknown) => { success: boolean } };
+        };
       };
     };
     expect(config.tools.__metadata.read).toEqual({ parallelSafe: true });
@@ -398,6 +403,13 @@ describe('AiSdkDesignPageAgent', () => {
       config.tools.previewSwitchHtml.inputSchema.safeParse({ path: 'index.html' }).success,
     ).toBe(true);
     expect(config.tools.previewSwitchHtml.inputSchema.safeParse({}).success).toBe(false);
+    expect(
+      config.tools.syncSharedComponent.inputSchema.safeParse({
+        content: '<nav>Updated</nav>',
+        name: 'nav',
+        usedBy: ['index.html'],
+      }).success,
+    ).toBe(true);
     expect(
       config.tools.patch.inputSchema.safeParse({
         changes: [
@@ -437,6 +449,158 @@ describe('AiSdkDesignPageAgent', () => {
         workspaceStore,
       }),
     ).toThrow('already registered');
+  });
+
+  it('includes shared component workflow instructions', () => {
+    expect(buildDesignPageAgentInstructions(defaultResources)).toContain('syncSharedComponent');
+    expect(buildDesignPageAgentInstructions(defaultResources)).toContain(
+      '<!-- owndesign:component nav start -->',
+    );
+  });
+
+  it('syncs shared component source into marked HTML pages', async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    await workspaceStore.writeProjectWorkspaceFile(
+      'project-1',
+      'index.html',
+      [
+        '<main>',
+        '<!-- owndesign:component nav start -->',
+        '<nav>Old</nav>',
+        '<!-- owndesign:component nav end -->',
+        '</main>',
+      ].join('\n'),
+    );
+    await workspaceStore.writeProjectWorkspaceFile(
+      'project-1',
+      'detail.html',
+      [
+        '<main>',
+        '<!-- owndesign:component nav start -->',
+        '<nav>Old</nav>',
+        '<!-- owndesign:component nav end -->',
+        '</main>',
+      ].join('\n'),
+    );
+    await workspaceStore.writeProjectWorkspaceFile('project-1', 'plain.html', '<main>Plain</main>');
+    const tools = createWorkspaceToolRegistry(createProjectWorkspaceToolDefinitions(), {
+      approvedCdnUrls: ['https://cdn.example.com/font.css', 'https://cdn.example.com/icons.js'],
+      projectId: 'project-1',
+      resources: defaultResources,
+      workspaceStore,
+    }) as unknown as {
+      syncSharedComponent: {
+        execute: (input: { content?: string; name: string; usedBy?: string[] }) => Promise<unknown>;
+      };
+    };
+
+    await expect(
+      expectWorkspaceToolOk<{
+        manifestUpdated: boolean;
+        skippedPages: string[];
+        source: string;
+        updatedPages: string[];
+      }>(
+        tools.syncSharedComponent.execute({
+          content: '<nav>New</nav>',
+          name: 'nav',
+          usedBy: ['index.html', 'detail.html', 'plain.html'],
+        }),
+      ),
+    ).resolves.toEqual({
+      manifestUpdated: true,
+      skippedPages: ['plain.html'],
+      source: 'components/nav.html',
+      updatedPages: ['index.html', 'detail.html'],
+    });
+    await expect(
+      workspaceStore.readProjectWorkspaceFile('project-1', 'components/nav.html'),
+    ).resolves.toBe('<nav>New</nav>');
+    await expect(
+      workspaceStore.readProjectWorkspaceFile('project-1', 'index.html'),
+    ).resolves.toContain('<nav>New</nav>');
+    await expect(
+      workspaceStore.readProjectWorkspaceFile('project-1', HTML_SHARED_COMPONENTS_MANIFEST_PATH),
+    ).resolves.toContain('"usedBy": [\n        "index.html",\n        "detail.html"\n      ]');
+  });
+
+  it('finds marked pages when sync shared component usedBy is omitted', async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    await workspaceStore.writeProjectWorkspaceFile(
+      'project-1',
+      'components/nav.html',
+      '<nav>Source</nav>',
+    );
+    await workspaceStore.writeProjectWorkspaceFile(
+      'project-1',
+      'index.html',
+      [
+        '<!-- owndesign:component nav start -->',
+        '<nav>Old</nav>',
+        '<!-- owndesign:component nav end -->',
+      ].join('\n'),
+    );
+    const tools = createWorkspaceToolRegistry(createProjectWorkspaceToolDefinitions(), {
+      approvedCdnUrls: ['https://cdn.example.com/font.css', 'https://cdn.example.com/icons.js'],
+      projectId: 'project-1',
+      resources: defaultResources,
+      workspaceStore,
+    }) as unknown as {
+      syncSharedComponent: {
+        execute: (input: { name: string }) => Promise<unknown>;
+      };
+    };
+
+    await expect(
+      expectWorkspaceToolOk<{ updatedPages: string[] }>(
+        tools.syncSharedComponent.execute({ name: 'nav' }),
+      ),
+    ).resolves.toMatchObject({
+      updatedPages: ['index.html'],
+    });
+    await expect(
+      workspaceStore.readProjectWorkspaceFile('project-1', 'index.html'),
+    ).resolves.toContain('<nav>Source</nav>');
+  });
+
+  it('keeps html CDN guard active when syncing shared components', async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    await workspaceStore.writeProjectWorkspaceFile(
+      'project-1',
+      'index.html',
+      [
+        '<main>',
+        '<!-- owndesign:component nav start -->',
+        '<nav>Old</nav>',
+        '<!-- owndesign:component nav end -->',
+        '</main>',
+      ].join('\n'),
+    );
+    const tools = createWorkspaceToolRegistry(createProjectWorkspaceToolDefinitions(), {
+      approvedCdnUrls: [],
+      projectId: 'project-1',
+      resources: defaultResources,
+      workspaceStore,
+    }) as unknown as {
+      syncSharedComponent: {
+        execute: (input: { content: string; name: string; usedBy: string[] }) => Promise<unknown>;
+      };
+    };
+
+    await expectWorkspaceToolError(
+      tools.syncSharedComponent.execute({
+        content: '<nav><script src="https://cdn.example.com/nav.js"></script></nav>',
+        name: 'nav',
+        usedBy: ['index.html'],
+      }),
+      'HTML files can only use CDN resources configured in settings',
+    );
+    await expect(
+      workspaceStore.readProjectWorkspaceFile('project-1', 'components/nav.html'),
+    ).rejects.toThrow('ENOENT');
   });
 
   it('creates missing HTML from configured resource defaults', async () => {

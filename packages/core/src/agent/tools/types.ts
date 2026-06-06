@@ -72,6 +72,12 @@ export type ReadInput = {
   path: string;
 };
 
+export type SyncSharedComponentInput = {
+  content?: string;
+  name: string;
+  usedBy?: string[];
+};
+
 export type WriteInput = {
   content: string;
   path: string;

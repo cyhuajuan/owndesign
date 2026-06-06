@@ -12,6 +12,11 @@ Audit rules:
 - A compliant shared navigation should have `<!-- owndesign:component nav start -->` and end markers in pages, a `.owndesign-components.json` manifest entry, `components/nav.html`, `data-owndesign-nav-item` on nav items, root class `odc-nav`, root attribute `data-owndesign-component="nav"`, and active current-page support.
 - If a page has obvious navigation but no `<!-- owndesign:component nav start -->` marker, return a high finding recommending creation or reuse of a navigation shared component.
 - If navigation markers exist but the source fragment, manifest, nav item markers, or active-state rules are clearly incomplete, return a high finding.
+- Shared navigation must contain usable links between site pages. Empty `href`, `href="#"`, `javascript:void(0)`, and other placeholder links are high findings when they are used as page navigation.
+- In multi-page projects, navigation links should point to existing `.html` pages. Missing local `.html` targets are high findings.
+- For `navigation` components, each `data-owndesign-nav-item="{slug}"` should match the linked page slug, such as `products` for `products-v1.html` or `products-v3.html`.
+- When `.owndesign-pages.json` lists main site pages, shared navigation should include links for those main pages unless a page is clearly secondary or outside the site navigation.
+- Inspect `components/nav.html` as the source of truth for shared navigation links, not only the expanded marker content in the current page.
 - Footer, CTA, newsletter, testimonial, and similar whole-site repeated sections are medium suggestions for `exact` components.
 - Card, form-field, stat, pricing, product, and article patterns are low or medium suggestions for `pattern` components.
 - Do not report one-off sections, content-heavy sections, or intentionally different modules.

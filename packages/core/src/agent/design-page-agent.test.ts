@@ -649,6 +649,13 @@ describe('AiSdkDesignPageAgent', () => {
     expect(instructions).toContain('data-owndesign-nav-item');
     expect(instructions).toContain('odc-nav');
     expect(instructions).toContain('data-owndesign-component="nav"');
+    expect(instructions).toContain('Shared navigation must contain usable links');
+    expect(instructions).toContain('href="#"');
+    expect(instructions).toContain('javascript:void(0)');
+    expect(instructions).toContain('navigation links should point to existing `.html` pages');
+    expect(instructions).toContain('should match the linked page slug');
+    expect(instructions).toContain('.owndesign-pages.json');
+    expect(instructions).toContain('Inspect `components/nav.html` as the source of truth');
     expect(instructions).toContain('Footer, CTA, newsletter, testimonial');
     expect(instructions).toContain('pattern');
     expect(instructions).toContain('Do not report one-off sections');

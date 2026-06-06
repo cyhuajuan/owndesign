@@ -15,6 +15,8 @@ Audit rules:
 - Shared navigation must contain usable links between site pages. Empty `href`, `href="#"`, `javascript:void(0)`, and other placeholder links are high findings when they are used as page navigation.
 - In multi-page projects, navigation links should point to existing `.html` pages. Missing local `.html` targets are high findings.
 - For `navigation` components, each `data-owndesign-nav-item="{slug}"` should match the linked page slug, such as `products` for `products-v1.html` or `products-v3.html`.
+- When multiple versions exist for the same page slug, such as `detail-v1.html` and `detail-v2.html`, shared navigation should link to the latest version for that slug by default.
+- If a duplicate edit or page upgrade creates a newer page version and `components/nav.html` still links the matching nav item to an older version, return a high finding with recommendedAction `update_navigation_link_to_latest_page_version`.
 - When `.owndesign-pages.json` lists main site pages, shared navigation should include links for those main pages unless a page is clearly secondary or outside the site navigation.
 - Inspect `components/nav.html` as the source of truth for shared navigation links, not only the expanded marker content in the current page.
 - Footer, CTA, newsletter, testimonial, and similar whole-site repeated sections are medium suggestions for `exact` components.

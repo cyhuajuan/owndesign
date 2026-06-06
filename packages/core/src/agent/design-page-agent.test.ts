@@ -654,6 +654,9 @@ describe('AiSdkDesignPageAgent', () => {
     expect(instructions).toContain('javascript:void(0)');
     expect(instructions).toContain('navigation links should point to existing `.html` pages');
     expect(instructions).toContain('should match the linked page slug');
+    expect(instructions).toContain('shared navigation should link to the latest version');
+    expect(instructions).toContain('duplicate edit or page upgrade creates a newer page version');
+    expect(instructions).toContain('update_navigation_link_to_latest_page_version');
     expect(instructions).toContain('.owndesign-pages.json');
     expect(instructions).toContain('Inspect `components/nav.html` as the source of truth');
     expect(instructions).toContain('Footer, CTA, newsletter, testimonial');

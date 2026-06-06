@@ -467,6 +467,22 @@ describe('AiSdkDesignPageAgent', () => {
     expect(instructions).toContain('.odc-nav .nav-link.active');
     expect(instructions).toContain('Avoid broad component styles like `body`, `a`, `button`');
     expect(instructions).toContain('structure and styling sync together');
+    expect(instructions).toContain('Editing marked component instances');
+    expect(instructions).toContain(
+      'as a shared component instance, even if `.owndesign-components.json` is missing',
+    );
+    expect(instructions).toContain(
+      'decide whether the request is a component-level change or a current-page instance change',
+    );
+    expect(instructions).toContain('update `components/{name}.html` and use `syncSharedComponent`');
+    expect(instructions).toContain('do not directly hand-edit the current page marker contents');
+    expect(instructions).toContain(
+      'Navigation text, nav items, top nav, sidebar nav, active styling, and nav links default to component-level changes',
+    );
+    expect(instructions).toContain('Marker content for `exact` components defaults');
+    expect(instructions).toContain(
+      'Marker content for `pattern` components defaults to current-page instance changes',
+    );
     expect(instructions).toContain('Navigation is the highest-priority shared component');
     expect(instructions).toContain('expanding a one-page site into a second page');
     expect(instructions).toContain('reuse shared navigation before inventing a new visual variant');

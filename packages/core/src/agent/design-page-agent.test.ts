@@ -156,6 +156,12 @@ describe('AiSdkDesignPageAgent', () => {
     expect(loadPrompt('agents/component-audit')).toContain('# Component Audit Agent');
   });
 
+  it('loads turn prompt templates from the prompt registry', () => {
+    expect(loadPrompt('turn-templates/new-page')).toContain('当前任务要求设计一个新页面');
+    expect(loadPrompt('turn-templates/duplicate-edit')).toContain('copyFile');
+    expect(loadPrompt('turn-templates/direct-edit')).toContain('当前任务要求编辑指定页面');
+  });
+
   it('writes Project Workspace files when the model calls write', async () => {
     const workspaceStore = await createWorkspaceStore();
     await createProject(workspaceStore);
@@ -1884,7 +1890,7 @@ describe('AiSdkDesignPageAgent', () => {
     });
   });
 
-  it('builds turn prompt rewrite input from preview state and page edit mode', () => {
+  it('renders duplicate edit turn prompt from a deterministic template', () => {
     const prompt = buildTurnPromptRewriterPrompt({
       originalUserPrompt: '精简布局',
       pageEditMode: 'duplicate_edit',
@@ -1896,16 +1902,17 @@ describe('AiSdkDesignPageAgent', () => {
       previewPath: 'dashboard.html',
     });
 
-    expect(prompt).toContain('currentPreviewFile: dashboard.html');
-    expect(prompt).toContain('pageEditMode: duplicate_edit');
-    expect(prompt).toContain('duplicateSourcePath: dashboard.html');
-    expect(prompt).toContain('duplicateTargetPath: dashboard-v1.html');
-    expect(prompt).toContain('use copyFile');
-    expect(prompt).toContain('forbid modifying any HTML page except the target page');
+    expect(prompt).toContain('当前任务要求基于已有页面创建副本并编辑');
+    expect(prompt).toContain('copyFile');
+    expect(prompt).toContain('源页面：dashboard.html');
+    expect(prompt).toContain('目标页面：dashboard-v1.html');
+    expect(prompt).toContain('当前预览页面：dashboard.html');
+    expect(prompt).toContain('不要修改其他 HTML 页面');
+    expect(prompt).toContain('共享组件、共享导航或导航链接维护规则');
     expect(prompt).toContain('精简布局');
   });
 
-  it('builds direct and new page rewrite prompts without adding hard edit restrictions', () => {
+  it('renders direct and new page turn prompts from deterministic templates', () => {
     const directPrompt = buildTurnPromptRewriterPrompt({
       originalUserPrompt: '调小标题',
       pageEditMode: 'direct_edit',
@@ -1925,40 +1932,32 @@ describe('AiSdkDesignPageAgent', () => {
       previewPath: 'index.html',
     });
 
-    expect(directPrompt).toContain('For direct_edit');
-    expect(directPrompt).toContain('targetPath: index.html');
-    expect(newPagePrompt).toContain('For new_page');
-    expect(newPagePrompt).toContain('do not forbid related edits');
-    expect(newPagePrompt).toContain('shared component reuse');
-    expect(newPagePrompt).toContain('inserting shared component markers');
+    expect(directPrompt).toContain('当前任务要求编辑指定页面');
+    expect(directPrompt).toContain('目标页面：index.html');
+    expect(directPrompt).toContain('不要创建新页面版本');
+    expect(directPrompt).toContain('调小标题');
+    expect(newPagePrompt).toContain('当前任务要求设计一个新页面');
+    expect(newPagePrompt).toContain('不要覆盖已有 HTML 页面');
+    expect(newPagePrompt).toContain('共享导航、共享组件和相关链接');
+    expect(newPagePrompt).toContain('当前预览页面：index.html');
+    expect(newPagePrompt).toContain('加一个设置页');
   });
 
-  it('rewrites turn prompts as plain text', async () => {
-    aiMocks.generateText.mockResolvedValueOnce({
-      text: '```text\nEdit index.html: 精简布局\n```',
-    });
-
+  it('keeps auto turn prompts unchanged and does not call the LLM rewriter', async () => {
     await expect(
       rewriteTurnPrompt({
         model: { modelId: 'test-model', provider: 'test' } as never,
         originalUserPrompt: '精简布局',
-        pageEditMode: 'direct_edit',
+        pageEditMode: 'auto',
         pageEditModePolicy: {
-          mode: 'direct_edit',
-          targetPath: 'index.html',
+          mode: 'auto',
         },
         previewPath: 'index.html',
       }),
     ).resolves.toEqual({
-      rewrittenPrompt: 'Edit index.html: 精简布局',
+      rewrittenPrompt: '精简布局',
     });
-    expect(aiMocks.generateText).toHaveBeenCalledWith(
-      expect.objectContaining({
-        model: { modelId: 'test-model', provider: 'test' },
-        prompt: expect.stringContaining('Original user request:\n精简布局'),
-        system: expect.stringContaining('Return only the rewritten request'),
-      }),
-    );
+    expect(aiMocks.generateText).not.toHaveBeenCalled();
   });
 
   it('adds forced page edit mode instructions', async () => {

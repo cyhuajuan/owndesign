@@ -16,25 +16,25 @@ export type WorkspaceToolResult<Output> =
       wallTimeMs: number;
     };
 
-export type WorkspaceToolDefinition<Input, Output> = {
+export type WorkspaceToolDefinition<Input, Output, Context = ProjectWorkspaceToolContext> = {
   description: string;
-  execute: (input: Input, context: ProjectWorkspaceToolContext) => Promise<Output> | Output;
+  execute: (input: Input, context: Context) => Promise<Output> | Output;
   inputSchema: z.ZodType<Input>;
   name: string;
   parallelSafe: boolean;
   validate?: (input: Input) => void;
 };
 
-export type AnyWorkspaceToolDefinition = Omit<
-  WorkspaceToolDefinition<never, unknown>,
+export type AnyWorkspaceToolDefinition<Context = ProjectWorkspaceToolContext> = Omit<
+  WorkspaceToolDefinition<never, unknown, Context>,
   'inputSchema'
 > & {
   inputSchema: z.ZodType;
 };
 
-export function createWorkspaceToolRegistry(
-  definitions: AnyWorkspaceToolDefinition[],
-  context: ProjectWorkspaceToolContext,
+export function createWorkspaceToolRegistry<Context = ProjectWorkspaceToolContext>(
+  definitions: AnyWorkspaceToolDefinition<Context>[],
+  context: Context,
 ) {
   const tools: ToolSet = {};
   const metadata: Record<string, { parallelSafe: boolean }> = {};

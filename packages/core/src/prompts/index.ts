@@ -3,8 +3,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const PROMPT_FILES = {
+  'agents/component-audit': 'agents/component-audit.md',
   'agents/design-page': 'agents/design-page.md',
-  'agents/turn-prompt-rewriter': 'agents/turn-prompt-rewriter.md',
+  'turn-templates/direct-edit': 'turn-templates/direct-edit.md',
+  'turn-templates/duplicate-edit': 'turn-templates/duplicate-edit.md',
+  'turn-templates/new-page': 'turn-templates/new-page.md',
 } as const;
 
 export type PromptName = keyof typeof PROMPT_FILES;

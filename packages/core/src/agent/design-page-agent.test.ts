@@ -10,9 +10,14 @@ import {
   createDesignPageAgentContext,
   buildProviderOptions,
 } from './design-page-agent';
+import {
+  buildComponentAuditInstructions,
+  parseComponentAuditResult,
+} from './component-audit-agent';
 import { buildTurnPromptRewriterPrompt, rewriteTurnPrompt } from './turn-prompt-rewriter';
 import { createWorkspaceToolRegistry } from './tools/core';
 import { createProjectWorkspaceToolDefinitions } from './tools/project-workspace-tools';
+import { HTML_SHARED_COMPONENTS_MANIFEST_PATH } from '@owndesign/core/html-shared-components';
 import { loadPrompt } from '@owndesign/core/prompts';
 import { WorkspaceStore } from '@owndesign/core/workspace-store';
 
@@ -106,6 +111,13 @@ beforeEach(() => {
   aiMocks.createAnthropic.mockClear();
   aiMocks.createOpenAICompatible.mockClear();
   aiMocks.generate.mockReset();
+  aiMocks.generate.mockResolvedValue({
+    text: JSON.stringify({
+      findings: [],
+      passed: true,
+      summary: 'No component audit findings.',
+    }),
+  });
   aiMocks.generateText.mockReset();
   aiMocks.generateText.mockResolvedValue({ text: 'rewritten prompt' });
   aiMocks.getSettings.mockReset();
@@ -137,6 +149,16 @@ afterEach(async () => {
 describe('AiSdkDesignPageAgent', () => {
   it('loads design page prompt from the prompt registry', () => {
     expect(loadPrompt('agents/design-page')).toContain('# Design Page Agent');
+  });
+
+  it('loads component audit prompt from the prompt registry', () => {
+    expect(loadPrompt('agents/component-audit')).toContain('# Component Audit Agent');
+  });
+
+  it('loads turn prompt templates from the prompt registry', () => {
+    expect(loadPrompt('turn-templates/new-page')).toContain('我要新建一个页面');
+    expect(loadPrompt('turn-templates/duplicate-edit')).toContain('copyFile');
+    expect(loadPrompt('turn-templates/direct-edit')).toContain('我要直接修改');
   });
 
   it('writes Project Workspace files when the model calls write', async () => {
@@ -195,6 +217,173 @@ describe('AiSdkDesignPageAgent', () => {
     await expect(workspaceStore.readProjectOutput('project-1', 'html')).rejects.toMatchObject({
       code: 'ENOENT',
     });
+  });
+
+  it('does not run component audit silently after the main task', async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    const agent = new AiSdkDesignPageAgent(workspaceStore);
+    aiMocks.generate.mockImplementationOnce(
+      async function (this: {
+        config: {
+          tools: {
+            write: {
+              execute: (input: { content: string; path: string }) => Promise<unknown>;
+            };
+          };
+        };
+      }) {
+        await this.config.tools.write.execute({
+          content: '<!doctype html><html><body><main>Home</main></body></html>',
+          path: 'index.html',
+        });
+        expect(aiMocks.toolLoopAgent).toHaveBeenCalledTimes(1);
+
+        return { text: '页面已更新。' };
+      },
+    );
+
+    await agent.generateProjectOutput(buildInput());
+
+    expect(aiMocks.toolLoopAgent).toHaveBeenCalledTimes(1);
+    expect(aiMocks.generate).toHaveBeenNthCalledWith(1, {
+      prompt: '设计一个 CRM 仪表盘的界面',
+    });
+  });
+
+  it('runs component audit as a visible main-agent tool with a read-only sub-agent', async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    const agent = new AiSdkDesignPageAgent(workspaceStore);
+    aiMocks.generate
+      .mockImplementationOnce(
+        async function (this: {
+          config: {
+            tools: {
+              componentAudit: {
+                execute: (input: {
+                  completedWorkSummary?: string;
+                  taskSummary?: string;
+                }) => Promise<unknown>;
+              };
+            };
+          };
+        }) {
+          const auditResult = await this.config.tools.componentAudit.execute({
+            completedWorkSummary: 'Created the dashboard page.',
+            taskSummary: '设计一个 CRM 仪表盘的界面',
+          });
+
+          expect(auditResult).toMatchObject({
+            ok: true,
+            output: {
+              findings: [],
+              passed: true,
+              summary: 'No component audit findings.',
+            },
+          });
+
+          return { text: '页面已更新。' };
+        },
+      )
+      .mockResolvedValueOnce({
+        text: JSON.stringify({
+          findings: [],
+          passed: true,
+          summary: 'No component audit findings.',
+        }),
+      });
+
+    await agent.generateProjectOutput(buildInput());
+
+    const auditConfig = aiMocks.toolLoopAgent.mock.calls[1]?.[0] as {
+      instructions: string;
+      tools: Record<string, unknown>;
+    };
+    expect(aiMocks.toolLoopAgent).toHaveBeenCalledTimes(2);
+    expect(aiMocks.generate).toHaveBeenNthCalledWith(2, {
+      prompt: expect.stringContaining('Audit the completed OwnDesign HTML task.'),
+    });
+    expect(aiMocks.generate).toHaveBeenNthCalledWith(2, {
+      prompt: expect.stringContaining('Original user task:\n设计一个 CRM 仪表盘的界面'),
+    });
+    expect(aiMocks.generate).toHaveBeenNthCalledWith(2, {
+      prompt: expect.stringContaining('Main agent final response:\nCreated the dashboard page.'),
+    });
+    expect(Object.keys(auditConfig.tools).sort()).toEqual(['glob', 'grep', 'read']);
+    expect(auditConfig.instructions).toContain('# Component Audit Agent');
+    expect(auditConfig.instructions).toContain('Use only read, glob, and grep tools');
+    expect(auditConfig.instructions).toContain('Navigation is the highest-priority');
+  });
+
+  it('leaves high severity component audit repair inside the main agent tool loop', async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    const agent = new AiSdkDesignPageAgent(workspaceStore);
+    const highFinding = {
+      message: 'Page has top navigation but no shared navigation component marker.',
+      path: 'index.html',
+      recommendedAction: 'create_or_reuse_navigation_component',
+      severity: 'high',
+      type: 'missing_navigation_component',
+    };
+    aiMocks.generate.mockImplementationOnce(
+      async function (this: {
+        config: {
+          tools: {
+            componentAudit: {
+              execute: (input: {
+                completedWorkSummary?: string;
+                taskSummary?: string;
+              }) => Promise<unknown>;
+            };
+          };
+        };
+      }) {
+        const auditResult = await this.config.tools.componentAudit.execute({
+          completedWorkSummary: 'Created a page with navigation.',
+          taskSummary: '设计一个 CRM 仪表盘的界面',
+        });
+
+        expect(auditResult).toMatchObject({
+          ok: true,
+          output: {
+            findings: [highFinding],
+            passed: false,
+            summary: 'Navigation needs a shared component.',
+          },
+        });
+
+        return { text: '已根据 componentAudit 修复导航组件。' };
+      },
+    );
+    aiMocks.generate.mockResolvedValueOnce({
+      text: JSON.stringify({
+        findings: [highFinding],
+        passed: false,
+        summary: 'Navigation needs a shared component.',
+      }),
+    });
+
+    const result = await agent.generateProjectOutput(buildInput());
+
+    expect(result).toEqual({ content: '已根据 componentAudit 修复导航组件。' });
+    expect(aiMocks.toolLoopAgent).toHaveBeenCalledTimes(2);
+    expect(aiMocks.generate).not.toHaveBeenCalledWith({
+      prompt: expect.stringContaining('Fix the high severity findings now'),
+    });
+  });
+
+  it('does not auto-repair medium and low component audit findings outside the main agent', async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    const agent = new AiSdkDesignPageAgent(workspaceStore);
+    aiMocks.generate.mockResolvedValueOnce({ text: '页面已更新。' });
+
+    const result = await agent.generateProjectOutput(buildInput());
+
+    expect(result).toEqual({ content: '页面已更新。' });
+    expect(aiMocks.toolLoopAgent).toHaveBeenCalledTimes(1);
   });
 
   it('configures the agent to ask follow-up questions only when page target remains ambiguous', async () => {
@@ -347,6 +536,7 @@ describe('AiSdkDesignPageAgent', () => {
       tools: Record<string, unknown>;
     };
     expect(Object.keys(config.tools).sort()).toEqual([
+      'componentAudit',
       'copyFile',
       'createHtml',
       'delete',
@@ -357,8 +547,12 @@ describe('AiSdkDesignPageAgent', () => {
       'previewRefresh',
       'previewSwitchHtml',
       'read',
+      'syncSharedComponent',
       'write',
     ]);
+    expect(
+      createProjectWorkspaceToolDefinitions().map((definition) => definition.name),
+    ).not.toContain('componentAudit');
     expect(config.tools).not.toHaveProperty('callFrontendCapability');
     expect(config.tools).not.toHaveProperty('writeFile');
     expect(config.tools).not.toHaveProperty('addCdnResource');
@@ -375,12 +569,17 @@ describe('AiSdkDesignPageAgent', () => {
     const config = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
       tools: {
         __metadata: Record<string, { parallelSafe: boolean }>;
+        componentAudit: { inputSchema: { safeParse: (input: unknown) => { success: boolean } } };
         patch: { inputSchema: { safeParse: (input: unknown) => { success: boolean } } };
         previewRefresh: { inputSchema: { safeParse: (input: unknown) => { success: boolean } } };
         previewSwitchHtml: { inputSchema: { safeParse: (input: unknown) => { success: boolean } } };
         read: { inputSchema: { safeParse: (input: unknown) => { success: boolean } } };
+        syncSharedComponent: {
+          inputSchema: { safeParse: (input: unknown) => { success: boolean } };
+        };
       };
     };
+    expect(config.tools.__metadata.componentAudit).toEqual({ parallelSafe: false });
     expect(config.tools.__metadata.read).toEqual({ parallelSafe: true });
     expect(config.tools.__metadata.patch).toEqual({ parallelSafe: false });
     expect(config.tools.read.inputSchema.safeParse({ path: 'index.html' }).success).toBe(true);
@@ -398,6 +597,27 @@ describe('AiSdkDesignPageAgent', () => {
       config.tools.previewSwitchHtml.inputSchema.safeParse({ path: 'index.html' }).success,
     ).toBe(true);
     expect(config.tools.previewSwitchHtml.inputSchema.safeParse({}).success).toBe(false);
+    expect(
+      config.tools.componentAudit.inputSchema.safeParse({
+        completedWorkSummary: 'Created index-v1.html.',
+        taskSummary: 'Create a home page.',
+      }).success,
+    ).toBe(true);
+    expect(
+      config.tools.componentAudit.inputSchema.safeParse({
+        completedWorkSummary: 'Created index-v1.html.',
+        extra: true,
+      }).success,
+    ).toBe(false);
+    expect(
+      config.tools.syncSharedComponent.inputSchema.safeParse({
+        content: '<nav>Updated</nav>',
+        description: '全站顶部导航',
+        name: 'nav',
+        syncMode: 'navigation',
+        usedBy: ['index.html'],
+      }).success,
+    ).toBe(true);
     expect(
       config.tools.patch.inputSchema.safeParse({
         changes: [
@@ -437,6 +657,368 @@ describe('AiSdkDesignPageAgent', () => {
         workspaceStore,
       }),
     ).toThrow('already registered');
+  });
+
+  it('includes shared component workflow instructions', () => {
+    const instructions = buildDesignPageAgentInstructions(defaultResources);
+
+    expect(instructions).toContain('syncSharedComponent');
+    expect(instructions).toContain('syncMode');
+    expect(instructions).toContain('pattern');
+    expect(instructions).toContain('data-owndesign-nav-item');
+    expect(instructions).toContain('ordinary `<style>` plus HTML markup');
+    expect(instructions).toContain('do not use the obsolete `<style scoped>` attribute');
+    expect(instructions).toContain('data-owndesign-component="{name}"');
+    expect(instructions).toContain('odc-{name}');
+    expect(instructions).toContain('.odc-nav .nav-link.active');
+    expect(instructions).toContain('Avoid broad component styles like `body`, `a`, `button`');
+    expect(instructions).toContain('structure and styling sync together');
+    expect(instructions).toContain('Editing marked component instances');
+    expect(instructions).toContain(
+      'as a shared component instance, even if `.owndesign-components.json` is missing',
+    );
+    expect(instructions).toContain(
+      'decide whether the request is a component-level change or a current-page instance change',
+    );
+    expect(instructions).toContain('update `components/{name}.html` and use `syncSharedComponent`');
+    expect(instructions).toContain('do not directly hand-edit the current page marker contents');
+    expect(instructions).toContain(
+      'Navigation text, nav items, top nav, sidebar nav, active styling, and nav links default to component-level changes',
+    );
+    expect(instructions).toContain('Marker content for `exact` components defaults');
+    expect(instructions).toContain(
+      'Marker content for `pattern` components defaults to current-page instance changes',
+    );
+    expect(instructions).toContain('Navigation is the highest-priority shared component');
+    expect(instructions).toContain('expanding a one-page site into a second page');
+    expect(instructions).toContain('reuse shared navigation before inventing a new visual variant');
+    expect(instructions).toContain('call `componentAudit` before the final reply');
+    expect(instructions).toContain('fix those required issues and call `componentAudit` again');
+    expect(instructions).toContain('Medium and low severity findings are suggestions');
+    expect(instructions).toContain(
+      'Avoid extracting one-off sections, content-heavy sections, or modules that are intentionally different on each page',
+    );
+    expect(instructions).toContain('<!-- owndesign:component {name} start -->');
+  });
+
+  it('includes component audit prompt rules and parses invalid audit output as a diagnostic failure', () => {
+    const instructions = buildComponentAuditInstructions();
+
+    expect(instructions).toContain('Navigation is the highest-priority shared component');
+    expect(instructions).toContain('<!-- owndesign:component nav start -->');
+    expect(instructions).toContain('syncMode: "navigation"');
+    expect(instructions).toContain('data-owndesign-nav-item');
+    expect(instructions).toContain('odc-nav');
+    expect(instructions).toContain('data-owndesign-component="nav"');
+    expect(instructions).toContain('Shared navigation must contain usable links');
+    expect(instructions).toContain('href="#"');
+    expect(instructions).toContain('javascript:void(0)');
+    expect(instructions).toContain('navigation links should point to existing `.html` pages');
+    expect(instructions).toContain('should match the linked page slug');
+    expect(instructions).toContain('shared navigation should link to the latest version');
+    expect(instructions).toContain('duplicate edit or page upgrade creates a newer page version');
+    expect(instructions).toContain('update_navigation_link_to_latest_page_version');
+    expect(instructions).toContain('.owndesign-pages.json');
+    expect(instructions).toContain('Inspect `components/nav.html` as the source of truth');
+    expect(instructions).toContain('Footer, CTA, newsletter, testimonial');
+    expect(instructions).toContain('pattern');
+    expect(instructions).toContain('Do not report one-off sections');
+
+    expect(parseComponentAuditResult('not json')).toEqual({
+      findings: [
+        {
+          message: 'Component audit returned invalid JSON.',
+          recommendedAction: 'Review component audit output format.',
+          severity: 'medium',
+          type: 'component_audit_invalid_output',
+        },
+      ],
+      passed: false,
+      summary: 'Component audit returned invalid JSON.',
+    });
+  });
+
+  it('syncs shared component source into marked HTML pages', async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    await workspaceStore.writeProjectWorkspaceFile(
+      'project-1',
+      'index.html',
+      [
+        '<main>',
+        '<!-- owndesign:component nav start -->',
+        '<nav>Old</nav>',
+        '<!-- owndesign:component nav end -->',
+        '</main>',
+      ].join('\n'),
+    );
+    await workspaceStore.writeProjectWorkspaceFile(
+      'project-1',
+      'detail.html',
+      [
+        '<main>',
+        '<!-- owndesign:component nav start -->',
+        '<nav>Old</nav>',
+        '<!-- owndesign:component nav end -->',
+        '</main>',
+      ].join('\n'),
+    );
+    await workspaceStore.writeProjectWorkspaceFile('project-1', 'plain.html', '<main>Plain</main>');
+    const tools = createWorkspaceToolRegistry(createProjectWorkspaceToolDefinitions(), {
+      approvedCdnUrls: ['https://cdn.example.com/font.css', 'https://cdn.example.com/icons.js'],
+      projectId: 'project-1',
+      resources: defaultResources,
+      workspaceStore,
+    }) as unknown as {
+      syncSharedComponent: {
+        execute: (input: { content?: string; name: string; usedBy?: string[] }) => Promise<unknown>;
+      };
+    };
+
+    await expect(
+      expectWorkspaceToolOk<{
+        manifestUpdated: boolean;
+        skippedPages: string[];
+        source: string;
+        updatedPages: string[];
+      }>(
+        tools.syncSharedComponent.execute({
+          content: [
+            '<style>',
+            '.odc-nav { display: flex; gap: 16px; }',
+            '</style>',
+            '<nav class="odc-nav" data-owndesign-component="nav">New</nav>',
+          ].join('\n'),
+          name: 'nav',
+          usedBy: ['index.html', 'detail.html', 'plain.html', 'notes.txt', 'missing.html'],
+        }),
+      ),
+    ).resolves.toEqual({
+      manifestUpdated: true,
+      skippedPages: ['plain.html', 'notes.txt', 'missing.html'],
+      source: 'components/nav.html',
+      updatedPages: ['index.html', 'detail.html'],
+    });
+    await expect(
+      workspaceStore.readProjectWorkspaceFile('project-1', 'components/nav.html'),
+    ).resolves.toBe(
+      [
+        '<style>',
+        '.odc-nav { display: flex; gap: 16px; }',
+        '</style>',
+        '<nav class="odc-nav" data-owndesign-component="nav">New</nav>',
+      ].join('\n'),
+    );
+    await expect(
+      workspaceStore.readProjectWorkspaceFile('project-1', 'index.html'),
+    ).resolves.toContain('.odc-nav { display: flex; gap: 16px; }');
+    await expect(
+      workspaceStore.readProjectWorkspaceFile('project-1', 'index.html'),
+    ).resolves.toContain('<nav class="odc-nav" data-owndesign-component="nav">New</nav>');
+    await expect(
+      workspaceStore.readProjectWorkspaceFile('project-1', HTML_SHARED_COMPONENTS_MANIFEST_PATH),
+    ).resolves.toContain('"usedBy": [\n        "index.html",\n        "detail.html"\n      ]');
+  });
+
+  it('syncs navigation active state for each target page', async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    const markedNav = [
+      '<!-- owndesign:component nav start -->',
+      '<nav>Old</nav>',
+      '<!-- owndesign:component nav end -->',
+    ].join('\n');
+    await workspaceStore.writeProjectWorkspaceFile('project-1', 'index-v1.html', markedNav);
+    await workspaceStore.writeProjectWorkspaceFile('project-1', 'products-v2.html', markedNav);
+    const tools = createWorkspaceToolRegistry(createProjectWorkspaceToolDefinitions(), {
+      approvedCdnUrls: ['https://cdn.example.com/font.css', 'https://cdn.example.com/icons.js'],
+      projectId: 'project-1',
+      resources: defaultResources,
+      workspaceStore,
+    }) as unknown as {
+      syncSharedComponent: {
+        execute: (input: {
+          content: string;
+          name: string;
+          syncMode: 'navigation';
+          usedBy: string[];
+        }) => Promise<unknown>;
+      };
+    };
+
+    await expectWorkspaceToolOk(
+      tools.syncSharedComponent.execute({
+        content: [
+          '<style>',
+          '.odc-nav { display: flex; gap: 16px; }',
+          '.odc-nav .nav-link.active { font-weight: 700; }',
+          '</style>',
+          '<nav class="odc-nav" data-owndesign-component="nav">',
+          '<a class="nav-link active" aria-current="page" href="index-v1.html" data-owndesign-nav-item="index">Home</a>',
+          '<a class="nav-link" href="products-v2.html" data-owndesign-nav-item="products">Products</a>',
+          '</nav>',
+        ].join('\n'),
+        name: 'nav',
+        syncMode: 'navigation',
+        usedBy: ['index-v1.html', 'products-v2.html'],
+      }),
+    );
+
+    await expect(
+      workspaceStore.readProjectWorkspaceFile('project-1', 'index-v1.html'),
+    ).resolves.toContain('.odc-nav .nav-link.active { font-weight: 700; }');
+    await expect(
+      workspaceStore.readProjectWorkspaceFile('project-1', 'index-v1.html'),
+    ).resolves.toContain(
+      '<a class="nav-link active" href="index-v1.html" data-owndesign-nav-item="index" aria-current="page">Home</a>',
+    );
+    await expect(
+      workspaceStore.readProjectWorkspaceFile('project-1', 'products-v2.html'),
+    ).resolves.toContain(
+      '<a class="nav-link active" href="products-v2.html" data-owndesign-nav-item="products" aria-current="page">Products</a>',
+    );
+    await expect(
+      workspaceStore.readProjectWorkspaceFile('project-1', 'products-v2.html'),
+    ).resolves.toContain(
+      '<a class="nav-link" href="index-v1.html" data-owndesign-nav-item="index">Home</a>',
+    );
+    await expect(
+      workspaceStore.readProjectWorkspaceFile('project-1', 'components/nav.html'),
+    ).resolves.toContain(
+      '<a class="nav-link" href="index-v1.html" data-owndesign-nav-item="index">Home</a>',
+    );
+  });
+
+  it('updates pattern components without syncing page instances', async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    await workspaceStore.writeProjectWorkspaceFile(
+      'project-1',
+      'index.html',
+      [
+        '<!-- owndesign:component product-card start -->',
+        '<article>Old instance</article>',
+        '<!-- owndesign:component product-card end -->',
+      ].join('\n'),
+    );
+    const tools = createWorkspaceToolRegistry(createProjectWorkspaceToolDefinitions(), {
+      approvedCdnUrls: ['https://cdn.example.com/font.css', 'https://cdn.example.com/icons.js'],
+      projectId: 'project-1',
+      resources: defaultResources,
+      workspaceStore,
+    }) as unknown as {
+      syncSharedComponent: {
+        execute: (input: {
+          content: string;
+          description: string;
+          name: string;
+          syncMode: 'pattern';
+          usedBy: string[];
+        }) => Promise<unknown>;
+      };
+    };
+
+    await expect(
+      expectWorkspaceToolOk<{ skippedPages: string[]; updatedPages: string[] }>(
+        tools.syncSharedComponent.execute({
+          content: '<article>Template only</article>',
+          description: '商品卡片视觉模板',
+          name: 'product-card',
+          syncMode: 'pattern',
+          usedBy: ['index.html'],
+        }),
+      ),
+    ).resolves.toMatchObject({
+      skippedPages: [],
+      updatedPages: [],
+    });
+    await expect(
+      workspaceStore.readProjectWorkspaceFile('project-1', 'components/product-card.html'),
+    ).resolves.toBe('<article>Template only</article>');
+    await expect(
+      workspaceStore.readProjectWorkspaceFile('project-1', 'index.html'),
+    ).resolves.toContain('<article>Old instance</article>');
+    await expect(
+      workspaceStore.readProjectWorkspaceFile('project-1', HTML_SHARED_COMPONENTS_MANIFEST_PATH),
+    ).resolves.toContain('"syncMode": "pattern"');
+  });
+
+  it('finds marked pages when sync shared component usedBy is omitted', async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    await workspaceStore.writeProjectWorkspaceFile(
+      'project-1',
+      'components/nav.html',
+      '<nav>Source</nav>',
+    );
+    await workspaceStore.writeProjectWorkspaceFile(
+      'project-1',
+      'index.html',
+      [
+        '<!-- owndesign:component nav start -->',
+        '<nav>Old</nav>',
+        '<!-- owndesign:component nav end -->',
+      ].join('\n'),
+    );
+    const tools = createWorkspaceToolRegistry(createProjectWorkspaceToolDefinitions(), {
+      approvedCdnUrls: ['https://cdn.example.com/font.css', 'https://cdn.example.com/icons.js'],
+      projectId: 'project-1',
+      resources: defaultResources,
+      workspaceStore,
+    }) as unknown as {
+      syncSharedComponent: {
+        execute: (input: { name: string }) => Promise<unknown>;
+      };
+    };
+
+    await expect(
+      expectWorkspaceToolOk<{ updatedPages: string[] }>(
+        tools.syncSharedComponent.execute({ name: 'nav' }),
+      ),
+    ).resolves.toMatchObject({
+      updatedPages: ['index.html'],
+    });
+    await expect(
+      workspaceStore.readProjectWorkspaceFile('project-1', 'index.html'),
+    ).resolves.toContain('<nav>Source</nav>');
+  });
+
+  it('keeps html CDN guard active when syncing shared components', async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    await workspaceStore.writeProjectWorkspaceFile(
+      'project-1',
+      'index.html',
+      [
+        '<main>',
+        '<!-- owndesign:component nav start -->',
+        '<nav>Old</nav>',
+        '<!-- owndesign:component nav end -->',
+        '</main>',
+      ].join('\n'),
+    );
+    const tools = createWorkspaceToolRegistry(createProjectWorkspaceToolDefinitions(), {
+      approvedCdnUrls: [],
+      projectId: 'project-1',
+      resources: defaultResources,
+      workspaceStore,
+    }) as unknown as {
+      syncSharedComponent: {
+        execute: (input: { content: string; name: string; usedBy: string[] }) => Promise<unknown>;
+      };
+    };
+
+    await expectWorkspaceToolError(
+      tools.syncSharedComponent.execute({
+        content: '<nav><script src="https://cdn.example.com/nav.js"></script></nav>',
+        name: 'nav',
+        usedBy: ['index.html'],
+      }),
+      'HTML files can only use CDN resources configured in settings',
+    );
+    await expect(
+      workspaceStore.readProjectWorkspaceFile('project-1', 'components/nav.html'),
+    ).rejects.toThrow('ENOENT');
   });
 
   it('creates missing HTML from configured resource defaults', async () => {
@@ -1332,7 +1914,7 @@ describe('AiSdkDesignPageAgent', () => {
     });
   });
 
-  it('builds turn prompt rewrite input from preview state and page edit mode', () => {
+  it('renders duplicate edit turn prompt from a deterministic template', () => {
     const prompt = buildTurnPromptRewriterPrompt({
       originalUserPrompt: '精简布局',
       pageEditMode: 'duplicate_edit',
@@ -1344,15 +1926,21 @@ describe('AiSdkDesignPageAgent', () => {
       previewPath: 'dashboard.html',
     });
 
-    expect(prompt).toContain('currentPreviewFile: dashboard.html');
-    expect(prompt).toContain('pageEditMode: duplicate_edit');
-    expect(prompt).toContain('duplicateSourcePath: dashboard.html');
-    expect(prompt).toContain('duplicateTargetPath: dashboard-v1.html');
-    expect(prompt).toContain('use copyFile');
+    expect(prompt).toContain('我要基于现有页面创建一个副本并修改');
+    expect(prompt).toContain('copyFile');
+    expect(prompt).toContain('把 dashboard.html 复制到 dashboard-v1.html');
+    expect(prompt).toContain('源页面：dashboard.html');
+    expect(prompt).toContain('目标页面：dashboard-v1.html');
+    expect(prompt).toContain('当前预览页面：dashboard.html');
+    expect(prompt).toContain('只修改 dashboard-v1.html');
+    expect(prompt).toContain('共享组件、共享导航或导航链接维护规则');
+    expect(prompt).toContain('共享导航链接指向最新版本');
+    expect(prompt).toContain('具体要求：');
+    expect(prompt).not.toContain('用户具体要求');
     expect(prompt).toContain('精简布局');
   });
 
-  it('builds direct and new page rewrite prompts without adding hard edit restrictions', () => {
+  it('renders direct and new page turn prompts from deterministic templates', () => {
     const directPrompt = buildTurnPromptRewriterPrompt({
       originalUserPrompt: '调小标题',
       pageEditMode: 'direct_edit',
@@ -1372,38 +1960,37 @@ describe('AiSdkDesignPageAgent', () => {
       previewPath: 'index.html',
     });
 
-    expect(directPrompt).toContain('For direct_edit');
-    expect(directPrompt).toContain('targetPath: index.html');
-    expect(newPagePrompt).toContain('For new_page');
-    expect(newPagePrompt).toContain('do not forbid related edits');
+    expect(directPrompt).toContain('我要直接修改 index.html');
+    expect(directPrompt).toContain('不要创建新页面或新版本');
+    expect(directPrompt).toContain('共享组件 marker');
+    expect(directPrompt).toContain('具体要求：');
+    expect(directPrompt).not.toContain('用户具体要求');
+    expect(directPrompt).toContain('调小标题');
+    expect(newPagePrompt).toContain('我要新建一个页面');
+    expect(newPagePrompt).toContain('不要覆盖已有 HTML 页面');
+    expect(newPagePrompt).toContain('页面 slug');
+    expect(newPagePrompt).toContain('共享导航、页面目录和页面间链接');
+    expect(newPagePrompt).toContain('当前预览页面：index.html');
+    expect(newPagePrompt).toContain('具体要求：');
+    expect(newPagePrompt).not.toContain('用户具体要求');
+    expect(newPagePrompt).toContain('加一个设置页');
   });
 
-  it('rewrites turn prompts as plain text', async () => {
-    aiMocks.generateText.mockResolvedValueOnce({
-      text: '```text\nEdit index.html: 精简布局\n```',
-    });
-
+  it('keeps auto turn prompts unchanged and does not call the LLM rewriter', async () => {
     await expect(
       rewriteTurnPrompt({
         model: { modelId: 'test-model', provider: 'test' } as never,
         originalUserPrompt: '精简布局',
-        pageEditMode: 'direct_edit',
+        pageEditMode: 'auto',
         pageEditModePolicy: {
-          mode: 'direct_edit',
-          targetPath: 'index.html',
+          mode: 'auto',
         },
         previewPath: 'index.html',
       }),
     ).resolves.toEqual({
-      rewrittenPrompt: 'Edit index.html: 精简布局',
+      rewrittenPrompt: '精简布局',
     });
-    expect(aiMocks.generateText).toHaveBeenCalledWith(
-      expect.objectContaining({
-        model: { modelId: 'test-model', provider: 'test' },
-        prompt: expect.stringContaining('Original user request:\n精简布局'),
-        system: expect.stringContaining('Return only the rewritten request'),
-      }),
-    );
+    expect(aiMocks.generateText).not.toHaveBeenCalled();
   });
 
   it('adds forced page edit mode instructions', async () => {

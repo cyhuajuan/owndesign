@@ -14,7 +14,9 @@ import {
 } from '@owndesign/core/settings/settings-service';
 import type { ProjectOutputType } from '@owndesign/core/workspace-store';
 import { WorkspaceStore } from '@owndesign/core/workspace-store';
-import { createProjectWorkspaceTools } from '@owndesign/core/agent/tools/project-workspace-tools';
+import { createProjectWorkspaceToolDefinitions } from '@owndesign/core/agent/tools/project-workspace-tools';
+import { createWorkspaceToolRegistry } from '@owndesign/core/agent/tools/core';
+import { createComponentAuditToolDefinition } from '@owndesign/core/agent/tools/component-audit';
 import { loadPrompt } from '@owndesign/core/prompts';
 import { buildFrontendCapabilityPrompt } from '@owndesign/core/realtime/frontend-capabilities';
 import {
@@ -90,7 +92,6 @@ export class AiSdkDesignPageAgent implements DesignPageAgent {
       workspaceStore: this.workspaceStore,
     });
     const agent = createDesignPageAgent(context);
-
     const result = await agent.generate({
       prompt: input.content,
     });
@@ -155,21 +156,22 @@ export function createDesignPageAgent(context: DesignAgentContext) {
   });
 }
 
-export function createDesignPageWorkspaceTools({
-  projectId,
-  resources,
-  workspaceStore,
-  frontendTabId,
-  pageEditModePolicy,
-}: DesignAgentContext) {
-  return createProjectWorkspaceTools({
-    approvedCdnUrls: buildApprovedCdnUrls(resources),
-    frontendTabId,
-    pageEditModePolicy,
-    projectId,
-    resources,
-    workspaceStore,
-  });
+export function createDesignPageWorkspaceTools(context: DesignAgentContext) {
+  const { frontendTabId, pageEditModePolicy, projectId, resources, workspaceStore } = context;
+
+  return createWorkspaceToolRegistry(
+    [...createProjectWorkspaceToolDefinitions(), createComponentAuditToolDefinition()],
+    {
+      approvedCdnUrls: buildApprovedCdnUrls(resources),
+      frontendTabId,
+      model: context.model,
+      pageEditModePolicy,
+      projectId,
+      providerOptions: context.providerOptions,
+      resources,
+      workspaceStore,
+    },
+  );
 }
 
 export function buildDesignPageInstructions({ resources }: DesignAgentContext) {
@@ -255,6 +257,10 @@ export function buildDesignPageConversationInstructions(resources?: ResourceSett
     {
       tag: 'tool_workflow',
       content: buildToolWorkflowPrompt(),
+    },
+    {
+      tag: 'shared_components',
+      content: buildSharedComponentsPrompt(),
     },
     {
       tag: 'frontend_capabilities',
@@ -350,6 +356,54 @@ export function buildToolWorkflowPrompt() {
     'Resource constraints:',
     '- Only use CDNs already listed in resource settings; do not add others.',
     '- `write`, `edit`, and `patch` will reject HTML with unlisted CDN tags - if rejected, fall back to configured libraries, system fonts, inline SVG, or local CSS.',
+    '',
+    'Component audit:',
+    '- After completing any HTML creation, edit, duplicate edit, or new-page design task, call `componentAudit` before the final reply.',
+    '- `componentAudit` runs a read-only sub-agent. Use it for checking only; do not treat it as a replacement for editing files yourself.',
+    '- If `componentAudit` returns high severity findings, fix those required issues and call `componentAudit` again before replying.',
+    '- For high severity navigation findings, create or reuse a `navigation` shared component and call `syncSharedComponent`.',
+    '- Medium and low severity findings are suggestions. Do not automatically fix them unless they are clearly part of the user request; mention relevant ones briefly in the final reply.',
+  ].join('\n');
+}
+
+export function buildSharedComponentsPrompt() {
+  return [
+    '## Shared Components',
+    'Use shared component fragments to keep repeated UI consistent across multi-page HTML projects.',
+    '',
+    'Component library convention:',
+    '- Before designing a new page in a multi-page project, inspect `.owndesign-components.json` and reuse existing components when they fit.',
+    '- Store source fragments at `components/{name}.html`, such as `components/nav.html` or `components/product-card.html`.',
+    '- Component fragments may include ordinary `<style>` plus HTML markup; do not use the obsolete `<style scoped>` attribute.',
+    '- Use the manifest component name as the component ID. Give the component root `data-owndesign-component="{name}"` and a stable root class `odc-{name}`, such as `.odc-nav`.',
+    '- Component CSS selectors must be scoped through the root class, such as `.odc-nav .nav-link.active`. Avoid broad component styles like `body`, `a`, `button`, `.active`, or `.card` as selector entrypoints.',
+    '- Insert expanded component markup into HTML pages inside `<!-- owndesign:component {name} start -->` and `<!-- owndesign:component {name} end -->` markers.',
+    '- Maintain `.owndesign-components.json` with `{ "components": [{ "name": "nav", "source": "components/nav.html", "usedBy": ["index-v1.html"], "syncMode": "navigation", "description": "Site navigation" }] }`.',
+    '',
+    'Sync modes:',
+    '- `exact`: shared content should remain identical across pages. Use for footer, CTA band, newsletter, testimonial, and other fixed repeated sections.',
+    '- `navigation`: shared navigation structure should sync across pages while active state changes by page. Nav items must use `data-owndesign-nav-item="{slug}"`; `syncSharedComponent` adds `class="active"` and `aria-current="page"` for the current page slug.',
+    '- `pattern`: shared design pattern template only. Use for product-card, pricing-card, form-field, stat-card, article-card, and other components whose structure/style repeats but content differs. Do not auto-sync pattern instances unless the user explicitly asks.',
+    '',
+    'Editing marked component instances:',
+    '- Treat any HTML inside `<!-- owndesign:component NAME start -->` and `<!-- owndesign:component NAME end -->` as a shared component instance, even if `.owndesign-components.json` is missing.',
+    '- Before changing content inside a component marker, decide whether the request is a component-level change or a current-page instance change.',
+    '- For component-level changes, update `components/{name}.html` and use `syncSharedComponent`; do not directly hand-edit the current page marker contents.',
+    '- Navigation text, nav items, top nav, sidebar nav, active styling, and nav links default to component-level changes for `navigation` components unless the user explicitly says the change is page-local.',
+    '- Marker content for `exact` components defaults to component-level changes. Marker content for `pattern` components defaults to current-page instance changes unless the user asks to update the shared template, structure, or unified styling.',
+    '- For explicit current-page instance changes, edit only the current HTML page and intentionally preserve or remove the component markers based on whether the instance should remain shared.',
+    '',
+    'Workflow:',
+    '- When creating or editing a page in a multi-page project, inspect `.owndesign-components.json` before designing shared site structure.',
+    '- For `exact` and `navigation` components, place the necessary component-scoped CSS inside the fragment so structure and styling sync together.',
+    '- For `pattern` components, keep useful scoped styles in the template, but do not auto-sync pattern instances unless the user explicitly asks.',
+    '- Navigation is the highest-priority shared component: if pages in the same site use the same top nav or sidebar nav, create or reuse a `navigation` component unless the user explicitly asks for page-specific navigation.',
+    '- When expanding a one-page site into a second page, upgrade shared top nav or sidebar nav into a `navigation` component when both pages should use the same site navigation.',
+    '- When adding a new page to an existing site, reuse shared navigation before inventing a new visual variant, and update the shared nav links when appropriate.',
+    '- Extract other components only when reuse is likely and visual consistency matters. Avoid extracting one-off sections, content-heavy sections, or modules that are intentionally different on each page.',
+    '- When the user asks to change a whole-site, shared, repeated, or unified component, use `syncSharedComponent` with the right syncMode.',
+    '- `syncSharedComponent` only updates pages that already contain matching markers; insert markers with normal HTML edits when adding a new page.',
+    '- For one-page local changes, edit the current HTML page directly.',
   ].join('\n');
 }
 

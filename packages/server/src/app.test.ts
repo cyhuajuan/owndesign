@@ -196,10 +196,6 @@ describe('createOwnDesignApp static hosting', () => {
     const { app, root } = await createAppWithTempOptions();
     const workspaceRoot = path.join(root, 'workspace');
     const { conversationId, projectId } = await setupProject(app);
-    aiMocks.generateText.mockResolvedValueOnce({
-      text: 'Create a CRM dashboard page.',
-    });
-
     const response = await app.fetch(
       new Request('http://localhost/api/chat', {
         body: JSON.stringify({
@@ -232,9 +228,7 @@ describe('createOwnDesignApp static hosting', () => {
     expect(conversation.agentInstructions).not.toContain('<page_edit_mode_policy>');
     expect(conversation).not.toHaveProperty('turnContexts');
     expect(conversation.messages).toHaveLength(1);
-    expect(getMessageText(conversation.messages[0] as UIMessage)).toBe(
-      'Create a CRM dashboard page.',
-    );
+    expect(getMessageText(conversation.messages[0] as UIMessage)).toBe('设计一个 CRM 仪表盘');
     expect((conversation.messages[0] as UIMessage).metadata).toMatchObject({
       originalUserPrompt: '设计一个 CRM 仪表盘',
       promptRewrite: {
@@ -248,11 +242,7 @@ describe('createOwnDesignApp static hosting', () => {
         previewPath: expect.any(String),
       },
     });
-    expect(aiMocks.generateText).toHaveBeenCalledWith(
-      expect.objectContaining({
-        prompt: expect.stringContaining('currentPreviewFile: none'),
-      }),
-    );
+    expect(aiMocks.generateText).not.toHaveBeenCalled();
     expect(streamInput.originalMessages).toEqual(conversation.messages);
     expect(streamInput.uiMessages).toEqual(conversation.messages);
   });
@@ -275,9 +265,6 @@ describe('createOwnDesignApp static hosting', () => {
       agentPromptVersion: 1,
     });
 
-    aiMocks.generateText.mockResolvedValueOnce({
-      text: 'Edit settings.html: 改当前页顶部',
-    });
     const response = await app.fetch(
       new Request('http://localhost/api/chat', {
         body: JSON.stringify({
@@ -306,7 +293,7 @@ describe('createOwnDesignApp static hosting', () => {
 
     expect(storedConversation.agentInstructions).toBe('persisted instructions');
     expect(agentConfig.instructions).toBe('persisted instructions');
-    expect(getMessageText(streamInput.uiMessages[0])).toBe('Edit settings.html: 改当前页顶部');
+    expect(getMessageText(streamInput.uiMessages[0])).toBe('改当前页顶部');
     expect(storedConversation.messages).toEqual(streamInput.uiMessages);
     expect((storedConversation.messages[0] as UIMessage).metadata).toMatchObject({
       originalUserPrompt: '改当前页顶部',
@@ -339,10 +326,6 @@ describe('createOwnDesignApp static hosting', () => {
         },
       },
     } satisfies UIMessage;
-    aiMocks.generateText.mockResolvedValueOnce({
-      text: 'Edit second.html: 继续修改',
-    });
-
     await workspaceStore.updateConversation(projectId, conversationId, {
       ...conversation,
       agentInstructions: 'persisted instructions',
@@ -375,7 +358,7 @@ describe('createOwnDesignApp static hosting', () => {
     expect(storedConversation).not.toHaveProperty('turnContexts');
     expect(streamInput.uiMessages).toHaveLength(2);
     expect(getMessageText(streamInput.uiMessages[0])).toBe('上一轮 rewritten');
-    expect(getMessageText(streamInput.uiMessages[1])).toBe('Edit second.html: 继续修改');
+    expect(getMessageText(streamInput.uiMessages[1])).toBe('继续修改');
     expect(streamInput.uiMessages[1]?.metadata).toMatchObject({
       originalUserPrompt: '继续修改',
       promptRewrite: {
@@ -409,10 +392,6 @@ describe('createOwnDesignApp static hosting', () => {
       'frontend-user-ignored',
       'frontend history should not be used',
     );
-    aiMocks.generateText.mockResolvedValueOnce({
-      text: 'Rewrite only current input.',
-    });
-
     await workspaceStore.updateConversation(projectId, conversationId, {
       ...conversation,
       agentInstructions: 'persisted instructions',
@@ -447,7 +426,7 @@ describe('createOwnDesignApp static hosting', () => {
       'stored-user-1',
       'user-2',
     ]);
-    expect(getMessageText(streamInput.uiMessages[1])).toBe('Rewrite only current input.');
+    expect(getMessageText(streamInput.uiMessages[1])).toBe('current input');
   });
 
   it('rewrites duplicate edit prompts with copy target metadata', async () => {
@@ -462,9 +441,6 @@ describe('createOwnDesignApp static hosting', () => {
       '<main>Dashboard</main>',
     );
 
-    aiMocks.generateText.mockResolvedValueOnce({
-      text: 'Copy dashboard.html to dashboard-v1.html with copyFile, then apply: 复制后修改',
-    });
     const response = await app.fetch(
       new Request('http://localhost/api/chat', {
         body: JSON.stringify({
@@ -485,9 +461,14 @@ describe('createOwnDesignApp static hosting', () => {
 
     const conversation = await workspaceStore.getConversation(projectId, conversationId);
 
-    expect(getMessageText(conversation.messages[0] as UIMessage)).toBe(
-      'Copy dashboard.html to dashboard-v1.html with copyFile, then apply: 复制后修改',
-    );
+    const rewrittenPrompt = getMessageText(conversation.messages[0] as UIMessage);
+    expect(rewrittenPrompt).toContain('我要基于现有页面创建一个副本并修改');
+    expect(rewrittenPrompt).toContain('copyFile');
+    expect(rewrittenPrompt).toContain('把 dashboard.html 复制到 dashboard-v1.html');
+    expect(rewrittenPrompt).toContain('源页面：dashboard.html');
+    expect(rewrittenPrompt).toContain('目标页面：dashboard-v1.html');
+    expect(rewrittenPrompt).toContain('共享导航链接指向最新版本');
+    expect(rewrittenPrompt).toContain('复制后修改');
     expect((conversation.messages[0] as UIMessage).metadata).toMatchObject({
       originalUserPrompt: '复制后修改',
       promptRewrite: {

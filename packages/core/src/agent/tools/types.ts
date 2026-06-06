@@ -1,6 +1,7 @@
 import type { WorkspaceStore } from '@owndesign/core/workspace-store';
 import type { ResourceSettings } from '@owndesign/core/settings/settings-service';
 import type { PageEditModePolicy } from '@owndesign/core/agent/page-edit-mode';
+import type { LanguageModel, ToolLoopAgentSettings } from 'ai';
 
 export type ProjectWorkspaceToolContext = {
   approvedCdnUrls?: string[];
@@ -9,6 +10,16 @@ export type ProjectWorkspaceToolContext = {
   projectId: string;
   resources: ResourceSettings;
   workspaceStore: WorkspaceStore;
+};
+
+export type DesignWorkspaceToolContext = ProjectWorkspaceToolContext & {
+  model: LanguageModel;
+  providerOptions?: ToolLoopAgentSettings['providerOptions'];
+};
+
+export type ComponentAuditInput = {
+  completedWorkSummary?: string;
+  taskSummary?: string;
 };
 
 export type CreateHtmlInput = {
@@ -70,6 +81,14 @@ export type ReadInput = {
   limit?: number;
   offset?: number;
   path: string;
+};
+
+export type SyncSharedComponentInput = {
+  content?: string;
+  description?: string;
+  name: string;
+  syncMode?: 'exact' | 'navigation' | 'pattern';
+  usedBy?: string[];
 };
 
 export type WriteInput = {

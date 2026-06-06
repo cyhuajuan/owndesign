@@ -14,7 +14,9 @@ import {
 } from '@owndesign/core/settings/settings-service';
 import type { ProjectOutputType } from '@owndesign/core/workspace-store';
 import { WorkspaceStore } from '@owndesign/core/workspace-store';
-import { createProjectWorkspaceTools } from '@owndesign/core/agent/tools/project-workspace-tools';
+import { createProjectWorkspaceToolDefinitions } from '@owndesign/core/agent/tools/project-workspace-tools';
+import { createWorkspaceToolRegistry } from '@owndesign/core/agent/tools/core';
+import { createComponentAuditToolDefinition } from '@owndesign/core/agent/tools/component-audit';
 import { loadPrompt } from '@owndesign/core/prompts';
 import { buildFrontendCapabilityPrompt } from '@owndesign/core/realtime/frontend-capabilities';
 import {
@@ -22,11 +24,6 @@ import {
   type PageEditMode,
   type PageEditModePolicy,
 } from '@owndesign/core/agent/page-edit-mode';
-import {
-  runComponentAudit,
-  type ComponentAuditFinding,
-  type ComponentAuditResult,
-} from './component-audit-agent';
 
 export const DESIGN_PAGE_AGENT_PROMPT_VERSION = 1;
 
@@ -94,41 +91,13 @@ export class AiSdkDesignPageAgent implements DesignPageAgent {
       projectId: input.projectId,
       workspaceStore: this.workspaceStore,
     });
-    let agent = createDesignPageAgent(context);
-
-    let result = await agent.generate({
+    const agent = createDesignPageAgent(context);
+    const result = await agent.generate({
       prompt: input.content,
     });
-    let finalText = result.text || '已处理请求。';
-    let audit = await runComponentAudit(context, {
-      assistantResponse: finalText,
-      userPrompt: input.content,
-    });
-    const seenHighFindingSignatures = new Set<string>();
-
-    while (hasHighComponentAuditFindings(audit)) {
-      const signature = getHighComponentAuditFindingSignature(audit.findings);
-      if (seenHighFindingSignatures.has(signature)) {
-        break;
-      }
-      seenHighFindingSignatures.add(signature);
-
-      agent = createDesignPageAgent(context);
-      result = await agent.generate({
-        prompt: buildComponentAuditRepairPrompt({
-          audit,
-          originalUserPrompt: input.content,
-        }),
-      });
-      finalText = result.text || finalText;
-      audit = await runComponentAudit(context, {
-        assistantResponse: finalText,
-        userPrompt: input.content,
-      });
-    }
 
     return {
-      content: finalText,
+      content: result.text || '已处理请求。',
     };
   }
 }
@@ -187,71 +156,26 @@ export function createDesignPageAgent(context: DesignAgentContext) {
   });
 }
 
-export function createDesignPageWorkspaceTools({
-  projectId,
-  resources,
-  workspaceStore,
-  frontendTabId,
-  pageEditModePolicy,
-}: DesignAgentContext) {
-  return createProjectWorkspaceTools({
-    approvedCdnUrls: buildApprovedCdnUrls(resources),
-    frontendTabId,
-    pageEditModePolicy,
-    projectId,
-    resources,
-    workspaceStore,
-  });
+export function createDesignPageWorkspaceTools(context: DesignAgentContext) {
+  const { frontendTabId, pageEditModePolicy, projectId, resources, workspaceStore } = context;
+
+  return createWorkspaceToolRegistry(
+    [...createProjectWorkspaceToolDefinitions(), createComponentAuditToolDefinition()],
+    {
+      approvedCdnUrls: buildApprovedCdnUrls(resources),
+      frontendTabId,
+      model: context.model,
+      pageEditModePolicy,
+      projectId,
+      providerOptions: context.providerOptions,
+      resources,
+      workspaceStore,
+    },
+  );
 }
 
 export function buildDesignPageInstructions({ resources }: DesignAgentContext) {
   return buildDesignPageConversationInstructions(resources);
-}
-
-export function buildComponentAuditRepairPrompt({
-  audit,
-  originalUserPrompt,
-}: {
-  audit: ComponentAuditResult;
-  originalUserPrompt: string;
-}) {
-  const highFindings = audit.findings.filter((finding) => finding.severity === 'high');
-
-  return [
-    'The completed HTML task failed the shared component audit. Fix the high severity findings now.',
-    '',
-    'Original user task:',
-    originalUserPrompt,
-    '',
-    'High severity audit findings:',
-    JSON.stringify(highFindings, null, 2),
-    '',
-    'Repair rules:',
-    '- Treat high severity findings as required fixes.',
-    '- For navigation findings, create or reuse a `navigation` shared component and call `syncSharedComponent`.',
-    '- Do not solve component-level findings by only hand-editing the current page marker instance.',
-    '- After fixing previewable HTML, use the normal preview tool workflow.',
-    '',
-    'Reply concisely with what you changed.',
-  ].join('\n');
-}
-
-function hasHighComponentAuditFindings(audit: ComponentAuditResult) {
-  return audit.findings.some((finding) => finding.severity === 'high');
-}
-
-function getHighComponentAuditFindingSignature(findings: ComponentAuditFinding[]) {
-  return JSON.stringify(
-    findings
-      .filter((finding) => finding.severity === 'high')
-      .map((finding) => ({
-        message: finding.message,
-        path: finding.path,
-        recommendedAction: finding.recommendedAction,
-        type: finding.type,
-      }))
-      .sort((a, b) => `${a.path ?? ''}:${a.type}`.localeCompare(`${b.path ?? ''}:${b.type}`)),
-  );
 }
 
 export function buildLanguageModel(configuration: ModelConfiguration): LanguageModelV3 {
@@ -432,6 +356,13 @@ export function buildToolWorkflowPrompt() {
     'Resource constraints:',
     '- Only use CDNs already listed in resource settings; do not add others.',
     '- `write`, `edit`, and `patch` will reject HTML with unlisted CDN tags - if rejected, fall back to configured libraries, system fonts, inline SVG, or local CSS.',
+    '',
+    'Component audit:',
+    '- After completing any HTML creation, edit, duplicate edit, or new-page design task, call `componentAudit` before the final reply.',
+    '- `componentAudit` runs a read-only sub-agent. Use it for checking only; do not treat it as a replacement for editing files yourself.',
+    '- If `componentAudit` returns high severity findings, fix those required issues and call `componentAudit` again before replying.',
+    '- For high severity navigation findings, create or reuse a `navigation` shared component and call `syncSharedComponent`.',
+    '- Medium and low severity findings are suggestions. Do not automatically fix them unless they are clearly part of the user request; mention relevant ones briefly in the final reply.',
   ].join('\n');
 }
 

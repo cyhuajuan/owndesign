@@ -1,11 +1,16 @@
 import { stepCountIs, ToolLoopAgent, type ToolSet } from 'ai';
 
-import type { DesignAgentContext } from './design-page-agent';
 import { createWorkspaceToolRegistry } from './tools/core';
 import { createGlobToolDefinition } from './tools/glob';
 import { createGrepToolDefinition } from './tools/grep';
 import { createReadToolDefinition } from './tools/read';
+import type { DesignWorkspaceToolContext } from './tools/types';
 import { loadPrompt } from '@owndesign/core/prompts';
+
+export type ComponentAuditAgentContext = Pick<
+  DesignWorkspaceToolContext,
+  'model' | 'projectId' | 'providerOptions' | 'resources' | 'workspaceStore'
+>;
 
 export type ComponentAuditSeverity = 'high' | 'medium' | 'low';
 
@@ -29,7 +34,7 @@ type RunComponentAuditInput = {
 };
 
 export async function runComponentAudit(
-  context: DesignAgentContext,
+  context: ComponentAuditAgentContext,
   input: RunComponentAuditInput,
 ) {
   const agent = createComponentAuditAgent(context);
@@ -40,7 +45,7 @@ export async function runComponentAudit(
   return parseComponentAuditResult(result.text);
 }
 
-export function createComponentAuditAgent(context: DesignAgentContext) {
+export function createComponentAuditAgent(context: ComponentAuditAgentContext) {
   const { model, providerOptions } = context;
 
   return new ToolLoopAgent({
@@ -57,7 +62,7 @@ export function createComponentAuditTools({
   projectId,
   resources,
   workspaceStore,
-}: DesignAgentContext) {
+}: ComponentAuditAgentContext) {
   return createWorkspaceToolRegistry(
     [createReadToolDefinition(), createGlobToolDefinition(), createGrepToolDefinition()],
     {

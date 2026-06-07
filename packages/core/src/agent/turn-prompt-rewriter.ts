@@ -46,15 +46,6 @@ export function buildTurnPromptRewriterPrompt({
     return originalUserPrompt;
   }
 
-  if (pageEditModePolicy.mode === 'duplicate_edit') {
-    return renderTurnPromptTemplate('turn-templates/duplicate-edit', {
-      currentPreviewPath: previewPath,
-      originalUserPrompt,
-      sourcePath: pageEditModePolicy.sourcePath,
-      targetPath: pageEditModePolicy.targetPath,
-    });
-  }
-
   if (pageEditModePolicy.mode === 'direct_edit') {
     return renderTurnPromptTemplate('turn-templates/direct-edit', {
       currentPreviewPath: previewPath,
@@ -70,7 +61,7 @@ export function buildTurnPromptRewriterPrompt({
 }
 
 function renderTurnPromptTemplate(
-  name: 'turn-templates/direct-edit' | 'turn-templates/duplicate-edit' | 'turn-templates/new-page',
+  name: 'turn-templates/direct-edit' | 'turn-templates/new-page',
   values: Record<string, string | undefined>,
 ) {
   return loadPrompt(name).replace(/\{\{([a-zA-Z0-9]+)\}\}/g, (_match, key: string) => {

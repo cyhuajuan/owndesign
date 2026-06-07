@@ -62,7 +62,6 @@ import { cn } from '@/lib/utils';
 import { useApiClient } from '@/api/context';
 import type { HtmlPageManifest } from '@owndesign/core/html-page-manifest';
 import { getHtmlPageDisplayName } from '@owndesign/core/html-page-manifest';
-import { groupHtmlVersionFiles, parseHtmlVersionPath } from '@owndesign/core/html-versioning';
 
 const CONVERSATION_PANE_STORAGE_KEY = 'owndesign.app.conversation-pane-collapsed';
 const PREVIEW_DEVICE_BY_HTML_STORAGE_KEY = 'owndesign.app.preview-device-by-html';
@@ -588,13 +587,23 @@ function PreviewFileSelect({
   onChange: (path: string) => void;
 }) {
   const { t } = useI18n();
-  const groupedFiles = useMemo(() => groupHtmlVersionFiles(files), [files]);
-  const activeVersionFile = activePath ? parseHtmlVersionPath(activePath) : undefined;
-  const activeGroup = activeVersionFile
-    ? groupedFiles.groups.find((group) => group.slug === activeVersionFile.slug)
+  const manifestPages = useMemo(
+    () => pageManifest.pages.filter((page) => files.includes(page.htmlPath)),
+    [files, pageManifest.pages],
+  );
+  const manifestFileSet = useMemo(
+    () => new Set(manifestPages.map((page) => page.htmlPath)),
+    [manifestPages],
+  );
+  const otherFiles = useMemo(
+    () => files.filter((file) => !manifestFileSet.has(file)),
+    [files, manifestFileSet],
+  );
+  const activeManifestPage = activePath
+    ? manifestPages.find((page) => page.htmlPath === activePath)
     : undefined;
-  const activeLabel = activeVersionFile
-    ? `${getHtmlPageDisplayName(pageManifest, activeVersionFile.slug)} / v${activeVersionFile.version}`
+  const activeLabel = activeManifestPage
+    ? getHtmlPageDisplayName(pageManifest, activeManifestPage.slug)
     : (activePath ?? files[0]);
 
   if (files.length === 0) {
@@ -621,66 +630,33 @@ function PreviewFileSelect({
         align="start"
         className="w-72 max-w-[min(420px,calc(100vw-2rem))]"
       >
-        {groupedFiles.groups.length > 0 ? (
+        {manifestPages.length > 0 ? (
           <DropdownMenuGroup>
             <DropdownMenuLabel>{t('preview.pages')}</DropdownMenuLabel>
-            {groupedFiles.groups.map((group) => (
+            {manifestPages.map((page) => (
               <DropdownMenuItem
-                key={group.slug}
+                key={page.htmlPath}
                 onClick={() => {
-                  onChange(group.latestPath);
+                  onChange(page.htmlPath);
                 }}
               >
                 <span className="min-w-0 flex-1 truncate text-xs">
-                  {getHtmlPageDisplayName(pageManifest, group.slug)}
+                  {getHtmlPageDisplayName(pageManifest, page.slug)}
                 </span>
                 <span className="min-w-0 truncate font-mono text-xs text-muted-foreground">
-                  {group.slug}
+                  {page.htmlPath}
                 </span>
-                <span className="text-xs text-muted-foreground">v{group.latestVersion}</span>
-                {activePath === group.latestPath ? <CheckIcon /> : null}
+                {activePath === page.htmlPath ? <CheckIcon /> : null}
               </DropdownMenuItem>
             ))}
           </DropdownMenuGroup>
         ) : null}
-        {activeGroup ? (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <DropdownMenuLabel>
-                {t('preview.versions', {
-                  slug: getHtmlPageDisplayName(pageManifest, activeGroup.slug),
-                })}
-              </DropdownMenuLabel>
-              {activeGroup.versions.map((versionFile) => (
-                <DropdownMenuItem
-                  key={versionFile.path}
-                  onClick={() => {
-                    onChange(versionFile.path);
-                  }}
-                >
-                  <span className="font-mono text-xs">v{versionFile.version}</span>
-                  {versionFile.version === activeGroup.latestVersion ? (
-                    <span className="ml-auto text-xs text-muted-foreground">
-                      {t('preview.latestVersion')}
-                    </span>
-                  ) : (
-                    <span className="ml-auto min-w-0 truncate font-mono text-xs text-muted-foreground">
-                      {versionFile.path}
-                    </span>
-                  )}
-                  {activePath === versionFile.path ? <CheckIcon /> : null}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuGroup>
-          </>
-        ) : null}
-        {groupedFiles.otherFiles.length > 0 ? (
+        {otherFiles.length > 0 ? (
           <>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
               <DropdownMenuLabel>{t('preview.otherFiles')}</DropdownMenuLabel>
-              {groupedFiles.otherFiles.map((file) => (
+              {otherFiles.map((file) => (
                 <DropdownMenuItem
                   key={file}
                   onClick={() => {
@@ -713,7 +689,10 @@ function isHtmlPageManifest(value: unknown): value is HtmlPageManifest {
         Boolean(page) &&
         typeof page === 'object' &&
         typeof page.slug === 'string' &&
-        typeof page.displayName === 'string',
+        typeof page.displayName === 'string' &&
+        typeof page.htmlPath === 'string' &&
+        typeof page.componentTag === 'string' &&
+        typeof page.componentSource === 'string',
     )
   );
 }

@@ -966,12 +966,6 @@ function createTurnPromptRewriteMetadata({
       pageEditMode,
       previewFileExists: Boolean(previewPath),
       ...(previewPath ? { previewPath } : {}),
-      ...(pageEditModePolicy.mode === 'duplicate_edit'
-        ? {
-            duplicateSourcePath: pageEditModePolicy.sourcePath,
-            duplicateTargetPath: pageEditModePolicy.targetPath,
-          }
-        : {}),
     },
   };
 }

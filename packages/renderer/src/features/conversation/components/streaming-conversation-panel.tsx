@@ -67,13 +67,11 @@ const PAGE_EDIT_MODE_OPTIONS = [
   { labelKey: 'conversation.pageModeAuto', value: 'auto' },
   { labelKey: 'conversation.pageModeNewPage', value: 'new_page' },
   { labelKey: 'conversation.pageModeDirectEdit', value: 'direct_edit' },
-  { labelKey: 'conversation.pageModeDuplicateEdit', value: 'duplicate_edit' },
 ] satisfies Array<{
   labelKey:
     | 'conversation.pageModeAuto'
     | 'conversation.pageModeNewPage'
-    | 'conversation.pageModeDirectEdit'
-    | 'conversation.pageModeDuplicateEdit';
+    | 'conversation.pageModeDirectEdit';
   value: PageEditMode;
 }>;
 
@@ -202,8 +200,7 @@ export function StreamingConversationPanel({
   const canSend = Boolean(selectedModel) && !isGenerating && !isProjectBusy;
   const submitStatus = isProjectBusy && !isGenerating ? 'streaming' : status;
   const busyMessage = t('conversation.busyMessage');
-  const requiresCurrentPreview =
-    pageEditMode === 'direct_edit' || pageEditMode === 'duplicate_edit';
+  const requiresCurrentPreview = pageEditMode === 'direct_edit';
   const handleStop = useCallback(() => {
     void api.cancelActiveRun(projectId).finally(() => {
       stop();
@@ -470,7 +467,7 @@ function PageEditModeSelect({
       <PromptInputSelectContent side="top" sideOffset={6}>
         {PAGE_EDIT_MODE_OPTIONS.map((option) => {
           const optionRequiresPreview =
-            option.value === 'direct_edit' || option.value === 'duplicate_edit';
+            option.value === 'direct_edit';
 
           return (
             <PromptInputSelectItem

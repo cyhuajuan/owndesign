@@ -1,8 +1,7 @@
 import { isHtmlPath, normalizeToolPath } from './tools/cdn-guard';
-import { resolveNextHtmlVersionPath } from '@owndesign/core/html-versioning';
 import type { WorkspaceStore } from '@owndesign/core/workspace-store';
 
-export const PAGE_EDIT_MODES = ['auto', 'new_page', 'direct_edit', 'duplicate_edit'] as const;
+export const PAGE_EDIT_MODES = ['auto', 'new_page', 'direct_edit'] as const;
 
 export type PageEditMode = (typeof PAGE_EDIT_MODES)[number];
 
@@ -15,11 +14,6 @@ export type PageEditModePolicy =
     }
   | {
       mode: 'direct_edit';
-      targetPath: string;
-    }
-  | {
-      mode: 'duplicate_edit';
-      sourcePath: string;
       targetPath: string;
     };
 
@@ -57,21 +51,11 @@ export async function buildPageEditModePolicy({
     };
   }
 
-  const sourcePath = normalizeRequiredHtmlPath(currentPreviewPath, mode);
-  await readRequiredHtmlFile(workspaceStore, projectId, sourcePath, mode);
-
-  if (mode === 'direct_edit') {
-    return {
-      mode,
-      targetPath: sourcePath,
-    };
-  }
-
-  const targetPath = await resolveUniqueCopyPath(workspaceStore, projectId, sourcePath);
+  const targetPath = normalizeRequiredHtmlPath(currentPreviewPath, mode);
+  await readRequiredHtmlFile(workspaceStore, projectId, targetPath, mode);
 
   return {
     mode,
-    sourcePath,
     targetPath,
   };
 }
@@ -94,18 +78,8 @@ export function assertCopyFileAllowed(
   sourcePath: string,
   targetPath: string,
 ) {
-  if (!policy || policy.mode !== 'duplicate_edit') {
-    return;
-  }
-
-  const normalizedSourcePath = normalizeToolPath(sourcePath);
-  const normalizedTargetPath = normalizeToolPath(targetPath);
-
-  if (normalizedSourcePath !== policy.sourcePath || normalizedTargetPath !== policy.targetPath) {
-    throw new Error(
-      `Page edit mode "duplicate_edit" can only copy ${policy.sourcePath} to ${policy.targetPath}; attempted ${normalizedSourcePath} to ${normalizedTargetPath}.`,
-    );
-  }
+  normalizeToolPath(sourcePath);
+  normalizeToolPath(targetPath);
 }
 
 export function assertHtmlMutationAllowed(
@@ -140,7 +114,7 @@ export function assertHtmlPathOperationAllowed(
   operation: HtmlPathOperation,
   relativePath: string,
 ) {
-  if (!policy || policy.mode !== 'duplicate_edit') {
+  if (!policy || policy.mode === 'auto') {
     return;
   }
 
@@ -150,17 +124,13 @@ export function assertHtmlPathOperationAllowed(
     return;
   }
 
-  if (operation === 'read') {
-    return;
-  }
-
-  if (operation === 'copy' && targetPath === policy.targetPath) {
+  if (operation === 'read' || policy.mode === 'new_page') {
     return;
   }
 
   if (targetPath !== policy.targetPath) {
     throw new Error(
-      `Page edit mode "duplicate_edit" can only ${formatHtmlOperation(operation)} ${policy.targetPath}; attempted ${targetPath}.`,
+      `Page edit mode "${policy.mode}" can only ${formatHtmlOperation(operation)} ${policy.targetPath}; attempted ${targetPath}.`,
     );
   }
 }
@@ -221,21 +191,4 @@ async function readRequiredHtmlFile(
       `Page edit mode "${mode}" requires an existing current preview page: ${relativePath}`,
     );
   }
-}
-
-async function resolveUniqueCopyPath(
-  workspaceStore: WorkspaceStore,
-  projectId: string,
-  sourcePath: string,
-) {
-  const htmlFiles = await workspaceStore.listProjectHtmlFiles(projectId);
-  const candidatePath = resolveNextHtmlVersionPath(htmlFiles, sourcePath);
-
-  try {
-    await workspaceStore.readProjectWorkspaceFile(projectId, candidatePath);
-  } catch {
-    return candidatePath;
-  }
-
-  throw new Error(`Could not create a unique version path for ${sourcePath}.`);
 }

@@ -6,7 +6,6 @@ import { serveStatic } from '@hono/node-server/serve-static';
 import { Hono } from 'hono';
 
 import type { HtmlPageManifest } from '@owndesign/core/html-page-manifest';
-import { groupHtmlVersionFiles } from '@owndesign/core/html-versioning';
 import { WorkspaceStore } from '@owndesign/core/workspace-store';
 
 type PreviewServerManagerOptions = {
@@ -63,7 +62,11 @@ export class PreviewServerManager {
       this.workspaceStore.listProjectHtmlFiles(projectId),
       this.workspaceStore.readProjectHtmlPageManifest(projectId),
     ]);
-    const activePath = resolveActivePreviewPath(files, previewPath ?? entry.activePath);
+    const activePath = resolveActivePreviewPath(
+      files,
+      pageManifest,
+      previewPath ?? entry.activePath,
+    );
 
     entry.activePath = activePath;
     this.touchLease(entry);
@@ -296,24 +299,23 @@ async function readIndexHtmlOrNotFound(workspaceDirectory: string, entry: Previe
   }
 }
 
-function resolveActivePreviewPath(files: string[], previewPath?: string) {
+function resolveActivePreviewPath(
+  files: string[],
+  pageManifest: HtmlPageManifest,
+  previewPath?: string,
+) {
   if (previewPath && files.includes(previewPath)) {
     return previewPath;
   }
 
-  const groupedFiles = groupHtmlVersionFiles(files);
-  const indexGroup = groupedFiles.groups.find((group) => group.slug === 'index');
-
-  if (indexGroup) {
-    return indexGroup.latestPath;
-  }
-
-  if (groupedFiles.groups[0]) {
-    return groupedFiles.groups[0].latestPath;
-  }
-
   if (files.includes('index.html')) {
     return 'index.html';
+  }
+
+  const manifestPath = pageManifest.pages.find((page) => files.includes(page.htmlPath))?.htmlPath;
+
+  if (manifestPath) {
+    return manifestPath;
   }
 
   return files[0];

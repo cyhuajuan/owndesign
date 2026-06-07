@@ -1,19 +1,12 @@
 import {
   HTML_SHARED_COMPONENTS_MANIFEST_PATH,
   parseHtmlSharedComponentsManifest,
-  replaceHtmlSharedComponentMarkerContent,
-  renderNavigationSharedComponentContent,
   serializeHtmlSharedComponentsManifest,
   type HtmlSharedComponentsManifest,
-  type HtmlSharedComponentSyncMode,
 } from '@owndesign/core/html-shared-components';
-import type { WorkspacePatchChange, WorkspaceStore } from '@owndesign/core/workspace-store';
 import { z } from 'zod';
 
-import {
-  applyProjectWorkspacePatchWithCdnGuard,
-  readProjectWorkspaceFileIfExists,
-} from './cdn-guard';
+import { readProjectWorkspaceFileIfExists } from './cdn-guard';
 import type { WorkspaceToolDefinition } from './core';
 import type { SyncSharedComponentInput } from './types';
 
@@ -32,13 +25,13 @@ export function createSyncSharedComponentToolDefinition(): WorkspaceToolDefiniti
 > {
   return {
     description:
-      'Create or update a shared HTML component fragment and sync it into existing marker blocks across HTML pages.',
+      'Create or update a shared Web Component module and record it in the shared component manifest.',
     inputSchema: z
       .object({
         content: z
           .string()
           .describe(
-            'Complete shared component HTML fragment. Omit to reuse the current source file.',
+            'Complete JavaScript module that defines the shared custom element. Omit to reuse the current source file.',
           )
           .optional(),
         description: z
@@ -50,15 +43,10 @@ export function createSyncSharedComponentToolDefinition(): WorkspaceToolDefiniti
           .describe(
             'Shared component slug, such as nav. Use lowercase letters, digits, and hyphens.',
           ),
-        syncMode: z
-          .enum(['exact', 'navigation', 'pattern'])
-          .describe(
-            'Sync behavior: exact copies markup, navigation injects active state per page, pattern only updates the template.',
-          )
-          .optional(),
+        tagName: z.string().describe('Custom element tag name, such as od-navigation.').optional(),
         usedBy: z
           .array(
-            z.string().describe('Relative HTML page path that already contains the marker block.'),
+            z.string().describe('Relative HTML page path that imports or uses this component.'),
           )
           .optional(),
       })
@@ -66,8 +54,8 @@ export function createSyncSharedComponentToolDefinition(): WorkspaceToolDefiniti
     name: 'syncSharedComponent',
     parallelSafe: false,
     execute: async (
-      { content, description, name, syncMode, usedBy },
-      { approvedCdnUrls, projectId, workspaceStore },
+      { content, description, name, tagName, usedBy },
+      { projectId, workspaceStore },
     ) => {
       const componentName = name.trim();
 
@@ -75,7 +63,8 @@ export function createSyncSharedComponentToolDefinition(): WorkspaceToolDefiniti
         throw new Error(`Shared component name must be a lowercase slug: ${name}`);
       }
 
-      const source = `components/${componentName}.html`;
+      const resolvedTagName = tagName?.trim() || `od-${componentName}`;
+      const source = `components/${resolvedTagName}.js`;
       const manifest = parseHtmlSharedComponentsManifest(
         await readProjectWorkspaceFileIfExists(
           workspaceStore,
@@ -93,72 +82,9 @@ export function createSyncSharedComponentToolDefinition(): WorkspaceToolDefiniti
       const existingComponent = manifest.components.find(
         (component) => component.name === componentName,
       );
-      const resolvedSyncMode = syncMode ?? existingComponent?.syncMode ?? 'exact';
-      const componentContent =
-        resolvedSyncMode === 'navigation'
-          ? renderNavigationSharedComponentContent(rawComponentContent, '')
-          : rawComponentContent;
-      const targetPages =
-        resolvedSyncMode === 'pattern'
-          ? []
-          : await resolveTargetPages({
-              componentName,
-              manifest,
-              projectId,
-              usedBy,
-              workspaceStore,
-            });
-      const changes: WorkspacePatchChange[] = [];
-      const skippedPages: string[] = [];
-      const updatedPages: string[] = [];
+      const resolvedUsedBy = uniquePaths(usedBy ?? existingComponent?.usedBy ?? []);
 
-      for (const pagePath of targetPages) {
-        if (!pagePath.toLowerCase().endsWith('.html')) {
-          skippedPages.push(pagePath);
-          continue;
-        }
-
-        const html = await readProjectWorkspaceFileIfExists(workspaceStore, projectId, pagePath);
-
-        if (html === undefined) {
-          skippedPages.push(pagePath);
-          continue;
-        }
-
-        const pageComponentContent = renderSharedComponentContentForPage(
-          componentContent,
-          resolvedSyncMode,
-          pagePath,
-        );
-        const updatedHtml = replaceHtmlSharedComponentMarkerContent(
-          html,
-          componentName,
-          pageComponentContent,
-        );
-
-        if (updatedHtml === undefined) {
-          skippedPages.push(pagePath);
-          continue;
-        }
-
-        updatedPages.push(pagePath);
-        changes.push({
-          content: updatedHtml,
-          operation: 'write',
-          path: pagePath,
-        });
-      }
-
-      if (changes.length) {
-        await applyProjectWorkspacePatchWithCdnGuard(
-          workspaceStore,
-          projectId,
-          changes,
-          approvedCdnUrls,
-        );
-      }
-
-      await workspaceStore.writeProjectWorkspaceFile(projectId, source, componentContent);
+      await workspaceStore.writeProjectWorkspaceFile(projectId, source, rawComponentContent);
       await workspaceStore.writeProjectWorkspaceFile(
         projectId,
         HTML_SHARED_COMPONENTS_MANIFEST_PATH,
@@ -167,69 +93,20 @@ export function createSyncSharedComponentToolDefinition(): WorkspaceToolDefiniti
             description: description?.trim() || existingComponent?.description,
             name: componentName,
             source,
-            syncMode: resolvedSyncMode,
-            usedBy:
-              resolvedSyncMode === 'pattern'
-                ? uniquePaths(usedBy ?? existingComponent?.usedBy ?? [])
-                : updatedPages,
+            tagName: resolvedTagName,
+            usedBy: resolvedUsedBy,
           }),
         ),
       );
 
       return {
         manifestUpdated: true,
-        skippedPages,
+        skippedPages: [],
         source,
-        updatedPages,
+        updatedPages: resolvedUsedBy,
       };
     },
   };
-}
-
-async function resolveTargetPages({
-  componentName,
-  manifest,
-  projectId,
-  usedBy,
-  workspaceStore,
-}: {
-  componentName: string;
-  manifest: HtmlSharedComponentsManifest;
-  projectId: string;
-  usedBy?: string[];
-  workspaceStore: WorkspaceStore;
-}) {
-  if (usedBy) {
-    return uniquePaths(usedBy);
-  }
-
-  const manifestPages =
-    manifest.components.find((component) => component.name === componentName)?.usedBy ?? [];
-  const htmlFiles = await workspaceStore.listProjectHtmlFiles(projectId);
-  const marker = `<!-- owndesign:component ${componentName} start -->`;
-  const markerPages: string[] = [];
-
-  for (const htmlFile of htmlFiles) {
-    const html = await readProjectWorkspaceFileIfExists(workspaceStore, projectId, htmlFile);
-
-    if (html?.includes(marker)) {
-      markerPages.push(htmlFile);
-    }
-  }
-
-  return uniquePaths([...manifestPages, ...markerPages]);
-}
-
-function renderSharedComponentContentForPage(
-  content: string,
-  syncMode: HtmlSharedComponentSyncMode,
-  pagePath: string,
-) {
-  if (syncMode === 'navigation') {
-    return renderNavigationSharedComponentContent(content, pagePath);
-  }
-
-  return content;
 }
 
 function upsertSharedComponent(

@@ -136,12 +136,28 @@ describe('WorkspaceStore', () => {
       project.id,
       '.owndesign-pages.json',
       JSON.stringify({
-        pages: [{ displayName: '小说阅读器首页', slug: 'index' }],
+        pages: [
+          {
+            componentSource: 'pages/od-index-page.js',
+            componentTag: 'od-index-page',
+            displayName: '小说阅读器首页',
+            htmlPath: 'index.html',
+            slug: 'index',
+          },
+        ],
       }),
     );
 
     await expect(store.readProjectHtmlPageManifest(project.id)).resolves.toEqual({
-      pages: [{ displayName: '小说阅读器首页', slug: 'index' }],
+      pages: [
+        {
+          componentSource: 'pages/od-index-page.js',
+          componentTag: 'od-index-page',
+          displayName: '小说阅读器首页',
+          htmlPath: 'index.html',
+          slug: 'index',
+        },
+      ],
     });
   });
 

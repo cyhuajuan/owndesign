@@ -29,3 +29,6 @@ await build({
 await cp(path.join(repoRoot, 'packages/core/src/prompts'), path.join(distDir, 'prompts'), {
   recursive: true,
 });
+await cp(path.join(repoRoot, 'packages/core/src/templates'), path.join(distDir, 'templates'), {
+  recursive: true,
+});

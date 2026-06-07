@@ -429,7 +429,7 @@ describe('createOwnDesignApp static hosting', () => {
     expect(getMessageText(streamInput.uiMessages[1])).toBe('current input');
   });
 
-  it('rewrites duplicate edit prompts with copy target metadata', async () => {
+  it('rejects removed duplicate edit mode', async () => {
     const { app, root } = await createAppWithTempOptions();
     const workspaceRoot = path.join(root, 'workspace');
     const { conversationId, projectId } = await setupProject(app);
@@ -454,32 +454,10 @@ describe('createOwnDesignApp static hosting', () => {
         method: 'POST',
       }),
     );
-    await response.text();
 
-    expect(response.status).toBe(200);
-    await waitFor(() => expect(aiMocks.createAgentUIStream).toHaveBeenCalled());
-
-    const conversation = await workspaceStore.getConversation(projectId, conversationId);
-
-    const rewrittenPrompt = getMessageText(conversation.messages[0] as UIMessage);
-    expect(rewrittenPrompt).toContain('我要基于现有页面创建一个副本并修改');
-    expect(rewrittenPrompt).toContain('copyFile');
-    expect(rewrittenPrompt).toContain('把 dashboard.html 复制到 dashboard-v1.html');
-    expect(rewrittenPrompt).toContain('源页面：dashboard.html');
-    expect(rewrittenPrompt).toContain('目标页面：dashboard-v1.html');
-    expect(rewrittenPrompt).toContain('共享导航链接指向最新版本');
-    expect(rewrittenPrompt).toContain('复制后修改');
-    expect((conversation.messages[0] as UIMessage).metadata).toMatchObject({
-      originalUserPrompt: '复制后修改',
-      promptRewrite: {
-        duplicateSourcePath: 'dashboard.html',
-        duplicateTargetPath: 'dashboard-v1.html',
-        kind: 'turn-prompt-rewriter',
-        pageEditMode: 'duplicate_edit',
-        previewFileExists: true,
-        previewPath: 'dashboard.html',
-      },
-    });
+    await expect(response.text()).resolves.toBe('Invalid page edit mode.');
+    expect(response.status).toBe(400);
+    expect(aiMocks.createAgentUIStream).not.toHaveBeenCalled();
   });
 
   it('sanitizes conversation messages in workspace responses without changing local records', async () => {

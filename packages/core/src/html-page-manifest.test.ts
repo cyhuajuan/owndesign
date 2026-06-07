@@ -8,15 +8,39 @@ describe('html-page-manifest', () => {
       parseHtmlPageManifest(
         JSON.stringify({
           pages: [
-            { displayName: '小说阅读器首页', slug: 'index' },
-            { displayName: '作品详情页', slug: 'detail' },
+            {
+              componentSource: 'pages/od-index-page.js',
+              componentTag: 'od-index-page',
+              displayName: '小说阅读器首页',
+              htmlPath: 'index.html',
+              slug: 'index',
+            },
+            {
+              componentSource: 'pages/od-detail-page.js',
+              componentTag: 'od-detail-page',
+              displayName: '作品详情页',
+              htmlPath: 'detail.html',
+              slug: 'detail',
+            },
           ],
         }),
       ),
     ).toEqual({
       pages: [
-        { displayName: '小说阅读器首页', slug: 'index' },
-        { displayName: '作品详情页', slug: 'detail' },
+        {
+          componentSource: 'pages/od-index-page.js',
+          componentTag: 'od-index-page',
+          displayName: '小说阅读器首页',
+          htmlPath: 'index.html',
+          slug: 'index',
+        },
+        {
+          componentSource: 'pages/od-detail-page.js',
+          componentTag: 'od-detail-page',
+          displayName: '作品详情页',
+          htmlPath: 'detail.html',
+          slug: 'detail',
+        },
       ],
     });
   });
@@ -32,7 +56,13 @@ describe('html-page-manifest', () => {
       parseHtmlPageManifest(
         JSON.stringify({
           pages: [
-            { displayName: '小说阅读器首页', slug: 'index' },
+            {
+              componentSource: 'pages/od-index-page.js',
+              componentTag: 'od-index-page',
+              displayName: '小说阅读器首页',
+              htmlPath: 'index.html',
+              slug: 'index',
+            },
             { displayName: '', slug: 'empty-name' },
             { displayName: 'Missing slug' },
             null,
@@ -40,14 +70,30 @@ describe('html-page-manifest', () => {
         }),
       ),
     ).toEqual({
-      pages: [{ displayName: '小说阅读器首页', slug: 'index' }],
+      pages: [
+        {
+          componentSource: 'pages/od-index-page.js',
+          componentTag: 'od-index-page',
+          displayName: '小说阅读器首页',
+          htmlPath: 'index.html',
+          slug: 'index',
+        },
+      ],
     });
   });
 
   it('returns display names with slug fallback', () => {
     const manifest = parseHtmlPageManifest(
       JSON.stringify({
-        pages: [{ displayName: '小说阅读器首页', slug: 'index' }],
+        pages: [
+          {
+            componentSource: 'pages/od-index-page.js',
+            componentTag: 'od-index-page',
+            displayName: '小说阅读器首页',
+            htmlPath: 'index.html',
+            slug: 'index',
+          },
+        ],
       }),
     );
 

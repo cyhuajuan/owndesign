@@ -1165,15 +1165,6 @@ describe('MessageParts', () => {
         pageEditMode: 'direct_edit',
       }),
     );
-    expect(
-      prepareChatRequestBody(useChatOptions?.transport, undefined, {
-        pageEditMode: 'duplicate_edit',
-      }),
-    ).toEqual(
-      expect.objectContaining({
-        pageEditMode: 'duplicate_edit',
-      }),
-    );
   });
 
   it('submits the selected page edit mode in the send request body', async () => {
@@ -1199,7 +1190,7 @@ describe('MessageParts', () => {
     );
 
     await user.click(screen.getByRole('combobox', { name: '页面模式' }));
-    await user.click(await screen.findByRole('option', { name: '副本编辑' }));
+    await user.click(await screen.findByRole('option', { name: '直接编辑' }));
     await user.type(screen.getByPlaceholderText(/输入消息/), '移除标题');
     await user.click(screen.getByRole('button', { name: '提交' }));
 
@@ -1208,13 +1199,13 @@ describe('MessageParts', () => {
     });
     expect(sendMessage.mock.calls[0]?.[1]).toEqual({
       body: expect.objectContaining({
-        pageEditMode: 'duplicate_edit',
+        pageEditMode: 'direct_edit',
         previewPath: 'index.html',
       }),
     });
   });
 
-  it('enables duplicate edit when the current preview path is published after render', async () => {
+  it('enables direct edit when the current preview path is published after render', async () => {
     const user = userEvent.setup();
     const sendMessage = vi.fn();
     vi.mocked(useChat).mockReturnValue({
@@ -1240,7 +1231,7 @@ describe('MessageParts', () => {
     });
 
     await user.click(screen.getByRole('combobox', { name: '页面模式' }));
-    await user.click(await screen.findByRole('option', { name: '副本编辑' }));
+    await user.click(await screen.findByRole('option', { name: '直接编辑' }));
     await user.type(screen.getByPlaceholderText(/输入消息/), '移除标题');
     await user.click(screen.getByRole('button', { name: '提交' }));
 
@@ -1249,7 +1240,7 @@ describe('MessageParts', () => {
     });
     expect(sendMessage.mock.calls[0]?.[1]).toEqual({
       body: expect.objectContaining({
-        pageEditMode: 'duplicate_edit',
+        pageEditMode: 'direct_edit',
         previewPath: 'generated.html',
       }),
     });

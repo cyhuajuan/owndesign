@@ -250,129 +250,6 @@ describe('AiSdkDesignPageAgent', () => {
     });
   });
 
-  it('runs component audit as a visible main-agent tool with a read-only sub-agent', async () => {
-    const workspaceStore = await createWorkspaceStore();
-    await createProject(workspaceStore);
-    const agent = new AiSdkDesignPageAgent(workspaceStore);
-    aiMocks.generate
-      .mockImplementationOnce(
-        async function (this: {
-          config: {
-            tools: {
-              componentAudit: {
-                execute: (input: {
-                  completedWorkSummary?: string;
-                  taskSummary?: string;
-                }) => Promise<unknown>;
-              };
-            };
-          };
-        }) {
-          const auditResult = await this.config.tools.componentAudit.execute({
-            completedWorkSummary: 'Created the dashboard page.',
-            taskSummary: '设计一个 CRM 仪表盘的界面',
-          });
-
-          expect(auditResult).toMatchObject({
-            ok: true,
-            output: {
-              findings: [],
-              passed: true,
-              summary: 'No component audit findings.',
-            },
-          });
-
-          return { text: '页面已更新。' };
-        },
-      )
-      .mockResolvedValueOnce({
-        text: JSON.stringify({
-          findings: [],
-          passed: true,
-          summary: 'No component audit findings.',
-        }),
-      });
-
-    await agent.generateProjectOutput(buildInput());
-
-    const auditConfig = aiMocks.toolLoopAgent.mock.calls[1]?.[0] as {
-      instructions: string;
-      tools: Record<string, unknown>;
-    };
-    expect(aiMocks.toolLoopAgent).toHaveBeenCalledTimes(2);
-    expect(aiMocks.generate).toHaveBeenNthCalledWith(2, {
-      prompt: expect.stringContaining('Audit the completed OwnDesign HTML task.'),
-    });
-    expect(aiMocks.generate).toHaveBeenNthCalledWith(2, {
-      prompt: expect.stringContaining('Original user task:\n设计一个 CRM 仪表盘的界面'),
-    });
-    expect(aiMocks.generate).toHaveBeenNthCalledWith(2, {
-      prompt: expect.stringContaining('Main agent final response:\nCreated the dashboard page.'),
-    });
-    expect(Object.keys(auditConfig.tools).sort()).toEqual(['glob', 'grep', 'read']);
-    expect(auditConfig.instructions).toContain('# Component Audit Agent');
-    expect(auditConfig.instructions).toContain('Use only read, glob, and grep tools');
-    expect(auditConfig.instructions).toContain('Navigation is the highest-priority');
-  });
-
-  it('leaves high severity component audit repair inside the main agent tool loop', async () => {
-    const workspaceStore = await createWorkspaceStore();
-    await createProject(workspaceStore);
-    const agent = new AiSdkDesignPageAgent(workspaceStore);
-    const highFinding = {
-      message: 'Page has top navigation but no shared navigation component marker.',
-      path: 'index.html',
-      recommendedAction: 'create_or_reuse_navigation_component',
-      severity: 'high',
-      type: 'missing_navigation_component',
-    };
-    aiMocks.generate.mockImplementationOnce(
-      async function (this: {
-        config: {
-          tools: {
-            componentAudit: {
-              execute: (input: {
-                completedWorkSummary?: string;
-                taskSummary?: string;
-              }) => Promise<unknown>;
-            };
-          };
-        };
-      }) {
-        const auditResult = await this.config.tools.componentAudit.execute({
-          completedWorkSummary: 'Created a page with navigation.',
-          taskSummary: '设计一个 CRM 仪表盘的界面',
-        });
-
-        expect(auditResult).toMatchObject({
-          ok: true,
-          output: {
-            findings: [highFinding],
-            passed: false,
-            summary: 'Navigation needs a shared component.',
-          },
-        });
-
-        return { text: '已根据 componentAudit 修复导航组件。' };
-      },
-    );
-    aiMocks.generate.mockResolvedValueOnce({
-      text: JSON.stringify({
-        findings: [highFinding],
-        passed: false,
-        summary: 'Navigation needs a shared component.',
-      }),
-    });
-
-    const result = await agent.generateProjectOutput(buildInput());
-
-    expect(result).toEqual({ content: '已根据 componentAudit 修复导航组件。' });
-    expect(aiMocks.toolLoopAgent).toHaveBeenCalledTimes(2);
-    expect(aiMocks.generate).not.toHaveBeenCalledWith({
-      prompt: expect.stringContaining('Fix the high severity findings now'),
-    });
-  });
-
   it('does not auto-repair medium and low component audit findings outside the main agent', async () => {
     const workspaceStore = await createWorkspaceStore();
     await createProject(workspaceStore);
@@ -535,7 +412,6 @@ describe('AiSdkDesignPageAgent', () => {
       tools: Record<string, unknown>;
     };
     expect(Object.keys(config.tools).sort()).toEqual([
-      'componentAudit',
       'copyFile',
       'createHtml',
       'delete',
@@ -552,6 +428,7 @@ describe('AiSdkDesignPageAgent', () => {
     expect(
       createProjectWorkspaceToolDefinitions().map((definition) => definition.name),
     ).not.toContain('componentAudit');
+    expect(config.tools).not.toHaveProperty('componentAudit');
     expect(config.tools).not.toHaveProperty('callFrontendCapability');
     expect(config.tools).not.toHaveProperty('writeFile');
     expect(config.tools).not.toHaveProperty('addCdnResource');
@@ -568,7 +445,6 @@ describe('AiSdkDesignPageAgent', () => {
     const config = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
       tools: {
         __metadata: Record<string, { parallelSafe: boolean }>;
-        componentAudit: { inputSchema: { safeParse: (input: unknown) => { success: boolean } } };
         patch: { inputSchema: { safeParse: (input: unknown) => { success: boolean } } };
         previewRefresh: { inputSchema: { safeParse: (input: unknown) => { success: boolean } } };
         previewSwitchHtml: { inputSchema: { safeParse: (input: unknown) => { success: boolean } } };
@@ -578,7 +454,7 @@ describe('AiSdkDesignPageAgent', () => {
         };
       };
     };
-    expect(config.tools.__metadata.componentAudit).toEqual({ parallelSafe: false });
+    expect(config.tools.__metadata).not.toHaveProperty('componentAudit');
     expect(config.tools.__metadata.read).toEqual({ parallelSafe: true });
     expect(config.tools.__metadata.patch).toEqual({ parallelSafe: false });
     expect(config.tools.read.inputSchema.safeParse({ path: 'index.html' }).success).toBe(true);
@@ -596,18 +472,6 @@ describe('AiSdkDesignPageAgent', () => {
       config.tools.previewSwitchHtml.inputSchema.safeParse({ path: 'index.html' }).success,
     ).toBe(true);
     expect(config.tools.previewSwitchHtml.inputSchema.safeParse({}).success).toBe(false);
-    expect(
-      config.tools.componentAudit.inputSchema.safeParse({
-        completedWorkSummary: 'Created index.html.',
-        taskSummary: 'Create a home page.',
-      }).success,
-    ).toBe(true);
-    expect(
-      config.tools.componentAudit.inputSchema.safeParse({
-        completedWorkSummary: 'Created index.html.',
-        extra: true,
-      }).success,
-    ).toBe(false);
     expect(
       config.tools.syncSharedComponent.inputSchema.safeParse({
         content: 'customElements.define("od-navigation", class extends HTMLElement {});',
@@ -669,9 +533,7 @@ describe('AiSdkDesignPageAgent', () => {
     expect(instructions).toContain('<od-navigation current="index"></od-navigation>');
     expect(instructions).toContain('Navigation is the highest-priority shared component');
     expect(instructions).toContain('reuse shared navigation before inventing a new visual variant');
-    expect(instructions).toContain('call `componentAudit` before the final reply');
-    expect(instructions).toContain('fix those required issues and call `componentAudit` again');
-    expect(instructions).toContain('Medium and low severity findings are suggestions');
+    expect(instructions).not.toContain('componentAudit');
     expect(instructions).toContain(
       'Avoid extracting one-off sections, content-heavy sections, or modules that are intentionally different on each page',
     );

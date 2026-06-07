@@ -16,7 +16,6 @@ import type { ProjectOutputType } from '@owndesign/core/workspace-store';
 import { WorkspaceStore } from '@owndesign/core/workspace-store';
 import { createProjectWorkspaceToolDefinitions } from '@owndesign/core/agent/tools/project-workspace-tools';
 import { createWorkspaceToolRegistry } from '@owndesign/core/agent/tools/core';
-import { createComponentAuditToolDefinition } from '@owndesign/core/agent/tools/component-audit';
 import { loadPrompt } from '@owndesign/core/prompts';
 import { buildFrontendCapabilityPrompt } from '@owndesign/core/realtime/frontend-capabilities';
 import {
@@ -159,19 +158,16 @@ export function createDesignPageAgent(context: DesignAgentContext) {
 export function createDesignPageWorkspaceTools(context: DesignAgentContext) {
   const { frontendTabId, pageEditModePolicy, projectId, resources, workspaceStore } = context;
 
-  return createWorkspaceToolRegistry(
-    [...createProjectWorkspaceToolDefinitions(), createComponentAuditToolDefinition()],
-    {
-      approvedCdnUrls: buildApprovedCdnUrls(resources),
-      frontendTabId,
-      model: context.model,
-      pageEditModePolicy,
-      projectId,
-      providerOptions: context.providerOptions,
-      resources,
-      workspaceStore,
-    },
-  );
+  return createWorkspaceToolRegistry(createProjectWorkspaceToolDefinitions(), {
+    approvedCdnUrls: buildApprovedCdnUrls(resources),
+    frontendTabId,
+    model: context.model,
+    pageEditModePolicy,
+    projectId,
+    providerOptions: context.providerOptions,
+    resources,
+    workspaceStore,
+  });
 }
 
 export function buildDesignPageInstructions({ resources }: DesignAgentContext) {
@@ -357,13 +353,6 @@ export function buildToolWorkflowPrompt() {
     'Resource constraints:',
     '- Only use CDNs already listed in resource settings; do not add others.',
     '- `write`, `edit`, and `patch` will reject HTML with unlisted CDN tags - if rejected, fall back to configured libraries, system fonts, inline SVG, or local CSS.',
-    '',
-    'Component audit:',
-    '- After completing any HTML creation, edit, or new-page design task, call `componentAudit` before the final reply.',
-    '- `componentAudit` runs a read-only sub-agent. Use it for checking only; do not treat it as a replacement for editing files yourself.',
-    '- If `componentAudit` returns high severity findings, fix those required issues and call `componentAudit` again before replying.',
-    '- For high severity navigation findings, create or reuse a `navigation` Web Component and call `syncSharedComponent`.',
-    '- Medium and low severity findings are suggestions. Do not automatically fix them unless they are clearly part of the user request; mention relevant ones briefly in the final reply.',
   ].join('\n');
 }
 

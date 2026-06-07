@@ -148,7 +148,7 @@ afterEach(async () => {
 
 describe('AiSdkDesignPageAgent', () => {
   it('loads design page prompt from the prompt registry', () => {
-    expect(loadPrompt('agents/design-page')).toContain('# Design Page Agent');
+    expect(loadPrompt('agents/design-page')).toContain('# OwnDesign Web Component Page Agent');
   });
 
   it('loads component audit prompt from the prompt registry', () => {
@@ -278,7 +278,7 @@ describe('AiSdkDesignPageAgent', () => {
       expect.objectContaining({
         allowSystemInMessages: true,
         instructions: expect.stringContaining(
-          'Ask a follow-up question only when the target page remains ambiguous',
+          'Ask a follow-up question only when the target page or user intent is genuinely ambiguous',
         ),
         providerOptions: {
           deepseek: {
@@ -531,11 +531,17 @@ describe('AiSdkDesignPageAgent', () => {
     expect(instructions).toContain('customElements.define("od-{name}", ...)');
     expect(instructions).toContain('tagName');
     expect(instructions).toContain('<od-navigation current="index"></od-navigation>');
-    expect(instructions).toContain('Navigation is the highest-priority shared component');
-    expect(instructions).toContain('reuse shared navigation before inventing a new visual variant');
+    expect(instructions).toContain('Shared Web Components are for clear reuse');
+    expect(instructions).toContain('not for default abstraction');
+    expect(instructions).toContain(
+      'For single-page work, prioritize the page component visual quality over component extraction',
+    );
+    expect(instructions).toContain(
+      'Navigation is the highest-priority shared component in multi-page sites',
+    );
     expect(instructions).not.toContain('componentAudit');
     expect(instructions).toContain(
-      'Avoid extracting one-off sections, content-heavy sections, or modules that are intentionally different on each page',
+      'Do not extract one-off page sections just because they could be components',
     );
   });
 
@@ -698,9 +704,16 @@ describe('AiSdkDesignPageAgent', () => {
     expect(html).toContain(
       '<script src="https://cdn.example.com/icons.js" data-owndesign-approved-cdn="true"></script>',
     );
-    await expect(
-      workspaceStore.readProjectWorkspaceFile('project-1', 'pages/od-index-page.js'),
-    ).resolves.toContain("customElements.define('od-index-page'");
+    const pageComponent = await workspaceStore.readProjectWorkspaceFile(
+      'project-1',
+      'pages/od-index-page.js',
+    );
+    expect(pageComponent).toContain("customElements.define('od-index-page'");
+    expect(pageComponent).toContain('<main class="od-page">');
+    expect(pageComponent).toContain('.od-page {');
+    expect(pageComponent).toContain('.od-page__content');
+    expect(pageComponent).not.toContain(':host');
+    expect(pageComponent).not.toContain('attachShadow');
     expect(html).not.toContain('tailwindcss');
   });
 
@@ -1442,23 +1455,39 @@ describe('AiSdkDesignPageAgent', () => {
     const config = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
       instructions: string;
     };
-    expect(config.instructions).toContain('# Design Page Agent');
+    expect(config.instructions).toContain('# OwnDesign Web Component Page Agent');
     expect(config.instructions).toContain('<design_agent_core>');
     expect(config.instructions).toContain('</design_agent_core>');
     expect(config.instructions).toContain('<page_target_protocol>');
     expect(config.instructions).toContain('</page_target_protocol>');
     expect(config.instructions).toContain('<tool_workflow>');
     expect(config.instructions).toContain('</tool_workflow>');
+    expect(config.instructions).toContain('<shared_components>');
+    expect(config.instructions).toContain('</shared_components>');
+    expect(config.instructions).toContain('<frontend_capabilities>');
+    expect(config.instructions).toContain('</frontend_capabilities>');
     expect(config.instructions).toContain('<resource_policy>');
     expect(config.instructions).toContain('</resource_policy>');
-    expect(config.instructions).toContain('You design and build previewable product pages');
-    expect(config.instructions).toContain('previewable UI prototype');
-    expect(config.instructions).toContain('local UI state');
+    expect(config.instructions).toContain(
+      'design and implement high-quality previewable page prototypes as Web Components',
+    );
+    expect(config.instructions).toContain('pages/od-{slug}-page.js');
+    expect(config.instructions).toContain('real page canvas');
+    expect(config.instructions).toContain(
+      'Do not treat a generated HTML shell or default page component as finished work',
+    );
+    expect(config.instructions).toContain('Page Web Components use light DOM by default');
+    expect(config.instructions).toContain('Do not use `attachShadow()` in page components');
+    expect(config.instructions).toContain('Do not use `:host` in page component CSS');
+    expect(config.instructions).toContain('<main class="od-page">...</main>');
+    expect(config.instructions).toContain('Scope page CSS through that root class');
+    expect(config.instructions).toContain('complete product-quality prototype');
+    expect(config.instructions).toContain('local prototype interactions');
     expect(config.instructions).toContain('clipboard');
     expect(config.instructions).toContain('network');
     expect(config.instructions).toContain('persistence');
-    expect(config.instructions).toContain('real form submissions');
-    expect(config.instructions).toContain('Never use emoji as icons');
+    expect(config.instructions).toContain('real form submission');
+    expect(config.instructions).toContain('Do not use emoji as icons');
     expect(config.instructions).toContain('Project Workspace tools');
     expect(config.instructions).toContain('Use preview tools');
     expect(config.instructions).toContain('previewSwitchHtml');
@@ -1473,28 +1502,24 @@ describe('AiSdkDesignPageAgent', () => {
     expect(config.instructions).not.toContain('Project Output Type: html.');
     expect(config.instructions).not.toContain('Current preview page:');
     expect(config.instructions).toContain(
-      'Resolve the target HTML page before creating or updating previewable output',
+      'Resolve the target preview page before creating or updating previewable output',
     );
-    expect(config.instructions).toContain('Target resolution:');
-    expect(config.instructions).toContain('If the user names a file, path, or page type');
+    expect(config.instructions).toContain('Target rules:');
+    expect(config.instructions).toContain('If the user names a page, file, or path');
     expect(config.instructions).toContain(
-      'use the target page stated in the current user message when available',
+      'use the target page stated in the current rewritten user message when available',
     );
+    expect(config.instructions).toContain('Inspect before editing:');
+    expect(config.instructions).toContain('For page creation:');
+    expect(config.instructions).toContain('Do not use `write` to create initial HTML pages');
+    expect(config.instructions).toContain('For page updates:');
+    expect(config.instructions).toContain('Prefer changes in the matching `pages/*.js`');
+    expect(config.instructions).toContain('HTML shell rules:');
     expect(config.instructions).toContain(
-      'Do not ask a follow-up question just because the request is brief',
+      'Each HTML file should only load resources, import the page module, and mount one page Web Component',
     );
-    expect(config.instructions).toContain('Inspect before changing files:');
-    expect(config.instructions).toContain('For HTML pages and page Web Components:');
-    expect(config.instructions).toContain(
-      'Do not modify unrelated HTML files unless the requested change requires coordinated edits',
-    );
-    expect(config.instructions).toContain('do not create initial HTML with `write`');
-    expect(config.instructions).toContain(
-      'Use `edit` or `patch` for HTML or JS changes after reading the file',
-    );
-    expect(config.instructions).toContain(
-      'Notify the Preview Pane according to the frontend capabilities rules',
-    );
+    expect(config.instructions).toContain('Page component styling contract:');
+    expect(config.instructions).toContain('Page components use light DOM by default');
     expect(config.instructions).toContain(
       'After successful previewable HTML changes, call exactly one preview tool',
     );
@@ -1502,38 +1527,43 @@ describe('AiSdkDesignPageAgent', () => {
       'Use `previewRefresh` when the Preview Pane is already showing the correct page',
     );
     expect(config.instructions).toContain(
-      'Reply concisely with what changed and what to inspect next',
+      'State which page changed and what the user should inspect next',
     );
-    expect(config.instructions).toContain('relative workspace paths ending in `.html`');
-    expect(config.instructions).toContain('default to `index.html`');
+    expect(config.instructions).toContain('stable root HTML files');
+    expect(config.instructions).toContain('use `index.html`');
     expect(config.instructions).toContain('no current preview page is available');
     expect(config.instructions).toContain(
       'Use `createHtml` when the target HTML file does not exist',
     );
     expect(config.instructions).toContain('omit them so the tool reads configured defaults');
     expect(config.instructions).toContain(
-      'After `createHtml`, immediately use `read` on both files',
+      'After `createHtml`, read the generated HTML shell and `pages/od-{slug}-page.js` page component',
     );
     expect(config.instructions).toContain(
-      'If the target HTML file exists, use `read` before editing it',
+      'If the target HTML exists, read it before editing',
     );
-    expect(config.instructions).toContain('will reject HTML with unlisted CDN tags');
+    expect(config.instructions).toContain('rejected by CDN guard');
     expect(config.instructions).toContain('semantic slug');
     expect(config.instructions).toContain('.owndesign-pages.json');
     expect(config.instructions).toContain('displayName');
     expect(config.instructions).toContain('componentSource');
     expect(config.instructions).toContain('pages/od-{slug}-page.js');
     expect(config.instructions).toContain('`index` -> `小说阅读器首页`');
-    expect(config.instructions).toContain('create `index.html`');
-    expect(config.instructions).toContain('create `{slug}.html`');
+    expect(config.instructions).toContain('matching custom element is `od-{slug}-page`');
+    expect(config.instructions).toContain('replacing the default page component markup and style');
+    expect(config.instructions).toContain('avoid `:host` or `attachShadow()`');
     expect(config.instructions).toContain('Do not overwrite an existing HTML page');
-    expect(config.instructions).toContain('Only use CDNs already listed in resource settings');
+    expect(config.instructions).toContain('Do not add unconfigured external CDNs');
     expect(config.instructions).toContain('Configured Font');
     expect(config.instructions).toContain('Configured Icons');
     expect(config.instructions).toContain('Only use configured font libraries or system fonts');
     expect(config.instructions).toContain('Prefer configured icon libraries for icons');
     expect(config.instructions).toContain('Use regular inline CSS as the primary styling method');
     expect(config.instructions).toContain('`index.html`');
+    expect(config.instructions).toContain('Shared Web Components are for clear reuse');
+    expect(config.instructions).toContain('not for default abstraction');
+    expect(config.instructions).toContain('For single-page work, prioritize the page component');
+    expect(config.instructions).not.toContain('Every previewable HTML page must');
     expect(config.instructions).not.toContain('https://cdn.example.com/font.css');
     expect(config.instructions).not.toContain('Tailwind');
     expect(config.instructions).not.toContain('tailwindcss');
@@ -1576,15 +1606,16 @@ describe('AiSdkDesignPageAgent', () => {
     });
 
     expect(directPrompt).toContain('我要直接修改 index.html');
-    expect(directPrompt).toContain('不要创建新页面或新版本');
+    expect(directPrompt).toContain('不要创建新页面，除非我明确要求');
     expect(directPrompt).toContain('pages/*.js');
+    expect(directPrompt).toContain('只有 shell 本身错误时才修改 HTML');
     expect(directPrompt).toContain('具体要求：');
     expect(directPrompt).not.toContain('用户具体要求');
     expect(directPrompt).toContain('调小标题');
     expect(newPagePrompt).toContain('我要新建一个页面');
     expect(newPagePrompt).toContain('不要覆盖已有 HTML 页面');
-    expect(newPagePrompt).toContain('页面 slug');
-    expect(newPagePrompt).toContain('共享导航、页面目录和页面间链接');
+    expect(newPagePrompt).toContain('稳定 HTML shell 和对应页面 Web Component');
+    expect(newPagePrompt).toContain('页面的主要设计与实现应写在对应的 `pages/*.js` 中');
     expect(newPagePrompt).toContain('当前预览页面：index.html');
     expect(newPagePrompt).toContain('具体要求：');
     expect(newPagePrompt).not.toContain('用户具体要求');

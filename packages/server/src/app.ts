@@ -18,7 +18,6 @@ import {
 import {
   getUIMessageText,
   normalizeConversationMessages,
-  type TurnPromptRewriteMetadata,
 } from '@owndesign/core/conversations/chat-messages';
 import { getDefaultConversationTitle } from '@owndesign/core/conversations/default-title';
 import {
@@ -26,10 +25,7 @@ import {
   createDesignPageAgent,
   createDesignPageAgentContext,
   DESIGN_PAGE_AGENT_PROMPT_VERSION,
-  type DesignAgentContext,
 } from '@owndesign/core/agent/design-page-agent';
-import { parsePageEditMode } from '@owndesign/core/agent/page-edit-mode';
-import { rewriteTurnPrompt } from '@owndesign/core/agent/turn-prompt-rewriter';
 import { getPreviewServerManager } from '@owndesign/core/preview/preview-server-manager';
 import { registerFrontendConnection } from '@owndesign/core/realtime/frontend-command-bus';
 import {
@@ -54,9 +50,9 @@ type ChatRequestBody = {
   message?: unknown;
   messages?: unknown;
   modelConfigurationId?: unknown;
-  pageEditMode?: unknown;
   previewPath?: unknown;
   projectId?: unknown;
+  projectType?: unknown;
   providerOptionsSelection?: unknown;
 };
 
@@ -163,9 +159,14 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
   app.post('/api/projects', async (context) => {
     const body = await context.req.json();
     const trimmedName = asNonEmptyString(body.name);
+    const projectType = parseProjectType(body.projectType);
 
-    if (!trimmedName) {
+    if (!trimmedName || !projectType) {
       return context.json({}, 400);
+    }
+
+    if (projectType === 'react') {
+      return context.text('React project type is reserved but not supported yet.', 400);
     }
 
     const services = createOwnDesignServices(options);
@@ -174,6 +175,7 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
       defaultConversationTitle: getDefaultConversationTitle(settings.interfaceLanguage),
       name: trimmedName,
       description: asNonEmptyString(body.description),
+      projectType,
     });
 
     return context.json({
@@ -298,15 +300,10 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
     const projectId = asNonEmptyString(body.projectId);
     const conversationId = asNonEmptyString(body.conversationId);
     const requestedPreviewPath = asNonEmptyString(body.previewPath);
-    const pageEditMode = parsePageEditMode(body.pageEditMode);
     const currentUserMessage = createCurrentUserMessage(body.message);
 
     if (!projectId || !conversationId || !currentUserMessage) {
       return context.text('Invalid chat request.', 400);
-    }
-
-    if (!pageEditMode) {
-      return context.text('Invalid page edit mode.', 400);
     }
 
     const workspaceStore = createWorkspaceStore(options);
@@ -333,10 +330,10 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
         currentPreviewPath: previewPath,
         frontendTabId: asNonEmptyString(body.frontendTabId),
         modelConfigurationId: asNonEmptyString(body.modelConfigurationId),
-        outputType: project.outputType,
-        pageEditMode,
+        projectType: project.projectType ?? 'single_html',
         projectId,
         providerOptionsSelection: parseProviderOptionsSelection(body.providerOptionsSelection),
+        settingsPath: options.settingsPath,
         workspaceStore,
       });
     } catch (error) {
@@ -355,21 +352,6 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
     }
 
     agentContext.agentInstructions = conversation.agentInstructions;
-    try {
-      messages = (await rewriteLastUserMessageForDesignAgent({
-        messages,
-        pageEditMode,
-        pageEditModePolicy: agentContext.pageEditModePolicy ?? { mode: 'auto' },
-        previewPath,
-        agentContext,
-      })) as DesignPageUIMessage[];
-    } catch (error) {
-      return context.text(
-        error instanceof Error ? error.message : 'Failed to rewrite user prompt.',
-        500,
-      );
-    }
-
     const agent = createDesignPageAgent(agentContext);
     let latestStepUsage: LanguageModelUsage | undefined;
 
@@ -873,113 +855,6 @@ function isFileUIPart(value: unknown): value is UIMessage['parts'][number] {
   return isRecord(value) && value.type === 'file';
 }
 
-async function rewriteLastUserMessageForDesignAgent({
-  agentContext,
-  messages,
-  pageEditMode,
-  pageEditModePolicy,
-  previewPath,
-}: {
-  agentContext: DesignAgentContext;
-  messages: UIMessage[];
-  pageEditMode: NonNullable<ReturnType<typeof parsePageEditMode>>;
-  pageEditModePolicy: NonNullable<DesignAgentContext['pageEditModePolicy']>;
-  previewPath?: string;
-}) {
-  const lastUserMessageIndex = findLastUserMessageIndex(messages);
-
-  if (lastUserMessageIndex < 0) {
-    return messages;
-  }
-
-  const lastUserMessage = messages[lastUserMessageIndex];
-
-  if (!lastUserMessage || hasPromptRewriteMetadata(lastUserMessage)) {
-    return messages;
-  }
-
-  const originalUserPrompt = getUIMessageText(lastUserMessage);
-  const { rewrittenPrompt } = await rewriteTurnPrompt({
-    model: agentContext.model,
-    originalUserPrompt,
-    pageEditMode,
-    pageEditModePolicy,
-    previewPath,
-    providerOptions: agentContext.providerOptions,
-  });
-  const metadata = createTurnPromptRewriteMetadata({
-    originalUserPrompt,
-    pageEditMode,
-    pageEditModePolicy,
-    previewPath,
-  });
-  const rewrittenMessage: UIMessage = {
-    ...lastUserMessage,
-    metadata: {
-      ...(isRecord(lastUserMessage.metadata) ? lastUserMessage.metadata : {}),
-      ...metadata,
-    },
-    parts: [
-      {
-        text: rewrittenPrompt,
-        type: 'text',
-      },
-      ...lastUserMessage.parts.filter((part) => part.type !== 'text'),
-    ],
-  };
-
-  return [
-    ...messages.slice(0, lastUserMessageIndex),
-    rewrittenMessage,
-    ...messages.slice(lastUserMessageIndex + 1),
-  ];
-}
-
-function findLastUserMessageIndex(messages: UIMessage[]) {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index];
-
-    if (message?.role === 'user') {
-      return index;
-    }
-  }
-
-  return -1;
-}
-
-function createTurnPromptRewriteMetadata({
-  originalUserPrompt,
-  pageEditMode,
-  pageEditModePolicy,
-  previewPath,
-}: {
-  originalUserPrompt: string;
-  pageEditMode: NonNullable<ReturnType<typeof parsePageEditMode>>;
-  pageEditModePolicy: NonNullable<DesignAgentContext['pageEditModePolicy']>;
-  previewPath?: string;
-}): TurnPromptRewriteMetadata {
-  return {
-    originalUserPrompt,
-    promptRewrite: {
-      createdAt: new Date().toISOString(),
-      kind: 'turn-prompt-rewriter',
-      pageEditMode,
-      previewFileExists: Boolean(previewPath),
-      ...(previewPath ? { previewPath } : {}),
-    },
-  };
-}
-
-function hasPromptRewriteMetadata(message: UIMessage) {
-  const metadata = message.metadata;
-
-  return (
-    isRecord(metadata) &&
-    isRecord(metadata.promptRewrite) &&
-    metadata.promptRewrite.kind === 'turn-prompt-rewriter'
-  );
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
@@ -1000,6 +875,18 @@ async function resolveExistingPreviewPath(
 
 function asNonEmptyString(value: unknown) {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function parseProjectType(value: unknown) {
+  if (value === undefined || value === null || value === '') {
+    return 'single_html' as const;
+  }
+
+  if (value === 'single_html' || value === 'react') {
+    return value;
+  }
+
+  return undefined;
 }
 
 function parseProviderOptionsSelection(value: unknown) {

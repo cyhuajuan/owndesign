@@ -12,24 +12,20 @@ import {
   type ResourceLibrary,
   type ResourceSettings,
 } from '@owndesign/core/settings/settings-service';
-import type { ProjectOutputType } from '@owndesign/core/workspace-store';
+import type { ProjectOutputType, ProjectType } from '@owndesign/core/workspace-store';
 import { WorkspaceStore } from '@owndesign/core/workspace-store';
 import { createProjectWorkspaceToolDefinitions } from '@owndesign/core/agent/tools/project-workspace-tools';
 import { createWorkspaceToolRegistry } from '@owndesign/core/agent/tools/core';
 import { loadPrompt } from '@owndesign/core/prompts';
 import { buildFrontendCapabilityPrompt } from '@owndesign/core/realtime/frontend-capabilities';
-import {
-  buildPageEditModePolicy,
-  type PageEditMode,
-  type PageEditModePolicy,
-} from '@owndesign/core/agent/page-edit-mode';
 
 export const DESIGN_PAGE_AGENT_PROMPT_VERSION = 1;
 
 export type DesignPageAgentInput = {
   content: string;
   projectId: string;
-  outputType: ProjectOutputType;
+  projectType?: ProjectType;
+  outputType?: ProjectOutputType;
 };
 
 export type DesignPageAgentResult = {
@@ -45,9 +41,8 @@ type CreateDesignPageAgentInput = {
   currentPreviewPath?: string;
   frontendTabId?: string;
   model: LanguageModel;
-  outputType: ProjectOutputType;
-  pageEditMode?: PageEditMode;
-  pageEditModePolicy?: PageEditModePolicy;
+  outputType?: ProjectOutputType;
+  projectType?: ProjectType;
   providerOptions?: ToolLoopAgentSettings['providerOptions'];
   projectId: string;
   resources: ResourceSettings;
@@ -65,10 +60,11 @@ type CreateDesignPageAgentContextInput = {
   currentPreviewPath?: string;
   frontendTabId?: string;
   modelConfigurationId?: string;
-  outputType: ProjectOutputType;
-  pageEditMode?: PageEditMode;
+  outputType?: ProjectOutputType;
+  projectType?: ProjectType;
   projectId: string;
   providerOptionsSelection?: ProviderOptionsSelection;
+  settingsPath?: string;
   workspaceStore: WorkspaceStore;
 };
 
@@ -81,12 +77,14 @@ export class AiSdkDesignPageAgent implements DesignPageAgent {
   constructor(private readonly workspaceStore: WorkspaceStore) {}
 
   async generateProjectOutput(input: DesignPageAgentInput) {
-    if (input.outputType !== 'html') {
-      throw new Error(`Unsupported Project Output Type: ${input.outputType}`);
+    const projectType = normalizeProjectType(input.projectType, input.outputType);
+
+    if (projectType !== 'single_html') {
+      throw new Error(`Unsupported Project Type: ${projectType}`);
     }
 
     const context = await createDesignPageAgentContext({
-      outputType: input.outputType,
+      projectType,
       projectId: input.projectId,
       workspaceStore: this.workspaceStore,
     });
@@ -106,35 +104,29 @@ export async function createDesignPageAgentContext({
   frontendTabId,
   modelConfigurationId,
   outputType,
-  pageEditMode = 'auto',
+  projectType,
   projectId,
   providerOptionsSelection,
+  settingsPath,
   workspaceStore,
 }: CreateDesignPageAgentContextInput): Promise<DesignAgentContext> {
-  if (outputType !== 'html') {
-    throw new Error(`Unsupported Project Output Type: ${outputType}`);
+  projectType = normalizeProjectType(projectType, outputType);
+
+  if (projectType !== 'single_html') {
+    throw new Error(`Unsupported Project Type: ${projectType}`);
   }
 
-  const settingsService = createSettingsService();
+  const settingsService = createSettingsService({ settingsPath });
   const [settings, modelConfiguration] = await Promise.all([
     settingsService.getSettings(),
     settingsService.resolveModelConfiguration(modelConfigurationId),
   ]);
 
-  const pageEditModePolicy = await buildPageEditModePolicy({
-    currentPreviewPath,
-    mode: pageEditMode,
-    projectId,
-    workspaceStore,
-  });
-
   return {
     currentPreviewPath,
     frontendTabId,
     model: buildLanguageModel(modelConfiguration),
-    outputType,
-    pageEditMode,
-    pageEditModePolicy,
+    projectType,
     providerOptions: buildProviderOptions(modelConfiguration, providerOptionsSelection),
     projectId,
     resources: settings.resources,
@@ -156,13 +148,12 @@ export function createDesignPageAgent(context: DesignAgentContext) {
 }
 
 export function createDesignPageWorkspaceTools(context: DesignAgentContext) {
-  const { frontendTabId, pageEditModePolicy, projectId, resources, workspaceStore } = context;
+  const { frontendTabId, projectId, resources, workspaceStore } = context;
 
   return createWorkspaceToolRegistry(createProjectWorkspaceToolDefinitions(), {
     approvedCdnUrls: buildApprovedCdnUrls(resources),
     frontendTabId,
     model: context.model,
-    pageEditModePolicy,
     projectId,
     providerOptions: context.providerOptions,
     resources,
@@ -236,6 +227,18 @@ export function buildProviderOptions(
   };
 }
 
+function normalizeProjectType(projectType?: ProjectType, outputType?: ProjectOutputType) {
+  if (projectType) {
+    return projectType;
+  }
+
+  if (outputType === 'html') {
+    return 'single_html';
+  }
+
+  return 'single_html';
+}
+
 export function buildDesignPageAgentInstructions(resources?: ResourceSettings) {
   return buildDesignPageConversationInstructions(resources);
 }
@@ -253,10 +256,6 @@ export function buildDesignPageConversationInstructions(resources?: ResourceSett
     {
       tag: 'tool_workflow',
       content: buildToolWorkflowPrompt(),
-    },
-    {
-      tag: 'shared_components',
-      content: buildSharedComponentsPrompt(),
     },
     {
       tag: 'frontend_capabilities',
@@ -291,44 +290,18 @@ export function loadDesignPageAgentCorePrompt() {
 
 export function buildPageTargetProtocolPrompt() {
   return [
-    '## Page Target Protocol',
+    '## Single HTML Target Protocol',
     '',
-    'Resolve the target preview page before creating or updating previewable output.',
+    'The project has one previewable file: `index.html`.',
     '',
-    'Target rules:',
-    '- Previewable pages are stable root HTML files such as `index.html`, `login.html`, `detail.html`, or `settings.html`.',
-    '- Do not create `{slug}-v{n}.html` files.',
-    '- If the user asks for a home, main, landing, or first page, use `index.html`.',
-    '- If the user names a page, file, or path, use that explicit target.',
-    '- If no target is specified and no existing multi-page structure clarifies it, use `index.html`.',
-    '- If the user refers to "this page", "current page", "here", "top", or "bottom", use the target page stated in the current rewritten user message when available.',
-    '- If multiple HTML files exist, no current preview page is available, and the target remains ambiguous after inspection, ask one concise follow-up question.',
-    '',
-    'HTML shell rules:',
-    '- Each HTML file should only load resources, import the page module, and mount one page Web Component.',
-    '- Do not put page layout, page CSS, or page interaction logic directly in the HTML shell unless the user explicitly asks to rebuild raw HTML.',
-    '- The matching page component for `{slug}.html` is `pages/od-{slug}-page.js`.',
-    '- The matching custom element is `od-{slug}-page`.',
-    '',
-    'Page component styling contract:',
-    '- Page components use light DOM by default through `this.innerHTML`.',
-    '- Do not use `attachShadow()` in page components.',
-    '- Do not use `:host` in page component CSS.',
-    '- Wrap page output in a stable root element such as `<main class="od-page">...</main>` or a page-specific root class.',
-    '- Scope page CSS through that root class, such as `.od-page`, `.od-page .hero`, and `.od-page .card`.',
-    '',
-    'New page rules:',
-    '- Use a short English semantic slug for filenames and a natural-language displayName from the user intent, such as `index` -> `小说阅读器首页` or `detail` -> `作品详情页`.',
-    '- Use `createHtml` when the target HTML file does not exist.',
-    '- Do not overwrite an existing HTML page for a new page; if the file exists, inspect it and edit it only when the request targets it.',
-    '- After `createHtml`, read the generated HTML shell and page component.',
-    '- Continue by replacing the default page component markup and style with a complete designed page prototype.',
-    '- Maintain `.owndesign-pages.json` for new pages with `slug`, `displayName`, `htmlPath`, `componentTag`, and `componentSource`.',
-    '',
-    'Existing page rules:',
-    '- If the target HTML exists, read it before editing.',
-    '- Prefer editing the corresponding `pages/*.js` page component.',
-    '- Edit the HTML shell only when the shell itself is incorrect.',
+    'Rules:',
+    '- Always target `index.html` for previewable output.',
+    '- Do not create `login.html`, `detail.html`, versioned HTML files, or any other HTML page.',
+    '- If the user asks for multiple pages, screens, or routes, implement them as internal views inside `index.html`.',
+    '- Use ordinary HTML, CSS, and browser JavaScript in the file.',
+    '- Do not create custom elements, component module folders, page manifests, or shared component manifests.',
+    '- If `index.html` is missing, call `createHtml({ path: "index.html" })` before editing.',
+    '- If `index.html` exists, read it before editing and continue from the current design.',
   ].join('\n');
 }
 
@@ -343,65 +316,43 @@ export function buildToolWorkflowPrompt() {
     '- Use `read` before editing an existing file.',
     '',
     'Choose tools by intent:',
-    '- Use `createHtml` only to create a missing HTML shell and its page component.',
+    '- Use `createHtml` only to create a missing `index.html` file.',
     '- Use `edit` for small, focused replacements in one existing file.',
     '- Use `patch` for coordinated changes, repeated replacements, or multi-file edits.',
-    '- Use `write` only for non-HTML files or deliberate full-file replacement.',
-    '- Do not use `write` to create initial HTML pages.',
+    '- Use `write` only for deliberate full-file replacement or non-preview support files.',
+    '- Do not use `write` to create the initial `index.html`; use `createHtml` first.',
     '- Use `copyFile` only when the current user message explicitly asks you to duplicate an existing file.',
     '- Use `delete` only after confirming the file is not referenced.',
     '',
-    'For page creation:',
-    '- Pass `createHtml` the resolved stable root HTML path.',
-    '- Pass `fontLibraryName` or `iconLibraryName` only when the user explicitly names a configured font or icon library; otherwise omit them so the tool reads configured defaults.',
-    '- After `createHtml`, read the generated HTML shell and `pages/od-{slug}-page.js` page component.',
-    '- Edit the page component before previewing; the default component is only a starting placeholder.',
-    '- Replace any default placeholder markup and style completely, including default `.od-page` content.',
-    '- Keep page components in light DOM and avoid `:host` or `attachShadow()`.',
+    'For Single HTML creation:',
+    '- Call `createHtml({ path: "index.html" })` when `index.html` is missing.',
+    '- After `createHtml`, read `index.html`.',
+    '- Replace the default placeholder markup, CSS, and script with a complete designed prototype.',
     '',
-    'For page updates:',
-    '- If the target HTML exists, read it before editing and do not call `createHtml`.',
-    '- Prefer changes in the matching `pages/*.js` page component.',
-    '- Modify the HTML shell only when its resource loading, module import, or mounted custom element is wrong.',
+    'For Single HTML updates:',
+    '- If `index.html` exists, read it before editing and do not call `createHtml`.',
+    '- Keep visible page structure, styling, and local interactions in `index.html`.',
+    '- Use internal views for multi-screen workflows instead of additional HTML files.',
     '',
     'After page changes:',
-    '- Use `previewSwitchHtml` when the Preview Pane should show a different existing HTML page.',
     '- Use `previewRefresh` when the current preview page changed and should reload.',
-    '- Call exactly one preview tool after successful previewable changes.',
+    '- Call exactly one `previewRefresh` after successful previewable changes.',
     '',
     'Recover from tool failures:',
     '- If an edit fails, read the file again and retry with a smaller edit or patch.',
-    '- If a write, edit, or patch is rejected by CDN guard, remove unconfigured external resources and use configured resources or local CSS.',
+    '- If a generated prototype becomes too large or brittle, simplify the file while preserving visible quality.',
   ].join('\n');
 }
 
 export function buildSharedComponentsPrompt() {
   return [
-    '## Shared Components',
-    'Shared Web Components are for clear reuse, not for default abstraction.',
+    '## Single File Architecture',
+    'This project type does not use shared components or multiple preview pages.',
     '',
-    'Use shared components when:',
-    '- Multiple pages already share the same navigation or site chrome.',
-    '- The user asks for site-wide consistency.',
-    '- An existing shared component clearly fits the new page.',
-    '- Repeated UI would otherwise become inconsistent across pages.',
-    '',
-    '- Do not extract one-off page sections just because they could be components.',
-    '- For single-page work, prioritize the page component visual quality over component extraction.',
-    '',
-    'Conventions:',
-    '- Store shared components in `components/od-{name}.js`.',
-    '- Define `customElements.define("od-{name}", ...)`.',
-    '- Keep shared component CSS inside the component module.',
-    '- Import shared components from page component modules.',
-    '- Track shared components in `.owndesign-components.json` with `name`, `tagName`, `source`, `usedBy`, and optional `description`.',
-    '- When the user asks to change a whole-site, shared, repeated, or unified component, update the shared component module and call `syncSharedComponent` to update `.owndesign-components.json`.',
-    '',
-    'Navigation:',
-    '- Navigation is the highest-priority shared component in multi-page sites.',
-    '- Reuse or create `od-navigation` when pages share top navigation or sidebar navigation.',
-    '- Navigation links should point to stable HTML files.',
-    '- Active page state can be passed with an attribute such as `<od-navigation current="index"></od-navigation>`.',
+    '- Keep the prototype self-contained in `index.html`.',
+    '- For repeated UI, reuse CSS classes and small JavaScript helper functions inside `index.html`.',
+    '- Navigation should switch internal views, tabs, sections, or hash routes inside the same document.',
+    '- Do not create manifests or component modules for reuse.',
   ].join('\n');
 }
 

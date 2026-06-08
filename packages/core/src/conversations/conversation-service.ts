@@ -98,7 +98,7 @@ export class ConversationService {
     } satisfies UserMessage;
     const agentResult = await this.generateProjectOutputSafely({
       content,
-      outputType: project.outputType,
+      projectType: project.projectType ?? 'single_html',
       projectId,
     });
     const mockReply = {

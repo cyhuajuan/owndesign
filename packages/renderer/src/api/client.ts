@@ -59,9 +59,9 @@ export function createApiClient(baseUrl = '') {
         { method: 'POST' },
       );
     },
-    createProject(name: string, description?: string) {
+    createProject(name: string, description?: string, projectType = 'single_html') {
       return requestJson<ActionResult>('/api/projects', {
-        body: JSON.stringify({ description, name }),
+        body: JSON.stringify({ description, name, projectType }),
         headers: { 'Content-Type': 'application/json' },
         method: 'POST',
       });

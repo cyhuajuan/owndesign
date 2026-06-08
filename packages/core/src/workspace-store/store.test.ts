@@ -34,7 +34,8 @@ function buildProject(
   return {
     id: overrides.id ?? 'project-alpha',
     name: overrides.name ?? 'Project Alpha',
-    description: overrides.description,
+    ...(overrides.description !== undefined ? { description: overrides.description } : {}),
+    projectType: 'single_html' as const,
     outputType: 'html' as const,
     createdAt: overrides.createdAt ?? '2026-05-14T10:00:00.000Z',
     updatedAt: overrides.updatedAt ?? '2026-05-14T10:00:00.000Z',

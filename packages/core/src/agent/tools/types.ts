@@ -1,12 +1,10 @@
 import type { WorkspaceStore } from '@owndesign/core/workspace-store';
 import type { ResourceSettings } from '@owndesign/core/settings/settings-service';
-import type { PageEditModePolicy } from '@owndesign/core/agent/page-edit-mode';
 import type { LanguageModel, ToolLoopAgentSettings } from 'ai';
 
 export type ProjectWorkspaceToolContext = {
   approvedCdnUrls?: string[];
   frontendTabId?: string;
-  pageEditModePolicy?: PageEditModePolicy;
   projectId: string;
   resources: ResourceSettings;
   workspaceStore: WorkspaceStore;
@@ -23,8 +21,6 @@ export type ComponentAuditInput = {
 };
 
 export type CreateHtmlInput = {
-  fontLibraryName?: string;
-  iconLibraryName?: string;
   path: string;
   title?: string;
 };

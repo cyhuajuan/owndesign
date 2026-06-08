@@ -5,8 +5,6 @@ import { fileURLToPath } from 'node:url';
 const PROMPT_FILES = {
   'agents/component-audit': 'agents/component-audit.md',
   'agents/design-page': 'agents/design-page.md',
-  'turn-templates/direct-edit': 'turn-templates/direct-edit.md',
-  'turn-templates/new-page': 'turn-templates/new-page.md',
 } as const;
 
 export type PromptName = keyof typeof PROMPT_FILES;

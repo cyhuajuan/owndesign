@@ -17,11 +17,6 @@ import {
   PromptInputBody,
   PromptInputFooter,
   PromptInputHeader,
-  PromptInputSelect,
-  PromptInputSelectContent,
-  PromptInputSelectItem,
-  PromptInputSelectTrigger,
-  PromptInputSelectValue,
   PromptInputSubmit,
   PromptInputTextarea,
 } from '@/components/ai-elements/prompt-input';
@@ -42,7 +37,6 @@ import { useI18n } from '@/features/i18n/context';
 import { useCurrentPreviewPath } from '@/features/preview/preview-path';
 import type { ActiveRun, ActiveRunSnapshot } from '@/api/client';
 import type { AnthropicEffort } from '@/features/conversation/types';
-import type { PageEditMode } from '@owndesign/core/agent/page-edit-mode';
 
 type StreamingConversationPanelProps = {
   conversationId: string;
@@ -63,18 +57,6 @@ export type ConversationPanelUpdate = {
   updatedAt: string;
 };
 
-const PAGE_EDIT_MODE_OPTIONS = [
-  { labelKey: 'conversation.pageModeAuto', value: 'auto' },
-  { labelKey: 'conversation.pageModeNewPage', value: 'new_page' },
-  { labelKey: 'conversation.pageModeDirectEdit', value: 'direct_edit' },
-] satisfies Array<{
-  labelKey:
-    | 'conversation.pageModeAuto'
-    | 'conversation.pageModeNewPage'
-    | 'conversation.pageModeDirectEdit';
-  value: PageEditMode;
-}>;
-
 const ANTHROPIC_EFFORT_STORAGE_KEY = 'owndesign:anthropic-efforts';
 
 export function StreamingConversationPanel({
@@ -93,7 +75,6 @@ export function StreamingConversationPanel({
   const previousStatusRef = useRef('ready');
   const reconnectState = useMemo(() => ({ afterChunkIndex: 0 }), []);
   const [localSubmitStarted, setLocalSubmitStarted] = useState(false);
-  const [pageEditMode, setPageEditMode] = useState<PageEditMode>('auto');
   const [selectedAnthropicEffort, setSelectedAnthropicEffort] = useState<AnthropicEffort>('high');
   const [resumeSnapshot, setResumeSnapshot] = useState<
     | {
@@ -131,7 +112,6 @@ export function StreamingConversationPanel({
       conversationId,
       frontendTabId: FRONTEND_TAB_ID,
       modelConfigurationId: selectedModelId,
-      pageEditMode,
       projectId,
       ...(currentPreviewPath ? { previewPath: currentPreviewPath } : {}),
       ...(selectedProviderOptionsSelection
@@ -141,7 +121,6 @@ export function StreamingConversationPanel({
     [
       conversationId,
       currentPreviewPath,
-      pageEditMode,
       projectId,
       selectedProviderOptionsSelection,
       selectedModelId,
@@ -200,7 +179,6 @@ export function StreamingConversationPanel({
   const canSend = Boolean(selectedModel) && !isGenerating && !isProjectBusy;
   const submitStatus = isProjectBusy && !isGenerating ? 'streaming' : status;
   const busyMessage = t('conversation.busyMessage');
-  const requiresCurrentPreview = pageEditMode === 'direct_edit';
   const handleStop = useCallback(() => {
     void api.cancelActiveRun(projectId).finally(() => {
       stop();
@@ -359,8 +337,7 @@ export function StreamingConversationPanel({
 
             if (
               (!trimmedText && files.length === 0) ||
-              !canSend ||
-              (requiresCurrentPreview && !currentPreviewPath)
+              !canSend
             ) {
               return;
             }
@@ -390,12 +367,6 @@ export function StreamingConversationPanel({
           <PromptInputFooter className="px-2 pb-1">
             <div className="flex min-w-0 items-center gap-1">
               <PromptAttachmentControls selectedModel={selectedModel} />
-              <PageEditModeSelect
-                disabled={isGenerating || isProjectBusy}
-                hasCurrentPreview={Boolean(currentPreviewPath)}
-                onValueChange={setPageEditMode}
-                value={pageEditMode}
-              />
             </div>
             <div className="flex min-w-0 items-center gap-1">
               <ModelContextUsage configuration={selectedModel} usage={contextUsage} />
@@ -436,58 +407,6 @@ function createCurrentChatRequestMessage(messages: UIMessage[]) {
 
 function isFilePart(part: UIMessage['parts'][number]): part is FileUIPart {
   return part.type === 'file';
-}
-
-function PageEditModeSelect({
-  disabled,
-  hasCurrentPreview,
-  onValueChange,
-  value,
-}: {
-  disabled: boolean;
-  hasCurrentPreview: boolean;
-  onValueChange: (value: PageEditMode) => void;
-  value: PageEditMode;
-}) {
-  const { t } = useI18n();
-
-  return (
-    <PromptInputSelect
-      onValueChange={(nextValue) => onValueChange(nextValue as PageEditMode)}
-      value={value}
-    >
-      <PromptInputSelectTrigger
-        aria-label={t('conversation.pageMode')}
-        className="h-7 max-w-24 px-2 text-xs"
-        disabled={disabled}
-        size="sm"
-      >
-        <PromptInputSelectValue>{getPageEditModeLabel(value, t)}</PromptInputSelectValue>
-      </PromptInputSelectTrigger>
-      <PromptInputSelectContent side="top" sideOffset={6}>
-        {PAGE_EDIT_MODE_OPTIONS.map((option) => {
-          const optionRequiresPreview =
-            option.value === 'direct_edit';
-
-          return (
-            <PromptInputSelectItem
-              disabled={optionRequiresPreview && !hasCurrentPreview}
-              key={option.value}
-              value={option.value}
-            >
-              {t(option.labelKey)}
-            </PromptInputSelectItem>
-          );
-        })}
-      </PromptInputSelectContent>
-    </PromptInputSelect>
-  );
-}
-
-function getPageEditModeLabel(value: PageEditMode, t: ReturnType<typeof useI18n>['t']) {
-  const option = PAGE_EDIT_MODE_OPTIONS.find((item) => item.value === value);
-
-  return option ? t(option.labelKey) : t('conversation.pageModeAuto');
 }
 
 function getStoredAnthropicEffort(modelId: string): AnthropicEffort | undefined {

@@ -932,12 +932,12 @@ describe('MessageParts', () => {
           id: 'user-1',
           text: '生成页面',
         },
-        pageEditMode: 'auto',
         previewPath: 'dashboard.html',
         projectId: 'project-1',
       }),
     );
     expect(prepareChatRequestBody(transport)).not.toHaveProperty('messages');
+    expect(prepareChatRequestBody(transport)).not.toHaveProperty('pageEditMode');
   });
 
   it('extracts only the current user text and files for the chat request body', () => {
@@ -1109,7 +1109,7 @@ describe('MessageParts', () => {
     );
   });
 
-  it('renders the page edit mode select in the composer tool area', () => {
+  it('does not render the removed page edit mode select in the composer tool area', () => {
     stubOpenAICompatibleSettings();
     vi.mocked(useChat).mockReturnValue({
       addToolApprovalResponse: vi.fn(),
@@ -1129,11 +1129,10 @@ describe('MessageParts', () => {
       />,
     );
 
-    expect(screen.getByRole('combobox', { name: '页面模式' })).toHaveTextContent('自动');
+    expect(screen.queryByRole('combobox', { name: '页面模式' })).not.toBeInTheDocument();
   });
 
-  it('sends the selected page edit mode in the chat transport body', async () => {
-    const user = userEvent.setup();
+  it('does not send page edit mode in the chat transport body', () => {
     setCurrentPreviewPath('index.html');
     vi.mocked(useChat).mockReturnValue({
       addToolApprovalResponse: vi.fn(),
@@ -1153,21 +1152,14 @@ describe('MessageParts', () => {
       />,
     );
 
-    await user.click(screen.getByRole('combobox', { name: '页面模式' }));
-    await user.click(await screen.findByRole('option', { name: '直接编辑' }));
-
     const useChatOptions = vi.mocked(useChat).mock.calls.at(-1)?.[0] as
       | { transport: TestTransport }
       | undefined;
 
-    expect(prepareChatRequestBody(useChatOptions?.transport)).toEqual(
-      expect.objectContaining({
-        pageEditMode: 'direct_edit',
-      }),
-    );
+    expect(prepareChatRequestBody(useChatOptions?.transport)).not.toHaveProperty('pageEditMode');
   });
 
-  it('submits the selected page edit mode in the send request body', async () => {
+  it('submits without page edit mode in the send request body', async () => {
     const user = userEvent.setup();
     const sendMessage = vi.fn();
     setCurrentPreviewPath('index.html');
@@ -1189,8 +1181,6 @@ describe('MessageParts', () => {
       />,
     );
 
-    await user.click(screen.getByRole('combobox', { name: '页面模式' }));
-    await user.click(await screen.findByRole('option', { name: '直接编辑' }));
     await user.type(screen.getByPlaceholderText(/输入消息/), '移除标题');
     await user.click(screen.getByRole('button', { name: '提交' }));
 
@@ -1199,13 +1189,13 @@ describe('MessageParts', () => {
     });
     expect(sendMessage.mock.calls[0]?.[1]).toEqual({
       body: expect.objectContaining({
-        pageEditMode: 'direct_edit',
         previewPath: 'index.html',
       }),
     });
+    expect(sendMessage.mock.calls[0]?.[1]?.body).not.toHaveProperty('pageEditMode');
   });
 
-  it('enables direct edit when the current preview path is published after render', async () => {
+  it('uses current preview path published after render without page edit mode', async () => {
     const user = userEvent.setup();
     const sendMessage = vi.fn();
     vi.mocked(useChat).mockReturnValue({
@@ -1230,8 +1220,6 @@ describe('MessageParts', () => {
       setCurrentPreviewPath('generated.html');
     });
 
-    await user.click(screen.getByRole('combobox', { name: '页面模式' }));
-    await user.click(await screen.findByRole('option', { name: '直接编辑' }));
     await user.type(screen.getByPlaceholderText(/输入消息/), '移除标题');
     await user.click(screen.getByRole('button', { name: '提交' }));
 
@@ -1240,10 +1228,10 @@ describe('MessageParts', () => {
     });
     expect(sendMessage.mock.calls[0]?.[1]).toEqual({
       body: expect.objectContaining({
-        pageEditMode: 'direct_edit',
         previewPath: 'generated.html',
       }),
     });
+    expect(sendMessage.mock.calls[0]?.[1]?.body).not.toHaveProperty('pageEditMode');
   });
 
   it('configures stream resume for the current conversation active run', async () => {
@@ -1724,8 +1712,8 @@ describe('MessageParts', () => {
           text: '',
         },
         {
-          body: expect.objectContaining({
-            pageEditMode: 'auto',
+          body: expect.not.objectContaining({
+            pageEditMode: expect.anything(),
           }),
         },
       );

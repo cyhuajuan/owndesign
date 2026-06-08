@@ -1,13 +1,11 @@
-import { resolveHtmlOperationPathForPageEditModePolicy } from '@owndesign/core/agent/page-edit-mode';
 import { z } from 'zod';
 
-import { writeProjectWorkspaceFileWithCdnGuard } from './cdn-guard';
 import type { WorkspaceToolDefinition } from './core';
 import type { WriteInput } from './types';
 
 export function createWriteToolDefinition(): WorkspaceToolDefinition<
   WriteInput,
-  Awaited<ReturnType<typeof writeProjectWorkspaceFileWithCdnGuard>>
+  Awaited<ReturnType<import('@owndesign/core/workspace-store').WorkspaceStore['writeProjectWorkspaceFile']>>
 > {
   return {
     description: 'Create or overwrite one UTF-8 text file in the current Project Workspace.',
@@ -19,23 +17,7 @@ export function createWriteToolDefinition(): WorkspaceToolDefinition<
       .strict(),
     name: 'write',
     parallelSafe: false,
-    execute: async (
-      { content, path },
-      { approvedCdnUrls, pageEditModePolicy, projectId, workspaceStore },
-    ) => {
-      const writePath = resolveHtmlOperationPathForPageEditModePolicy(
-        pageEditModePolicy,
-        'mutate',
-        path,
-      );
-
-      return writeProjectWorkspaceFileWithCdnGuard(
-        workspaceStore,
-        projectId,
-        writePath,
-        content,
-        approvedCdnUrls,
-      );
-    },
+    execute: async ({ content, path }, { projectId, workspaceStore }) =>
+      workspaceStore.writeProjectWorkspaceFile(projectId, path, content),
   };
 }

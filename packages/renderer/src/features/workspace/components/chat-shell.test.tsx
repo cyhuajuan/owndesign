@@ -110,9 +110,7 @@ describe('ChatShell', () => {
     expect(screen.getAllByRole('button', { name: '展开会话面板' })).not.toHaveLength(0);
   });
 
-  it('renders preview HTML selector from preview file events', async () => {
-    const user = userEvent.setup();
-
+  it('renders fixed preview filename from preview file events', () => {
     render(<ChatShell />);
     act(() => {
       window.dispatchEvent(
@@ -120,40 +118,16 @@ describe('ChatShell', () => {
           detail: {
             activePath: 'index.html',
             files: ['index.html', 'detail.html', 'legacy.html'],
-            pageManifest: {
-              pages: [
-                {
-                  componentSource: 'pages/od-index-page.js',
-                  componentTag: 'od-index-page',
-                  displayName: '小说首页',
-                  htmlPath: 'index.html',
-                  slug: 'index',
-                },
-                {
-                  componentSource: 'pages/od-detail-page.js',
-                  componentTag: 'od-detail-page',
-                  displayName: '作品详情页',
-                  htmlPath: 'detail.html',
-                  slug: 'detail',
-                },
-              ],
-            },
           },
         }),
       );
     });
 
-    const switchButton = screen.getByRole('button', { name: '切换预览 HTML' });
-    expect(switchButton).toHaveTextContent('小说首页');
-
-    await user.click(switchButton);
-    expect(await screen.findByText('index.html')).toBeInTheDocument();
-    await user.click(await screen.findByText('作品详情页'));
-
-    expect(window.location.search).toBe('?previewPath=detail.html');
+    expect(screen.getByText('index.html')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '切换预览 HTML' })).not.toBeInTheDocument();
   });
 
-  it('falls back to filenames when the preview page manifest is missing', () => {
+  it('shows index.html when the preview file list is available', () => {
     render(<ChatShell />);
     act(() => {
       window.dispatchEvent(
@@ -166,12 +140,10 @@ describe('ChatShell', () => {
       );
     });
 
-    expect(screen.getByRole('button', { name: '切换预览 HTML' })).toHaveTextContent('index.html');
+    expect(screen.getByText('index.html')).toBeInTheDocument();
   });
 
-  it('switches other files from the preview HTML selector', async () => {
-    const user = userEvent.setup();
-
+  it('does not switch other HTML files from the preview header', () => {
     render(<ChatShell />);
     act(() => {
       window.dispatchEvent(
@@ -184,10 +156,9 @@ describe('ChatShell', () => {
       );
     });
 
-    await user.click(screen.getByRole('button', { name: '切换预览 HTML' }));
-    await user.click(await screen.findByRole('menuitem', { name: 'legacy.html' }));
-
-    expect(window.location.search).toBe('?previewPath=legacy.html');
+    expect(screen.getByText('index.html')).toBeInTheDocument();
+    expect(screen.queryByText('legacy.html')).not.toBeInTheDocument();
+    expect(window.location.search).toBe('');
   });
 
   it('renders icon-only download menu before refresh button and shows both download actions', async () => {

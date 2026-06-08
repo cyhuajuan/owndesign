@@ -19,11 +19,13 @@ export type ProjectRecord = {
   id: string;
   name: string;
   description?: string;
-  outputType: ProjectOutputType;
+  projectType?: ProjectType;
+  outputType?: ProjectOutputType;
   createdAt: string;
   updatedAt: string;
 };
 
+export type ProjectType = 'single_html' | 'react';
 export type ProjectOutputType = 'html';
 
 export type ConversationRecord = {
@@ -198,7 +200,7 @@ export class WorkspaceStore {
               'utf8',
             );
 
-            return JSON.parse(projectJson) as ProjectRecord;
+            return normalizeProjectRecord(JSON.parse(projectJson) as ProjectRecord);
           }),
       );
 
@@ -220,7 +222,7 @@ export class WorkspaceStore {
       'utf8',
     );
 
-    return JSON.parse(projectJson) as ProjectRecord;
+    return normalizeProjectRecord(JSON.parse(projectJson) as ProjectRecord);
   }
 
   async updateProject(projectId: string, project: ProjectRecord) {
@@ -1143,4 +1145,11 @@ export class WorkspaceStore {
       }
     }
   }
+}
+
+function normalizeProjectRecord(project: ProjectRecord): ProjectRecord {
+  return {
+    ...project,
+    projectType: project.projectType ?? 'single_html',
+  };
 }

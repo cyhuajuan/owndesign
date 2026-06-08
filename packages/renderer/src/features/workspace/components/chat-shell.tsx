@@ -2,10 +2,7 @@
 
 import type { CSSProperties, ReactNode } from 'react';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { useAppNavigate } from '@/lib/router';
 import {
-  CheckIcon,
-  ChevronDownIcon,
   DownloadIcon,
   ExternalLinkIcon,
   PanelLeftCloseIcon,
@@ -32,9 +29,7 @@ import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuGroup,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
@@ -60,8 +55,6 @@ import {
 } from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
 import { useApiClient } from '@/api/context';
-import type { HtmlPageManifest } from '@owndesign/core/html-page-manifest';
-import { getHtmlPageDisplayName } from '@owndesign/core/html-page-manifest';
 
 const CONVERSATION_PANE_STORAGE_KEY = 'owndesign.app.conversation-pane-collapsed';
 const PREVIEW_DEVICE_BY_HTML_STORAGE_KEY = 'owndesign.app.preview-device-by-html';
@@ -69,7 +62,6 @@ const CONVERSATION_PANE_EVENT = 'owndesign:conversation-pane';
 const PREVIEW_REFRESH_EVENT = 'owndesign:preview-refresh';
 const PREVIEW_HREF_EVENT = 'owndesign:preview-href-updated';
 const PREVIEW_FILES_EVENT = 'owndesign:preview-files-updated';
-const PREVIEW_MANUAL_SWITCH_EVENT = 'owndesign:preview-manual-switch';
 
 type PreviewStatus = 'ready' | 'loading' | 'error';
 
@@ -111,12 +103,10 @@ export function ChatShell({
 }: ChatShellProps) {
   const api = useApiClient();
   const { t } = useI18n();
-  const navigate = useAppNavigate();
   const [sessionPreviewHref, setSessionPreviewHref] = useState<string>();
   const [previewDevice, setPreviewDevice] = useState<PreviewDevice>('desktop');
   const previewDeviceRef = useRef<PreviewDevice>('desktop');
   const [previewFiles, setPreviewFiles] = useState<string[]>([]);
-  const [previewPageManifest, setPreviewPageManifest] = useState<HtmlPageManifest>({ pages: [] });
   const [activePreviewPath, setActivePreviewPath] = useState<string>();
   const isConversationCollapsed = useSyncExternalStore(
     subscribeToConversationPaneState,
@@ -183,11 +173,7 @@ export function ChatShell({
         : [];
       const activePath =
         typeof event.detail?.activePath === 'string' ? event.detail.activePath : undefined;
-      const pageManifest =
-        isHtmlPageManifest(event.detail?.pageManifest) ? event.detail.pageManifest : { pages: [] };
-
       setPreviewFiles(files);
-      setPreviewPageManifest(pageManifest);
       setActivePreviewPath(activePath);
     };
 
@@ -198,23 +184,6 @@ export function ChatShell({
     };
   }, []);
 
-  const selectPreviewPath = (nextPath: string) => {
-    if (nextPath === activePreviewPath) {
-      return;
-    }
-
-    const params = new URLSearchParams(window.location.search);
-    params.set('previewPath', nextPath);
-    window.dispatchEvent(
-      new CustomEvent(PREVIEW_MANUAL_SWITCH_EVENT, {
-        detail: { key: String(Date.now()) },
-      }),
-    );
-    navigate(`${window.location.pathname}?${params.toString()}`, {
-      preventScrollReset: true,
-      replace: true,
-    });
-  };
   const handlePreviewDeviceChange = (value: string | null) => {
     if (value !== 'desktop' && value !== 'mobile') {
       return;
@@ -228,12 +197,7 @@ export function ChatShell({
     }
   };
   const previewFilenameNode = previewFilename ?? (
-    <PreviewFileSelect
-      activePath={activePreviewPath}
-      files={previewFiles}
-      pageManifest={previewPageManifest}
-      onChange={selectPreviewPath}
-    />
+    <PreviewFileLabel activePath={activePreviewPath} files={previewFiles} />
   );
   const currentHtmlDownloadUrl =
     previewProjectId && activePreviewPath
@@ -575,124 +539,16 @@ function triggerBrowserDownload(url: string) {
   link.remove();
 }
 
-function PreviewFileSelect({
-  activePath,
-  files,
-  pageManifest,
-  onChange,
-}: {
-  activePath?: string;
-  files: string[];
-  pageManifest: HtmlPageManifest;
-  onChange: (path: string) => void;
-}) {
+function PreviewFileLabel({ activePath, files }: { activePath?: string; files: string[] }) {
   const { t } = useI18n();
-  const manifestPages = useMemo(
-    () => pageManifest.pages.filter((page) => files.includes(page.htmlPath)),
-    [files, pageManifest.pages],
-  );
-  const manifestFileSet = useMemo(
-    () => new Set(manifestPages.map((page) => page.htmlPath)),
-    [manifestPages],
-  );
-  const otherFiles = useMemo(
-    () => files.filter((file) => !manifestFileSet.has(file)),
-    [files, manifestFileSet],
-  );
-  const activeManifestPage = activePath
-    ? manifestPages.find((page) => page.htmlPath === activePath)
-    : undefined;
-  const activeLabel = activeManifestPage
-    ? getHtmlPageDisplayName(pageManifest, activeManifestPage.slug)
-    : (activePath ?? files[0]);
 
   if (files.length === 0) {
     return <span className="font-mono text-xs text-muted-foreground">{t('preview.notFound')}</span>;
   }
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <Button
-            aria-label={t('preview.switchHtml')}
-            className="h-7 max-w-full min-w-0 justify-start gap-1 border-0 bg-transparent px-1.5 font-mono text-xs text-muted-foreground shadow-none hover:bg-accent/60"
-            size="sm"
-            type="button"
-            variant="ghost"
-          >
-            <span className="min-w-0 truncate">{activeLabel}</span>
-            <ChevronDownIcon data-icon="inline-end" />
-          </Button>
-        }
-      />
-      <DropdownMenuContent
-        align="start"
-        className="w-72 max-w-[min(420px,calc(100vw-2rem))]"
-      >
-        {manifestPages.length > 0 ? (
-          <DropdownMenuGroup>
-            <DropdownMenuLabel>{t('preview.pages')}</DropdownMenuLabel>
-            {manifestPages.map((page) => (
-              <DropdownMenuItem
-                key={page.htmlPath}
-                onClick={() => {
-                  onChange(page.htmlPath);
-                }}
-              >
-                <span className="min-w-0 flex-1 truncate text-xs">
-                  {getHtmlPageDisplayName(pageManifest, page.slug)}
-                </span>
-                <span className="min-w-0 truncate font-mono text-xs text-muted-foreground">
-                  {page.htmlPath}
-                </span>
-                {activePath === page.htmlPath ? <CheckIcon /> : null}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuGroup>
-        ) : null}
-        {otherFiles.length > 0 ? (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <DropdownMenuLabel>{t('preview.otherFiles')}</DropdownMenuLabel>
-              {otherFiles.map((file) => (
-                <DropdownMenuItem
-                  key={file}
-                  onClick={() => {
-                    onChange(file);
-                  }}
-                >
-                  <span className="min-w-0 flex-1 truncate font-mono text-xs">{file}</span>
-                  {activePath === file ? <CheckIcon /> : null}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuGroup>
-          </>
-        ) : null}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-function isHtmlPageManifest(value: unknown): value is HtmlPageManifest {
-  if (!value || typeof value !== 'object' || !('pages' in value)) {
-    return false;
-  }
-
-  const pages = (value as HtmlPageManifest).pages;
-
-  return (
-    Array.isArray(pages) &&
-    pages.every(
-      (page) =>
-        Boolean(page) &&
-        typeof page === 'object' &&
-        typeof page.slug === 'string' &&
-        typeof page.displayName === 'string' &&
-        typeof page.htmlPath === 'string' &&
-        typeof page.componentTag === 'string' &&
-        typeof page.componentSource === 'string',
-    )
+    <span className="min-w-0 truncate font-mono text-xs text-muted-foreground">
+      {activePath ?? 'index.html'}
+    </span>
   );
 }

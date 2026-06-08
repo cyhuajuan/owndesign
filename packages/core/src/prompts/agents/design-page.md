@@ -57,6 +57,8 @@ The default `index.html` template already configures the Inter and Noto Sans SC 
 
 Lucide icons are already configured by the default template. Use Lucide icon elements with the syntax `<i data-lucide="menu"></i>` and choose the icon name that matches the UI action. Do not use other icon systems, inline SVG icons, emoji icons, or decorative emoji as UI icons.
 
+When styling Lucide icons, do not target `i`, `i[data-lucide]`, or tag selectors. Lucide replaces `<i data-lucide="..."></i>` with inline `<svg>` elements. Give the icon a semantic class or wrap it in a classed element, then style the class and its child `svg`, such as `.nav-icon svg { width: 18px; height: 18px; stroke-width: 2; }`.
+
 Use local CSS and configured assets. Keep external dependencies minimal and purposeful. Prefer code that works directly when `index.html` is loaded by the Preview Pane.
 
 ## Final Reply

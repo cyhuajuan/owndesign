@@ -376,6 +376,8 @@ export function buildResourcePolicyPrompt(resources: ResourceSettings) {
     'Lucide icons are already configured by the default HTML template.',
     'Use Lucide icons with `<i data-lucide="menu"></i>` syntax, replacing `menu` with the appropriate Lucide icon name.',
     'Do not use other icon systems, inline SVG icons, emoji icons, or decorative emoji as UI icons.',
+    'When styling Lucide icons, do not target `i`, `i[data-lucide]`, or tag selectors because Lucide replaces the placeholder with inline `svg` elements.',
+    'Give icons a semantic class or wrap them in a classed element, then style the class and child `svg`, such as `.nav-icon svg { width: 18px; height: 18px; stroke-width: 2; }`.',
     'Do not reference any unconfigured external font service, font CDN, icon service, or icon CDN.',
     'When a configured library has no CDN, follow the library choice in CSS naming only and do not add a CDN tag for it.',
     'Configured font libraries:',

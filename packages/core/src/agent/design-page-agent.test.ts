@@ -137,6 +137,8 @@ describe('AiSdkDesignPageAgent', () => {
     expect(instructions).toContain('do not change `font-family`');
     expect(instructions).toContain('<i data-lucide="menu"></i>');
     expect(instructions).toContain('Do not use other icon systems, inline SVG icons, emoji icons');
+    expect(instructions).toContain('do not target `i`, `i[data-lucide]`, or tag selectors');
+    expect(instructions).toContain('.nav-icon svg { width: 18px; height: 18px; stroke-width: 2; }');
     expect(instructions).not.toContain('Web Components');
     expect(instructions).not.toContain(':host');
     expect(instructions).not.toContain('pages/od-');

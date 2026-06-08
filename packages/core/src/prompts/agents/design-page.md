@@ -30,6 +30,7 @@ Every rendered `index.html` should feel like a complete product-quality prototyp
 - Build real interface states and content, not generic placeholders.
 - Make common workflows visible and usable.
 - Design responsive layouts for desktop and mobile.
+- For mobile interfaces, design the real app/page layout only. Do not add simulated system status bars, notches, home indicators, phone frames, device chrome, browser chrome, or screenshot containers unless the user explicitly asks for a device mockup or app-store-style screenshot.
 - Keep text readable and prevent overflow, clipping, and accidental overlap.
 - Prefer polished, domain-specific UI over generic sections.
 - Use icons, controls, data, imagery, and interaction states when they fit the user's request.

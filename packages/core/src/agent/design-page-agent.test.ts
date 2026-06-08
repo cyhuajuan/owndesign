@@ -700,6 +700,8 @@ describe('AiSdkDesignPageAgent', () => {
     const html = await workspaceStore.readProjectWorkspaceFile('project-1', 'index.html');
     expect(html).toContain('<od-index-page></od-index-page>');
     expect(html).toContain('<script type="module" src="./pages/od-index-page.js"></script>');
+    expect(html).toContain('html, body');
+    expect(html).toContain('margin: 0;');
     expect(html).toContain("@import url('https://cdn.example.com/font.css');");
     expect(html).toContain(
       '<script src="https://cdn.example.com/icons.js" data-owndesign-approved-cdn="true"></script>',

@@ -110,7 +110,7 @@ describe('ChatShell', () => {
     expect(screen.getAllByRole('button', { name: '展开会话面板' })).not.toHaveLength(0);
   });
 
-  it('renders fixed preview filename from preview file events', () => {
+  it('does not render the active preview filename from preview file events', () => {
     render(<ChatShell />);
     act(() => {
       window.dispatchEvent(
@@ -123,11 +123,11 @@ describe('ChatShell', () => {
       );
     });
 
-    expect(screen.getByText('index.html')).toBeInTheDocument();
+    expect(screen.queryByText('index.html')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '切换预览 HTML' })).not.toBeInTheDocument();
   });
 
-  it('shows index.html when the preview file list is available', () => {
+  it('keeps the preview header free of fixed html filenames', () => {
     render(<ChatShell />);
     act(() => {
       window.dispatchEvent(
@@ -140,10 +140,10 @@ describe('ChatShell', () => {
       );
     });
 
-    expect(screen.getByText('index.html')).toBeInTheDocument();
+    expect(screen.queryByText('index.html')).not.toBeInTheDocument();
   });
 
-  it('does not switch other HTML files from the preview header', () => {
+  it('does not show or switch other HTML files from the preview header', () => {
     render(<ChatShell />);
     act(() => {
       window.dispatchEvent(
@@ -156,7 +156,7 @@ describe('ChatShell', () => {
       );
     });
 
-    expect(screen.getByText('index.html')).toBeInTheDocument();
+    expect(screen.queryByText('index.html')).not.toBeInTheDocument();
     expect(screen.queryByText('legacy.html')).not.toBeInTheDocument();
     expect(window.location.search).toBe('');
   });

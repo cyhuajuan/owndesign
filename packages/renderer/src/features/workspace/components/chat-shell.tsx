@@ -81,7 +81,6 @@ type ChatShellProps = {
   messageHistory?: ReactNode;
   previewActions?: ReactNode;
   previewBody?: ReactNode | ((context: PreviewBodyContext) => ReactNode);
-  previewFilename?: ReactNode;
   previewHref?: string;
   previewProjectId?: string;
   previewStatus?: PreviewStatus;
@@ -95,7 +94,6 @@ export function ChatShell({
   messageHistory,
   previewActions,
   previewBody,
-  previewFilename,
   previewHref,
   previewProjectId,
   previewStatus = 'ready',
@@ -106,7 +104,6 @@ export function ChatShell({
   const [sessionPreviewHref, setSessionPreviewHref] = useState<string>();
   const [previewDevice, setPreviewDevice] = useState<PreviewDevice>('desktop');
   const previewDeviceRef = useRef<PreviewDevice>('desktop');
-  const [previewFiles, setPreviewFiles] = useState<string[]>([]);
   const [activePreviewPath, setActivePreviewPath] = useState<string>();
   const isConversationCollapsed = useSyncExternalStore(
     subscribeToConversationPaneState,
@@ -168,12 +165,8 @@ export function ChatShell({
         return;
       }
 
-      const files = Array.isArray(event.detail?.files)
-        ? event.detail.files.filter((file: unknown): file is string => typeof file === 'string')
-        : [];
       const activePath =
         typeof event.detail?.activePath === 'string' ? event.detail.activePath : undefined;
-      setPreviewFiles(files);
       setActivePreviewPath(activePath);
     };
 
@@ -196,9 +189,6 @@ export function ChatShell({
       writeStoredPreviewDevice(previewProjectId, activePreviewPath, value);
     }
   };
-  const previewFilenameNode = previewFilename ?? (
-    <PreviewFileLabel activePath={activePreviewPath} files={previewFiles} />
-  );
   const currentHtmlDownloadUrl =
     previewProjectId && activePreviewPath
       ? api.buildUrl(buildProjectDownloadPath(previewProjectId, 'current-html', activePreviewPath))
@@ -323,9 +313,7 @@ export function ChatShell({
                   <span className={statusClassName} />
                   <span>{statusLabels[previewStatus]}</span>
                 </div>
-                <div className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">
-                  {previewFilenameNode}
-                </div>
+                <div className="min-w-0 flex-1" />
                 <div className="flex items-center gap-1">
                   {previewActions ?? (
                     <>
@@ -537,18 +525,4 @@ function triggerBrowserDownload(url: string) {
   document.body.append(link);
   link.click();
   link.remove();
-}
-
-function PreviewFileLabel({ activePath, files }: { activePath?: string; files: string[] }) {
-  const { t } = useI18n();
-
-  if (files.length === 0) {
-    return <span className="font-mono text-xs text-muted-foreground">{t('preview.notFound')}</span>;
-  }
-
-  return (
-    <span className="min-w-0 truncate font-mono text-xs text-muted-foreground">
-      {activePath ?? 'index.html'}
-    </span>
-  );
 }

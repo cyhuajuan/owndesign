@@ -128,6 +128,10 @@ describe('AiSdkDesignPageAgent', () => {
     expect(instructions).toContain('The project has one previewable file: `index.html`');
     expect(instructions).toContain('createHtml({ path: "index.html" })');
     expect(instructions).toContain('previewRefresh');
+    expect(instructions).toContain('Identify the interface purpose, target user, product tone');
+    expect(instructions).toContain('Choose a distinct aesthetic point of view');
+    expect(instructions).toContain('Do not produce generic AI-style layouts');
+    expect(instructions).toContain('Use CSS variables or clear repeated values');
     expect(instructions).toContain('Do not add simulated system status bars');
     expect(instructions).toContain('phone frames, device chrome, browser chrome');
     expect(instructions).toContain('do not change `font-family`');

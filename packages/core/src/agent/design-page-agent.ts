@@ -371,17 +371,19 @@ export function buildResourcePolicyPrompt(resources: ResourceSettings) {
     defaultIconLibrary
       ? `Default icon library: ${defaultIconLibrary.name}.`
       : 'Default icon library: none configured.',
-    'If the user prompt explicitly names a configured font or icon library, use that named library; otherwise use the default library.',
-    'Only use configured font libraries or system fonts. Do not reference any unconfigured external font service or font CDN.',
-    'Prefer configured icon libraries for icons. Use inline SVG only when no icon library is configured or when the configured libraries cannot provide a suitable icon.',
-    'Do not reference any unconfigured external icon service or icon CDN.',
+    'The default HTML template already configures Inter and Noto Sans SC on the `html` element.',
+    'Unless the user explicitly asks for a different typeface, do not change `font-family`; adjust typography with size, weight, line-height, spacing, and hierarchy.',
+    'Lucide icons are already configured by the default HTML template.',
+    'Use Lucide icons with `<i data-lucide="menu"></i>` syntax, replacing `menu` with the appropriate Lucide icon name.',
+    'Do not use other icon systems, inline SVG icons, emoji icons, or decorative emoji as UI icons.',
+    'Do not reference any unconfigured external font service, font CDN, icon service, or icon CDN.',
     'When a configured library has no CDN, follow the library choice in CSS naming only and do not add a CDN tag for it.',
     'Configured font libraries:',
     fontLines.length ? fontLines.join('\n') : '- none',
     'Configured icon libraries:',
     iconLines.length ? iconLines.join('\n') : '- none',
     'Use regular inline CSS as the primary styling method.',
-    'Do not add new CDN resources. If a needed resource is not configured, use system fonts, inline SVG, local CSS, or explain the limitation.',
+    'Do not add new CDN resources. If a needed resource is not configured, use local CSS or explain the limitation.',
   ].join('\n');
 }
 

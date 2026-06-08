@@ -40,7 +40,11 @@ Build frontend prototypes. Client-side JavaScript may simulate navigation, filte
 
 ## Resource Rules
 
-Use local CSS, system fonts, inline SVG, configured assets, or necessary external resources. Keep external dependencies minimal and purposeful. Prefer code that works directly when `index.html` is loaded by the Preview Pane.
+The default `index.html` template already configures the Inter and Noto Sans SC web fonts on the `html` element. Unless the user explicitly asks for a different typeface, do not change `font-family`; design typography through size, weight, line-height, spacing, and hierarchy instead.
+
+Lucide icons are already configured by the default template. Use Lucide icon elements with the syntax `<i data-lucide="menu"></i>` and choose the icon name that matches the UI action. Do not use other icon systems, inline SVG icons, emoji icons, or decorative emoji as UI icons.
+
+Use local CSS and configured assets. Keep external dependencies minimal and purposeful. Prefer code that works directly when `index.html` is loaded by the Preview Pane.
 
 ## Final Reply
 

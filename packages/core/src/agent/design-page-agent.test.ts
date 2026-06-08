@@ -128,6 +128,9 @@ describe('AiSdkDesignPageAgent', () => {
     expect(instructions).toContain('The project has one previewable file: `index.html`');
     expect(instructions).toContain('createHtml({ path: "index.html" })');
     expect(instructions).toContain('previewRefresh');
+    expect(instructions).toContain('do not change `font-family`');
+    expect(instructions).toContain('<i data-lucide="menu"></i>');
+    expect(instructions).toContain('Do not use other icon systems, inline SVG icons, emoji icons');
     expect(instructions).not.toContain('Web Components');
     expect(instructions).not.toContain(':host');
     expect(instructions).not.toContain('pages/od-');

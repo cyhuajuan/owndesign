@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -177,6 +177,15 @@ describe('createOwnDesignApp static hosting', () => {
     expect(streamInput.uiMessages).toHaveLength(1);
     expect(getMessageText(streamInput.uiMessages[0])).toBe('设计一个 CRM 仪表盘');
     expect(streamInput.originalMessages).toEqual(streamInput.uiMessages);
+    await expect(workspaceStore.listCheckpoints(projectId)).resolves.toMatchObject([
+      {
+        conversationId,
+        files: ['index.html'],
+        projectId,
+        userMessageId: 'user-1',
+        userPrompt: '设计一个 CRM 仪表盘',
+      },
+    ]);
   });
 
   it('ignores frontend message history and appends only submitted user input', async () => {
@@ -223,6 +232,159 @@ describe('createOwnDesignApp static hosting', () => {
       'persisted instructions',
     );
     expect(getMessageText(streamInput.uiMessages[1])).toBe('current input');
+  });
+
+  it('creates a checkpoint before persisting the submitted user message', async () => {
+    const { app, root } = await createAppWithTempOptions();
+    const workspaceRoot = path.join(root, 'workspace');
+    const { conversationId, projectId } = await setupProject(app);
+    const workspaceStore = createWorkspaceStore({ workspaceRoot });
+
+    await workspaceStore.writeProjectWorkspaceFile(projectId, 'index.html', '<main>Before</main>');
+
+    const response = await app.fetch(
+      new Request('http://localhost/api/chat', {
+        body: JSON.stringify({
+          conversationId,
+          message: createChatRequestMessage('user-checkpoint', 'Change it'),
+          projectId,
+        }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+      }),
+    );
+    await response.text();
+    await waitFor(() => expect(aiMocks.createAgentUIStream).toHaveBeenCalled());
+
+    const checkpoints = await workspaceStore.listCheckpoints(projectId);
+    const checkpoint = checkpoints[0];
+    const checkpointFile = await readFile(
+      path.join(
+        workspaceRoot,
+        'projects',
+        projectId,
+        'checkpoints',
+        checkpoint.id,
+        'files',
+        'index.html',
+      ),
+      'utf8',
+    );
+
+    expect(response.status).toBe(200);
+    expect(checkpoint).toMatchObject({
+      conversationId,
+      userMessageId: 'user-checkpoint',
+      userPrompt: 'Change it',
+    });
+    expect(checkpointFile).toBe('<main>Before</main>');
+  });
+
+  it('does not persist the user message or start the agent when checkpoint creation fails', async () => {
+    const { app, root } = await createAppWithTempOptions();
+    const workspaceRoot = path.join(root, 'workspace');
+    const { conversationId, projectId } = await setupProject(app);
+    const workspaceStore = createWorkspaceStore({ workspaceRoot });
+
+    await workspaceStore.deleteProjectWorkspacePath(projectId, 'index.html');
+
+    const response = await app.fetch(
+      new Request('http://localhost/api/chat', {
+        body: JSON.stringify({
+          conversationId,
+          message: createChatRequestMessage('user-fail', 'Change it'),
+          projectId,
+        }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+      }),
+    );
+
+    const conversation = await workspaceStore.getConversation(projectId, conversationId);
+
+    expect(response.status).toBe(500);
+    expect(aiMocks.createAgentUIStream).not.toHaveBeenCalled();
+    expect(conversation.messages).toEqual([]);
+  });
+
+  it('lists checkpoints and restores files, conversation, or both', async () => {
+    const { app, root } = await createAppWithTempOptions();
+    const workspaceRoot = path.join(root, 'workspace');
+    const { conversationId, projectId } = await setupProject(app);
+    const workspaceStore = createWorkspaceStore({ workspaceRoot });
+    const conversation = await workspaceStore.getConversation(projectId, conversationId);
+
+    await workspaceStore.writeProjectWorkspaceFile(projectId, 'index.html', '<main>Before</main>');
+    await workspaceStore.createCheckpoint({
+      id: 'cp_restore',
+      conversationId,
+      createdAt: '2026-06-09T10:00:00.000Z',
+      projectId,
+      userMessageId: 'user-restore',
+      userPrompt: 'Bad change',
+    });
+    await workspaceStore.writeProjectWorkspaceFile(projectId, 'index.html', '<main>After</main>');
+    await workspaceStore.updateConversation(projectId, conversationId, {
+      ...conversation,
+      messages: [
+        createUserMessage('kept-user', 'kept'),
+        createUserMessage('user-restore', 'bad'),
+        {
+          id: 'assistant-after',
+          parts: [{ text: 'done', type: 'text' }],
+          role: 'assistant',
+        } satisfies UIMessage,
+      ],
+    });
+
+    const listResponse = await app.fetch(
+      new Request(`http://localhost/api/projects/${projectId}/checkpoints`),
+    );
+    const listBody = (await listResponse.json()) as Array<{ id: string }>;
+
+    expect(listResponse.status).toBe(200);
+    expect(listBody.map((checkpoint) => checkpoint.id)).toEqual(['cp_restore']);
+
+    const filesResponse = await restoreCheckpoint(app, projectId, 'cp_restore', 'files');
+    expect(filesResponse.status).toBe(200);
+    await expect(workspaceStore.readProjectWorkspaceFile(projectId, 'index.html')).resolves.toBe(
+      '<main>Before</main>',
+    );
+    await expect(workspaceStore.getConversation(projectId, conversationId)).resolves.toMatchObject({
+      messages: expect.arrayContaining([expect.objectContaining({ id: 'user-restore' })]),
+    });
+
+    await workspaceStore.writeProjectWorkspaceFile(projectId, 'index.html', '<main>After 2</main>');
+    const conversationResponse = await restoreCheckpoint(
+      app,
+      projectId,
+      'cp_restore',
+      'conversation',
+    );
+    const truncatedConversation = await workspaceStore.getConversation(projectId, conversationId);
+
+    expect(conversationResponse.status).toBe(200);
+    await expect(workspaceStore.readProjectWorkspaceFile(projectId, 'index.html')).resolves.toBe(
+      '<main>After 2</main>',
+    );
+    expect((truncatedConversation.messages as UIMessage[]).map((message) => message.id)).toEqual([
+      'kept-user',
+    ]);
+
+    await workspaceStore.updateConversation(projectId, conversationId, {
+      ...truncatedConversation,
+      messages: [createUserMessage('kept-user', 'kept'), createUserMessage('user-restore', 'bad')],
+    });
+    await workspaceStore.writeProjectWorkspaceFile(projectId, 'index.html', '<main>After 3</main>');
+    const bothResponse = await restoreCheckpoint(app, projectId, 'cp_restore', 'both');
+
+    expect(bothResponse.status).toBe(200);
+    await expect(workspaceStore.readProjectWorkspaceFile(projectId, 'index.html')).resolves.toBe(
+      '<main>Before</main>',
+    );
+    await expect(workspaceStore.getConversation(projectId, conversationId)).resolves.toMatchObject({
+      messages: [expect.objectContaining({ id: 'kept-user' })],
+    });
   });
 });
 
@@ -305,6 +467,24 @@ function createUserMessage(id: string, text: string): UIMessage {
     parts: [{ text, type: 'text' }],
     role: 'user',
   };
+}
+
+function restoreCheckpoint(
+  app: ReturnType<typeof createOwnDesignApp>,
+  projectId: string,
+  checkpointId: string,
+  mode: 'files' | 'conversation' | 'both',
+) {
+  return app.fetch(
+    new Request(
+      `http://localhost/api/projects/${projectId}/checkpoints/${checkpointId}/restore`,
+      {
+        body: JSON.stringify({ mode }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+      },
+    ),
+  );
 }
 
 function getMessageText(message: UIMessage | undefined) {

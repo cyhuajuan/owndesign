@@ -33,6 +33,7 @@ import {
   parseDeepSeekThinkingMode,
 } from '@owndesign/core/settings/settings-service';
 import { buildWorkspaceHref } from '@owndesign/core/navigation';
+import type { CheckpointRestoreMode } from '@owndesign/core/workspace-store';
 
 import {
   createConversationService,
@@ -318,6 +319,14 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
       return context.text('当前项目已有任务正在执行。', 409);
     }
 
+    await workspaceStore.createCheckpoint({
+      id: createCheckpointId(),
+      conversationId,
+      createdAt: new Date().toISOString(),
+      projectId,
+      userMessageId: currentUserMessage.id,
+      userPrompt: getUIMessageText(currentUserMessage),
+    });
     let conversation = await workspaceStore.getConversation(projectId, conversationId);
     const storedMessages = normalizeConversationMessages(
       conversation.messages,
@@ -412,6 +421,62 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
     }
 
     return createChatRunStreamResponse(run.stream);
+  });
+
+  app.get('/api/projects/:projectId/checkpoints', async (context) => {
+    const workspaceStore = createWorkspaceStore(options);
+    const projectId = context.req.param('projectId');
+
+    await workspaceStore.getProject(projectId);
+
+    return context.json(await workspaceStore.listCheckpoints(projectId));
+  });
+
+  app.post('/api/projects/:projectId/checkpoints/:checkpointId/restore', async (context) => {
+    const workspaceStore = createWorkspaceStore(options);
+    const projectId = context.req.param('projectId');
+    const checkpointId = context.req.param('checkpointId');
+    const body = await readJson(context.req.raw);
+    const mode = parseCheckpointRestoreMode(body?.mode);
+
+    if (!mode) {
+      return context.text('Invalid checkpoint restore request.', 400);
+    }
+
+    if (chatRunManager.getActiveRun(projectId)) {
+      return context.text('当前项目已有任务正在执行。', 409);
+    }
+
+    try {
+      const checkpoint =
+        mode === 'conversation'
+          ? await workspaceStore.readCheckpoint(projectId, checkpointId)
+          : await workspaceStore.restoreCheckpointFiles(projectId, checkpointId);
+
+      if (mode === 'conversation' || mode === 'both') {
+        await restoreCheckpointConversation({
+          options,
+          workspaceStore,
+          checkpoint,
+        });
+      }
+
+      return context.json({
+        href: buildWorkspaceHref({
+          conversationId: checkpoint.conversationId,
+          projectId,
+        }),
+      });
+    } catch (error) {
+      if (isMissingPathError(error)) {
+        return context.text('Checkpoint not found.', 404);
+      }
+
+      return context.text(
+        error instanceof Error ? error.message : 'Checkpoint restore failed.',
+        400,
+      );
+    }
   });
 
   app.get('/api/projects/:projectId/runs/active', async (context) => {
@@ -889,6 +954,10 @@ function parseProjectType(value: unknown) {
   return undefined;
 }
 
+function parseCheckpointRestoreMode(value: unknown): CheckpointRestoreMode | undefined {
+  return value === 'files' || value === 'conversation' || value === 'both' ? value : undefined;
+}
+
 function parseProviderOptionsSelection(value: unknown) {
   if (!isRecord(value)) {
     return undefined;
@@ -905,4 +974,54 @@ function parseProviderOptionsSelection(value: unknown) {
     ...(anthropic ? { anthropic } : {}),
     ...(deepseek ? { deepseek } : {}),
   };
+}
+
+function createCheckpointId() {
+  const id =
+    typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+  return `cp_${id.replace(/[^A-Za-z0-9_-]/g, '_')}`;
+}
+
+async function restoreCheckpointConversation({
+  checkpoint,
+  options,
+  workspaceStore,
+}: {
+  checkpoint: {
+    conversationId: string;
+    projectId: string;
+    userMessageId: string;
+  };
+  options: OwnDesignServerOptions;
+  workspaceStore: ReturnType<typeof createWorkspaceStore>;
+}) {
+  const conversation = await workspaceStore.getConversation(
+    checkpoint.projectId,
+    checkpoint.conversationId,
+  );
+  const messages = normalizeConversationMessages(conversation.messages);
+  const targetIndex = messages.findIndex((message) => message.id === checkpoint.userMessageId);
+
+  if (targetIndex < 0) {
+    throw new Error('Checkpoint user message was not found in the conversation.');
+  }
+
+  const nextMessages = messages.slice(0, targetIndex);
+  const settings = await createOwnDesignServices(options).settingsService.getSettings();
+  const timestamp = new Date().toISOString();
+  const lastMessage = nextMessages.at(-1);
+
+  await workspaceStore.updateConversation(checkpoint.projectId, checkpoint.conversationId, {
+    ...conversation,
+    lastMessageAt: lastMessage ? timestamp : undefined,
+    messages: nextMessages,
+    title:
+      !conversation.titleManuallySet && nextMessages.length === 0
+        ? getDefaultConversationTitle(settings.interfaceLanguage)
+        : conversation.title,
+    updatedAt: timestamp,
+  });
 }

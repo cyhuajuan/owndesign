@@ -1,4 +1,4 @@
-import { lstat, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { copyFile, lstat, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
@@ -40,6 +40,20 @@ export type ConversationRecord = {
   messages: unknown[];
   titleManuallySet?: boolean;
 };
+
+export type CheckpointRecord = {
+  id: string;
+  projectId: string;
+  conversationId: string;
+  userMessageId: string;
+  userPrompt: string;
+  createdAt: string;
+  files: string[];
+};
+
+export type CreateCheckpointInput = Omit<CheckpointRecord, 'files'>;
+
+export type CheckpointRestoreMode = 'files' | 'conversation' | 'both';
 
 export type WorkspaceEntry = {
   path: string;
@@ -304,6 +318,87 @@ export class WorkspaceStore {
     );
 
     return conversation;
+  }
+
+  async createCheckpoint(input: CreateCheckpointInput) {
+    assertSafeCheckpointId(input.id);
+
+    const record: CheckpointRecord = {
+      ...input,
+      files: ['index.html'],
+    };
+    const checkpointDirectory = this.getCheckpointDirectory(input.projectId, input.id);
+    const filesDirectory = path.join(checkpointDirectory, 'files');
+    const sourceFilePath = await this.resolveProjectWorkspacePath(input.projectId, 'index.html', {
+      checkTargetSymlink: true,
+    });
+
+    await mkdir(filesDirectory, { recursive: true });
+    await copyFile(sourceFilePath, path.join(filesDirectory, 'index.html'));
+    await writeFile(
+      path.join(checkpointDirectory, 'meta.json'),
+      `${JSON.stringify(record, null, 2)}\n`,
+      'utf8',
+    );
+
+    return record;
+  }
+
+  async listCheckpoints(projectId: string) {
+    const checkpointsDirectory = this.getCheckpointsDirectory(projectId);
+
+    try {
+      const entries = await readdir(checkpointsDirectory, { withFileTypes: true });
+      const checkpoints = await Promise.all(
+        entries
+          .filter((entry) => entry.isDirectory())
+          .map(async (entry) => this.readCheckpoint(projectId, entry.name)),
+      );
+
+      return checkpoints.sort(
+        (left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
+      );
+    } catch (error) {
+      if (isMissingPathError(error)) {
+        return [];
+      }
+
+      throw error;
+    }
+  }
+
+  async readCheckpoint(projectId: string, checkpointId: string) {
+    assertSafeCheckpointId(checkpointId);
+
+    const checkpointJson = await readFile(
+      path.join(this.getCheckpointDirectory(projectId, checkpointId), 'meta.json'),
+      'utf8',
+    );
+    const checkpoint = JSON.parse(checkpointJson) as CheckpointRecord;
+
+    if (checkpoint.projectId !== projectId || checkpoint.id !== checkpointId) {
+      throw new Error('Checkpoint metadata does not match the requested project.');
+    }
+
+    return checkpoint;
+  }
+
+  async restoreCheckpointFiles(projectId: string, checkpointId: string) {
+    const checkpoint = await this.readCheckpoint(projectId, checkpointId);
+    const checkpointDirectory = this.getCheckpointDirectory(projectId, checkpointId);
+
+    for (const file of checkpoint.files) {
+      const sourcePath = path.join(checkpointDirectory, 'files', file);
+      const targetPath = await this.resolveProjectWorkspacePath(projectId, file, {
+        checkTargetSymlink: true,
+        targetMayBeMissing: true,
+      });
+
+      await mkdir(path.dirname(targetPath), { recursive: true });
+      await copyFile(sourcePath, targetPath);
+    }
+
+    return checkpoint;
   }
 
   async writeProjectOutput(projectId: string, outputType: ProjectOutputType, content: string) {
@@ -843,6 +938,14 @@ export class WorkspaceStore {
     return path.join(this.getProjectDirectory(projectId), 'conversations');
   }
 
+  private getCheckpointsDirectory(projectId: string) {
+    return path.join(this.getProjectDirectory(projectId), 'checkpoints');
+  }
+
+  private getCheckpointDirectory(projectId: string, checkpointId: string) {
+    return path.join(this.getCheckpointsDirectory(projectId), checkpointId);
+  }
+
   private getProjectOutputFilePath(projectId: string, outputType: ProjectOutputType) {
     return path.join(this.getProjectWorkspaceDirectory(projectId), `index.${outputType}`);
   }
@@ -1152,4 +1255,10 @@ function normalizeProjectRecord(project: ProjectRecord): ProjectRecord {
     ...project,
     projectType: project.projectType ?? 'single_html',
   };
+}
+
+function assertSafeCheckpointId(checkpointId: string) {
+  if (!/^[A-Za-z0-9_-]+$/.test(checkpointId)) {
+    throw new Error(`Invalid checkpoint id: ${checkpointId}`);
+  }
 }

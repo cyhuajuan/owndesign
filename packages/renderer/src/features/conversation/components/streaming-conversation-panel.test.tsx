@@ -122,8 +122,12 @@ beforeEach(() => {
   });
   vi.stubGlobal(
     'fetch',
-    vi.fn(async () =>
-      Response.json({
+    vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).includes('/checkpoints')) {
+        return Response.json([]);
+      }
+
+      return Response.json({
         defaultModelId: 'model-1',
         interfaceLanguage: 'zh-CN',
         modelConfigurations: [
@@ -137,8 +141,8 @@ beforeEach(() => {
             provider: 'deepseek',
           },
         ],
-      }),
-    ),
+      });
+    }),
   );
 });
 
@@ -150,8 +154,12 @@ afterEach(() => {
 function stubOpenAICompatibleSettings() {
   vi.stubGlobal(
     'fetch',
-    vi.fn(async () =>
-      Response.json({
+    vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).includes('/checkpoints')) {
+        return Response.json([]);
+      }
+
+      return Response.json({
         defaultModelId: 'model-1',
         interfaceLanguage: 'zh-CN',
         modelConfigurations: [
@@ -165,16 +173,20 @@ function stubOpenAICompatibleSettings() {
             provider: 'openai-compatible',
           },
         ],
-      }),
-    ),
+      });
+    }),
   );
 }
 
 function stubAnthropicSettings() {
   vi.stubGlobal(
     'fetch',
-    vi.fn(async () =>
-      Response.json({
+    vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).includes('/checkpoints')) {
+        return Response.json([]);
+      }
+
+      return Response.json({
         defaultModelId: 'model-anthropic',
         interfaceLanguage: 'zh-CN',
         modelConfigurations: [
@@ -188,8 +200,8 @@ function stubAnthropicSettings() {
             provider: 'anthropic',
           },
         ],
-      }),
-    ),
+      });
+    }),
   );
 }
 
@@ -214,6 +226,14 @@ function prepareChatRequestBody(
   });
 
   return prepared?.body as Record<string, unknown>;
+}
+
+function createUserMessage(id: string, text: string): UIMessage {
+  return {
+    id,
+    parts: [{ text, type: 'text' }],
+    role: 'user',
+  };
 }
 
 describe('MessageParts', () => {
@@ -767,6 +787,137 @@ describe('MessageParts', () => {
       ],
       title: '设计一个 CRM 仪表盘',
     });
+  });
+
+  it('shows checkpoint restore actions for user messages with checkpoints', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const requestUrl = String(input);
+
+      if (requestUrl.endsWith('/api/settings')) {
+        return Response.json({
+          defaultModelId: 'model-1',
+          interfaceLanguage: 'zh-CN',
+          modelConfigurations: [
+            {
+              apiKey: '',
+              baseUrl: '',
+              contextSizeK: 1000,
+              hasApiKey: true,
+              id: 'model-1',
+              model: 'deepseek-v4-flash',
+              provider: 'deepseek',
+            },
+          ],
+        });
+      }
+
+      if (requestUrl.endsWith('/api/projects/project-1/checkpoints') && !init) {
+        return Response.json([
+          {
+            id: 'cp_1',
+            conversationId: 'conversation-1',
+            createdAt: '2026-06-09T10:00:00.000Z',
+            files: ['index.html'],
+            projectId: 'project-1',
+            userMessageId: 'user-1',
+            userPrompt: '设计首页',
+          },
+        ]);
+      }
+
+      if (requestUrl.endsWith('/api/projects/project-1/checkpoints/cp_1/restore')) {
+        return Response.json({ href: '/projects/project-1/conversations/conversation-1' });
+      }
+
+      if (requestUrl.startsWith('/api/workspace')) {
+        return Response.json({
+          activeConversationId: 'conversation-1',
+          conversations: [
+            {
+              id: 'conversation-1',
+              createdAt: '2026-06-09T09:00:00.000Z',
+              messages: [],
+              projectId: 'project-1',
+              title: '新建会话',
+              updatedAt: '2026-06-09T10:01:00.000Z',
+            },
+          ],
+          projects: [],
+          settings: {},
+        });
+      }
+
+      return Response.json([]);
+    });
+    const setMessages = vi.fn();
+    const onConversationUpdate = vi.fn();
+
+    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(useChat).mockReturnValue({
+      addToolApprovalResponse: vi.fn(),
+      error: undefined,
+      messages: [createUserMessage('user-1', '设计首页')],
+      sendMessage: vi.fn(),
+      setMessages,
+      status: 'ready',
+      stop: vi.fn(),
+    } as unknown as ReturnType<typeof useChat>);
+
+    render(
+      <StreamingConversationPanel
+        conversationId="conversation-1"
+        conversationTitle="新建会话"
+        initialMessages={[]}
+        onConversationUpdate={onConversationUpdate}
+        projectId="project-1"
+      />,
+    );
+
+    await user.click(await screen.findByRole('button', { name: '回退' }));
+    await user.click(await screen.findByText('回退文件和对话'));
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/projects/project-1/checkpoints/cp_1/restore',
+        expect.objectContaining({
+          body: JSON.stringify({ mode: 'both' }),
+          method: 'POST',
+        }),
+      ),
+    );
+    expect(setMessages).toHaveBeenCalledWith([]);
+    expect(onConversationUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'conversation-1',
+        messages: [],
+        title: '新建会话',
+      }),
+    );
+  });
+
+  it('does not show checkpoint restore actions without a matching checkpoint', async () => {
+    vi.mocked(useChat).mockReturnValue({
+      addToolApprovalResponse: vi.fn(),
+      error: undefined,
+      messages: [createUserMessage('user-without-checkpoint', '设计首页')],
+      sendMessage: vi.fn(),
+      setMessages: vi.fn(),
+      status: 'ready',
+      stop: vi.fn(),
+    } as unknown as ReturnType<typeof useChat>);
+
+    render(
+      <StreamingConversationPanel
+        conversationId="conversation-1"
+        conversationTitle="新建会话"
+        initialMessages={[]}
+        projectId="project-1"
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByText('设计首页')).toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: '回退' })).not.toBeInTheDocument();
   });
 
   it('shows only the last message reasoning indicator while chat streams', () => {

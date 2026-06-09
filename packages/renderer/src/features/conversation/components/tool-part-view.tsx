@@ -25,22 +25,22 @@ export type ToolLikePart = ToolUIPart | DynamicToolUIPart;
 function getToolDescription(part: ToolLikePart, t: ReturnType<typeof useI18n>['t']) {
   const toolName = getToolName(part);
   const target = getToolTarget(part);
-  const verb = getToolVerb(toolName, t);
-  const suffix = target ? ` ${target} ` : isPreviewTool(toolName) ? '' : t('conversation.file');
+  const action = getToolAction(toolName, target, t);
+  const targetSuffix = target ? t('tool.targetSuffix', { target }) : '';
 
   if (isFailedToolPart(part)) {
-    return t('tool.failed', { suffix, verb });
+    return t('tool.failed', { action, target: targetSuffix });
   }
 
   if (part.state === 'output-denied') {
-    return t('tool.cancelled', { suffix, verb });
+    return t('tool.cancelled', { action, target: targetSuffix });
   }
 
   if (part.state === 'output-available') {
-    return t('tool.completed', { suffix, verb });
+    return t('tool.completed', { action, target: targetSuffix });
   }
 
-  return t('tool.running', { suffix, verb });
+  return t('tool.running', { action, target: targetSuffix });
 }
 
 function isPendingToolPart(part: ToolLikePart) {
@@ -93,25 +93,29 @@ function getToolOutputOk(part: ToolLikePart) {
   return typeof output.ok === 'boolean' ? output.ok : undefined;
 }
 
-function isPreviewTool(toolName: string) {
-  return toolName === 'previewRefresh' || toolName === 'previewSwitchHtml';
+function isIndexHtmlPath(path?: string) {
+  return path === 'index.html';
 }
 
-function getToolVerb(toolName: string, t: ReturnType<typeof useI18n>['t']) {
-  const toolVerbKeys: Record<string, Parameters<typeof t>[0]> = {
-    copyFile: 'tool.copyFile',
-    createHtml: 'tool.createHtml',
-    delete: 'tool.delete',
-    edit: 'tool.edit',
-    glob: 'tool.glob',
-    grep: 'tool.grep',
-    patch: 'tool.patch',
-    previewRefresh: 'tool.previewRefresh',
-    previewSwitchHtml: 'tool.previewSwitchHtml',
-    read: 'tool.read',
-    write: 'tool.write',
+function getToolAction(
+  toolName: string,
+  target: string | undefined,
+  t: ReturnType<typeof useI18n>['t'],
+) {
+  const actionKeys: Record<string, Parameters<typeof t>[0]> = {
+    copyFile: 'tool.action.copyFile',
+    createHtml: 'tool.action.createHtml',
+    delete: 'tool.action.delete',
+    edit: isIndexHtmlPath(target) ? 'tool.action.editPage' : 'tool.action.editFile',
+    glob: 'tool.action.glob',
+    grep: 'tool.action.grep',
+    patch: isIndexHtmlPath(target) ? 'tool.action.patchPage' : 'tool.action.patchFile',
+    previewRefresh: 'tool.action.previewRefresh',
+    previewSwitchHtml: 'tool.action.previewSwitchHtml',
+    read: isIndexHtmlPath(target) ? 'tool.action.readPage' : 'tool.action.readFile',
+    write: isIndexHtmlPath(target) ? 'tool.action.writePage' : 'tool.action.writeFile',
   };
-  const key = toolVerbKeys[toolName];
+  const key = actionKeys[toolName];
 
   return key ? t(key) : toolName;
 }

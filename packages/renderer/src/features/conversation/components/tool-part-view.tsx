@@ -26,7 +26,8 @@ function getToolDescription(part: ToolLikePart, t: ReturnType<typeof useI18n>['t
   const toolName = getToolName(part);
   const target = getToolTarget(part);
   const action = getToolAction(toolName, target, t);
-  const targetSuffix = target ? t('tool.targetSuffix', { target }) : '';
+  const visibleTarget = getVisibleToolTarget(target);
+  const targetSuffix = visibleTarget ? t('tool.targetSuffix', { target: visibleTarget }) : '';
 
   if (isFailedToolPart(part)) {
     return t('tool.failed', { action, target: targetSuffix });
@@ -95,6 +96,10 @@ function getToolOutputOk(part: ToolLikePart) {
 
 function isIndexHtmlPath(path?: string) {
   return path === 'index.html';
+}
+
+function getVisibleToolTarget(path?: string) {
+  return isIndexHtmlPath(path) ? undefined : path;
 }
 
 function getToolAction(

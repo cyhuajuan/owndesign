@@ -478,7 +478,7 @@ describe('MessageParts', () => {
       />,
     );
 
-    expect(screen.getByText('已更新页面内容：index.html')).toBeInTheDocument();
+    expect(screen.getByText('已更新页面内容')).toBeInTheDocument();
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
     expect(screen.queryByText('参数')).not.toBeInTheDocument();
     expect(screen.queryByText('结果')).not.toBeInTheDocument();
@@ -504,7 +504,7 @@ describe('MessageParts', () => {
       />,
     );
 
-    expect(screen.getByText('正在更新页面内容：index.html')).toBeInTheDocument();
+    expect(screen.getByText('正在更新页面内容')).toBeInTheDocument();
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
     expect(screen.queryByText('参数')).not.toBeInTheDocument();
   });
@@ -568,7 +568,7 @@ describe('MessageParts', () => {
     );
 
     expect(screen.getByText('已刷新预览')).toBeInTheDocument();
-    expect(screen.getByText('已切换预览：index.html')).toBeInTheDocument();
+    expect(screen.getByText('已切换预览')).toBeInTheDocument();
     expect(screen.queryByText('已刷新预览文件')).not.toBeInTheDocument();
   });
 
@@ -592,7 +592,7 @@ describe('MessageParts', () => {
       />,
     );
 
-    expect(screen.getByText('重写页面文件失败：index.html')).toBeInTheDocument();
+    expect(screen.getByText('重写页面文件失败')).toBeInTheDocument();
     expect(screen.queryByText('权限不足')).not.toBeInTheDocument();
     expect(screen.queryByText('错误')).not.toBeInTheDocument();
   });
@@ -623,7 +623,7 @@ describe('MessageParts', () => {
       />,
     );
 
-    expect(screen.getByText('重写页面文件失败：index.html')).toBeInTheDocument();
+    expect(screen.getByText('重写页面文件失败')).toBeInTheDocument();
     expect(screen.getByText('读取项目文件失败：missing.txt')).toBeInTheDocument();
     expect(screen.queryByText('已重写页面文件：index.html')).not.toBeInTheDocument();
     expect(screen.queryByText('已读取项目文件：missing.txt')).not.toBeInTheDocument();

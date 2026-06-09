@@ -299,7 +299,7 @@ export function buildPageTargetProtocolPrompt() {
     '- Do not create `login.html`, `detail.html`, versioned HTML files, or any other HTML page.',
     '- If the user asks for multiple pages, screens, or routes, implement them as internal views inside `index.html`.',
     '- Use ordinary HTML, CSS, and browser JavaScript in the file.',
-    '- Do not create custom elements, component module folders, page manifests, or shared component manifests.',
+    '- Do not create custom elements, component module folders, or page/component reuse metadata files.',
     '- If `index.html` is missing, call `createHtml({ path: "index.html" })` before editing.',
     '- If `index.html` exists, read it before editing and continue from the current design.',
   ].join('\n');
@@ -378,14 +378,15 @@ export function buildResourcePolicyPrompt(resources: ResourceSettings) {
     'Do not use other icon systems, inline SVG icons, emoji icons, or decorative emoji as UI icons.',
     'When styling Lucide icons, do not target `i`, `i[data-lucide]`, or tag selectors because Lucide replaces the placeholder with inline `svg` elements.',
     'Give icons a semantic class or wrap them in a classed element, then style the class and child `svg`, such as `.nav-icon svg { width: 18px; height: 18px; stroke-width: 2; }`.',
-    'Do not reference any unconfigured external font service, font CDN, icon service, or icon CDN.',
-    'When a configured library has no CDN, follow the library choice in CSS naming only and do not add a CDN tag for it.',
+    'If JavaScript dynamically inserts markup that contains Lucide placeholders, call `lucide.createIcons()` after updating the DOM.',
+    'Prefer configured resources and local CSS before adding any external resource.',
+    'Add an extra external resource only when the user explicitly requests it or when it is necessary for the prototype quality.',
+    'When a configured library has no CDN, follow the library choice in CSS naming only.',
     'Configured font libraries:',
     fontLines.length ? fontLines.join('\n') : '- none',
     'Configured icon libraries:',
     iconLines.length ? iconLines.join('\n') : '- none',
     'Use regular inline CSS as the primary styling method.',
-    'Do not add new CDN resources. If a needed resource is not configured, use local CSS or explain the limitation.',
   ].join('\n');
 }
 

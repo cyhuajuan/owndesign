@@ -169,6 +169,9 @@ describe('createOwnDesignApp static hosting', () => {
     expect(response.status).toBe(200);
     expect(conversation.agentPromptVersion).toBe(1);
     expect(conversation.agentInstructions).toContain('# OwnDesign Single HTML Page Agent');
+    expect(conversation.agentInstructions).toContain('Plan the first viewport, key workflow');
+    expect(conversation.agentInstructions).toContain('Use `<main id="app">` for the visible app/page body');
+    expect(conversation.agentInstructions).toContain('Generic AI-style layouts');
     expect(conversation.agentInstructions).not.toContain('page_edit_mode_policy');
     expect(agentConfig.instructions).toBe(conversation.agentInstructions);
     expect(streamInput.uiMessages).toHaveLength(1);
@@ -216,6 +219,9 @@ describe('createOwnDesignApp static hosting', () => {
       'stored-user-1',
       'user-2',
     ]);
+    expect((aiMocks.toolLoopAgent.mock.calls[0]?.[0] as { instructions: string }).instructions).toBe(
+      'persisted instructions',
+    );
     expect(getMessageText(streamInput.uiMessages[1])).toBe('current input');
   });
 });

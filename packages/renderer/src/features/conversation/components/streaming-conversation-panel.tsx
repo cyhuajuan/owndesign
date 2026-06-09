@@ -542,18 +542,24 @@ const ConversationMessageItem = memo(
     onRestore: (checkpoint: CheckpointRecord, mode: CheckpointRestoreMode) => void;
   }) {
     return (
-      <Message from={message.role}>
-        <MessageContent className={message.role === 'assistant' ? 'w-full' : undefined}>
-          <MessageParts isLastMessage={isLastMessage} isStreaming={isStreaming} message={message} />
-          {checkpoint ? (
-            <CheckpointRestoreMenu
-              checkpoint={checkpoint}
-              disabled={isRestoreDisabled}
-              onRestore={onRestore}
+      <div>
+        <Message from={message.role}>
+          <MessageContent className={message.role === 'assistant' ? 'w-full' : undefined}>
+            <MessageParts
+              isLastMessage={isLastMessage}
+              isStreaming={isStreaming}
+              message={message}
             />
-          ) : null}
-        </MessageContent>
-      </Message>
+          </MessageContent>
+        </Message>
+        {checkpoint ? (
+          <CheckpointRestoreMenu
+            checkpoint={checkpoint}
+            disabled={isRestoreDisabled}
+            onRestore={onRestore}
+          />
+        ) : null}
+      </div>
     );
   },
   (previousProps, nextProps) =>
@@ -577,7 +583,7 @@ function CheckpointRestoreMenu({
   const { t } = useI18n();
 
   return (
-    <div className="mt-2 flex justify-end">
+    <div className="mt-1 flex justify-end pr-1">
       <DropdownMenu>
         <DropdownMenuTrigger
           disabled={disabled}

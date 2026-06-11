@@ -136,6 +136,14 @@ describe('AiSdkDesignPageAgent', () => {
     expect(instructions).toContain('reset, tokens, layout, components, responsive rules, and motion');
     expect(instructions).toContain('use `[data-view]` sections with a single active state');
     expect(instructions).toContain('only prototype behavior that is needed');
+    expect(instructions).toContain('Interactions should demonstrate interface states, user flows, and visual feedback');
+    expect(instructions).toContain('Good prototype interactions include active tabs, modal open/close, drawer visibility');
+    expect(instructions).toContain('filter chips, selected rows, toast messages, simple steppers, hash/view switching');
+    expect(instructions).toContain('default to a mock UI flow');
+    expect(instructions).toContain('Do not use `<input type="file">`, `webkitdirectory`, `showOpenFilePicker`, `FileReader`');
+    expect(instructions).toContain('drag-and-drop file reading, real file counting, or real local file previews');
+    expect(instructions).toContain('Forms may validate required fields, show error/success states, and update local mock content');
+    expect(instructions).toContain('Do not submit data, persist data, call APIs, authenticate, upload files');
     expect(instructions).toContain('Generic AI-style layouts');
     expect(instructions).toContain('Repeated same-looking rounded cards');
     expect(instructions).toContain('mobile horizontal overflow');

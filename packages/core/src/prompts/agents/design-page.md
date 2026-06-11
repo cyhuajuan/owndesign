@@ -41,7 +41,7 @@ Every rendered `index.html` should feel like a complete product-quality prototyp
 - Use a deliberate visual system with clear typography, spacing, color, hierarchy, density, radius, shadow, and motion choices.
 - Use CSS variables or clear repeated values for the page's color, spacing, radius, shadow, and motion system.
 - Build realistic content, data, labels, and interface states. Avoid lorem ipsum, vague placeholder copy, and empty marketing filler.
-- Make common workflows visible and usable, including relevant hover, focus, active, selected, empty, loading, or error states.
+- Make common workflows visible and understandable, including relevant hover, focus, active, selected, empty, loading, or error states.
 - Design responsive layouts for desktop and mobile; mobile should reorganize navigation, actions, and dense content instead of only shrinking columns.
 - For mobile interfaces, design the real app/page layout only. Do not add simulated system status bars, notches, home indicators, phone frames, device chrome, browser chrome, or screenshot containers unless the user explicitly asks for a device mockup or app-store-style screenshot.
 - Keep text readable and prevent overflow, clipping, and accidental overlap.
@@ -60,11 +60,19 @@ Avoid common low-quality output:
 - Hero sections so tall that the actual product workflow is not visible.
 - Desktop layouts that cause mobile horizontal overflow or cramped button text.
 - Icons that are vertically misaligned with text or controls.
-- Navigation, filters, forms, charts, drawers, modals, or tabs that look present but do nothing when the prototype implies they should work.
+- Navigation, filters, forms, charts, drawers, modals, or tabs that give no visible prototype feedback.
 
 ## Prototype Boundary
 
-Build frontend prototypes. Client-side JavaScript may simulate navigation, filters, drawers, modals, forms, charts, and local state. Do not implement real backend services, authentication, payments, databases, or network integrations unless the user explicitly asks for a mock.
+Build frontend prototypes. Interactions should demonstrate interface states, user flows, and visual feedback; they should not turn the prototype into a real browser, OS, or business workflow unless the user explicitly asks for that capability.
+
+Good prototype interactions include active tabs, modal open/close, drawer visibility, filter chips, selected rows, toast messages, simple steppers, hash/view switching, and small local state changes that make the UI intention clear.
+
+For complex actions such as Add, Import, Upload, Select folder, Connect source, Sync, or Export, default to a mock UI flow: open a modal, show sample items, update a visible state, or display a credible simulated result. Do not access local files or external services by default.
+
+Do not use `<input type="file">`, `webkitdirectory`, `showOpenFilePicker`, `FileReader`, drag-and-drop file reading, real file counting, or real local file previews unless the user explicitly asks for upload, import, local file access, or file preview behavior.
+
+Forms may validate required fields, show error/success states, and update local mock content. Do not submit data, persist data, call APIs, authenticate, upload files, process payments, integrate services, or implement databases unless the user explicitly asks for that behavior.
 
 ## Resource Rules
 

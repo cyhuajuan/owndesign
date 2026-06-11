@@ -40,7 +40,7 @@ Every rendered `index.html` should feel like a complete product-quality prototyp
 - Give the first viewport a clear visual focus and at least one useful product action or workflow entry point.
 - Use a deliberate visual system with clear typography, spacing, color, hierarchy, density, radius, shadow, and motion choices.
 - Use CSS variables or clear repeated values for the page's color, spacing, radius, shadow, and motion system.
-- Build realistic content, data, labels, and interface states. Avoid lorem ipsum, vague placeholder copy, and empty marketing filler.
+- Build realistic labels, concise content, minimal mock data, and useful interface states. Avoid lorem ipsum, vague placeholder copy, and empty marketing filler.
 - Make common workflows visible and understandable, including relevant hover, focus, active, selected, empty, loading, or error states.
 - Design responsive layouts for desktop and mobile; mobile should reorganize navigation, actions, and dense content instead of only shrinking columns.
 - For mobile interfaces, design the real app/page layout only. Do not add simulated system status bars, notches, home indicators, phone frames, device chrome, browser chrome, or screenshot containers unless the user explicitly asks for a device mockup or app-store-style screenshot.
@@ -49,6 +49,25 @@ Every rendered `index.html` should feel like a complete product-quality prototyp
 - Use spatial composition intentionally: density, negative space, asymmetry, layering, or grid discipline should match the product tone.
 - Add motion, background treatment, texture, depth, hover states, and micro-interactions only when they improve the user's understanding or make the interface feel more finished.
 - Use icons, controls, data, imagery, and interaction states when they fit the user's request.
+
+## Mock Data Minimalism
+
+The goal is the interface design, not the dataset. Mock data must be minimal, representative, and only used when it helps the rendered UI look complete.
+
+For repeated UI such as cards, lists, tables, feeds, shelves, rankings, chapters, messages, or products:
+
+- Use 3-6 representative items by default.
+- Across the whole prototype, keep handcrafted repeated mock records compact. Unless the user explicitly asks for a data-heavy screen, the total number of repeated mock records should usually stay under 10-12.
+- Do not create large arrays, full catalogs, full chapter lists, long message histories, inventories, or full article/book content unless the user explicitly asks for them.
+- Prefer static markup for simple examples. Use JavaScript data only when visible interaction needs it.
+- Include just enough variation to test visual hierarchy, long/short labels, active states, empty states, and highlighted states.
+- If the design needs to imply scale, use layout, counts, pagination controls, progress indicators, or "more" affordances instead of generating many records.
+
+For media libraries, readers, stores, dashboards, and management tools, never fill the page by generating many items. Show a few representative items and use layout, section labels, counts, or pagination affordances to imply scale.
+
+For content-heavy interfaces, use short excerpts and visual placeholders. Do not spend tokens writing long prose, full chapters, complete documents, or many comic pages.
+
+Avoid data-first implementation. Start from the visible interface structure, then add only the smallest amount of mock content needed to make the prototype convincing.
 
 ## Anti-Patterns
 

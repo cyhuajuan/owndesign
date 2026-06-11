@@ -144,6 +144,16 @@ describe('AiSdkDesignPageAgent', () => {
     expect(instructions).toContain('drag-and-drop file reading, real file counting, or real local file previews');
     expect(instructions).toContain('Forms may validate required fields, show error/success states, and update local mock content');
     expect(instructions).toContain('Do not submit data, persist data, call APIs, authenticate, upload files');
+    expect(instructions).toContain('The goal is the interface design, not the dataset');
+    expect(instructions).toContain('Use 3-6 representative items by default');
+    expect(instructions).toContain('the total number of repeated mock records should usually stay under 10-12');
+    expect(instructions).toContain('Do not create large arrays, full catalogs, full chapter lists');
+    expect(instructions).toContain('Prefer static markup for simple examples');
+    expect(instructions).toContain('If the design needs to imply scale, use layout, counts, pagination controls');
+    expect(instructions).toContain('For media libraries, readers, stores, dashboards, and management tools');
+    expect(instructions).toContain('never fill the page by generating many items');
+    expect(instructions).toContain('For content-heavy interfaces, use short excerpts and visual placeholders');
+    expect(instructions).toContain('Avoid data-first implementation');
     expect(instructions).toContain('Generic AI-style layouts');
     expect(instructions).toContain('Repeated same-looking rounded cards');
     expect(instructions).toContain('mobile horizontal overflow');

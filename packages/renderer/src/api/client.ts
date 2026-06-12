@@ -1,7 +1,12 @@
 import type { UIMessage } from 'ai';
 
 import type { InitialSetupInput } from '@/features/onboarding/components/initial-setup-guide';
-import type { ConversationRecord, ProjectRecord } from '@owndesign/core/workspace-store';
+import type {
+  CheckpointRecord,
+  CheckpointRestoreMode,
+  ConversationRecord,
+  ProjectRecord,
+} from '@owndesign/core/workspace-store';
 import type { PublicAppSettings } from '@owndesign/core/settings/settings-service';
 import type {
   InterfaceLanguage,
@@ -59,9 +64,9 @@ export function createApiClient(baseUrl = '') {
         { method: 'POST' },
       );
     },
-    createProject(name: string, description?: string) {
+    createProject(name: string, description?: string, projectType = 'single_html') {
       return requestJson<ActionResult>('/api/projects', {
-        body: JSON.stringify({ description, name }),
+        body: JSON.stringify({ description, name, projectType }),
         headers: { 'Content-Type': 'application/json' },
         method: 'POST',
       });
@@ -102,6 +107,11 @@ export function createApiClient(baseUrl = '') {
         ),
       );
     },
+    listCheckpoints(projectId: string) {
+      return requestJson<CheckpointRecord[]>(
+        `/api/projects/${encodeURIComponent(projectId)}/checkpoints`,
+      );
+    },
     loadSettings() {
       return requestJson<PublicAppSettings>('/api/settings');
     },
@@ -136,6 +146,18 @@ export function createApiClient(baseUrl = '') {
         headers: { 'Content-Type': 'application/json' },
         method: 'PATCH',
       });
+    },
+    restoreCheckpoint(projectId: string, checkpointId: string, mode: CheckpointRestoreMode) {
+      return requestJson<ActionResult>(
+        `/api/projects/${encodeURIComponent(projectId)}/checkpoints/${encodeURIComponent(
+          checkpointId,
+        )}/restore`,
+        {
+          body: JSON.stringify({ mode }),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST',
+        },
+      );
     },
     saveSettings(settings: {
       defaultModelId: string | null;

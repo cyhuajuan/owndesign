@@ -1,10 +1,17 @@
-import { ConversationRecord, ProjectRecord, WorkspaceStore } from '@owndesign/core/workspace-store';
+import {
+  ConversationRecord,
+  ProjectRecord,
+  type ProjectType,
+  WorkspaceStore,
+} from '@owndesign/core/workspace-store';
 import { normalizeDefaultConversationTitle } from '@owndesign/core/conversations/default-title';
+import { buildSingleHtmlTemplate } from '@owndesign/core/agent/tools/create-html';
 
 type CreateProjectInput = {
   defaultConversationTitle?: string;
   name: string;
   description?: string;
+  projectType?: ProjectType;
 };
 
 type RenameProjectInput = {
@@ -39,11 +46,18 @@ export class ProjectService {
   }
 
   async createProject(input: CreateProjectInput) {
+    const projectType = input.projectType ?? 'single_html';
+
+    if (projectType === 'react') {
+      throw new Error('React project type is reserved but not supported yet.');
+    }
+
     const timestamp = this.now();
     const project: ProjectRecord = {
       id: this.createId(),
       name: input.name,
       description: input.description,
+      projectType,
       outputType: 'html',
       createdAt: timestamp,
       updatedAt: timestamp,
@@ -58,6 +72,11 @@ export class ProjectService {
     };
 
     await this.workspaceStore.createProject(project);
+    await this.workspaceStore.writeProjectWorkspaceFile(
+      project.id,
+      'index.html',
+      buildSingleHtmlTemplate({ title: input.name }),
+    );
     await this.workspaceStore.createConversation(conversation);
 
     return { conversation, project };

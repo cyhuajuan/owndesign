@@ -7,11 +7,9 @@ import {
   type FrontendCommand,
 } from '@owndesign/core/realtime/frontend-capabilities';
 import { useApiClient } from '@/api/context';
-import { usePreviewPath } from '@/features/preview/preview-path';
 
 export const FRONTEND_TAB_ID = createFrontendTabId();
 
-const PROJECT_OUTPUT_UPDATED_EVENT = 'owndesign:project-output-updated';
 const PREVIEW_REFRESH_EVENT = 'owndesign:preview-refresh';
 
 type FrontendCapabilityBridgeProps = {
@@ -20,7 +18,6 @@ type FrontendCapabilityBridgeProps = {
 
 export function FrontendCapabilityBridge({ projectId }: FrontendCapabilityBridgeProps) {
   const api = useApiClient();
-  const [, setPreviewPath] = usePreviewPath();
 
   useEffect(() => {
     if (!projectId) {
@@ -44,21 +41,13 @@ export function FrontendCapabilityBridge({ projectId }: FrontendCapabilityBridge
 
       if (command.capability === 'preview.refresh') {
         window.dispatchEvent(new Event(PREVIEW_REFRESH_EVENT));
-        return;
       }
-
-      setPreviewPath(command.payload.path);
-      window.dispatchEvent(
-        new CustomEvent(PROJECT_OUTPUT_UPDATED_EVENT, {
-          detail: { projectId },
-        }),
-      );
     });
 
     return () => {
       eventSource.close();
     };
-  }, [api, projectId, setPreviewPath]);
+  }, [api, projectId]);
 
   return null;
 }
@@ -83,19 +72,6 @@ function parseFrontendCommand(event: Event): FrontendCommand | undefined {
       };
     }
 
-    if (
-      command.payload &&
-      typeof command.payload === 'object' &&
-      'path' in command.payload &&
-      typeof command.payload.path === 'string' &&
-      command.payload.path.trim()
-    ) {
-      return {
-        capability: command.capability,
-        id: typeof command.id === 'string' ? command.id : '',
-        payload: { path: command.payload.path },
-      };
-    }
   } catch {
     return undefined;
   }

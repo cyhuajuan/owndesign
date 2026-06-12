@@ -30,7 +30,7 @@ describe('FrontendCapabilityBridge', () => {
     );
   });
 
-  it('switches preview html when the frontend command arrives', () => {
+  it('ignores unsupported preview switch commands', () => {
     const dispatchEventSpy = vi.spyOn(window, 'dispatchEvent');
     render(<FrontendCapabilityBridge projectId="project-1" />);
 
@@ -46,12 +46,10 @@ describe('FrontendCapabilityBridge', () => {
       );
     });
 
-    expect(window.location.search).toBe('?previewPath=pages%2Fdetail.html');
+    expect(window.location.search).toBe('');
     expect(
-      dispatchEventSpy.mock.calls.some(
-        ([event]) => event.type === 'owndesign:project-output-updated',
-      ),
-    ).toBe(true);
+      dispatchEventSpy.mock.calls.some(([event]) => event.type === 'owndesign:preview-refresh'),
+    ).toBe(false);
     dispatchEventSpy.mockRestore();
   });
 

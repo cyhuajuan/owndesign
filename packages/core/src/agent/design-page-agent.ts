@@ -12,25 +12,20 @@ import {
   type ResourceLibrary,
   type ResourceSettings,
 } from '@owndesign/core/settings/settings-service';
-import type { ProjectOutputType } from '@owndesign/core/workspace-store';
+import type { ProjectOutputType, ProjectType } from '@owndesign/core/workspace-store';
 import { WorkspaceStore } from '@owndesign/core/workspace-store';
 import { createProjectWorkspaceToolDefinitions } from '@owndesign/core/agent/tools/project-workspace-tools';
 import { createWorkspaceToolRegistry } from '@owndesign/core/agent/tools/core';
-import { createComponentAuditToolDefinition } from '@owndesign/core/agent/tools/component-audit';
 import { loadPrompt } from '@owndesign/core/prompts';
 import { buildFrontendCapabilityPrompt } from '@owndesign/core/realtime/frontend-capabilities';
-import {
-  buildPageEditModePolicy,
-  type PageEditMode,
-  type PageEditModePolicy,
-} from '@owndesign/core/agent/page-edit-mode';
 
 export const DESIGN_PAGE_AGENT_PROMPT_VERSION = 1;
 
 export type DesignPageAgentInput = {
   content: string;
   projectId: string;
-  outputType: ProjectOutputType;
+  projectType?: ProjectType;
+  outputType?: ProjectOutputType;
 };
 
 export type DesignPageAgentResult = {
@@ -46,9 +41,8 @@ type CreateDesignPageAgentInput = {
   currentPreviewPath?: string;
   frontendTabId?: string;
   model: LanguageModel;
-  outputType: ProjectOutputType;
-  pageEditMode?: PageEditMode;
-  pageEditModePolicy?: PageEditModePolicy;
+  outputType?: ProjectOutputType;
+  projectType?: ProjectType;
   providerOptions?: ToolLoopAgentSettings['providerOptions'];
   projectId: string;
   resources: ResourceSettings;
@@ -66,10 +60,11 @@ type CreateDesignPageAgentContextInput = {
   currentPreviewPath?: string;
   frontendTabId?: string;
   modelConfigurationId?: string;
-  outputType: ProjectOutputType;
-  pageEditMode?: PageEditMode;
+  outputType?: ProjectOutputType;
+  projectType?: ProjectType;
   projectId: string;
   providerOptionsSelection?: ProviderOptionsSelection;
+  settingsPath?: string;
   workspaceStore: WorkspaceStore;
 };
 
@@ -82,12 +77,14 @@ export class AiSdkDesignPageAgent implements DesignPageAgent {
   constructor(private readonly workspaceStore: WorkspaceStore) {}
 
   async generateProjectOutput(input: DesignPageAgentInput) {
-    if (input.outputType !== 'html') {
-      throw new Error(`Unsupported Project Output Type: ${input.outputType}`);
+    const projectType = normalizeProjectType(input.projectType, input.outputType);
+
+    if (projectType !== 'single_html') {
+      throw new Error(`Unsupported Project Type: ${projectType}`);
     }
 
     const context = await createDesignPageAgentContext({
-      outputType: input.outputType,
+      projectType,
       projectId: input.projectId,
       workspaceStore: this.workspaceStore,
     });
@@ -107,35 +104,29 @@ export async function createDesignPageAgentContext({
   frontendTabId,
   modelConfigurationId,
   outputType,
-  pageEditMode = 'auto',
+  projectType,
   projectId,
   providerOptionsSelection,
+  settingsPath,
   workspaceStore,
 }: CreateDesignPageAgentContextInput): Promise<DesignAgentContext> {
-  if (outputType !== 'html') {
-    throw new Error(`Unsupported Project Output Type: ${outputType}`);
+  projectType = normalizeProjectType(projectType, outputType);
+
+  if (projectType !== 'single_html') {
+    throw new Error(`Unsupported Project Type: ${projectType}`);
   }
 
-  const settingsService = createSettingsService();
+  const settingsService = createSettingsService({ settingsPath });
   const [settings, modelConfiguration] = await Promise.all([
     settingsService.getSettings(),
     settingsService.resolveModelConfiguration(modelConfigurationId),
   ]);
 
-  const pageEditModePolicy = await buildPageEditModePolicy({
-    currentPreviewPath,
-    mode: pageEditMode,
-    projectId,
-    workspaceStore,
-  });
-
   return {
     currentPreviewPath,
     frontendTabId,
     model: buildLanguageModel(modelConfiguration),
-    outputType,
-    pageEditMode,
-    pageEditModePolicy,
+    projectType,
     providerOptions: buildProviderOptions(modelConfiguration, providerOptionsSelection),
     projectId,
     resources: settings.resources,
@@ -157,21 +148,17 @@ export function createDesignPageAgent(context: DesignAgentContext) {
 }
 
 export function createDesignPageWorkspaceTools(context: DesignAgentContext) {
-  const { frontendTabId, pageEditModePolicy, projectId, resources, workspaceStore } = context;
+  const { frontendTabId, projectId, resources, workspaceStore } = context;
 
-  return createWorkspaceToolRegistry(
-    [...createProjectWorkspaceToolDefinitions(), createComponentAuditToolDefinition()],
-    {
-      approvedCdnUrls: buildApprovedCdnUrls(resources),
-      frontendTabId,
-      model: context.model,
-      pageEditModePolicy,
-      projectId,
-      providerOptions: context.providerOptions,
-      resources,
-      workspaceStore,
-    },
-  );
+  return createWorkspaceToolRegistry(createProjectWorkspaceToolDefinitions(), {
+    approvedCdnUrls: buildApprovedCdnUrls(resources),
+    frontendTabId,
+    model: context.model,
+    projectId,
+    providerOptions: context.providerOptions,
+    resources,
+    workspaceStore,
+  });
 }
 
 export function buildDesignPageInstructions({ resources }: DesignAgentContext) {
@@ -240,6 +227,18 @@ export function buildProviderOptions(
   };
 }
 
+function normalizeProjectType(projectType?: ProjectType, outputType?: ProjectOutputType) {
+  if (projectType) {
+    return projectType;
+  }
+
+  if (outputType === 'html') {
+    return 'single_html';
+  }
+
+  return 'single_html';
+}
+
 export function buildDesignPageAgentInstructions(resources?: ResourceSettings) {
   return buildDesignPageConversationInstructions(resources);
 }
@@ -257,10 +256,6 @@ export function buildDesignPageConversationInstructions(resources?: ResourceSett
     {
       tag: 'tool_workflow',
       content: buildToolWorkflowPrompt(),
-    },
-    {
-      tag: 'shared_components',
-      content: buildSharedComponentsPrompt(),
     },
     {
       tag: 'frontend_capabilities',
@@ -295,115 +290,69 @@ export function loadDesignPageAgentCorePrompt() {
 
 export function buildPageTargetProtocolPrompt() {
   return [
-    '## Page Target Protocol',
+    '## Single HTML Target Protocol',
     '',
-    'Resolve the target HTML page before creating or updating previewable output.',
+    'The project has one previewable file: `index.html`.',
     '',
-    'Target resolution:',
-    '- All previewable pages must be relative workspace paths ending in `.html`.',
-    '- If the user names a file, path, or page type, use that explicit target.',
-    "- Each turn's user message has already been rewritten with the current preview page and page edit mode when those matter.",
-    '- If the user uses a relative page reference such as "this page", "current page", "here", "top", or "bottom", use the target page stated in the current user message when available.',
-    '- Store previewable HTML pages flat in the workspace root; do not create page subdirectories unless the user explicitly asks for a directory.',
-    '- Name page versions as `{slug}-v{n}.html`, such as `index-v1.html`, `login-v1.html`, or `settings-v1.html`.',
-    '- Maintain `.owndesign-pages.json` as page directory metadata when creating a new page. It must contain only `{ "pages": [{ "slug": "...", "displayName": "..." }] }` entries.',
-    '- Use a short English semantic slug for filenames and a natural-language displayName from the user intent, such as `index` -> `小说阅读器首页` or `detail` -> `作品详情页`.',
-    '- If the user asks for a home, main, landing, or first page, use `index-v1.html` for the first version.',
-    '- For a first home page, create `index-v1.html` and add an `index` displayName entry to `.owndesign-pages.json`.',
-    '- If the user asks for a new named page, choose a semantic slug and create its first version, such as `login-v1.html` or `detail-v1.html`.',
-    '- For a new named page, create `{slug}-v1.html` and add that slug displayName entry to `.owndesign-pages.json`.',
-    '- If no target is specified and no multi-page structure is evident, default to `index-v1.html`.',
-    '- If multiple HTML files exist, no current preview page is available, and the target remains ambiguous after inspection, ask one concise follow-up question.',
-    '- Do not ask a follow-up question just because the request is brief; act when the target can be resolved from the current user message, an explicit filename, or the `index-v1.html` default.',
-    '',
-    '- Cross-page links should target concrete version files such as `detail-v2.html`; do not assume a stable `detail.html` entry file exists.',
-    '- Do not overwrite an existing HTML version for a new page; create the next version only when the current task is explicitly based on an existing page.',
-    '- In duplicate_edit mode, do not update `.owndesign-pages.json` unless the user explicitly asks to rename the page display name.',
+    'Rules:',
+    '- Always target `index.html` for previewable output.',
+    '- Do not create `login.html`, `detail.html`, versioned HTML files, or any other HTML page.',
+    '- If the user asks for multiple pages, screens, or routes, implement them as internal views inside `index.html`.',
+    '- Use ordinary HTML, CSS, and browser JavaScript in the file.',
+    '- Do not create custom elements, component module folders, or page/component reuse metadata files.',
+    '- If `index.html` is missing, call `createHtml({ path: "index.html" })` before editing.',
+    '- If `index.html` exists, read it before editing and continue from the current design.',
   ].join('\n');
 }
 
 export function buildToolWorkflowPrompt() {
   return [
     '## Tool Workflow',
-    'Use the narrowest reliable tool for each task; inspect before writing, recover before retrying.',
+    'Use the narrowest reliable tool for each task.',
     '',
-    'Inspect before changing files:',
+    'Inspect before editing:',
     '- Use `glob` to discover files.',
     '- Use `grep` to locate relevant code or markup.',
-    '- Use `read` before editing any existing target file.',
-    '- Always inspect before coordinated edits across existing files.',
+    '- Use `read` before editing an existing file.',
     '',
-    'Choose the write tool by intent:',
+    'Choose tools by intent:',
+    '- Use `createHtml` only to create a missing `index.html` file.',
     '- Use `edit` for small, focused replacements in one existing file.',
     '- Use `patch` for coordinated changes, repeated replacements, or multi-file edits.',
-    '- Use `write` only for non-HTML files or deliberate full-file overwrites; never use it to create initial HTML pages.',
-    '- Do not use `write` for ordinary HTML page edits. Use it for HTML only when the user explicitly asks to rebuild the whole file.',
-    '- Use `delete` only after using `grep` or direct inspection to confirm the file is no longer referenced by any page or build target.',
-    '- Use `copyFile` when the current user message asks you to duplicate an existing file before editing the duplicate.',
+    '- Use `write` only for deliberate full-file replacement or non-preview support files.',
+    '- Do not use `write` to create the initial `index.html`; use `createHtml` first.',
+    '- Use `copyFile` only when the current user message explicitly asks you to duplicate an existing file.',
+    '- Use `delete` only after confirming the file is not referenced.',
     '',
-    'For HTML pages:',
-    '- Do not modify unrelated HTML files unless the requested change requires coordinated edits.',
-    '- Use `createHtml` when the target HTML file does not exist; do not create initial HTML with `write`.',
-    '- For `createHtml`, pass the resolved target path. Pass `fontLibraryName` or `iconLibraryName` only when the user explicitly names a font or icon library; otherwise omit them so the tool reads configured defaults.',
-    '- After `createHtml`, immediately use `read` on that file before editing it.',
-    '- If the target HTML file exists, use `read` before editing it; do not call `createHtml`.',
-    '- Use `edit` or `patch` for HTML changes after reading the file.',
+    'For Single HTML creation:',
+    '- Call `createHtml({ path: "index.html" })` when `index.html` is missing.',
+    '- After `createHtml`, read `index.html`.',
+    '- Replace the default placeholder markup, CSS, and script with a complete designed prototype.',
+    '',
+    'For Single HTML updates:',
+    '- If `index.html` exists, read it before editing and do not call `createHtml`.',
+    '- Keep visible page structure, styling, and local interactions in `index.html`.',
+    '- Use internal views for multi-screen workflows instead of additional HTML files.',
+    '',
+    'After page changes:',
+    '- Use `previewRefresh` when the current preview page changed and should reload.',
+    '- Call exactly one `previewRefresh` after successful previewable changes.',
     '',
     'Recover from tool failures:',
-    '- If `edit` cannot find the expected text, `read` the file again and retry with a smaller replacement or `patch`.',
-    '- If a write tool returns an error or produces unexpected output, read the file again before retrying.',
-    '',
-    'Resource constraints:',
-    '- Only use CDNs already listed in resource settings; do not add others.',
-    '- `write`, `edit`, and `patch` will reject HTML with unlisted CDN tags - if rejected, fall back to configured libraries, system fonts, inline SVG, or local CSS.',
-    '',
-    'Component audit:',
-    '- After completing any HTML creation, edit, duplicate edit, or new-page design task, call `componentAudit` before the final reply.',
-    '- `componentAudit` runs a read-only sub-agent. Use it for checking only; do not treat it as a replacement for editing files yourself.',
-    '- If `componentAudit` returns high severity findings, fix those required issues and call `componentAudit` again before replying.',
-    '- For high severity navigation findings, create or reuse a `navigation` shared component and call `syncSharedComponent`.',
-    '- Medium and low severity findings are suggestions. Do not automatically fix them unless they are clearly part of the user request; mention relevant ones briefly in the final reply.',
+    '- If an edit fails, read the file again and retry with a smaller edit or patch.',
+    '- If a generated prototype becomes too large or brittle, simplify the file while preserving visible quality.',
   ].join('\n');
 }
 
 export function buildSharedComponentsPrompt() {
   return [
-    '## Shared Components',
-    'Use shared component fragments to keep repeated UI consistent across multi-page HTML projects.',
+    '## Single File Architecture',
+    'This project type does not use shared components or multiple preview pages.',
     '',
-    'Component library convention:',
-    '- Before designing a new page in a multi-page project, inspect `.owndesign-components.json` and reuse existing components when they fit.',
-    '- Store source fragments at `components/{name}.html`, such as `components/nav.html` or `components/product-card.html`.',
-    '- Component fragments may include ordinary `<style>` plus HTML markup; do not use the obsolete `<style scoped>` attribute.',
-    '- Use the manifest component name as the component ID. Give the component root `data-owndesign-component="{name}"` and a stable root class `odc-{name}`, such as `.odc-nav`.',
-    '- Component CSS selectors must be scoped through the root class, such as `.odc-nav .nav-link.active`. Avoid broad component styles like `body`, `a`, `button`, `.active`, or `.card` as selector entrypoints.',
-    '- Insert expanded component markup into HTML pages inside `<!-- owndesign:component {name} start -->` and `<!-- owndesign:component {name} end -->` markers.',
-    '- Maintain `.owndesign-components.json` with `{ "components": [{ "name": "nav", "source": "components/nav.html", "usedBy": ["index-v1.html"], "syncMode": "navigation", "description": "Site navigation" }] }`.',
-    '',
-    'Sync modes:',
-    '- `exact`: shared content should remain identical across pages. Use for footer, CTA band, newsletter, testimonial, and other fixed repeated sections.',
-    '- `navigation`: shared navigation structure should sync across pages while active state changes by page. Nav items must use `data-owndesign-nav-item="{slug}"`; `syncSharedComponent` adds `class="active"` and `aria-current="page"` for the current page slug.',
-    '- `pattern`: shared design pattern template only. Use for product-card, pricing-card, form-field, stat-card, article-card, and other components whose structure/style repeats but content differs. Do not auto-sync pattern instances unless the user explicitly asks.',
-    '',
-    'Editing marked component instances:',
-    '- Treat any HTML inside `<!-- owndesign:component NAME start -->` and `<!-- owndesign:component NAME end -->` as a shared component instance, even if `.owndesign-components.json` is missing.',
-    '- Before changing content inside a component marker, decide whether the request is a component-level change or a current-page instance change.',
-    '- For component-level changes, update `components/{name}.html` and use `syncSharedComponent`; do not directly hand-edit the current page marker contents.',
-    '- Navigation text, nav items, top nav, sidebar nav, active styling, and nav links default to component-level changes for `navigation` components unless the user explicitly says the change is page-local.',
-    '- Marker content for `exact` components defaults to component-level changes. Marker content for `pattern` components defaults to current-page instance changes unless the user asks to update the shared template, structure, or unified styling.',
-    '- For explicit current-page instance changes, edit only the current HTML page and intentionally preserve or remove the component markers based on whether the instance should remain shared.',
-    '',
-    'Workflow:',
-    '- When creating or editing a page in a multi-page project, inspect `.owndesign-components.json` before designing shared site structure.',
-    '- For `exact` and `navigation` components, place the necessary component-scoped CSS inside the fragment so structure and styling sync together.',
-    '- For `pattern` components, keep useful scoped styles in the template, but do not auto-sync pattern instances unless the user explicitly asks.',
-    '- Navigation is the highest-priority shared component: if pages in the same site use the same top nav or sidebar nav, create or reuse a `navigation` component unless the user explicitly asks for page-specific navigation.',
-    '- When expanding a one-page site into a second page, upgrade shared top nav or sidebar nav into a `navigation` component when both pages should use the same site navigation.',
-    '- When adding a new page to an existing site, reuse shared navigation before inventing a new visual variant, and update the shared nav links when appropriate.',
-    '- Extract other components only when reuse is likely and visual consistency matters. Avoid extracting one-off sections, content-heavy sections, or modules that are intentionally different on each page.',
-    '- When the user asks to change a whole-site, shared, repeated, or unified component, use `syncSharedComponent` with the right syncMode.',
-    '- `syncSharedComponent` only updates pages that already contain matching markers; insert markers with normal HTML edits when adding a new page.',
-    '- For one-page local changes, edit the current HTML page directly.',
+    '- Keep the prototype self-contained in `index.html`.',
+    '- For repeated UI, reuse CSS classes and small JavaScript helper functions inside `index.html`.',
+    '- Navigation should switch internal views, tabs, sections, or hash routes inside the same document.',
+    '- Do not create manifests or component modules for reuse.',
   ].join('\n');
 }
 
@@ -422,17 +371,22 @@ export function buildResourcePolicyPrompt(resources: ResourceSettings) {
     defaultIconLibrary
       ? `Default icon library: ${defaultIconLibrary.name}.`
       : 'Default icon library: none configured.',
-    'If the user prompt explicitly names a configured font or icon library, use that named library; otherwise use the default library.',
-    'Only use configured font libraries or system fonts. Do not reference any unconfigured external font service or font CDN.',
-    'Prefer configured icon libraries for icons. Use inline SVG only when no icon library is configured or when the configured libraries cannot provide a suitable icon.',
-    'Do not reference any unconfigured external icon service or icon CDN.',
-    'When a configured library has no CDN, follow the library choice in CSS naming only and do not add a CDN tag for it.',
+    'The default HTML template already configures Inter and Noto Sans SC on the `html` element.',
+    'Unless the user explicitly asks for a different typeface, do not change `font-family`; adjust typography with size, weight, line-height, spacing, and hierarchy.',
+    'Lucide icons are already configured by the default HTML template.',
+    'Use Lucide icons with `<i data-lucide="menu"></i>` syntax, replacing `menu` with the appropriate Lucide icon name.',
+    'Do not use other icon systems, inline SVG icons, emoji icons, or decorative emoji as UI icons.',
+    'When styling Lucide icons, do not target `i`, `i[data-lucide]`, or tag selectors because Lucide replaces the placeholder with inline `svg` elements.',
+    'Give icons a semantic class or wrap them in a classed element, then style the class and child `svg`, such as `.nav-icon svg { width: 18px; height: 18px; stroke-width: 2; }`.',
+    'If JavaScript dynamically inserts markup that contains Lucide placeholders, call `lucide.createIcons()` after updating the DOM.',
+    'Prefer configured resources and local CSS before adding any external resource.',
+    'Add an extra external resource only when the user explicitly requests it or when it is necessary for the prototype quality.',
+    'When a configured library has no CDN, follow the library choice in CSS naming only.',
     'Configured font libraries:',
     fontLines.length ? fontLines.join('\n') : '- none',
     'Configured icon libraries:',
     iconLines.length ? iconLines.join('\n') : '- none',
     'Use regular inline CSS as the primary styling method.',
-    'Do not add new CDN resources. If a needed resource is not configured, use system fonts, inline SVG, local CSS, or explain the limitation.',
   ].join('\n');
 }
 

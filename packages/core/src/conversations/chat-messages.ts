@@ -1,5 +1,4 @@
 import type { UIMessage } from 'ai';
-import type { PageEditMode } from '@owndesign/core/agent/page-edit-mode';
 
 export type OwnDesignUIMessage = UIMessage;
 
@@ -10,7 +9,7 @@ export type TurnPromptRewriteMetadata = {
     duplicateTargetPath?: string;
     createdAt: string;
     kind: 'turn-prompt-rewriter';
-    pageEditMode: PageEditMode;
+    pageEditMode?: string;
     previewFileExists: boolean;
     previewPath?: string;
   };

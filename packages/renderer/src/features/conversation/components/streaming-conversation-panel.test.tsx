@@ -122,8 +122,12 @@ beforeEach(() => {
   });
   vi.stubGlobal(
     'fetch',
-    vi.fn(async () =>
-      Response.json({
+    vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).includes('/checkpoints')) {
+        return Response.json([]);
+      }
+
+      return Response.json({
         defaultModelId: 'model-1',
         interfaceLanguage: 'zh-CN',
         modelConfigurations: [
@@ -137,8 +141,8 @@ beforeEach(() => {
             provider: 'deepseek',
           },
         ],
-      }),
-    ),
+      });
+    }),
   );
 });
 
@@ -150,8 +154,12 @@ afterEach(() => {
 function stubOpenAICompatibleSettings() {
   vi.stubGlobal(
     'fetch',
-    vi.fn(async () =>
-      Response.json({
+    vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).includes('/checkpoints')) {
+        return Response.json([]);
+      }
+
+      return Response.json({
         defaultModelId: 'model-1',
         interfaceLanguage: 'zh-CN',
         modelConfigurations: [
@@ -165,16 +173,20 @@ function stubOpenAICompatibleSettings() {
             provider: 'openai-compatible',
           },
         ],
-      }),
-    ),
+      });
+    }),
   );
 }
 
 function stubAnthropicSettings() {
   vi.stubGlobal(
     'fetch',
-    vi.fn(async () =>
-      Response.json({
+    vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).includes('/checkpoints')) {
+        return Response.json([]);
+      }
+
+      return Response.json({
         defaultModelId: 'model-anthropic',
         interfaceLanguage: 'zh-CN',
         modelConfigurations: [
@@ -188,8 +200,8 @@ function stubAnthropicSettings() {
             provider: 'anthropic',
           },
         ],
-      }),
-    ),
+      });
+    }),
   );
 }
 
@@ -214,6 +226,14 @@ function prepareChatRequestBody(
   });
 
   return prepared?.body as Record<string, unknown>;
+}
+
+function createUserMessage(id: string, text: string): UIMessage {
+  return {
+    id,
+    parts: [{ text, type: 'text' }],
+    role: 'user',
+  };
 }
 
 describe('MessageParts', () => {
@@ -478,7 +498,7 @@ describe('MessageParts', () => {
       />,
     );
 
-    expect(screen.getByText('已编辑 index.html')).toBeInTheDocument();
+    expect(screen.getByText('已更新页面内容')).toBeInTheDocument();
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
     expect(screen.queryByText('参数')).not.toBeInTheDocument();
     expect(screen.queryByText('结果')).not.toBeInTheDocument();
@@ -504,7 +524,7 @@ describe('MessageParts', () => {
       />,
     );
 
-    expect(screen.getByText('正在编辑 index.html')).toBeInTheDocument();
+    expect(screen.getByText('正在更新页面内容')).toBeInTheDocument();
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
     expect(screen.queryByText('参数')).not.toBeInTheDocument();
   });
@@ -534,8 +554,8 @@ describe('MessageParts', () => {
       />,
     );
 
-    expect(screen.getByText('正在查看 pending.html')).toBeInTheDocument();
-    expect(screen.getByText('已查看 done.html')).toBeInTheDocument();
+    expect(screen.getByText('正在读取项目文件：pending.html')).toBeInTheDocument();
+    expect(screen.getByText('已读取项目文件：done.html')).toBeInTheDocument();
     expect(screen.queryByText('Secret Detail')).not.toBeInTheDocument();
     expect(screen.queryByText('参数')).not.toBeInTheDocument();
     expect(screen.queryByText('结果')).not.toBeInTheDocument();
@@ -568,7 +588,7 @@ describe('MessageParts', () => {
     );
 
     expect(screen.getByText('已刷新预览')).toBeInTheDocument();
-    expect(screen.getByText('已切换预览 index.html')).toBeInTheDocument();
+    expect(screen.getByText('已切换预览')).toBeInTheDocument();
     expect(screen.queryByText('已刷新预览文件')).not.toBeInTheDocument();
   });
 
@@ -592,7 +612,7 @@ describe('MessageParts', () => {
       />,
     );
 
-    expect(screen.getByText('写入 index.html 失败')).toBeInTheDocument();
+    expect(screen.getByText('重写页面文件失败')).toBeInTheDocument();
     expect(screen.queryByText('权限不足')).not.toBeInTheDocument();
     expect(screen.queryByText('错误')).not.toBeInTheDocument();
   });
@@ -623,10 +643,10 @@ describe('MessageParts', () => {
       />,
     );
 
-    expect(screen.getByText('写入 index.html 失败')).toBeInTheDocument();
-    expect(screen.getByText('查看 missing.txt 失败')).toBeInTheDocument();
-    expect(screen.queryByText('已写入 index.html')).not.toBeInTheDocument();
-    expect(screen.queryByText('已查看 missing.txt')).not.toBeInTheDocument();
+    expect(screen.getByText('重写页面文件失败')).toBeInTheDocument();
+    expect(screen.getByText('读取项目文件失败：missing.txt')).toBeInTheDocument();
+    expect(screen.queryByText('已重写页面文件：index.html')).not.toBeInTheDocument();
+    expect(screen.queryByText('已读取项目文件：missing.txt')).not.toBeInTheDocument();
   });
 
   it('uses sanitized output paths before tool input paths', () => {
@@ -648,8 +668,8 @@ describe('MessageParts', () => {
       />,
     );
 
-    expect(screen.getByText('已查看 index.copy.html')).toBeInTheDocument();
-    expect(screen.queryByText('已查看 index.html')).not.toBeInTheDocument();
+    expect(screen.getByText('已读取项目文件：index.copy.html')).toBeInTheDocument();
+    expect(screen.queryByText('已读取页面内容：index.html')).not.toBeInTheDocument();
   });
 
   it('does not dispatch preview refresh after mutation tool output completes', () => {
@@ -767,6 +787,137 @@ describe('MessageParts', () => {
       ],
       title: '设计一个 CRM 仪表盘',
     });
+  });
+
+  it('shows checkpoint restore actions for user messages with checkpoints', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const requestUrl = String(input);
+
+      if (requestUrl.endsWith('/api/settings')) {
+        return Response.json({
+          defaultModelId: 'model-1',
+          interfaceLanguage: 'zh-CN',
+          modelConfigurations: [
+            {
+              apiKey: '',
+              baseUrl: '',
+              contextSizeK: 1000,
+              hasApiKey: true,
+              id: 'model-1',
+              model: 'deepseek-v4-flash',
+              provider: 'deepseek',
+            },
+          ],
+        });
+      }
+
+      if (requestUrl.endsWith('/api/projects/project-1/checkpoints') && !init) {
+        return Response.json([
+          {
+            id: 'cp_1',
+            conversationId: 'conversation-1',
+            createdAt: '2026-06-09T10:00:00.000Z',
+            files: ['index.html'],
+            projectId: 'project-1',
+            userMessageId: 'user-1',
+            userPrompt: '设计首页',
+          },
+        ]);
+      }
+
+      if (requestUrl.endsWith('/api/projects/project-1/checkpoints/cp_1/restore')) {
+        return Response.json({ href: '/projects/project-1/conversations/conversation-1' });
+      }
+
+      if (requestUrl.startsWith('/api/workspace')) {
+        return Response.json({
+          activeConversationId: 'conversation-1',
+          conversations: [
+            {
+              id: 'conversation-1',
+              createdAt: '2026-06-09T09:00:00.000Z',
+              messages: [],
+              projectId: 'project-1',
+              title: '新建会话',
+              updatedAt: '2026-06-09T10:01:00.000Z',
+            },
+          ],
+          projects: [],
+          settings: {},
+        });
+      }
+
+      return Response.json([]);
+    });
+    const setMessages = vi.fn();
+    const onConversationUpdate = vi.fn();
+
+    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(useChat).mockReturnValue({
+      addToolApprovalResponse: vi.fn(),
+      error: undefined,
+      messages: [createUserMessage('user-1', '设计首页')],
+      sendMessage: vi.fn(),
+      setMessages,
+      status: 'ready',
+      stop: vi.fn(),
+    } as unknown as ReturnType<typeof useChat>);
+
+    render(
+      <StreamingConversationPanel
+        conversationId="conversation-1"
+        conversationTitle="新建会话"
+        initialMessages={[]}
+        onConversationUpdate={onConversationUpdate}
+        projectId="project-1"
+      />,
+    );
+
+    await user.click(await screen.findByRole('button', { name: '回退' }));
+    await user.click(await screen.findByText('回退文件和对话'));
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/projects/project-1/checkpoints/cp_1/restore',
+        expect.objectContaining({
+          body: JSON.stringify({ mode: 'both' }),
+          method: 'POST',
+        }),
+      ),
+    );
+    expect(setMessages).toHaveBeenCalledWith([]);
+    expect(onConversationUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'conversation-1',
+        messages: [],
+        title: '新建会话',
+      }),
+    );
+  });
+
+  it('does not show checkpoint restore actions without a matching checkpoint', async () => {
+    vi.mocked(useChat).mockReturnValue({
+      addToolApprovalResponse: vi.fn(),
+      error: undefined,
+      messages: [createUserMessage('user-without-checkpoint', '设计首页')],
+      sendMessage: vi.fn(),
+      setMessages: vi.fn(),
+      status: 'ready',
+      stop: vi.fn(),
+    } as unknown as ReturnType<typeof useChat>);
+
+    render(
+      <StreamingConversationPanel
+        conversationId="conversation-1"
+        conversationTitle="新建会话"
+        initialMessages={[]}
+        projectId="project-1"
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByText('设计首页')).toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: '回退' })).not.toBeInTheDocument();
   });
 
   it('shows only the last message reasoning indicator while chat streams', () => {
@@ -932,12 +1083,12 @@ describe('MessageParts', () => {
           id: 'user-1',
           text: '生成页面',
         },
-        pageEditMode: 'auto',
         previewPath: 'dashboard.html',
         projectId: 'project-1',
       }),
     );
     expect(prepareChatRequestBody(transport)).not.toHaveProperty('messages');
+    expect(prepareChatRequestBody(transport)).not.toHaveProperty('pageEditMode');
   });
 
   it('extracts only the current user text and files for the chat request body', () => {
@@ -1109,7 +1260,7 @@ describe('MessageParts', () => {
     );
   });
 
-  it('renders the page edit mode select in the composer tool area', () => {
+  it('does not render the removed page edit mode select in the composer tool area', () => {
     stubOpenAICompatibleSettings();
     vi.mocked(useChat).mockReturnValue({
       addToolApprovalResponse: vi.fn(),
@@ -1129,11 +1280,10 @@ describe('MessageParts', () => {
       />,
     );
 
-    expect(screen.getByRole('combobox', { name: '页面模式' })).toHaveTextContent('自动');
+    expect(screen.queryByRole('combobox', { name: '页面模式' })).not.toBeInTheDocument();
   });
 
-  it('sends the selected page edit mode in the chat transport body', async () => {
-    const user = userEvent.setup();
+  it('does not send page edit mode in the chat transport body', () => {
     setCurrentPreviewPath('index.html');
     vi.mocked(useChat).mockReturnValue({
       addToolApprovalResponse: vi.fn(),
@@ -1153,30 +1303,14 @@ describe('MessageParts', () => {
       />,
     );
 
-    await user.click(screen.getByRole('combobox', { name: '页面模式' }));
-    await user.click(await screen.findByRole('option', { name: '直接编辑' }));
-
     const useChatOptions = vi.mocked(useChat).mock.calls.at(-1)?.[0] as
       | { transport: TestTransport }
       | undefined;
 
-    expect(prepareChatRequestBody(useChatOptions?.transport)).toEqual(
-      expect.objectContaining({
-        pageEditMode: 'direct_edit',
-      }),
-    );
-    expect(
-      prepareChatRequestBody(useChatOptions?.transport, undefined, {
-        pageEditMode: 'duplicate_edit',
-      }),
-    ).toEqual(
-      expect.objectContaining({
-        pageEditMode: 'duplicate_edit',
-      }),
-    );
+    expect(prepareChatRequestBody(useChatOptions?.transport)).not.toHaveProperty('pageEditMode');
   });
 
-  it('submits the selected page edit mode in the send request body', async () => {
+  it('submits without page edit mode in the send request body', async () => {
     const user = userEvent.setup();
     const sendMessage = vi.fn();
     setCurrentPreviewPath('index.html');
@@ -1198,8 +1332,6 @@ describe('MessageParts', () => {
       />,
     );
 
-    await user.click(screen.getByRole('combobox', { name: '页面模式' }));
-    await user.click(await screen.findByRole('option', { name: '副本编辑' }));
     await user.type(screen.getByPlaceholderText(/输入消息/), '移除标题');
     await user.click(screen.getByRole('button', { name: '提交' }));
 
@@ -1208,13 +1340,13 @@ describe('MessageParts', () => {
     });
     expect(sendMessage.mock.calls[0]?.[1]).toEqual({
       body: expect.objectContaining({
-        pageEditMode: 'duplicate_edit',
         previewPath: 'index.html',
       }),
     });
+    expect(sendMessage.mock.calls[0]?.[1]?.body).not.toHaveProperty('pageEditMode');
   });
 
-  it('enables duplicate edit when the current preview path is published after render', async () => {
+  it('uses current preview path published after render without page edit mode', async () => {
     const user = userEvent.setup();
     const sendMessage = vi.fn();
     vi.mocked(useChat).mockReturnValue({
@@ -1239,8 +1371,6 @@ describe('MessageParts', () => {
       setCurrentPreviewPath('generated.html');
     });
 
-    await user.click(screen.getByRole('combobox', { name: '页面模式' }));
-    await user.click(await screen.findByRole('option', { name: '副本编辑' }));
     await user.type(screen.getByPlaceholderText(/输入消息/), '移除标题');
     await user.click(screen.getByRole('button', { name: '提交' }));
 
@@ -1249,10 +1379,10 @@ describe('MessageParts', () => {
     });
     expect(sendMessage.mock.calls[0]?.[1]).toEqual({
       body: expect.objectContaining({
-        pageEditMode: 'duplicate_edit',
         previewPath: 'generated.html',
       }),
     });
+    expect(sendMessage.mock.calls[0]?.[1]?.body).not.toHaveProperty('pageEditMode');
   });
 
   it('configures stream resume for the current conversation active run', async () => {
@@ -1733,8 +1863,8 @@ describe('MessageParts', () => {
           text: '',
         },
         {
-          body: expect.objectContaining({
-            pageEditMode: 'auto',
+          body: expect.not.objectContaining({
+            pageEditMode: expect.anything(),
           }),
         },
       );

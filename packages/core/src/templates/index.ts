@@ -2,24 +2,23 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const PROMPT_FILES = {
-  'agents/component-audit': 'agents/component-audit.md',
-  'agents/design-page': 'agents/design-page.md',
+const TEMPLATE_FILES = {
+  'html/page-shell': 'html/page-shell.html',
 } as const;
 
-export type PromptName = keyof typeof PROMPT_FILES;
+export type TemplateName = keyof typeof TEMPLATE_FILES;
 
-export function loadPrompt(name: PromptName) {
-  const promptFile = PROMPT_FILES[name];
+export function loadTemplate(name: TemplateName) {
+  const templateFile = TEMPLATE_FILES[name];
 
-  if (!promptFile) {
-    throw new Error(`Unsupported prompt: ${String(name)}`);
+  if (!templateFile) {
+    throw new Error(`Unsupported template: ${String(name)}`);
   }
 
   const currentDir = path.dirname(fileURLToPath(import.meta.url));
   const candidatePaths = [
-    path.join(currentDir, 'prompts', promptFile),
-    path.join(currentDir, promptFile),
+    path.join(currentDir, 'templates', templateFile),
+    path.join(currentDir, templateFile),
   ];
 
   for (const candidatePath of candidatePaths) {
@@ -32,7 +31,7 @@ export function loadPrompt(name: PromptName) {
     }
   }
 
-  throw new Error(`Prompt "${name}" was not found. Searched: ${candidatePaths.join(', ')}`);
+  throw new Error(`Template "${name}" was not found. Searched: ${candidatePaths.join(', ')}`);
 }
 
 function isNotFoundError(error: unknown) {

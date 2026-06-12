@@ -193,31 +193,26 @@ describe('PreviewServerManager', () => {
     expect(nextSession.url).toMatch(/\/index\.html$/);
   });
 
-  it('defaults to the latest index page version', async () => {
+  it('defaults to stable index.html before other HTML files', async () => {
     const { manager, workspaceStore } = await createPreviewManager();
     await createProject(workspaceStore);
     await workspaceStore.writeProjectWorkspaceFile(
       'project-1',
-      'index-v1.html',
-      '<main>Index v1</main>',
+      'index.html',
+      '<main>Index</main>',
     );
     await workspaceStore.writeProjectWorkspaceFile(
       'project-1',
-      'index-v3.html',
-      '<main>Index v3</main>',
-    );
-    await workspaceStore.writeProjectWorkspaceFile(
-      'project-1',
-      'detail-v2.html',
-      '<main>Detail v2</main>',
+      'detail.html',
+      '<main>Detail</main>',
     );
 
     const session = await manager.ensure('project-1', 'client-1');
     const response = await fetch(session.url);
 
-    expect(session.activePath).toBe('index-v3.html');
-    expect(session.url).toMatch(/\/index-v3\.html$/);
-    await expect(response.text()).resolves.toContain('Index v3');
+    expect(session.activePath).toBe('index.html');
+    expect(session.url).toMatch(/\/index\.html$/);
+    await expect(response.text()).resolves.toContain('Index');
   });
 
   it('returns the page manifest with the preview session', async () => {
@@ -225,23 +220,39 @@ describe('PreviewServerManager', () => {
     await createProject(workspaceStore);
     await workspaceStore.writeProjectWorkspaceFile(
       'project-1',
-      'index-v1.html',
+      'index.html',
       '<main>Index</main>',
     );
     await workspaceStore.writeProjectWorkspaceFile(
       'project-1',
       '.owndesign-pages.json',
       JSON.stringify({
-        pages: [{ displayName: '小说阅读器首页', slug: 'index' }],
+        pages: [
+          {
+            componentSource: 'pages/od-index-page.js',
+            componentTag: 'od-index-page',
+            displayName: '小说阅读器首页',
+            htmlPath: 'index.html',
+            slug: 'index',
+          },
+        ],
       }),
     );
 
     const session = await manager.ensure('project-1', 'client-1');
 
     expect(session.pageManifest).toEqual({
-      pages: [{ displayName: '小说阅读器首页', slug: 'index' }],
+      pages: [
+        {
+          componentSource: 'pages/od-index-page.js',
+          componentTag: 'od-index-page',
+          displayName: '小说阅读器首页',
+          htmlPath: 'index.html',
+          slug: 'index',
+        },
+      ],
     });
-    expect(session.activePath).toBe('index-v1.html');
+    expect(session.activePath).toBe('index.html');
   });
 
   it('uses an empty manifest when the page manifest is missing', async () => {
@@ -249,35 +260,35 @@ describe('PreviewServerManager', () => {
     await createProject(workspaceStore);
     await workspaceStore.writeProjectWorkspaceFile(
       'project-1',
-      'index-v1.html',
+      'index.html',
       '<main>Index</main>',
     );
 
     const session = await manager.ensure('project-1', 'client-1');
 
     expect(session.pageManifest).toEqual({ pages: [] });
-    expect(session.activePath).toBe('index-v1.html');
+    expect(session.activePath).toBe('index.html');
   });
 
-  it('defaults to the first page group latest version when no index group exists', async () => {
+  it('defaults to the first HTML file when no index or manifest page exists', async () => {
     const { manager, workspaceStore } = await createPreviewManager();
     await createProject(workspaceStore);
     await workspaceStore.writeProjectWorkspaceFile(
       'project-1',
-      'profile-v1.html',
-      '<main>Profile v1</main>',
+      'profile.html',
+      '<main>Profile</main>',
     );
     await workspaceStore.writeProjectWorkspaceFile(
       'project-1',
-      'detail-v2.html',
-      '<main>Detail v2</main>',
+      'detail.html',
+      '<main>Detail</main>',
     );
 
     const session = await manager.ensure('project-1', 'client-1');
     const response = await fetch(session.url);
 
-    expect(session.activePath).toBe('detail-v2.html');
-    await expect(response.text()).resolves.toContain('Detail v2');
+    expect(session.activePath).toBe('detail.html');
+    await expect(response.text()).resolves.toContain('Detail');
   });
 
   it('falls back to index.html when the requested HTML file is missing', async () => {

@@ -18,22 +18,22 @@ describe('FrontendCommandBus', () => {
 
     await reader.read();
     const result = bus.sendCommand({
-      capability: 'preview.switchHtml',
+      capability: 'preview.refresh',
       frontendTabId: 'tab-1',
-      payload: { path: 'pages/detail.html' },
+      payload: {},
       projectId: 'project-1',
     });
     const chunk = await reader.read();
 
     expect(result).toMatchObject({
       command: {
-        capability: 'preview.switchHtml',
-        payload: { path: 'pages/detail.html' },
+        capability: 'preview.refresh',
+        payload: {},
       },
       delivered: true,
     });
     expect(new TextDecoder().decode(chunk.value)).toContain('event: frontend-command');
-    expect(new TextDecoder().decode(chunk.value)).toContain('"capability":"preview.switchHtml"');
+    expect(new TextDecoder().decode(chunk.value)).toContain('"capability":"preview.refresh"');
   });
 
   it('removes connections after abort', () => {

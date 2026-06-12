@@ -38,6 +38,7 @@ describe('ProjectService', () => {
     const state = await projectService.getProjectState();
 
     expect(createdProject.name).toBe('Landing Redesign');
+    expect(createdProject.projectType).toBe('single_html');
     expect(createdProject.outputType).toBe('html');
     expect(state.projects).toHaveLength(1);
     await expect(
@@ -60,6 +61,30 @@ describe('ProjectService', () => {
     expect(conversationJson.projectId).toBe(createdProject.id);
     expect(conversationJson.title).toBe('新建会话');
     expect(conversationJson.messages).toEqual([]);
+    await expect(
+      readFile(
+        path.join(
+          workspaceStore.getWorkspaceRoot(),
+          'projects',
+          createdProject.id,
+          'workspace',
+          'index.html',
+        ),
+        'utf8',
+      ),
+    ).resolves.toContain('<main id="app"></main>');
+  });
+
+  it('rejects reserved React projects', async () => {
+    const workspaceStore = await createWorkspaceStore();
+    const projectService = new ProjectService({ workspaceStore });
+
+    await expect(
+      projectService.createProject({
+        name: 'React App',
+        projectType: 'react',
+      }),
+    ).rejects.toThrow('React project type is reserved but not supported yet.');
   });
 
   it('renames a Project and updates Project Updated Time', async () => {

@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -7,7 +7,6 @@ import type { UIMessage } from 'ai';
 
 const aiMocks = vi.hoisted(() => ({
   createAgentUIStream: vi.fn(),
-  generateText: vi.fn(async () => ({ text: 'rewritten prompt' })),
   toolLoopAgent: vi.fn(function (this: { config?: unknown; stream?: unknown }, config: unknown) {
     this.config = config;
     this.stream = vi.fn();
@@ -17,7 +16,6 @@ const aiMocks = vi.hoisted(() => ({
 vi.mock('ai', () => ({
   createAgentUIStream: aiMocks.createAgentUIStream,
   createUIMessageStreamResponse: vi.fn(() => new Response('')),
-  generateText: aiMocks.generateText,
   readUIMessageStream: vi.fn(async function* () {}),
   stepCountIs: vi.fn((count: number) => ({ count, type: 'stepCountIs' })),
   tool: vi.fn((config: unknown) => config),
@@ -34,10 +32,7 @@ vi.mock('@ai-sdk/anthropic', () => ({
 
 vi.mock('@ai-sdk/openai-compatible', () => ({
   createOpenAICompatible: vi.fn(() =>
-    vi.fn((modelId: string) => ({
-      modelId,
-      provider: 'openai-compatible',
-    })),
+    vi.fn((modelId: string) => ({ modelId, provider: 'openai-compatible' })),
   ),
 }));
 
@@ -48,8 +43,6 @@ const tempRoots: string[] = [];
 
 afterEach(async () => {
   aiMocks.createAgentUIStream.mockReset();
-  aiMocks.generateText.mockReset();
-  aiMocks.generateText.mockResolvedValue({ text: 'rewritten prompt' });
   aiMocks.createAgentUIStream.mockResolvedValue(
     new ReadableStream({
       start(controller) {
@@ -85,19 +78,6 @@ describe('createOwnDesignApp static hosting', () => {
     expect(await assetResponse.text()).toBe('console.log("asset");');
   });
 
-  it('falls back to index for HTML navigation routes', async () => {
-    const { app } = await createAppWithStaticRoot();
-
-    const response = await app.fetch(
-      new Request('http://localhost/workspace/project-1', {
-        headers: { Accept: 'text/html' },
-      }),
-    );
-
-    expect(response.status).toBe(200);
-    expect(await response.text()).toContain('OwnDesign static shell');
-  });
-
   it('returns 404 for missing static assets', async () => {
     const { app } = await createAppWithStaticRoot();
 
@@ -116,92 +96,56 @@ describe('createOwnDesignApp static hosting', () => {
     expect(body).toHaveProperty('settings');
   });
 
-  it('does not expose the removed project select route', async () => {
-    const { app } = await createAppWithTempOptions();
+  it('creates single_html projects by default', async () => {
+    const { app, root } = await createAppWithTempOptions();
+    const workspaceRoot = path.join(root, 'workspace');
 
     const response = await app.fetch(
-      new Request('http://localhost/api/projects/project-1/select', {
+      new Request('http://localhost/api/projects', {
+        body: JSON.stringify({ name: 'Landing Redesign' }),
+        headers: { 'Content-Type': 'application/json' },
         method: 'POST',
       }),
     );
+    const body = (await response.json()) as { href: string };
+    const match = /\/projects\/([^/]+)\/conversations\/([^/?]+)/.exec(body.href);
+    const projectId = match?.[1] ?? '';
+    const workspaceStore = createWorkspaceStore({ workspaceRoot });
+    const project = await workspaceStore.getProject(projectId);
 
-    expect(response.status).toBe(404);
+    expect(response.status).toBe(200);
+    expect(project.projectType).toBe('single_html');
+    await expect(workspaceStore.readProjectWorkspaceFile(projectId, 'index.html')).resolves.toContain(
+      '<main id="app"></main>',
+    );
   });
 
-  it('rejects invalid page edit mode in chat requests', async () => {
+  it('rejects reserved react project creation', async () => {
     const { app } = await createAppWithTempOptions();
 
     const response = await app.fetch(
-      new Request('http://localhost/api/chat', {
-        body: JSON.stringify({
-          conversationId: 'conversation-1',
-          message: createChatRequestMessage('user-1', 'test'),
-          pageEditMode: 'replace_everything',
-          projectId: 'project-1',
-        }),
+      new Request('http://localhost/api/projects', {
+        body: JSON.stringify({ name: 'React App', projectType: 'react' }),
         headers: { 'Content-Type': 'application/json' },
         method: 'POST',
       }),
     );
 
     expect(response.status).toBe(400);
-    expect(await response.text()).toBe('Invalid page edit mode.');
+    expect(await response.text()).toBe('React project type is reserved but not supported yet.');
   });
 
-  it('rejects direct page edit mode without a current preview page', async () => {
-    const { app } = await createAppWithTempOptions();
-    const setupResponse = await app.fetch(
-      new Request('http://localhost/api/initial-setup', {
-        body: JSON.stringify({
-          interfaceLanguage: 'zh-CN',
-          modelConfigurations: [
-            {
-              apiKey: 'secret',
-              baseUrl: 'https://example.test/v1',
-              contextSizeK: 1000,
-              id: 'model-1',
-              model: 'mock-model',
-              provider: 'openai-compatible',
-            },
-          ],
-        }),
-        headers: { 'Content-Type': 'application/json' },
-        method: 'POST',
-      }),
-    );
-    const setupBody = (await setupResponse.json()) as { href: string };
-    const match = /\/projects\/([^/]+)\/conversations\/([^/?]+)/.exec(setupBody.href);
-
-    const response = await app.fetch(
-      new Request('http://localhost/api/chat', {
-        body: JSON.stringify({
-          conversationId: match?.[2],
-          message: createChatRequestMessage('user-1', 'test'),
-          pageEditMode: 'direct_edit',
-          previewPath: 'index.html',
-          projectId: match?.[1],
-        }),
-        headers: { 'Content-Type': 'application/json' },
-        method: 'POST',
-      }),
-    );
-
-    expect(response.status).toBe(400);
-    expect(await response.text()).toContain(
-      'Page edit mode "direct_edit" requires a current preview page.',
-    );
-  });
-
-  it('persists conversation instructions and rewritten user prompt on first chat without a fake preview file', async () => {
+  it('persists single HTML agent instructions on first chat without page edit mode validation', async () => {
     const { app, root } = await createAppWithTempOptions();
     const workspaceRoot = path.join(root, 'workspace');
     const { conversationId, projectId } = await setupProject(app);
+
     const response = await app.fetch(
       new Request('http://localhost/api/chat', {
         body: JSON.stringify({
           conversationId,
           message: createChatRequestMessage('user-1', '设计一个 CRM 仪表盘'),
-          pageEditMode: 'auto',
+          pageEditMode: 'replace_everything',
           previewPath: 'dashboard.html',
           projectId,
         }),
@@ -210,8 +154,6 @@ describe('createOwnDesignApp static hosting', () => {
       }),
     );
     await response.text();
-
-    expect(response.status).toBe(200);
     await waitFor(() => expect(aiMocks.createAgentUIStream).toHaveBeenCalled());
 
     const workspaceStore = createWorkspaceStore({ workspaceRoot });
@@ -220,178 +162,41 @@ describe('createOwnDesignApp static hosting', () => {
       originalMessages: UIMessage[];
       uiMessages: UIMessage[];
     };
-
-    expect(conversation.agentPromptVersion).toBe(1);
-    expect(conversation.agentInstructions).toContain('<design_agent_core>');
-    expect(conversation.agentInstructions).toContain('<resource_policy>');
-    expect(conversation.agentInstructions).not.toContain('<runtime_context>');
-    expect(conversation.agentInstructions).not.toContain('<page_edit_mode_policy>');
-    expect(conversation).not.toHaveProperty('turnContexts');
-    expect(conversation.messages).toHaveLength(1);
-    expect(getMessageText(conversation.messages[0] as UIMessage)).toBe('设计一个 CRM 仪表盘');
-    expect((conversation.messages[0] as UIMessage).metadata).toMatchObject({
-      originalUserPrompt: '设计一个 CRM 仪表盘',
-      promptRewrite: {
-        kind: 'turn-prompt-rewriter',
-        pageEditMode: 'auto',
-        previewFileExists: false,
-      },
-    });
-    expect((conversation.messages[0] as UIMessage).metadata).not.toMatchObject({
-      promptRewrite: {
-        previewPath: expect.any(String),
-      },
-    });
-    expect(aiMocks.generateText).not.toHaveBeenCalled();
-    expect(streamInput.originalMessages).toEqual(conversation.messages);
-    expect(streamInput.uiMessages).toEqual(conversation.messages);
-  });
-
-  it('reuses persisted conversation instructions on later chats while rewriting the current user prompt', async () => {
-    const { app, root } = await createAppWithTempOptions();
-    const workspaceRoot = path.join(root, 'workspace');
-    const { conversationId, projectId } = await setupProject(app);
-    const workspaceStore = createWorkspaceStore({ workspaceRoot });
-    const conversation = await workspaceStore.getConversation(projectId, conversationId);
-    await workspaceStore.writeProjectWorkspaceFile(
-      projectId,
-      'settings.html',
-      '<main>Settings</main>',
-    );
-
-    await workspaceStore.updateConversation(projectId, conversationId, {
-      ...conversation,
-      agentInstructions: 'persisted instructions',
-      agentPromptVersion: 1,
-    });
-
-    const response = await app.fetch(
-      new Request('http://localhost/api/chat', {
-        body: JSON.stringify({
-          conversationId,
-          message: createChatRequestMessage('user-1', '改当前页顶部'),
-          pageEditMode: 'auto',
-          previewPath: 'settings.html',
-          projectId,
-        }),
-        headers: { 'Content-Type': 'application/json' },
-        method: 'POST',
-      }),
-    );
-    await response.text();
-
-    expect(response.status).toBe(200);
-    await waitFor(() => expect(aiMocks.createAgentUIStream).toHaveBeenCalled());
-
-    const storedConversation = await workspaceStore.getConversation(projectId, conversationId);
     const agentConfig = aiMocks.toolLoopAgent.mock.calls[0]?.[0] as {
       instructions: string;
     };
-    const streamInput = aiMocks.createAgentUIStream.mock.calls[0]?.[0] as {
-      uiMessages: UIMessage[];
-    };
-
-    expect(storedConversation.agentInstructions).toBe('persisted instructions');
-    expect(agentConfig.instructions).toBe('persisted instructions');
-    expect(getMessageText(streamInput.uiMessages[0])).toBe('改当前页顶部');
-    expect(storedConversation.messages).toEqual(streamInput.uiMessages);
-    expect((storedConversation.messages[0] as UIMessage).metadata).toMatchObject({
-      originalUserPrompt: '改当前页顶部',
-      promptRewrite: {
-        kind: 'turn-prompt-rewriter',
-        pageEditMode: 'auto',
-        previewFileExists: true,
-        previewPath: 'settings.html',
-      },
-    });
-  });
-
-  it('keeps rewritten history and rewrites only the latest unprocessed user prompt', async () => {
-    const { app, root } = await createAppWithTempOptions();
-    const workspaceRoot = path.join(root, 'workspace');
-    const { conversationId, projectId } = await setupProject(app);
-    const workspaceStore = createWorkspaceStore({ workspaceRoot });
-    const conversation = await workspaceStore.getConversation(projectId, conversationId);
-    await workspaceStore.writeProjectWorkspaceFile(projectId, 'second.html', '<main>Second</main>');
-    const previousUserMessage = {
-      ...createUserMessage('user-1', '上一轮 rewritten'),
-      metadata: {
-        originalUserPrompt: '上一轮',
-        promptRewrite: {
-          createdAt: '2026-05-14T10:00:00.000Z',
-          kind: 'turn-prompt-rewriter',
-          pageEditMode: 'auto',
-          previewFileExists: true,
-          previewPath: 'first.html',
-        },
-      },
-    } satisfies UIMessage;
-    await workspaceStore.updateConversation(projectId, conversationId, {
-      ...conversation,
-      agentInstructions: 'persisted instructions',
-      agentPromptVersion: 1,
-      messages: [previousUserMessage],
-    });
-
-    const response = await app.fetch(
-      new Request('http://localhost/api/chat', {
-        body: JSON.stringify({
-          conversationId,
-          message: createChatRequestMessage('user-2', '继续修改'),
-          pageEditMode: 'auto',
-          previewPath: 'second.html',
-          projectId,
-        }),
-        headers: { 'Content-Type': 'application/json' },
-        method: 'POST',
-      }),
-    );
-    await response.text();
 
     expect(response.status).toBe(200);
-    await waitFor(() => expect(aiMocks.createAgentUIStream).toHaveBeenCalled());
-
-    const storedConversation = await workspaceStore.getConversation(projectId, conversationId);
-    const streamInput = aiMocks.createAgentUIStream.mock.calls[0]?.[0] as {
-      uiMessages: UIMessage[];
-    };
-    expect(storedConversation).not.toHaveProperty('turnContexts');
-    expect(streamInput.uiMessages).toHaveLength(2);
-    expect(getMessageText(streamInput.uiMessages[0])).toBe('上一轮 rewritten');
-    expect(getMessageText(streamInput.uiMessages[1])).toBe('继续修改');
-    expect(streamInput.uiMessages[1]?.metadata).toMatchObject({
-      originalUserPrompt: '继续修改',
-      promptRewrite: {
-        kind: 'turn-prompt-rewriter',
-        pageEditMode: 'auto',
-        previewFileExists: true,
-        previewPath: 'second.html',
+    expect(conversation.agentPromptVersion).toBe(1);
+    expect(conversation.agentInstructions).toContain('# OwnDesign Single HTML Page Agent');
+    expect(conversation.agentInstructions).toContain('Plan the first viewport, key workflow');
+    expect(conversation.agentInstructions).toContain('Use `<main id="app">` for the visible app/page body');
+    expect(conversation.agentInstructions).toContain('Generic AI-style layouts');
+    expect(conversation.agentInstructions).not.toContain('page_edit_mode_policy');
+    expect(agentConfig.instructions).toBe(conversation.agentInstructions);
+    expect(streamInput.uiMessages).toHaveLength(1);
+    expect(getMessageText(streamInput.uiMessages[0])).toBe('设计一个 CRM 仪表盘');
+    expect(streamInput.originalMessages).toEqual(streamInput.uiMessages);
+    await expect(workspaceStore.listCheckpoints(projectId)).resolves.toMatchObject([
+      {
+        conversationId,
+        files: ['index.html'],
+        projectId,
+        userMessageId: 'user-1',
+        userPrompt: '设计一个 CRM 仪表盘',
       },
-    });
+    ]);
   });
 
-  it('ignores frontend message history and appends only the submitted user input', async () => {
+  it('ignores frontend message history and appends only submitted user input', async () => {
     const { app, root } = await createAppWithTempOptions();
     const workspaceRoot = path.join(root, 'workspace');
     const { conversationId, projectId } = await setupProject(app);
     const workspaceStore = createWorkspaceStore({ workspaceRoot });
     const conversation = await workspaceStore.getConversation(projectId, conversationId);
-    const storedUserMessage = {
-      ...createUserMessage('stored-user-1', 'stored rewritten'),
-      metadata: {
-        originalUserPrompt: 'stored original',
-        promptRewrite: {
-          createdAt: '2026-05-14T10:00:00.000Z',
-          kind: 'turn-prompt-rewriter',
-          pageEditMode: 'auto',
-          previewFileExists: false,
-        },
-      },
-    } satisfies UIMessage;
-    const frontendOnlyMessage = createUserMessage(
-      'frontend-user-ignored',
-      'frontend history should not be used',
-    );
+    const storedUserMessage = createUserMessage('stored-user-1', 'stored input');
+    const frontendOnlyMessage = createUserMessage('frontend-user-ignored', 'frontend history');
+
     await workspaceStore.updateConversation(projectId, conversationId, {
       ...conversation,
       agentInstructions: 'persisted instructions',
@@ -405,7 +210,6 @@ describe('createOwnDesignApp static hosting', () => {
           conversationId,
           message: createChatRequestMessage('user-2', 'current input'),
           messages: [frontendOnlyMessage],
-          pageEditMode: 'auto',
           projectId,
         }),
         headers: { 'Content-Type': 'application/json' },
@@ -413,41 +217,36 @@ describe('createOwnDesignApp static hosting', () => {
       }),
     );
     await response.text();
-
-    expect(response.status).toBe(200);
     await waitFor(() => expect(aiMocks.createAgentUIStream).toHaveBeenCalled());
 
     const streamInput = aiMocks.createAgentUIStream.mock.calls[0]?.[0] as {
       uiMessages: UIMessage[];
     };
 
-    expect(streamInput.uiMessages).toHaveLength(2);
+    expect(response.status).toBe(200);
     expect(streamInput.uiMessages.map((message) => message.id)).toEqual([
       'stored-user-1',
       'user-2',
     ]);
+    expect((aiMocks.toolLoopAgent.mock.calls[0]?.[0] as { instructions: string }).instructions).toBe(
+      'persisted instructions',
+    );
     expect(getMessageText(streamInput.uiMessages[1])).toBe('current input');
   });
 
-  it('rewrites duplicate edit prompts with copy target metadata', async () => {
+  it('creates a checkpoint before persisting the submitted user message', async () => {
     const { app, root } = await createAppWithTempOptions();
     const workspaceRoot = path.join(root, 'workspace');
     const { conversationId, projectId } = await setupProject(app);
     const workspaceStore = createWorkspaceStore({ workspaceRoot });
 
-    await workspaceStore.writeProjectWorkspaceFile(
-      projectId,
-      'dashboard.html',
-      '<main>Dashboard</main>',
-    );
+    await workspaceStore.writeProjectWorkspaceFile(projectId, 'index.html', '<main>Before</main>');
 
     const response = await app.fetch(
       new Request('http://localhost/api/chat', {
         body: JSON.stringify({
           conversationId,
-          message: createChatRequestMessage('user-1', '复制后修改'),
-          pageEditMode: 'duplicate_edit',
-          previewPath: 'dashboard.html',
+          message: createChatRequestMessage('user-checkpoint', 'Change it'),
           projectId,
         }),
         headers: { 'Content-Type': 'application/json' },
@@ -455,159 +254,137 @@ describe('createOwnDesignApp static hosting', () => {
       }),
     );
     await response.text();
-
-    expect(response.status).toBe(200);
     await waitFor(() => expect(aiMocks.createAgentUIStream).toHaveBeenCalled());
 
-    const conversation = await workspaceStore.getConversation(projectId, conversationId);
+    const checkpoints = await workspaceStore.listCheckpoints(projectId);
+    const checkpoint = checkpoints[0];
+    const checkpointFile = await readFile(
+      path.join(
+        workspaceRoot,
+        'projects',
+        projectId,
+        'checkpoints',
+        checkpoint.id,
+        'files',
+        'index.html',
+      ),
+      'utf8',
+    );
 
-    const rewrittenPrompt = getMessageText(conversation.messages[0] as UIMessage);
-    expect(rewrittenPrompt).toContain('我要基于现有页面创建一个副本并修改');
-    expect(rewrittenPrompt).toContain('copyFile');
-    expect(rewrittenPrompt).toContain('把 dashboard.html 复制到 dashboard-v1.html');
-    expect(rewrittenPrompt).toContain('源页面：dashboard.html');
-    expect(rewrittenPrompt).toContain('目标页面：dashboard-v1.html');
-    expect(rewrittenPrompt).toContain('共享导航链接指向最新版本');
-    expect(rewrittenPrompt).toContain('复制后修改');
-    expect((conversation.messages[0] as UIMessage).metadata).toMatchObject({
-      originalUserPrompt: '复制后修改',
-      promptRewrite: {
-        duplicateSourcePath: 'dashboard.html',
-        duplicateTargetPath: 'dashboard-v1.html',
-        kind: 'turn-prompt-rewriter',
-        pageEditMode: 'duplicate_edit',
-        previewFileExists: true,
-        previewPath: 'dashboard.html',
-      },
+    expect(response.status).toBe(200);
+    expect(checkpoint).toMatchObject({
+      conversationId,
+      userMessageId: 'user-checkpoint',
+      userPrompt: 'Change it',
     });
+    expect(checkpointFile).toBe('<main>Before</main>');
   });
 
-  it('sanitizes conversation messages in workspace responses without changing local records', async () => {
+  it('does not persist the user message or start the agent when checkpoint creation fails', async () => {
     const { app, root } = await createAppWithTempOptions();
     const workspaceRoot = path.join(root, 'workspace');
-    const setupResponse = await app.fetch(
-      new Request('http://localhost/api/initial-setup', {
+    const { conversationId, projectId } = await setupProject(app);
+    const workspaceStore = createWorkspaceStore({ workspaceRoot });
+
+    await workspaceStore.deleteProjectWorkspacePath(projectId, 'index.html');
+
+    const response = await app.fetch(
+      new Request('http://localhost/api/chat', {
         body: JSON.stringify({
-          interfaceLanguage: 'zh-CN',
-          modelConfigurations: [
-            {
-              apiKey: 'secret',
-              baseUrl: 'https://example.test/v1',
-              contextSizeK: 1000,
-              id: 'model-1',
-              model: 'mock-model',
-              provider: 'openai-compatible',
-            },
-          ],
+          conversationId,
+          message: createChatRequestMessage('user-fail', 'Change it'),
+          projectId,
         }),
         headers: { 'Content-Type': 'application/json' },
         method: 'POST',
       }),
     );
-    const setupBody = (await setupResponse.json()) as { href: string };
-    const match = /\/projects\/([^/]+)\/conversations\/([^/?]+)/.exec(setupBody.href);
-    const projectId = match?.[1] ?? '';
-    const conversationId = match?.[2] ?? '';
+
+    const conversation = await workspaceStore.getConversation(projectId, conversationId);
+
+    expect(response.status).toBe(500);
+    expect(aiMocks.createAgentUIStream).not.toHaveBeenCalled();
+    expect(conversation.messages).toEqual([]);
+  });
+
+  it('lists checkpoints and restores files, conversation, or both', async () => {
+    const { app, root } = await createAppWithTempOptions();
+    const workspaceRoot = path.join(root, 'workspace');
+    const { conversationId, projectId } = await setupProject(app);
     const workspaceStore = createWorkspaceStore({ workspaceRoot });
     const conversation = await workspaceStore.getConversation(projectId, conversationId);
 
+    await workspaceStore.writeProjectWorkspaceFile(projectId, 'index.html', '<main>Before</main>');
+    await workspaceStore.createCheckpoint({
+      id: 'cp_restore',
+      conversationId,
+      createdAt: '2026-06-09T10:00:00.000Z',
+      projectId,
+      userMessageId: 'user-restore',
+      userPrompt: 'Bad change',
+    });
+    await workspaceStore.writeProjectWorkspaceFile(projectId, 'index.html', '<main>After</main>');
     await workspaceStore.updateConversation(projectId, conversationId, {
       ...conversation,
       messages: [
+        createUserMessage('kept-user', 'kept'),
+        createUserMessage('user-restore', 'bad'),
         {
-          id: 'assistant-1',
-          parts: [
-            { text: 'private reasoning', type: 'reasoning' },
-            {
-              input: { path: 'index.html', replace: 'private input' },
-              output: { content: 'private output', path: 'index.html' },
-              state: 'output-available',
-              toolCallId: 'call-1',
-              type: 'tool-edit',
-            },
-            {
-              input: { path: 'broken.html', replace: 'private input' },
-              output: {
-                error: 'private output error',
-                ok: false,
-                wallTimeMs: 1,
-              },
-              state: 'output-available',
-              toolCallId: 'call-2',
-              type: 'tool-write',
-            },
-          ],
+          id: 'assistant-after',
+          parts: [{ text: 'done', type: 'text' }],
           role: 'assistant',
-        },
+        } satisfies UIMessage,
       ],
     });
 
-    const response = await app.fetch(
-      new Request(
-        `http://localhost/api/workspace?projectId=${projectId}&conversationId=${conversationId}`,
-      ),
+    const listResponse = await app.fetch(
+      new Request(`http://localhost/api/projects/${projectId}/checkpoints`),
     );
-    const body = (await response.json()) as {
-      conversations: Array<{ messages: Array<{ parts: unknown[] }> }>;
-    };
+    const listBody = (await listResponse.json()) as Array<{ id: string }>;
 
-    expect(body.conversations[0]?.messages[0]?.parts).toEqual([
-      {
-        input: { path: 'index.html' },
-        output: { path: 'index.html' },
-        state: 'output-available',
-        toolCallId: 'call-1',
-        type: 'tool-edit',
-      },
-      {
-        input: { path: 'broken.html' },
-        output: { ok: false },
-        state: 'output-available',
-        toolCallId: 'call-2',
-        type: 'tool-write',
-      },
+    expect(listResponse.status).toBe(200);
+    expect(listBody.map((checkpoint) => checkpoint.id)).toEqual(['cp_restore']);
+
+    const filesResponse = await restoreCheckpoint(app, projectId, 'cp_restore', 'files');
+    expect(filesResponse.status).toBe(200);
+    await expect(workspaceStore.readProjectWorkspaceFile(projectId, 'index.html')).resolves.toBe(
+      '<main>Before</main>',
+    );
+    await expect(workspaceStore.getConversation(projectId, conversationId)).resolves.toMatchObject({
+      messages: expect.arrayContaining([expect.objectContaining({ id: 'user-restore' })]),
+    });
+
+    await workspaceStore.writeProjectWorkspaceFile(projectId, 'index.html', '<main>After 2</main>');
+    const conversationResponse = await restoreCheckpoint(
+      app,
+      projectId,
+      'cp_restore',
+      'conversation',
+    );
+    const truncatedConversation = await workspaceStore.getConversation(projectId, conversationId);
+
+    expect(conversationResponse.status).toBe(200);
+    await expect(workspaceStore.readProjectWorkspaceFile(projectId, 'index.html')).resolves.toBe(
+      '<main>After 2</main>',
+    );
+    expect((truncatedConversation.messages as UIMessage[]).map((message) => message.id)).toEqual([
+      'kept-user',
     ]);
 
-    const storedConversation = await workspaceStore.getConversation(projectId, conversationId);
+    await workspaceStore.updateConversation(projectId, conversationId, {
+      ...truncatedConversation,
+      messages: [createUserMessage('kept-user', 'kept'), createUserMessage('user-restore', 'bad')],
+    });
+    await workspaceStore.writeProjectWorkspaceFile(projectId, 'index.html', '<main>After 3</main>');
+    const bothResponse = await restoreCheckpoint(app, projectId, 'cp_restore', 'both');
 
-    expect(storedConversation.messages).toEqual([
-      {
-        id: 'assistant-1',
-        parts: [
-          { text: 'private reasoning', type: 'reasoning' },
-          {
-            input: { path: 'index.html', replace: 'private input' },
-            output: { content: 'private output', path: 'index.html' },
-            state: 'output-available',
-            toolCallId: 'call-1',
-            type: 'tool-edit',
-          },
-          {
-            input: { path: 'broken.html', replace: 'private input' },
-            output: {
-              error: 'private output error',
-              ok: false,
-              wallTimeMs: 1,
-            },
-            state: 'output-available',
-            toolCallId: 'call-2',
-            type: 'tool-write',
-          },
-        ],
-        role: 'assistant',
-      },
-    ]);
-  });
-
-  it('starts without static hosting when the static root is missing', async () => {
-    const { app, root } = await createAppWithTempOptions();
-
-    const response = await app.fetch(new Request('http://localhost/api/settings'));
-    const staticResponse = await app.fetch(new Request('http://localhost/workspace/project-1'));
-
-    expect(root).toBeDefined();
-    expect(response.status).toBe(200);
-    expect(staticResponse.status).toBe(404);
+    expect(bothResponse.status).toBe(200);
+    await expect(workspaceStore.readProjectWorkspaceFile(projectId, 'index.html')).resolves.toBe(
+      '<main>Before</main>',
+    );
+    await expect(workspaceStore.getConversation(projectId, conversationId)).resolves.toMatchObject({
+      messages: [expect.objectContaining({ id: 'kept-user' })],
+    });
   });
 });
 
@@ -638,7 +415,6 @@ async function createAppWithTempOptions() {
   return {
     app: createOwnDesignApp({
       settingsPath: path.join(root, 'settings.json'),
-      staticRoot: path.join(root, 'missing-web'),
       workspaceRoot: path.join(root, 'workspace'),
     }),
     root,
@@ -646,10 +422,10 @@ async function createAppWithTempOptions() {
 }
 
 async function createTempRoot() {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'owndesign-server-test-'));
-  tempRoots.push(root);
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'owndesign-server-test-'));
+  tempRoots.push(tempRoot);
 
-  return root;
+  return tempRoot;
 }
 
 async function setupProject(app: ReturnType<typeof createOwnDesignApp>) {
@@ -681,6 +457,10 @@ async function setupProject(app: ReturnType<typeof createOwnDesignApp>) {
   };
 }
 
+function createChatRequestMessage(id: string, text: string) {
+  return { id, text };
+}
+
 function createUserMessage(id: string, text: string): UIMessage {
   return {
     id,
@@ -689,8 +469,22 @@ function createUserMessage(id: string, text: string): UIMessage {
   };
 }
 
-function createChatRequestMessage(id: string, text: string) {
-  return { id, text };
+function restoreCheckpoint(
+  app: ReturnType<typeof createOwnDesignApp>,
+  projectId: string,
+  checkpointId: string,
+  mode: 'files' | 'conversation' | 'both',
+) {
+  return app.fetch(
+    new Request(
+      `http://localhost/api/projects/${projectId}/checkpoints/${checkpointId}/restore`,
+      {
+        body: JSON.stringify({ mode }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+      },
+    ),
+  );
 }
 
 function getMessageText(message: UIMessage | undefined) {
@@ -703,17 +497,16 @@ function getMessageText(message: UIMessage | undefined) {
 }
 
 async function waitFor(assertion: () => void) {
-  let lastError: unknown;
+  const startedAt = Date.now();
 
-  for (let attempt = 0; attempt < 20; attempt += 1) {
+  while (Date.now() - startedAt < 1000) {
     try {
       assertion();
       return;
-    } catch (error) {
-      lastError = error;
-      await new Promise((resolve) => setTimeout(resolve, 0));
+    } catch {
+      await new Promise((resolve) => setTimeout(resolve, 10));
     }
   }
 
-  throw lastError;
+  assertion();
 }

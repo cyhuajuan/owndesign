@@ -34,7 +34,8 @@ function buildProject(
   return {
     id: overrides.id ?? 'project-alpha',
     name: overrides.name ?? 'Project Alpha',
-    description: overrides.description,
+    ...(overrides.description !== undefined ? { description: overrides.description } : {}),
+    projectType: 'single_html' as const,
     outputType: 'html' as const,
     createdAt: overrides.createdAt ?? '2026-05-14T10:00:00.000Z',
     updatedAt: overrides.updatedAt ?? '2026-05-14T10:00:00.000Z',
@@ -106,6 +107,106 @@ describe('WorkspaceStore', () => {
     expect(entries.every((entry) => typeof entry.updatedAt === 'string')).toBe(true);
   });
 
+  it('creates Project checkpoints outside the Project Workspace and restores files', async () => {
+    const workspaceRoot = path.join(await createTempWorkspaceRoot(), '.owndesign');
+    const store = new WorkspaceStore({ workspaceRoot });
+    const project = buildProject({ id: 'project-checkpoint' });
+
+    await store.createProject(project);
+    await store.writeProjectWorkspaceFile(project.id, 'index.html', '<main>Before</main>');
+
+    await expect(
+      store.createCheckpoint({
+        id: 'cp_1',
+        conversationId: 'conversation-1',
+        createdAt: '2026-06-09T10:00:00.000Z',
+        projectId: project.id,
+        userMessageId: 'user-1',
+        userPrompt: 'Make it better',
+      }),
+    ).resolves.toEqual({
+      id: 'cp_1',
+      conversationId: 'conversation-1',
+      createdAt: '2026-06-09T10:00:00.000Z',
+      files: ['index.html'],
+      projectId: project.id,
+      userMessageId: 'user-1',
+      userPrompt: 'Make it better',
+    });
+
+    await store.writeProjectWorkspaceFile(project.id, 'index.html', '<main>After</main>');
+    await expect(store.restoreCheckpointFiles(project.id, 'cp_1')).resolves.toMatchObject({
+      id: 'cp_1',
+    });
+
+    await expect(store.readProjectWorkspaceFile(project.id, 'index.html')).resolves.toBe(
+      '<main>Before</main>',
+    );
+    await expect(
+      readFile(
+        path.join(
+          workspaceRoot,
+          'projects',
+          project.id,
+          'checkpoints',
+          'cp_1',
+          'files',
+          'index.html',
+        ),
+        'utf8',
+      ),
+    ).resolves.toBe('<main>Before</main>');
+    await expect(store.listProjectWorkspace(project.id)).resolves.toEqual([
+      expect.objectContaining({ path: 'index.html', type: 'file' }),
+    ]);
+    await expect(store.globProjectWorkspace(project.id, '**/*')).resolves.toMatchObject({
+      matches: [expect.objectContaining({ path: 'index.html' })],
+      totalMatches: 1,
+    });
+  });
+
+  it('lists Project checkpoints by creation time descending', async () => {
+    const workspaceRoot = path.join(await createTempWorkspaceRoot(), '.owndesign');
+    const store = new WorkspaceStore({ workspaceRoot });
+    const project = buildProject({ id: 'project-checkpoint-list' });
+
+    await store.createProject(project);
+    await store.writeProjectWorkspaceFile(project.id, 'index.html', '<main>Snapshot</main>');
+    await store.createCheckpoint({
+      id: 'cp_old',
+      conversationId: 'conversation-1',
+      createdAt: '2026-06-09T09:00:00.000Z',
+      projectId: project.id,
+      userMessageId: 'user-old',
+      userPrompt: 'Old',
+    });
+    await store.createCheckpoint({
+      id: 'cp_new',
+      conversationId: 'conversation-1',
+      createdAt: '2026-06-09T10:00:00.000Z',
+      projectId: project.id,
+      userMessageId: 'user-new',
+      userPrompt: 'New',
+    });
+
+    await expect(store.listCheckpoints(project.id)).resolves.toMatchObject([
+      { id: 'cp_new' },
+      { id: 'cp_old' },
+    ]);
+  });
+
+  it('rejects missing and unsafe checkpoints', async () => {
+    const workspaceRoot = path.join(await createTempWorkspaceRoot(), '.owndesign');
+    const store = new WorkspaceStore({ workspaceRoot });
+    const project = buildProject({ id: 'project-checkpoint-errors' });
+
+    await store.createProject(project);
+    await expect(store.readCheckpoint(project.id, '../escape')).rejects.toThrow(
+      'Invalid checkpoint id',
+    );
+    await expect(store.restoreCheckpointFiles(project.id, 'cp_missing')).rejects.toThrow();
+  });
+
   it('lists HTML files recursively with index first', async () => {
     const workspaceRoot = path.join(await createTempWorkspaceRoot(), '.owndesign');
     const store = new WorkspaceStore({ workspaceRoot });
@@ -136,12 +237,28 @@ describe('WorkspaceStore', () => {
       project.id,
       '.owndesign-pages.json',
       JSON.stringify({
-        pages: [{ displayName: '小说阅读器首页', slug: 'index' }],
+        pages: [
+          {
+            componentSource: 'pages/od-index-page.js',
+            componentTag: 'od-index-page',
+            displayName: '小说阅读器首页',
+            htmlPath: 'index.html',
+            slug: 'index',
+          },
+        ],
       }),
     );
 
     await expect(store.readProjectHtmlPageManifest(project.id)).resolves.toEqual({
-      pages: [{ displayName: '小说阅读器首页', slug: 'index' }],
+      pages: [
+        {
+          componentSource: 'pages/od-index-page.js',
+          componentTag: 'od-index-page',
+          displayName: '小说阅读器首页',
+          htmlPath: 'index.html',
+          slug: 'index',
+        },
+      ],
     });
   });
 

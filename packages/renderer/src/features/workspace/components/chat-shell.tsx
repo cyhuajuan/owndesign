@@ -2,10 +2,7 @@
 
 import type { CSSProperties, ReactNode } from 'react';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { useAppNavigate } from '@/lib/router';
 import {
-  CheckIcon,
-  ChevronDownIcon,
   DownloadIcon,
   ExternalLinkIcon,
   PanelLeftCloseIcon,
@@ -32,9 +29,7 @@ import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuGroup,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
@@ -60,9 +55,6 @@ import {
 } from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
 import { useApiClient } from '@/api/context';
-import type { HtmlPageManifest } from '@owndesign/core/html-page-manifest';
-import { getHtmlPageDisplayName } from '@owndesign/core/html-page-manifest';
-import { groupHtmlVersionFiles, parseHtmlVersionPath } from '@owndesign/core/html-versioning';
 
 const CONVERSATION_PANE_STORAGE_KEY = 'owndesign.app.conversation-pane-collapsed';
 const PREVIEW_DEVICE_BY_HTML_STORAGE_KEY = 'owndesign.app.preview-device-by-html';
@@ -70,7 +62,6 @@ const CONVERSATION_PANE_EVENT = 'owndesign:conversation-pane';
 const PREVIEW_REFRESH_EVENT = 'owndesign:preview-refresh';
 const PREVIEW_HREF_EVENT = 'owndesign:preview-href-updated';
 const PREVIEW_FILES_EVENT = 'owndesign:preview-files-updated';
-const PREVIEW_MANUAL_SWITCH_EVENT = 'owndesign:preview-manual-switch';
 
 type PreviewStatus = 'ready' | 'loading' | 'error';
 
@@ -90,7 +81,6 @@ type ChatShellProps = {
   messageHistory?: ReactNode;
   previewActions?: ReactNode;
   previewBody?: ReactNode | ((context: PreviewBodyContext) => ReactNode);
-  previewFilename?: ReactNode;
   previewHref?: string;
   previewProjectId?: string;
   previewStatus?: PreviewStatus;
@@ -104,7 +94,6 @@ export function ChatShell({
   messageHistory,
   previewActions,
   previewBody,
-  previewFilename,
   previewHref,
   previewProjectId,
   previewStatus = 'ready',
@@ -112,12 +101,9 @@ export function ChatShell({
 }: ChatShellProps) {
   const api = useApiClient();
   const { t } = useI18n();
-  const navigate = useAppNavigate();
   const [sessionPreviewHref, setSessionPreviewHref] = useState<string>();
   const [previewDevice, setPreviewDevice] = useState<PreviewDevice>('desktop');
   const previewDeviceRef = useRef<PreviewDevice>('desktop');
-  const [previewFiles, setPreviewFiles] = useState<string[]>([]);
-  const [previewPageManifest, setPreviewPageManifest] = useState<HtmlPageManifest>({ pages: [] });
   const [activePreviewPath, setActivePreviewPath] = useState<string>();
   const isConversationCollapsed = useSyncExternalStore(
     subscribeToConversationPaneState,
@@ -179,16 +165,8 @@ export function ChatShell({
         return;
       }
 
-      const files = Array.isArray(event.detail?.files)
-        ? event.detail.files.filter((file: unknown): file is string => typeof file === 'string')
-        : [];
       const activePath =
         typeof event.detail?.activePath === 'string' ? event.detail.activePath : undefined;
-      const pageManifest =
-        isHtmlPageManifest(event.detail?.pageManifest) ? event.detail.pageManifest : { pages: [] };
-
-      setPreviewFiles(files);
-      setPreviewPageManifest(pageManifest);
       setActivePreviewPath(activePath);
     };
 
@@ -199,23 +177,6 @@ export function ChatShell({
     };
   }, []);
 
-  const selectPreviewPath = (nextPath: string) => {
-    if (nextPath === activePreviewPath) {
-      return;
-    }
-
-    const params = new URLSearchParams(window.location.search);
-    params.set('previewPath', nextPath);
-    window.dispatchEvent(
-      new CustomEvent(PREVIEW_MANUAL_SWITCH_EVENT, {
-        detail: { key: String(Date.now()) },
-      }),
-    );
-    navigate(`${window.location.pathname}?${params.toString()}`, {
-      preventScrollReset: true,
-      replace: true,
-    });
-  };
   const handlePreviewDeviceChange = (value: string | null) => {
     if (value !== 'desktop' && value !== 'mobile') {
       return;
@@ -228,14 +189,6 @@ export function ChatShell({
       writeStoredPreviewDevice(previewProjectId, activePreviewPath, value);
     }
   };
-  const previewFilenameNode = previewFilename ?? (
-    <PreviewFileSelect
-      activePath={activePreviewPath}
-      files={previewFiles}
-      pageManifest={previewPageManifest}
-      onChange={selectPreviewPath}
-    />
-  );
   const currentHtmlDownloadUrl =
     previewProjectId && activePreviewPath
       ? api.buildUrl(buildProjectDownloadPath(previewProjectId, 'current-html', activePreviewPath))
@@ -360,9 +313,7 @@ export function ChatShell({
                   <span className={statusClassName} />
                   <span>{statusLabels[previewStatus]}</span>
                 </div>
-                <div className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">
-                  {previewFilenameNode}
-                </div>
+                <div className="min-w-0 flex-1" />
                 <div className="flex items-center gap-1">
                   {previewActions ?? (
                     <>
@@ -574,146 +525,4 @@ function triggerBrowserDownload(url: string) {
   document.body.append(link);
   link.click();
   link.remove();
-}
-
-function PreviewFileSelect({
-  activePath,
-  files,
-  pageManifest,
-  onChange,
-}: {
-  activePath?: string;
-  files: string[];
-  pageManifest: HtmlPageManifest;
-  onChange: (path: string) => void;
-}) {
-  const { t } = useI18n();
-  const groupedFiles = useMemo(() => groupHtmlVersionFiles(files), [files]);
-  const activeVersionFile = activePath ? parseHtmlVersionPath(activePath) : undefined;
-  const activeGroup = activeVersionFile
-    ? groupedFiles.groups.find((group) => group.slug === activeVersionFile.slug)
-    : undefined;
-  const activeLabel = activeVersionFile
-    ? `${getHtmlPageDisplayName(pageManifest, activeVersionFile.slug)} / v${activeVersionFile.version}`
-    : (activePath ?? files[0]);
-
-  if (files.length === 0) {
-    return <span className="font-mono text-xs text-muted-foreground">{t('preview.notFound')}</span>;
-  }
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <Button
-            aria-label={t('preview.switchHtml')}
-            className="h-7 max-w-full min-w-0 justify-start gap-1 border-0 bg-transparent px-1.5 font-mono text-xs text-muted-foreground shadow-none hover:bg-accent/60"
-            size="sm"
-            type="button"
-            variant="ghost"
-          >
-            <span className="min-w-0 truncate">{activeLabel}</span>
-            <ChevronDownIcon data-icon="inline-end" />
-          </Button>
-        }
-      />
-      <DropdownMenuContent
-        align="start"
-        className="w-72 max-w-[min(420px,calc(100vw-2rem))]"
-      >
-        {groupedFiles.groups.length > 0 ? (
-          <DropdownMenuGroup>
-            <DropdownMenuLabel>{t('preview.pages')}</DropdownMenuLabel>
-            {groupedFiles.groups.map((group) => (
-              <DropdownMenuItem
-                key={group.slug}
-                onClick={() => {
-                  onChange(group.latestPath);
-                }}
-              >
-                <span className="min-w-0 flex-1 truncate text-xs">
-                  {getHtmlPageDisplayName(pageManifest, group.slug)}
-                </span>
-                <span className="min-w-0 truncate font-mono text-xs text-muted-foreground">
-                  {group.slug}
-                </span>
-                <span className="text-xs text-muted-foreground">v{group.latestVersion}</span>
-                {activePath === group.latestPath ? <CheckIcon /> : null}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuGroup>
-        ) : null}
-        {activeGroup ? (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <DropdownMenuLabel>
-                {t('preview.versions', {
-                  slug: getHtmlPageDisplayName(pageManifest, activeGroup.slug),
-                })}
-              </DropdownMenuLabel>
-              {activeGroup.versions.map((versionFile) => (
-                <DropdownMenuItem
-                  key={versionFile.path}
-                  onClick={() => {
-                    onChange(versionFile.path);
-                  }}
-                >
-                  <span className="font-mono text-xs">v{versionFile.version}</span>
-                  {versionFile.version === activeGroup.latestVersion ? (
-                    <span className="ml-auto text-xs text-muted-foreground">
-                      {t('preview.latestVersion')}
-                    </span>
-                  ) : (
-                    <span className="ml-auto min-w-0 truncate font-mono text-xs text-muted-foreground">
-                      {versionFile.path}
-                    </span>
-                  )}
-                  {activePath === versionFile.path ? <CheckIcon /> : null}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuGroup>
-          </>
-        ) : null}
-        {groupedFiles.otherFiles.length > 0 ? (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <DropdownMenuLabel>{t('preview.otherFiles')}</DropdownMenuLabel>
-              {groupedFiles.otherFiles.map((file) => (
-                <DropdownMenuItem
-                  key={file}
-                  onClick={() => {
-                    onChange(file);
-                  }}
-                >
-                  <span className="min-w-0 flex-1 truncate font-mono text-xs">{file}</span>
-                  {activePath === file ? <CheckIcon /> : null}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuGroup>
-          </>
-        ) : null}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-function isHtmlPageManifest(value: unknown): value is HtmlPageManifest {
-  if (!value || typeof value !== 'object' || !('pages' in value)) {
-    return false;
-  }
-
-  const pages = (value as HtmlPageManifest).pages;
-
-  return (
-    Array.isArray(pages) &&
-    pages.every(
-      (page) =>
-        Boolean(page) &&
-        typeof page === 'object' &&
-        typeof page.slug === 'string' &&
-        typeof page.displayName === 'string',
-    )
-  );
 }

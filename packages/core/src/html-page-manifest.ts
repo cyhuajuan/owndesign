@@ -1,5 +1,8 @@
 export type HtmlPageManifestPage = {
+  componentSource: string;
+  componentTag: string;
   displayName: string;
+  htmlPath: string;
   slug: string;
 };
 
@@ -33,16 +36,26 @@ export function parseHtmlPageManifest(content: string | undefined): HtmlPageMani
   const pages = value.pages
     .filter(isRecord)
     .map((page) => ({
+      componentSource: typeof page.componentSource === 'string' ? page.componentSource.trim() : '',
+      componentTag: typeof page.componentTag === 'string' ? page.componentTag.trim() : '',
       displayName: typeof page.displayName === 'string' ? page.displayName.trim() : '',
+      htmlPath: typeof page.htmlPath === 'string' ? page.htmlPath.trim() : '',
       slug: typeof page.slug === 'string' ? page.slug.trim() : '',
     }))
-    .filter((page) => page.slug && page.displayName);
+    .filter(
+      (page) =>
+        page.slug && page.displayName && page.htmlPath && page.componentTag && page.componentSource,
+    );
 
   return { pages };
 }
 
 export function getHtmlPageDisplayName(manifest: HtmlPageManifest | undefined, slug: string) {
   return manifest?.pages.find((page) => page.slug === slug)?.displayName ?? slug;
+}
+
+export function serializeHtmlPageManifest(manifest: HtmlPageManifest) {
+  return `${JSON.stringify(manifest, null, 2)}\n`;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -7,9 +7,7 @@ import { createGlobToolDefinition } from './glob';
 import { createGrepToolDefinition } from './grep';
 import { createPatchToolDefinition } from './patch';
 import { createPreviewRefreshToolDefinition } from './preview-refresh';
-import { createPreviewSwitchHtmlToolDefinition } from './preview-switch-html';
 import { createReadToolDefinition } from './read';
-import { createSyncSharedComponentToolDefinition } from './sync-shared-component';
 import type { ProjectWorkspaceToolContext } from './types';
 import { createWriteToolDefinition } from './write';
 
@@ -23,9 +21,7 @@ export function createProjectWorkspaceToolDefinitions() {
     createGrepToolDefinition(),
     createPatchToolDefinition(),
     createPreviewRefreshToolDefinition(),
-    createPreviewSwitchHtmlToolDefinition(),
     createReadToolDefinition(),
-    createSyncSharedComponentToolDefinition(),
     createWriteToolDefinition(),
   ];
 }

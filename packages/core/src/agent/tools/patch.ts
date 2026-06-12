@@ -1,13 +1,11 @@
-import { resolveHtmlOperationPathForPageEditModePolicy } from '@owndesign/core/agent/page-edit-mode';
 import { z } from 'zod';
 
-import { applyProjectWorkspacePatchWithCdnGuard } from './cdn-guard';
 import type { WorkspaceToolDefinition } from './core';
 import type { PatchInput } from './types';
 
 export function createPatchToolDefinition(): WorkspaceToolDefinition<
   PatchInput,
-  Awaited<ReturnType<typeof applyProjectWorkspacePatchWithCdnGuard>>
+  Awaited<ReturnType<import('@owndesign/core/workspace-store').WorkspaceStore['applyProjectWorkspacePatch']>>
 > {
   return {
     description:
@@ -64,25 +62,7 @@ export function createPatchToolDefinition(): WorkspaceToolDefinition<
       .strict(),
     name: 'patch',
     parallelSafe: false,
-    execute: async (
-      { changes },
-      { approvedCdnUrls, pageEditModePolicy, projectId, workspaceStore },
-    ) => {
-      const resolvedChanges = changes.map((change) => ({
-        ...change,
-        path: resolveHtmlOperationPathForPageEditModePolicy(
-          pageEditModePolicy,
-          change.operation === 'delete' ? 'delete' : 'mutate',
-          change.path,
-        ),
-      })) as PatchInput['changes'];
-
-      return applyProjectWorkspacePatchWithCdnGuard(
-        workspaceStore,
-        projectId,
-        resolvedChanges,
-        approvedCdnUrls,
-      );
-    },
+    execute: async ({ changes }, { projectId, workspaceStore }) =>
+      workspaceStore.applyProjectWorkspacePatch(projectId, changes),
   };
 }

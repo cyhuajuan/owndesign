@@ -18,7 +18,6 @@ import {
 import {
   getUIMessageText,
   normalizeConversationMessages,
-  type TurnPromptRewriteMetadata,
 } from '@owndesign/core/conversations/chat-messages';
 import { getDefaultConversationTitle } from '@owndesign/core/conversations/default-title';
 import {
@@ -26,10 +25,7 @@ import {
   createDesignPageAgent,
   createDesignPageAgentContext,
   DESIGN_PAGE_AGENT_PROMPT_VERSION,
-  type DesignAgentContext,
 } from '@owndesign/core/agent/design-page-agent';
-import { parsePageEditMode } from '@owndesign/core/agent/page-edit-mode';
-import { rewriteTurnPrompt } from '@owndesign/core/agent/turn-prompt-rewriter';
 import { getPreviewServerManager } from '@owndesign/core/preview/preview-server-manager';
 import { registerFrontendConnection } from '@owndesign/core/realtime/frontend-command-bus';
 import {
@@ -37,6 +33,7 @@ import {
   parseDeepSeekThinkingMode,
 } from '@owndesign/core/settings/settings-service';
 import { buildWorkspaceHref } from '@owndesign/core/navigation';
+import type { CheckpointRestoreMode } from '@owndesign/core/workspace-store';
 
 import {
   createConversationService,
@@ -54,9 +51,9 @@ type ChatRequestBody = {
   message?: unknown;
   messages?: unknown;
   modelConfigurationId?: unknown;
-  pageEditMode?: unknown;
   previewPath?: unknown;
   projectId?: unknown;
+  projectType?: unknown;
   providerOptionsSelection?: unknown;
 };
 
@@ -163,9 +160,14 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
   app.post('/api/projects', async (context) => {
     const body = await context.req.json();
     const trimmedName = asNonEmptyString(body.name);
+    const projectType = parseProjectType(body.projectType);
 
-    if (!trimmedName) {
+    if (!trimmedName || !projectType) {
       return context.json({}, 400);
+    }
+
+    if (projectType === 'react') {
+      return context.text('React project type is reserved but not supported yet.', 400);
     }
 
     const services = createOwnDesignServices(options);
@@ -174,6 +176,7 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
       defaultConversationTitle: getDefaultConversationTitle(settings.interfaceLanguage),
       name: trimmedName,
       description: asNonEmptyString(body.description),
+      projectType,
     });
 
     return context.json({
@@ -298,15 +301,10 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
     const projectId = asNonEmptyString(body.projectId);
     const conversationId = asNonEmptyString(body.conversationId);
     const requestedPreviewPath = asNonEmptyString(body.previewPath);
-    const pageEditMode = parsePageEditMode(body.pageEditMode);
     const currentUserMessage = createCurrentUserMessage(body.message);
 
     if (!projectId || !conversationId || !currentUserMessage) {
       return context.text('Invalid chat request.', 400);
-    }
-
-    if (!pageEditMode) {
-      return context.text('Invalid page edit mode.', 400);
     }
 
     const workspaceStore = createWorkspaceStore(options);
@@ -321,6 +319,14 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
       return context.text('当前项目已有任务正在执行。', 409);
     }
 
+    await workspaceStore.createCheckpoint({
+      id: createCheckpointId(),
+      conversationId,
+      createdAt: new Date().toISOString(),
+      projectId,
+      userMessageId: currentUserMessage.id,
+      userPrompt: getUIMessageText(currentUserMessage),
+    });
     let conversation = await workspaceStore.getConversation(projectId, conversationId);
     const storedMessages = normalizeConversationMessages(
       conversation.messages,
@@ -333,10 +339,10 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
         currentPreviewPath: previewPath,
         frontendTabId: asNonEmptyString(body.frontendTabId),
         modelConfigurationId: asNonEmptyString(body.modelConfigurationId),
-        outputType: project.outputType,
-        pageEditMode,
+        projectType: project.projectType ?? 'single_html',
         projectId,
         providerOptionsSelection: parseProviderOptionsSelection(body.providerOptionsSelection),
+        settingsPath: options.settingsPath,
         workspaceStore,
       });
     } catch (error) {
@@ -355,21 +361,6 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
     }
 
     agentContext.agentInstructions = conversation.agentInstructions;
-    try {
-      messages = (await rewriteLastUserMessageForDesignAgent({
-        messages,
-        pageEditMode,
-        pageEditModePolicy: agentContext.pageEditModePolicy ?? { mode: 'auto' },
-        previewPath,
-        agentContext,
-      })) as DesignPageUIMessage[];
-    } catch (error) {
-      return context.text(
-        error instanceof Error ? error.message : 'Failed to rewrite user prompt.',
-        500,
-      );
-    }
-
     const agent = createDesignPageAgent(agentContext);
     let latestStepUsage: LanguageModelUsage | undefined;
 
@@ -430,6 +421,62 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
     }
 
     return createChatRunStreamResponse(run.stream);
+  });
+
+  app.get('/api/projects/:projectId/checkpoints', async (context) => {
+    const workspaceStore = createWorkspaceStore(options);
+    const projectId = context.req.param('projectId');
+
+    await workspaceStore.getProject(projectId);
+
+    return context.json(await workspaceStore.listCheckpoints(projectId));
+  });
+
+  app.post('/api/projects/:projectId/checkpoints/:checkpointId/restore', async (context) => {
+    const workspaceStore = createWorkspaceStore(options);
+    const projectId = context.req.param('projectId');
+    const checkpointId = context.req.param('checkpointId');
+    const body = await readJson(context.req.raw);
+    const mode = parseCheckpointRestoreMode(body?.mode);
+
+    if (!mode) {
+      return context.text('Invalid checkpoint restore request.', 400);
+    }
+
+    if (chatRunManager.getActiveRun(projectId)) {
+      return context.text('当前项目已有任务正在执行。', 409);
+    }
+
+    try {
+      const checkpoint =
+        mode === 'conversation'
+          ? await workspaceStore.readCheckpoint(projectId, checkpointId)
+          : await workspaceStore.restoreCheckpointFiles(projectId, checkpointId);
+
+      if (mode === 'conversation' || mode === 'both') {
+        await restoreCheckpointConversation({
+          options,
+          workspaceStore,
+          checkpoint,
+        });
+      }
+
+      return context.json({
+        href: buildWorkspaceHref({
+          conversationId: checkpoint.conversationId,
+          projectId,
+        }),
+      });
+    } catch (error) {
+      if (isMissingPathError(error)) {
+        return context.text('Checkpoint not found.', 404);
+      }
+
+      return context.text(
+        error instanceof Error ? error.message : 'Checkpoint restore failed.',
+        400,
+      );
+    }
   });
 
   app.get('/api/projects/:projectId/runs/active', async (context) => {
@@ -873,119 +920,6 @@ function isFileUIPart(value: unknown): value is UIMessage['parts'][number] {
   return isRecord(value) && value.type === 'file';
 }
 
-async function rewriteLastUserMessageForDesignAgent({
-  agentContext,
-  messages,
-  pageEditMode,
-  pageEditModePolicy,
-  previewPath,
-}: {
-  agentContext: DesignAgentContext;
-  messages: UIMessage[];
-  pageEditMode: NonNullable<ReturnType<typeof parsePageEditMode>>;
-  pageEditModePolicy: NonNullable<DesignAgentContext['pageEditModePolicy']>;
-  previewPath?: string;
-}) {
-  const lastUserMessageIndex = findLastUserMessageIndex(messages);
-
-  if (lastUserMessageIndex < 0) {
-    return messages;
-  }
-
-  const lastUserMessage = messages[lastUserMessageIndex];
-
-  if (!lastUserMessage || hasPromptRewriteMetadata(lastUserMessage)) {
-    return messages;
-  }
-
-  const originalUserPrompt = getUIMessageText(lastUserMessage);
-  const { rewrittenPrompt } = await rewriteTurnPrompt({
-    model: agentContext.model,
-    originalUserPrompt,
-    pageEditMode,
-    pageEditModePolicy,
-    previewPath,
-    providerOptions: agentContext.providerOptions,
-  });
-  const metadata = createTurnPromptRewriteMetadata({
-    originalUserPrompt,
-    pageEditMode,
-    pageEditModePolicy,
-    previewPath,
-  });
-  const rewrittenMessage: UIMessage = {
-    ...lastUserMessage,
-    metadata: {
-      ...(isRecord(lastUserMessage.metadata) ? lastUserMessage.metadata : {}),
-      ...metadata,
-    },
-    parts: [
-      {
-        text: rewrittenPrompt,
-        type: 'text',
-      },
-      ...lastUserMessage.parts.filter((part) => part.type !== 'text'),
-    ],
-  };
-
-  return [
-    ...messages.slice(0, lastUserMessageIndex),
-    rewrittenMessage,
-    ...messages.slice(lastUserMessageIndex + 1),
-  ];
-}
-
-function findLastUserMessageIndex(messages: UIMessage[]) {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index];
-
-    if (message?.role === 'user') {
-      return index;
-    }
-  }
-
-  return -1;
-}
-
-function createTurnPromptRewriteMetadata({
-  originalUserPrompt,
-  pageEditMode,
-  pageEditModePolicy,
-  previewPath,
-}: {
-  originalUserPrompt: string;
-  pageEditMode: NonNullable<ReturnType<typeof parsePageEditMode>>;
-  pageEditModePolicy: NonNullable<DesignAgentContext['pageEditModePolicy']>;
-  previewPath?: string;
-}): TurnPromptRewriteMetadata {
-  return {
-    originalUserPrompt,
-    promptRewrite: {
-      createdAt: new Date().toISOString(),
-      kind: 'turn-prompt-rewriter',
-      pageEditMode,
-      previewFileExists: Boolean(previewPath),
-      ...(previewPath ? { previewPath } : {}),
-      ...(pageEditModePolicy.mode === 'duplicate_edit'
-        ? {
-            duplicateSourcePath: pageEditModePolicy.sourcePath,
-            duplicateTargetPath: pageEditModePolicy.targetPath,
-          }
-        : {}),
-    },
-  };
-}
-
-function hasPromptRewriteMetadata(message: UIMessage) {
-  const metadata = message.metadata;
-
-  return (
-    isRecord(metadata) &&
-    isRecord(metadata.promptRewrite) &&
-    metadata.promptRewrite.kind === 'turn-prompt-rewriter'
-  );
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
@@ -1008,6 +942,22 @@ function asNonEmptyString(value: unknown) {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
 
+function parseProjectType(value: unknown) {
+  if (value === undefined || value === null || value === '') {
+    return 'single_html' as const;
+  }
+
+  if (value === 'single_html' || value === 'react') {
+    return value;
+  }
+
+  return undefined;
+}
+
+function parseCheckpointRestoreMode(value: unknown): CheckpointRestoreMode | undefined {
+  return value === 'files' || value === 'conversation' || value === 'both' ? value : undefined;
+}
+
 function parseProviderOptionsSelection(value: unknown) {
   if (!isRecord(value)) {
     return undefined;
@@ -1024,4 +974,54 @@ function parseProviderOptionsSelection(value: unknown) {
     ...(anthropic ? { anthropic } : {}),
     ...(deepseek ? { deepseek } : {}),
   };
+}
+
+function createCheckpointId() {
+  const id =
+    typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+  return `cp_${id.replace(/[^A-Za-z0-9_-]/g, '_')}`;
+}
+
+async function restoreCheckpointConversation({
+  checkpoint,
+  options,
+  workspaceStore,
+}: {
+  checkpoint: {
+    conversationId: string;
+    projectId: string;
+    userMessageId: string;
+  };
+  options: OwnDesignServerOptions;
+  workspaceStore: ReturnType<typeof createWorkspaceStore>;
+}) {
+  const conversation = await workspaceStore.getConversation(
+    checkpoint.projectId,
+    checkpoint.conversationId,
+  );
+  const messages = normalizeConversationMessages(conversation.messages);
+  const targetIndex = messages.findIndex((message) => message.id === checkpoint.userMessageId);
+
+  if (targetIndex < 0) {
+    throw new Error('Checkpoint user message was not found in the conversation.');
+  }
+
+  const nextMessages = messages.slice(0, targetIndex);
+  const settings = await createOwnDesignServices(options).settingsService.getSettings();
+  const timestamp = new Date().toISOString();
+  const lastMessage = nextMessages.at(-1);
+
+  await workspaceStore.updateConversation(checkpoint.projectId, checkpoint.conversationId, {
+    ...conversation,
+    lastMessageAt: lastMessage ? timestamp : undefined,
+    messages: nextMessages,
+    title:
+      !conversation.titleManuallySet && nextMessages.length === 0
+        ? getDefaultConversationTitle(settings.interfaceLanguage)
+        : conversation.title,
+    updatedAt: timestamp,
+  });
 }

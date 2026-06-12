@@ -2,7 +2,7 @@
 
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport, type FileUIPart, type UIMessage } from 'ai';
-import { AlertCircleIcon } from 'lucide-react';
+import { AlertCircleIcon, RotateCcwIcon } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
@@ -17,14 +17,16 @@ import {
   PromptInputBody,
   PromptInputFooter,
   PromptInputHeader,
-  PromptInputSelect,
-  PromptInputSelectContent,
-  PromptInputSelectItem,
-  PromptInputSelectTrigger,
-  PromptInputSelectValue,
   PromptInputSubmit,
   PromptInputTextarea,
 } from '@/components/ai-elements/prompt-input';
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { MessageParts } from '@/features/conversation/components/message-parts';
 import { ModelContextUsage } from '@/features/conversation/components/model-context-usage';
 import { ModelSelect } from '@/features/conversation/components/model-select';
@@ -42,7 +44,8 @@ import { useI18n } from '@/features/i18n/context';
 import { useCurrentPreviewPath } from '@/features/preview/preview-path';
 import type { ActiveRun, ActiveRunSnapshot } from '@/api/client';
 import type { AnthropicEffort } from '@/features/conversation/types';
-import type { PageEditMode } from '@owndesign/core/agent/page-edit-mode';
+import type { CheckpointRecord, CheckpointRestoreMode } from '@owndesign/core/workspace-store';
+import { normalizeConversationMessages } from '@owndesign/core/conversations/chat-messages';
 
 type StreamingConversationPanelProps = {
   conversationId: string;
@@ -63,20 +66,6 @@ export type ConversationPanelUpdate = {
   updatedAt: string;
 };
 
-const PAGE_EDIT_MODE_OPTIONS = [
-  { labelKey: 'conversation.pageModeAuto', value: 'auto' },
-  { labelKey: 'conversation.pageModeNewPage', value: 'new_page' },
-  { labelKey: 'conversation.pageModeDirectEdit', value: 'direct_edit' },
-  { labelKey: 'conversation.pageModeDuplicateEdit', value: 'duplicate_edit' },
-] satisfies Array<{
-  labelKey:
-    | 'conversation.pageModeAuto'
-    | 'conversation.pageModeNewPage'
-    | 'conversation.pageModeDirectEdit'
-    | 'conversation.pageModeDuplicateEdit';
-  value: PageEditMode;
-}>;
-
 const ANTHROPIC_EFFORT_STORAGE_KEY = 'owndesign:anthropic-efforts';
 
 export function StreamingConversationPanel({
@@ -95,7 +84,8 @@ export function StreamingConversationPanel({
   const previousStatusRef = useRef('ready');
   const reconnectState = useMemo(() => ({ afterChunkIndex: 0 }), []);
   const [localSubmitStarted, setLocalSubmitStarted] = useState(false);
-  const [pageEditMode, setPageEditMode] = useState<PageEditMode>('auto');
+  const [checkpoints, setCheckpoints] = useState<CheckpointRecord[]>([]);
+  const [restoringCheckpointId, setRestoringCheckpointId] = useState<string>();
   const [selectedAnthropicEffort, setSelectedAnthropicEffort] = useState<AnthropicEffort>('high');
   const [resumeSnapshot, setResumeSnapshot] = useState<
     | {
@@ -133,7 +123,6 @@ export function StreamingConversationPanel({
       conversationId,
       frontendTabId: FRONTEND_TAB_ID,
       modelConfigurationId: selectedModelId,
-      pageEditMode,
       projectId,
       ...(currentPreviewPath ? { previewPath: currentPreviewPath } : {}),
       ...(selectedProviderOptionsSelection
@@ -143,7 +132,6 @@ export function StreamingConversationPanel({
     [
       conversationId,
       currentPreviewPath,
-      pageEditMode,
       projectId,
       selectedProviderOptionsSelection,
       selectedModelId,
@@ -202,8 +190,17 @@ export function StreamingConversationPanel({
   const canSend = Boolean(selectedModel) && !isGenerating && !isProjectBusy;
   const submitStatus = isProjectBusy && !isGenerating ? 'streaming' : status;
   const busyMessage = t('conversation.busyMessage');
-  const requiresCurrentPreview =
-    pageEditMode === 'direct_edit' || pageEditMode === 'duplicate_edit';
+  const checkpointByUserMessageId = useMemo(() => {
+    const map = new Map<string, CheckpointRecord>();
+
+    for (const checkpoint of checkpoints) {
+      if (checkpoint.conversationId === conversationId) {
+        map.set(checkpoint.userMessageId, checkpoint);
+      }
+    }
+
+    return map;
+  }, [checkpoints, conversationId]);
   const handleStop = useCallback(() => {
     void api.cancelActiveRun(projectId).finally(() => {
       stop();
@@ -221,6 +218,27 @@ export function StreamingConversationPanel({
 
     setSelectedAnthropicEffort(getStoredAnthropicEffort(selectedModel.id) ?? 'high');
   }, [selectedModel?.id, selectedModel?.provider]);
+
+  useEffect(() => {
+    let isActive = true;
+
+    void api
+      .listCheckpoints(projectId)
+      .then((nextCheckpoints) => {
+        if (isActive) {
+          setCheckpoints(Array.isArray(nextCheckpoints) ? nextCheckpoints : []);
+        }
+      })
+      .catch(() => {
+        if (isActive) {
+          setCheckpoints([]);
+        }
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [api, conversationId, messages.length, projectId, status]);
 
   useEffect(() => {
     if (!activeRunBelongsToConversation || !activeRunId || localSubmitStarted) {
@@ -329,6 +347,13 @@ export function StreamingConversationPanel({
                   isStreaming={status === 'streaming' && isLastMessage}
                   key={getMessageKey(message, index)}
                   message={message}
+                  checkpoint={
+                    message.role === 'user' ? checkpointByUserMessageId.get(message.id) : undefined
+                  }
+                  isRestoreDisabled={
+                    isGenerating || isProjectBusy || Boolean(restoringCheckpointId)
+                  }
+                  onRestore={handleCheckpointRestore}
                 />
               );
             })
@@ -362,8 +387,7 @@ export function StreamingConversationPanel({
 
             if (
               (!trimmedText && files.length === 0) ||
-              !canSend ||
-              (requiresCurrentPreview && !currentPreviewPath)
+              !canSend
             ) {
               return;
             }
@@ -393,12 +417,6 @@ export function StreamingConversationPanel({
           <PromptInputFooter className="px-2 pb-1">
             <div className="flex min-w-0 items-center gap-1">
               <PromptAttachmentControls selectedModel={selectedModel} />
-              <PageEditModeSelect
-                disabled={isGenerating || isProjectBusy}
-                hasCurrentPreview={Boolean(currentPreviewPath)}
-                onValueChange={setPageEditMode}
-                value={pageEditMode}
-              />
             </div>
             <div className="flex min-w-0 items-center gap-1">
               <ModelContextUsage configuration={selectedModel} usage={contextUsage} />
@@ -421,6 +439,42 @@ export function StreamingConversationPanel({
       </div>
     </>
   );
+
+  async function handleCheckpointRestore(checkpoint: CheckpointRecord, mode: CheckpointRestoreMode) {
+    setRestoringCheckpointId(checkpoint.id);
+
+    try {
+      await api.restoreCheckpoint(projectId, checkpoint.id, mode);
+
+      if (mode !== 'files') {
+        const workspace = await api.loadWorkspace(projectId, checkpoint.conversationId);
+        const restoredConversation = workspace.conversations.find(
+          (conversation) => conversation.id === checkpoint.conversationId,
+        );
+
+        if (restoredConversation) {
+          const restoredMessages = normalizeConversationMessages(restoredConversation.messages);
+
+          setMessages(restoredMessages);
+          onConversationUpdate?.({
+            id: restoredConversation.id,
+            lastMessageAt: restoredConversation.lastMessageAt ?? restoredConversation.updatedAt,
+            messages: restoredMessages,
+            title: restoredConversation.title,
+            updatedAt: restoredConversation.updatedAt,
+          });
+        }
+      }
+
+      const nextCheckpoints = await api.listCheckpoints(projectId);
+
+      setCheckpoints(Array.isArray(nextCheckpoints) ? nextCheckpoints : []);
+      window.dispatchEvent(new Event('owndesign:workspace-refresh'));
+      window.dispatchEvent(new Event('owndesign:preview-refresh'));
+    } finally {
+      setRestoringCheckpointId(undefined);
+    }
+  }
 }
 
 function createCurrentChatRequestMessage(messages: UIMessage[]) {
@@ -439,58 +493,6 @@ function createCurrentChatRequestMessage(messages: UIMessage[]) {
 
 function isFilePart(part: UIMessage['parts'][number]): part is FileUIPart {
   return part.type === 'file';
-}
-
-function PageEditModeSelect({
-  disabled,
-  hasCurrentPreview,
-  onValueChange,
-  value,
-}: {
-  disabled: boolean;
-  hasCurrentPreview: boolean;
-  onValueChange: (value: PageEditMode) => void;
-  value: PageEditMode;
-}) {
-  const { t } = useI18n();
-
-  return (
-    <PromptInputSelect
-      onValueChange={(nextValue) => onValueChange(nextValue as PageEditMode)}
-      value={value}
-    >
-      <PromptInputSelectTrigger
-        aria-label={t('conversation.pageMode')}
-        className="h-7 max-w-24 px-2 text-xs"
-        disabled={disabled}
-        size="sm"
-      >
-        <PromptInputSelectValue>{getPageEditModeLabel(value, t)}</PromptInputSelectValue>
-      </PromptInputSelectTrigger>
-      <PromptInputSelectContent side="top" sideOffset={6}>
-        {PAGE_EDIT_MODE_OPTIONS.map((option) => {
-          const optionRequiresPreview =
-            option.value === 'direct_edit' || option.value === 'duplicate_edit';
-
-          return (
-            <PromptInputSelectItem
-              disabled={optionRequiresPreview && !hasCurrentPreview}
-              key={option.value}
-              value={option.value}
-            >
-              {t(option.labelKey)}
-            </PromptInputSelectItem>
-          );
-        })}
-      </PromptInputSelectContent>
-    </PromptInputSelect>
-  );
-}
-
-function getPageEditModeLabel(value: PageEditMode, t: ReturnType<typeof useI18n>['t']) {
-  const option = PAGE_EDIT_MODE_OPTIONS.find((item) => item.value === value);
-
-  return option ? t(option.labelKey) : t('conversation.pageModeAuto');
 }
 
 function getStoredAnthropicEffort(modelId: string): AnthropicEffort | undefined {
@@ -525,27 +527,94 @@ function isAnthropicEffort(value: unknown): value is AnthropicEffort {
 
 const ConversationMessageItem = memo(
   function ConversationMessageItem({
+    checkpoint,
+    isRestoreDisabled,
     isLastMessage,
     isStreaming,
     message,
+    onRestore,
   }: {
+    checkpoint?: CheckpointRecord;
+    isRestoreDisabled: boolean;
     isLastMessage: boolean;
     isStreaming: boolean;
     message: UIMessage;
+    onRestore: (checkpoint: CheckpointRecord, mode: CheckpointRestoreMode) => void;
   }) {
     return (
-      <Message from={message.role}>
-        <MessageContent className={message.role === 'assistant' ? 'w-full' : undefined}>
-          <MessageParts isLastMessage={isLastMessage} isStreaming={isStreaming} message={message} />
-        </MessageContent>
-      </Message>
+      <div>
+        <Message from={message.role}>
+          <MessageContent className={message.role === 'assistant' ? 'w-full' : undefined}>
+            <MessageParts
+              isLastMessage={isLastMessage}
+              isStreaming={isStreaming}
+              message={message}
+            />
+          </MessageContent>
+        </Message>
+        {checkpoint ? (
+          <CheckpointRestoreMenu
+            checkpoint={checkpoint}
+            disabled={isRestoreDisabled}
+            onRestore={onRestore}
+          />
+        ) : null}
+      </div>
     );
   },
   (previousProps, nextProps) =>
     previousProps.message === nextProps.message &&
+    previousProps.checkpoint === nextProps.checkpoint &&
+    previousProps.isRestoreDisabled === nextProps.isRestoreDisabled &&
     previousProps.isLastMessage === nextProps.isLastMessage &&
-    previousProps.isStreaming === nextProps.isStreaming,
+    previousProps.isStreaming === nextProps.isStreaming &&
+    previousProps.onRestore === nextProps.onRestore,
 );
+
+function CheckpointRestoreMenu({
+  checkpoint,
+  disabled,
+  onRestore,
+}: {
+  checkpoint: CheckpointRecord;
+  disabled: boolean;
+  onRestore: (checkpoint: CheckpointRecord, mode: CheckpointRestoreMode) => void;
+}) {
+  const { t } = useI18n();
+
+  return (
+    <div className="mt-1 flex justify-end pr-1">
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          disabled={disabled}
+          render={
+            <Button
+              aria-label={t('conversation.restoreCheckpoint')}
+              className="text-muted-foreground"
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              <RotateCcwIcon />
+              {t('conversation.restoreCheckpoint')}
+            </Button>
+          }
+        />
+        <DropdownMenuContent align="end" className="min-w-48">
+          <DropdownMenuItem onClick={() => onRestore(checkpoint, 'both')}>
+            {t('conversation.restoreFilesAndConversation')}
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => onRestore(checkpoint, 'files')}>
+            {t('conversation.restoreFilesOnly')}
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => onRestore(checkpoint, 'conversation')}>
+            {t('conversation.restoreConversationOnly')}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+}
 
 function getMessageKey(message: UIMessage, index: number) {
   return message.id || `message-${index}`;

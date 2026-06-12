@@ -1,13 +1,11 @@
-import { resolveHtmlOperationPathForPageEditModePolicy } from '@owndesign/core/agent/page-edit-mode';
 import { z } from 'zod';
 
-import { editProjectWorkspaceFileWithCdnGuard } from './cdn-guard';
 import type { WorkspaceToolDefinition } from './core';
 import type { EditInput } from './types';
 
 export function createEditToolDefinition(): WorkspaceToolDefinition<
   EditInput,
-  Awaited<ReturnType<typeof editProjectWorkspaceFileWithCdnGuard>>
+  Awaited<ReturnType<import('@owndesign/core/workspace-store').WorkspaceStore['editProjectWorkspaceFile']>>
 > {
   return {
     description:
@@ -25,25 +23,7 @@ export function createEditToolDefinition(): WorkspaceToolDefinition<
       .strict(),
     name: 'edit',
     parallelSafe: false,
-    execute: async (
-      { newString, oldString, path, replaceAll },
-      { approvedCdnUrls, pageEditModePolicy, projectId, workspaceStore },
-    ) => {
-      const editPath = resolveHtmlOperationPathForPageEditModePolicy(
-        pageEditModePolicy,
-        'mutate',
-        path,
-      );
-
-      return editProjectWorkspaceFileWithCdnGuard(
-        workspaceStore,
-        projectId,
-        editPath,
-        oldString,
-        newString,
-        replaceAll,
-        approvedCdnUrls,
-      );
-    },
+    execute: async ({ newString, oldString, path, replaceAll }, { projectId, workspaceStore }) =>
+      workspaceStore.editProjectWorkspaceFile(projectId, path, oldString, newString, replaceAll),
   };
 }

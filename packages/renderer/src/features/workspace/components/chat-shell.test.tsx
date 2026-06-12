@@ -110,78 +110,55 @@ describe('ChatShell', () => {
     expect(screen.getAllByRole('button', { name: '展开会话面板' })).not.toHaveLength(0);
   });
 
-  it('renders grouped preview HTML selector from preview file events', async () => {
-    const user = userEvent.setup();
-
+  it('does not render the active preview filename from preview file events', () => {
     render(<ChatShell />);
     act(() => {
       window.dispatchEvent(
         new CustomEvent('owndesign:preview-files-updated', {
           detail: {
-            activePath: 'index-v2.html',
-            files: ['index-v1.html', 'index-v2.html', 'detail-v3.html', 'legacy.html'],
-            pageManifest: {
-              pages: [
-                { displayName: '小说首页', slug: 'index' },
-                { displayName: '作品详情页', slug: 'detail' },
-              ],
-            },
+            activePath: 'index.html',
+            files: ['index.html', 'detail.html', 'legacy.html'],
           },
         }),
       );
     });
 
-    const switchButton = screen.getByRole('button', { name: '切换预览 HTML' });
-    expect(switchButton).toHaveTextContent('小说首页 / v2');
-
-    await user.click(switchButton);
-    expect(await screen.findByText('index')).toBeInTheDocument();
-    expect(await screen.findByText('小说首页 版本')).toBeInTheDocument();
-    await user.click(await screen.findByText('作品详情页'));
-
-    expect(window.location.search).toBe('?previewPath=detail-v3.html');
+    expect(screen.queryByText('index.html')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '切换预览 HTML' })).not.toBeInTheDocument();
   });
 
-  it('falls back to slugs when the preview page manifest is missing', () => {
+  it('keeps the preview header free of fixed html filenames', () => {
     render(<ChatShell />);
     act(() => {
       window.dispatchEvent(
         new CustomEvent('owndesign:preview-files-updated', {
           detail: {
-            activePath: 'index-v2.html',
-            files: ['index-v1.html', 'index-v2.html'],
+            activePath: 'index.html',
+            files: ['index.html', 'detail.html'],
           },
         }),
       );
     });
 
-    expect(screen.getByRole('button', { name: '切换预览 HTML' })).toHaveTextContent('index / v2');
+    expect(screen.queryByText('index.html')).not.toBeInTheDocument();
   });
 
-  it('switches old versions and other files from the preview HTML selector', async () => {
-    const user = userEvent.setup();
-
+  it('does not show or switch other HTML files from the preview header', () => {
     render(<ChatShell />);
     act(() => {
       window.dispatchEvent(
         new CustomEvent('owndesign:preview-files-updated', {
           detail: {
-            activePath: 'index-v2.html',
-            files: ['index-v1.html', 'index-v2.html', 'legacy.html'],
+            activePath: 'index.html',
+            files: ['index.html', 'legacy.html'],
           },
         }),
       );
     });
 
-    await user.click(screen.getByRole('button', { name: '切换预览 HTML' }));
-    await user.click(await screen.findByText('index-v1.html'));
-
-    expect(window.location.search).toBe('?previewPath=index-v1.html');
-
-    await user.click(screen.getByRole('button', { name: '切换预览 HTML' }));
-    await user.click(await screen.findByRole('menuitem', { name: 'legacy.html' }));
-
-    expect(window.location.search).toBe('?previewPath=legacy.html');
+    expect(screen.queryByText('index.html')).not.toBeInTheDocument();
+    expect(screen.queryByText('legacy.html')).not.toBeInTheDocument();
+    expect(window.location.search).toBe('');
   });
 
   it('renders icon-only download menu before refresh button and shows both download actions', async () => {

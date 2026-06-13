@@ -216,9 +216,11 @@ describe('AiSdkDesignPageAgent', () => {
 
     createDesignPageAgent(context);
     const config = aiMocks.toolLoopAgent.mock.calls.at(-1)?.[0] as {
+      maxRetries?: number;
       tools: Record<string, unknown>;
     };
 
+    expect(config.maxRetries).toBe(5);
     expect(Object.keys(config.tools)).toEqual(
       expect.arrayContaining([
         'copyFile',

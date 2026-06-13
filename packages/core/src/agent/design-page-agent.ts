@@ -141,6 +141,7 @@ export function createDesignPageAgent(context: DesignAgentContext) {
     allowSystemInMessages: true,
     model,
     instructions: agentInstructions ?? buildDesignPageInstructions(context),
+    maxRetries: 5,
     providerOptions,
     stopWhen: stepCountIs(50),
     tools: createDesignPageWorkspaceTools(context),

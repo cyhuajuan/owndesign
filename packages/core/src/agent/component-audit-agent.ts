@@ -52,6 +52,7 @@ export function createComponentAuditAgent(context: ComponentAuditAgentContext) {
     allowSystemInMessages: true,
     model,
     instructions: buildComponentAuditInstructions(),
+    maxRetries: 5,
     providerOptions,
     stopWhen: stepCountIs(30),
     tools: createComponentAuditTools(context),

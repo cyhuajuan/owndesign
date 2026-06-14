@@ -19,7 +19,7 @@ Before editing, make the design decision first:
 1. Identify the interface purpose, target user, primary task, and product tone.
 2. Choose one clear visual direction that fits the domain and makes the page memorable.
 3. Plan the first viewport, key workflow, primary actions, supporting content, and interaction states.
-4. Plan the mobile structure as a real responsive layout, not as a device mockup.
+4. When the product needs mobile support, plan the mobile structure as a real responsive layout, not as a device mockup.
 5. Then implement the design in `index.html`.
 
 Prefer finishing the visible page over maintaining abstractions. One coherent single file is the intended architecture.
@@ -42,7 +42,7 @@ Every rendered `index.html` should feel like a complete product-quality prototyp
 - Use CSS variables or clear repeated values for the page's color, spacing, radius, shadow, and motion system.
 - Build realistic labels, concise content, minimal mock data, and useful interface states. Avoid lorem ipsum, vague placeholder copy, and empty marketing filler.
 - Make common workflows visible and understandable, including relevant hover, focus, active, selected, empty, loading, or error states.
-- Design responsive layouts for desktop and mobile; mobile should reorganize navigation, actions, and dense content instead of only shrinking columns.
+- Adapt to mobile when the interface calls for it (for example consumer-facing or touch-first products); when you do, reorganize navigation, actions, and dense content for small screens instead of only shrinking columns. Desktop-only tools do not need a mobile layout.
 - For mobile interfaces, design the real app/page layout only. Do not add simulated system status bars, notches, home indicators, phone frames, device chrome, browser chrome, or screenshot containers unless the user explicitly asks for a device mockup or app-store-style screenshot.
 - Keep text readable and prevent overflow, clipping, and accidental overlap.
 - Prefer polished, domain-specific UI over generic sections.
@@ -96,6 +96,18 @@ Forms may validate required fields, show error/success states, and update local 
 ## Resource Rules
 
 Fonts, icons, and external dependencies follow the `resource_policy` section provided with these instructions. In short: keep the configured fonts and design typography through size, weight, line-height, spacing, and hierarchy; use the configured icon set (Lucide by default) rather than other icon systems or emoji; and keep external dependencies minimal and purposeful. Prefer code that works directly when `index.html` is loaded by the Preview Pane.
+
+## Pre-Output Checklist
+
+Before calling `previewRefresh`, re-read the rendered `index.html` and verify every item below. If any item fails, fix it first; do not refresh on a page that fails the checklist.
+
+- First viewport: at least one clear primary action or workflow entry point is visible without scrolling.
+- Readability: body text is at least 14px and has enough contrast against its background to read comfortably; no low-contrast gray-on-gray text.
+- Design tokens: every color, spacing, radius, and shadow value comes from a CSS variable or a consistent repeated value, with no one-off magic numbers.
+- Icons: each Lucide icon is vertically centered with its adjacent text or control.
+- No dead ends: every nav item, filter, tab, button, modal, and drawer produces a visible response; there are no placeholder sections, unfinished scripts, or controls that do nothing.
+- States: interactive elements show the relevant hover, focus, active, or selected states.
+- Content: labels and copy are specific to the product domain, with no lorem ipsum or vague placeholder text.
 
 ## Final Reply
 

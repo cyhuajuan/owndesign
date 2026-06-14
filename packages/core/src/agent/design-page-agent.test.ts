@@ -154,6 +154,8 @@ describe('AiSdkDesignPageAgent', () => {
     expect(instructions).toContain('never fill the page by generating many items');
     expect(instructions).toContain('For content-heavy interfaces, use short excerpts and visual placeholders');
     expect(instructions).toContain('Avoid data-first implementation');
+    expect(instructions).toContain('## Pre-Output Checklist');
+    expect(instructions).toContain('Before calling `previewRefresh`, re-read the rendered `index.html`');
     expect(instructions).toContain('Generic AI-style layouts');
     expect(instructions).toContain('Repeated same-looking rounded cards');
     expect(instructions).toContain('mobile horizontal overflow');

@@ -1,0 +1,55 @@
+name: Release CLI
+
+on:
+  push:
+    tags:
+      - 'cli-v*'
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.3.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: 'https://registry.npmjs.org'
+          cache: pnpm
+
+      - name: Upgrade npm (Trusted Publishing requires npm >= 11.5.1)
+        run: npm install -g npm@latest
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify tag matches CLI version
+        if: github.event_name == 'push'
+        run: |
+          pkg_version=$(node -p "require('./packages/cli/package.json').version")
+          tag_version="${GITHUB_REF_NAME#cli-v}"
+          echo "package.json: $pkg_version, tag: $tag_version"
+          if [ "$pkg_version" != "$tag_version" ]; then
+            echo "::error::Tag $tag_version does not match CLI package version $pkg_version"
+            exit 1
+          fi
+
+      - name: Build CLI
+        run: pnpm --filter owndesign build
+
+      # Publishes over OIDC using npm Trusted Publishing — no NPM_TOKEN needed.
+      # Provenance attestations are generated automatically.
+      - name: Publish to npm
+        run: npm publish --access public
+        working-directory: packages/cli

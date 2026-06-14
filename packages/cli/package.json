@@ -1,6 +1,6 @@
 {
   "name": "owndesign",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "private": false,
   "bin": {
     "owndesign": "./dist/index.js"

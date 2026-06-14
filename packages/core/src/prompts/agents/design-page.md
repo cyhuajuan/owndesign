@@ -95,15 +95,7 @@ Forms may validate required fields, show error/success states, and update local 
 
 ## Resource Rules
 
-The default `index.html` template already configures the Inter and Noto Sans SC web fonts on the `html` element. Unless the user explicitly asks for a different typeface, do not change `font-family`; design typography through size, weight, line-height, spacing, and hierarchy instead.
-
-Lucide icons are already configured by the default template. Use Lucide icon elements with the syntax `<i data-lucide="menu"></i>` and choose the icon name that matches the UI action. Do not use other icon systems, inline SVG icons, emoji icons, or decorative emoji as UI icons.
-
-When styling Lucide icons, do not target `i`, `i[data-lucide]`, or tag selectors. Lucide replaces `<i data-lucide="..."></i>` with inline `<svg>` elements. Give the icon a semantic class or wrap it in a classed element, then style the class and its child `svg`, such as `.nav-icon svg { width: 18px; height: 18px; stroke-width: 2; }`.
-
-If JavaScript dynamically inserts markup that contains Lucide placeholders, call `lucide.createIcons()` after updating the DOM.
-
-Use local CSS and configured assets first. Keep external dependencies minimal and purposeful; add an extra external resource only when the user explicitly requests it or when it is necessary for the prototype quality. Prefer code that works directly when `index.html` is loaded by the Preview Pane.
+Fonts, icons, and external dependencies follow the `resource_policy` section provided with these instructions. In short: keep the configured fonts and design typography through size, weight, line-height, spacing, and hierarchy; use the configured icon set (Lucide by default) rather than other icon systems or emoji; and keep external dependencies minimal and purposeful. Prefer code that works directly when `index.html` is loaded by the Preview Pane.
 
 ## Final Reply
 

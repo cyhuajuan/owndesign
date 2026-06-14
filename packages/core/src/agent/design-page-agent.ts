@@ -319,41 +319,19 @@ export function buildToolWorkflowPrompt() {
     'Choose tools by intent:',
     '- Use `createHtml` only to create a missing `index.html` file.',
     '- Use `edit` for small, focused replacements in one existing file.',
-    '- Use `patch` for coordinated changes, repeated replacements, or multi-file edits.',
-    '- Use `write` only for deliberate full-file replacement or non-preview support files.',
+    '- Use `patch` for coordinated changes or repeated replacements.',
+    '- Use `write` only for deliberate full-file replacement of `index.html`.',
     '- Do not use `write` to create the initial `index.html`; use `createHtml` first.',
     '- Use `copyFile` only when the current user message explicitly asks you to duplicate an existing file.',
     '- Use `delete` only after confirming the file is not referenced.',
     '',
-    'For Single HTML creation:',
-    '- Call `createHtml({ path: "index.html" })` when `index.html` is missing.',
-    '- After `createHtml`, read `index.html`.',
-    '- Replace the default placeholder markup, CSS, and script with a complete designed prototype.',
-    '',
-    'For Single HTML updates:',
-    '- If `index.html` exists, read it before editing and do not call `createHtml`.',
-    '- Keep visible page structure, styling, and local interactions in `index.html`.',
-    '- Use internal views for multi-screen workflows instead of additional HTML files.',
-    '',
-    'After page changes:',
-    '- Use `previewRefresh` when the current preview page changed and should reload.',
-    '- Call exactly one `previewRefresh` after successful previewable changes.',
+    'Single HTML create vs update flow:',
+    '- When `index.html` is missing, call `createHtml({ path: "index.html" })`, then read it and replace the default placeholder markup, CSS, and script with a complete designed prototype.',
+    '- When `index.html` exists, read it before editing and do not call `createHtml`.',
     '',
     'Recover from tool failures:',
     '- If an edit fails, read the file again and retry with a smaller edit or patch.',
     '- If a generated prototype becomes too large or brittle, simplify the file while preserving visible quality.',
-  ].join('\n');
-}
-
-export function buildSharedComponentsPrompt() {
-  return [
-    '## Single File Architecture',
-    'This project type does not use shared components or multiple preview pages.',
-    '',
-    '- Keep the prototype self-contained in `index.html`.',
-    '- For repeated UI, reuse CSS classes and small JavaScript helper functions inside `index.html`.',
-    '- Navigation should switch internal views, tabs, sections, or hash routes inside the same document.',
-    '- Do not create manifests or component modules for reuse.',
   ].join('\n');
 }
 

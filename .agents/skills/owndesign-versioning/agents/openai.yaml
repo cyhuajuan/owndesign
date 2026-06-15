@@ -1,4 +1,0 @@
-interface:
-  display_name: "OwnDesign Versioning"
-  short_description: "Manage OwnDesign four-track versions"
-  default_prompt: "Use $owndesign-versioning to bump or check OwnDesign platform, web, CLI, or desktop versions."

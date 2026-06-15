@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "OwnDesign",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "identifier": "com.owndesign.desktop",
   "build": {
     "beforeDevCommand": "vite --host 127.0.0.1 --port 3712 --strictPort",
@@ -30,6 +30,8 @@
     "resources": {
       "resources/server": "server"
     },
-    "targets": ["nsis"]
+    "targets": [
+      "nsis"
+    ]
   }
 }

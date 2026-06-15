@@ -114,7 +114,6 @@ function getToolAction(
     edit: isIndexHtmlPath(target) ? 'tool.action.editPage' : 'tool.action.editFile',
     glob: 'tool.action.glob',
     grep: 'tool.action.grep',
-    patch: isIndexHtmlPath(target) ? 'tool.action.patchPage' : 'tool.action.patchFile',
     previewRefresh: 'tool.action.previewRefresh',
     previewSwitchHtml: 'tool.action.previewSwitchHtml',
     read: isIndexHtmlPath(target) ? 'tool.action.readPage' : 'tool.action.readFile',

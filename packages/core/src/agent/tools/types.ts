@@ -51,27 +51,6 @@ export type GrepInput = {
   pattern: string;
 };
 
-export type PatchInput = {
-  changes: Array<
-    | {
-        content: string;
-        operation: 'add' | 'write';
-        path: string;
-      }
-    | {
-        newString: string;
-        oldString: string;
-        operation: 'edit';
-        path: string;
-        replaceAll?: boolean;
-      }
-    | {
-        operation: 'delete';
-        path: string;
-      }
-  >;
-};
-
 export type ReadInput = {
   limit?: number;
   offset?: number;

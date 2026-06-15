@@ -5,7 +5,6 @@ import { createDeleteToolDefinition } from './delete';
 import { createEditToolDefinition } from './edit';
 import { createGlobToolDefinition } from './glob';
 import { createGrepToolDefinition } from './grep';
-import { createPatchToolDefinition } from './patch';
 import { createPreviewRefreshToolDefinition } from './preview-refresh';
 import { createReadToolDefinition } from './read';
 import type { ProjectWorkspaceToolContext } from './types';
@@ -19,7 +18,6 @@ export function createProjectWorkspaceToolDefinitions() {
     createEditToolDefinition(),
     createGlobToolDefinition(),
     createGrepToolDefinition(),
-    createPatchToolDefinition(),
     createPreviewRefreshToolDefinition(),
     createReadToolDefinition(),
     createWriteToolDefinition(),

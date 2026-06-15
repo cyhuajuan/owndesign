@@ -128,6 +128,7 @@ describe('AiSdkDesignPageAgent', () => {
     expect(instructions).toContain('The project has one previewable file: `index.html`');
     expect(instructions).toContain('createHtml({ path: "index.html" })');
     expect(instructions).toContain('previewRefresh');
+    expect(instructions).toContain('retry with a smaller, exact edit');
     expect(instructions).toContain('Identify the interface purpose, target user, primary task');
     expect(instructions).toContain('Choose one clear visual direction');
     expect(instructions).toContain('Plan the first viewport, key workflow');
@@ -178,6 +179,8 @@ describe('AiSdkDesignPageAgent', () => {
     expect(instructions).not.toContain('syncSharedComponent');
     expect(instructions).not.toContain('previewSwitchHtml');
     expect(instructions).not.toContain('componentAudit');
+    expect(instructions).not.toContain('Use `patch`');
+    expect(instructions).not.toContain('retry with a smaller edit or patch');
   });
 
   it('creates an agent context for single_html projects', async () => {
@@ -231,15 +234,28 @@ describe('AiSdkDesignPageAgent', () => {
         'edit',
         'glob',
         'grep',
-        'patch',
         'previewRefresh',
         'read',
         'write',
       ]),
     );
+    expect(config.tools).not.toHaveProperty('patch');
     expect(config.tools).not.toHaveProperty('previewSwitchHtml');
     expect(config.tools).not.toHaveProperty('syncSharedComponent');
     expect(config.tools).not.toHaveProperty('componentAudit');
+
+    const tools = config.tools as Record<string, { description: string }>;
+    expect(tools.read.description).toContain(
+      'Read a file or directory from the current Project Workspace',
+    );
+    expect(tools.read.description).toContain(
+      'relative file or directory path inside the Project Workspace',
+    );
+    expect(tools.glob.description).toContain('Fast file pattern matching tool');
+    expect(tools.grep.description).toContain('Fast content search tool');
+    expect(tools.edit.description).toContain('You must use the read tool before editing');
+    expect(tools.edit.description).toContain('Never include any part of the line number prefix');
+    expect(tools.write.description).toContain('Prefer editing existing files with the edit tool');
   });
 
   it('creates only index.html from the single HTML template', async () => {

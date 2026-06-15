@@ -321,7 +321,8 @@ function runCommand(
   options: { allowFailure?: boolean; capture?: boolean } = {},
 ) {
   return new Promise<CommandResult>((resolve, reject) => {
-    const child = spawn(command, args, {
+    const commandParts = getSpawnCommand(command, args);
+    const child = spawn(commandParts.command, commandParts.args, {
       cwd: repoRoot,
       shell: false,
       stdio: options.capture ? ['ignore', 'pipe', 'pipe'] : 'inherit',
@@ -355,7 +356,9 @@ function runCommand(
       if (result.code !== 0 && !options.allowFailure) {
         reject(
           new Error(
-            `${command} ${args.join(' ')} failed with exit code ${result.code}${
+            `${commandParts.command} ${commandParts.args.join(' ')} failed with exit code ${
+              result.code
+            }${
               result.stderr.trim() ? `:\n${result.stderr.trim()}` : ''
             }`,
           ),
@@ -366,6 +369,17 @@ function runCommand(
       resolve(result);
     });
   });
+}
+
+function getSpawnCommand(command: string, args: string[]) {
+  if (process.platform === 'win32' && command.endsWith('.cmd')) {
+    return {
+      command: 'cmd.exe',
+      args: ['/d', '/s', '/c', command, ...args],
+    };
+  }
+
+  return { command, args };
 }
 
 function printUsage() {

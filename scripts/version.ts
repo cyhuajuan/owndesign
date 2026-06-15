@@ -120,7 +120,10 @@ async function releaseVersion(args: string[]) {
   }
 
   await runCommand('git', ['push', 'origin', 'HEAD']);
-  await runCommand('git', ['push', 'origin', ...tags]);
+
+  for (const tag of tags) {
+    await runCommand('git', ['push', 'origin', tag]);
+  }
 
   console.log(`Released ${primaryTrack} v${nextVersions[primaryTrack]}.`);
   console.log(`Tags: ${tags.join(', ')}`);

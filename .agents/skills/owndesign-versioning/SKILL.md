@@ -1,13 +1,13 @@
 ---
 name: owndesign-versioning
-description: Manage OwnDesign's four-track version system using the repository scripts. Use when Codex needs to bump, set, sync, check, list, release, or explain versions for platform (root/core/renderer/server), web, CLI, or desktop/Tauri packages.
+description: Manage OwnDesign's release script. Use when Codex needs to release or explain versions for platform (root/core/renderer/server), web, CLI, or desktop/Tauri packages.
 ---
 
 # OwnDesign Versioning
 
 ## Overview
 
-Use the repo's TypeScript version script as the source of truth for all version work. Do not edit version fields by hand unless fixing the script itself.
+Use the repo's TypeScript release script as the source of truth for all version work. Do not edit version fields by hand unless fixing the script itself.
 
 ## Version Tracks
 
@@ -23,55 +23,39 @@ Use the repo's TypeScript version script as the source of truth for all version 
 Run from repo root:
 
 ```bash
-pnpm version:list
-pnpm version:check
-pnpm version:sync
-pnpm version:bump <platform|web|cli|desktop> <patch|minor|major>
-pnpm version:set <platform|web|cli|desktop> <x.y.z>
+pnpm version:release <platform|web|cli|desktop> <patch|minor|major>
 ```
 
-Use `version:bump` for normal releases. Use `version:set` only for exact target versions. Use `version:sync` when `versions.json` is correct but tracked version fields drift.
+This is the only public version command. It bumps versions, syncs target files, commits, tags, and pushes.
+
+Linked release rules:
+
+- `platform` releases also bump `web`, `cli`, and `desktop`.
+- `web` releases also bump `cli`.
+- `cli` releases only bump `cli`.
+- `desktop` releases only bump `desktop`.
+- Linked tracks use the same bump kind as the requested track.
 
 ## Default Behavior
 
-When a user asks to bump, update, or release a version track with this skill, run the full Release Workflow by default. This applies even when the user says only "patch", "minor", "major", "bump", or "update" and does not explicitly say "release".
+When a user asks to bump, update, or release a version track with this skill, use `pnpm version:release`. This applies even when the user says only "patch", "minor", "major", "bump", or "update" and does not explicitly say "release".
 
-Only skip committing or tagging when the user explicitly asks for no commit, no tag, dry run, local-only changes, or version sync/check without a release.
+There is no dry-run or local-only public command.
 
 ## Release Workflow
 
-For any track:
-
-1. Run the requested bump or set command.
-2. Run `pnpm version:check`.
-3. Run relevant validation:
-   - platform: `pnpm build` or at least `pnpm lint && pnpm typecheck && pnpm test`
-   - web: `pnpm --filter @owndesign/web build`
-   - cli: `pnpm --filter owndesign build`, then `node packages/cli/dist/index.js --version`
-   - desktop: `pnpm --filter @owndesign/desktop build`
-4. Commit the version files before tagging:
-   - `git status --short`
-   - `git add versions.json <changed version target files>`
-   - `git commit -m "chore(release): <track> vX.Y.Z"`
-5. Use tag names:
-   - `platform-vX.Y.Z`
-   - `web-vX.Y.Z`
-   - `cli-vX.Y.Z`
-   - `desktop-vX.Y.Z`
-
-Create the release tag only after validation passes:
+For any track, run:
 
 ```bash
-git tag <track>-vX.Y.Z
-git tag --list "<track>-vX.Y.Z"
+pnpm version:release <track> <patch|minor|major>
 ```
 
-Use the bumped version from `versions.json`. Do not create a tag if build/check failed. Always tag the release commit, not an uncommitted working tree.
+The script requires a clean working tree, checks tag conflicts, bumps linked tracks, syncs files, performs internal version checks, builds/verifies the CLI when `cli` is included, creates one release commit, tags every updated track, and pushes the branch + tags.
 
 ## Guardrails
 
 - Keep `versions.json` as the only source of truth.
-- Do not manually edit package versions for routine bumps.
+- Do not manually edit package versions for routine releases.
 - Keep SemVer as `x.y.z`; prerelease/build metadata is unsupported.
 - Cargo version sync must only affect `[package] version`, not dependency versions.
-- If `version:check` fails, prefer `pnpm version:sync` when `versions.json` is correct.
+- Do not recreate old version commands; update the release script when version behavior changes.

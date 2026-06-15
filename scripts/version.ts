@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process';
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -9,6 +10,7 @@ type Versions = Record<VersionTrack, string>;
 type JsonTarget = {
   kind: 'json';
   track: VersionTrack;
+  relativePath: string;
   filePath: string;
   label: string;
 };
@@ -16,11 +18,18 @@ type JsonTarget = {
 type CargoTarget = {
   kind: 'cargo';
   track: VersionTrack;
+  relativePath: string;
   filePath: string;
   label: string;
 };
 
 type VersionTarget = JsonTarget | CargoTarget;
+
+type CommandResult = {
+  code: number;
+  stdout: string;
+  stderr: string;
+};
 
 const repoRoot = path.resolve(fileURLToPath(import.meta.url), '../..');
 const versionsPath = path.join(repoRoot, 'versions.json');
@@ -43,28 +52,8 @@ const targets: VersionTarget[] = [
 async function main() {
   const [command, ...args] = process.argv.slice(2);
 
-  if (command === 'list') {
-    await listVersions();
-    return;
-  }
-
-  if (command === 'check') {
-    await checkVersions();
-    return;
-  }
-
-  if (command === 'sync') {
-    await syncVersions();
-    return;
-  }
-
-  if (command === 'bump') {
-    await bumpVersion(args);
-    return;
-  }
-
-  if (command === 'set') {
-    await setVersion(args);
+  if (command === 'release') {
+    await releaseVersion(args);
     return;
   }
 
@@ -76,6 +65,7 @@ function jsonTarget(track: VersionTrack, relativePath: string, label: string): J
   return {
     kind: 'json',
     track,
+    relativePath,
     filePath: path.join(repoRoot, relativePath),
     label,
   };
@@ -85,21 +75,119 @@ function cargoTarget(track: VersionTrack, relativePath: string, label: string): 
   return {
     kind: 'cargo',
     track,
+    relativePath,
     filePath: path.join(repoRoot, relativePath),
     label,
   };
 }
 
-async function listVersions() {
-  const versions = await readVersions();
+async function releaseVersion(args: string[]) {
+  const [trackArg, kindArg] = args;
+  const primaryTrack = parseTrack(trackArg);
+  const bumpKind = parseBumpKind(kindArg);
+  const releaseTracks = getReleaseTracks(primaryTrack);
 
-  for (const track of tracks) {
-    console.log(`${track}: ${versions[track]}`);
+  await assertCleanWorkingTree();
+
+  const versions = await readVersions();
+  const nextVersions = { ...versions };
+
+  for (const track of releaseTracks) {
+    nextVersions[track] = bumpSemver(nextVersions[track], bumpKind);
+  }
+
+  const tags = releaseTracks.map((track) => `${track}-v${nextVersions[track]}`);
+  await assertTagsAvailable(tags);
+
+  await writeVersions(nextVersions);
+  await syncTargetVersions(nextVersions, releaseTracks);
+  await assertVersionsSynced(nextVersions);
+
+  if (releaseTracks.includes('cli')) {
+    await validateCliVersion(nextVersions.cli);
+  }
+
+  const filesToStage = getReleaseFiles(releaseTracks);
+  await runCommand('git', ['add', '--', ...filesToStage]);
+  await runCommand('git', [
+    'commit',
+    '-m',
+    `chore(release): ${primaryTrack} v${nextVersions[primaryTrack]}`,
+  ]);
+
+  for (const tag of tags) {
+    await runCommand('git', ['tag', tag]);
+  }
+
+  await runCommand('git', ['push', 'origin', 'HEAD']);
+  await runCommand('git', ['push', 'origin', ...tags]);
+
+  console.log(`Released ${primaryTrack} v${nextVersions[primaryTrack]}.`);
+  console.log(`Tags: ${tags.join(', ')}`);
+}
+
+function getReleaseTracks(track: VersionTrack): VersionTrack[] {
+  if (track === 'platform') {
+    return ['platform', 'web', 'cli', 'desktop'];
+  }
+
+  if (track === 'web') {
+    return ['web', 'cli'];
+  }
+
+  return [track];
+}
+
+async function assertCleanWorkingTree() {
+  const result = await runCommand('git', ['status', '--porcelain'], { capture: true });
+
+  if (result.stdout.trim()) {
+    throw new Error(`Working tree must be clean before release:\n${result.stdout.trim()}`);
   }
 }
 
-async function checkVersions() {
-  const versions = await readVersions();
+async function assertTagsAvailable(tags: string[]) {
+  for (const tag of tags) {
+    const local = await runCommand('git', ['rev-parse', '-q', '--verify', `refs/tags/${tag}`], {
+      allowFailure: true,
+      capture: true,
+    });
+
+    if (local.code === 0) {
+      throw new Error(`Tag already exists locally: ${tag}`);
+    }
+
+    const remote = await runCommand('git', ['ls-remote', '--exit-code', '--tags', 'origin', tag], {
+      allowFailure: true,
+      capture: true,
+    });
+
+    if (remote.code === 0) {
+      throw new Error(`Tag already exists on origin: ${tag}`);
+    }
+  }
+}
+
+async function validateCliVersion(expectedVersion: string) {
+  await runCommand(getPnpmCommand(), ['--filter', 'owndesign', 'build']);
+
+  const result = await runCommand(process.execPath, ['packages/cli/dist/index.js', '--version'], {
+    capture: true,
+  });
+  const actualVersion = result.stdout.trim();
+
+  if (actualVersion !== expectedVersion) {
+    throw new Error(`CLI version mismatch: expected ${expectedVersion}, found ${actualVersion}`);
+  }
+}
+
+async function syncTargetVersions(versions: Versions, releaseTracks: VersionTrack[]) {
+  for (const target of getTargetsForTracks(releaseTracks)) {
+    await writeTargetVersion(target, versions[target.track]);
+  }
+}
+
+async function assertVersionsSynced(versions: Versions) {
   const mismatches: string[] = [];
 
   for (const target of targets) {
@@ -114,49 +202,20 @@ async function checkVersions() {
   }
 
   if (mismatches.length > 0) {
-    console.error('Version check failed:');
-    for (const mismatch of mismatches) {
-      console.error(`- ${mismatch}`);
-    }
-    process.exit(1);
+    throw new Error(`Version check failed:\n${mismatches.map((item) => `- ${item}`).join('\n')}`);
   }
-
-  console.log('Version check passed.');
 }
 
-async function syncVersions() {
-  const versions = await readVersions();
-
-  for (const target of targets) {
-    await writeTargetVersion(target, versions[target.track]);
-  }
-
-  console.log('Versions synced.');
+function getTargetsForTracks(releaseTracks: VersionTrack[]) {
+  const releaseTrackSet = new Set(releaseTracks);
+  return targets.filter((target) => releaseTrackSet.has(target.track));
 }
 
-async function bumpVersion(args: string[]) {
-  const [trackArg, kindArg] = args;
-  const track = parseTrack(trackArg);
-  const kind = parseBumpKind(kindArg);
-  const versions = await readVersions();
-
-  versions[track] = bumpSemver(versions[track], kind);
-  await writeVersions(versions);
-  await syncVersions();
-  console.log(`${track}: ${versions[track]}`);
-}
-
-async function setVersion(args: string[]) {
-  const [trackArg, version] = args;
-  const track = parseTrack(trackArg);
-
-  assertSemver(version, 'version');
-
-  const versions = await readVersions();
-  versions[track] = version;
-  await writeVersions(versions);
-  await syncVersions();
-  console.log(`${track}: ${version}`);
+function getReleaseFiles(releaseTracks: VersionTrack[]) {
+  return [
+    'versions.json',
+    ...getTargetsForTracks(releaseTracks).map((target) => target.relativePath),
+  ];
 }
 
 async function readVersions(): Promise<Versions> {
@@ -252,16 +311,69 @@ function assertSemver(value: unknown, label: string): asserts value is string {
   }
 }
 
+function getPnpmCommand() {
+  return process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
+}
+
+function runCommand(
+  command: string,
+  args: string[],
+  options: { allowFailure?: boolean; capture?: boolean } = {},
+) {
+  return new Promise<CommandResult>((resolve, reject) => {
+    const child = spawn(command, args, {
+      cwd: repoRoot,
+      shell: false,
+      stdio: options.capture ? ['ignore', 'pipe', 'pipe'] : 'inherit',
+    });
+    const stdoutChunks: Buffer[] = [];
+    const stderrChunks: Buffer[] = [];
+
+    if (child.stdout) {
+      child.stdout.on('data', (chunk: Buffer) => {
+        stdoutChunks.push(chunk);
+      });
+    }
+
+    if (child.stderr) {
+      child.stderr.on('data', (chunk: Buffer) => {
+        stderrChunks.push(chunk);
+      });
+    }
+
+    child.on('error', (error) => {
+      reject(error);
+    });
+
+    child.on('close', (code) => {
+      const result = {
+        code: code ?? 0,
+        stdout: Buffer.concat(stdoutChunks).toString('utf8'),
+        stderr: Buffer.concat(stderrChunks).toString('utf8'),
+      };
+
+      if (result.code !== 0 && !options.allowFailure) {
+        reject(
+          new Error(
+            `${command} ${args.join(' ')} failed with exit code ${result.code}${
+              result.stderr.trim() ? `:\n${result.stderr.trim()}` : ''
+            }`,
+          ),
+        );
+        return;
+      }
+
+      resolve(result);
+    });
+  });
+}
+
 function printUsage() {
   console.log(`Usage:
-  pnpm version:list
-  pnpm version:check
-  pnpm version:sync
-  pnpm version:bump <platform|web|cli|desktop> <patch|minor|major>
-  pnpm version:set <platform|web|cli|desktop> <x.y.z>`);
+  pnpm version:release <platform|web|cli|desktop> <patch|minor|major>`);
 }
 
 main().catch((error: unknown) => {
-  console.error(error instanceof Error ? error.message : 'Version command failed.');
+  console.error(error instanceof Error ? error.message : 'Version release failed.');
   process.exit(1);
 });

@@ -48,15 +48,13 @@ Tests are colocated as `*.test.ts(x)` next to source. Server/web/desktop/cli use
 
 ### Versioning / release
 
-Versions are tracked in `versions.json` across four independent tracks (`platform`, `web`, `cli`, `desktop`) and fanned out to every package.json + Tauri config/Cargo.toml via `scripts/version.ts`:
+Versions are tracked in `versions.json` across four tracks (`platform`, `web`, `cli`, `desktop`) and fanned out to every package.json + Tauri config/Cargo.toml by the release command:
 
 ```bash
-pnpm version:check    # verify all files match versions.json (CI gate)
-pnpm version:sync     # rewrite package files from versions.json
-pnpm version:bump     # bump a track (patch/minor/major)
+pnpm version:release <platform|web|cli|desktop> <patch|minor|major>
 ```
 
-If you change a package version, update `versions.json` and run `version:sync` — do not hand-edit individual package.json versions.
+Do not hand-edit package versions. The release command bumps versions, syncs target files, creates a release commit, tags every updated track, and pushes the branch + tags. `platform` releases also bump `web`, `cli`, and `desktop`; `web` releases also bump `cli`. Linked tracks use the same bump kind as the requested track.
 
 ## The design-page agent (core concept)
 

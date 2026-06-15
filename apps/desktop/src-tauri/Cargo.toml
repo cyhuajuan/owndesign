@@ -1,6 +1,6 @@
 [package]
 name = "owndesign-desktop"
-version = "0.1.2"
+version = "0.2.0"
 description = "OwnDesign desktop app"
 authors = ["OwnDesign"]
 edition = "2021"

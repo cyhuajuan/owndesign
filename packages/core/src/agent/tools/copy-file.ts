@@ -1,12 +1,16 @@
 import { z } from 'zod';
 
-import { normalizeToolPath, readProjectWorkspaceFileIfExists } from './cdn-guard';
 import type { WorkspaceToolDefinition } from './core';
+import { normalizeToolPath, readProjectWorkspaceFileIfExists } from './tool-paths';
 import type { CopyFileInput } from './types';
 
 export function createCopyFileToolDefinition(): WorkspaceToolDefinition<
   CopyFileInput,
-  Awaited<ReturnType<import('@owndesign/core/workspace-store').WorkspaceStore['writeProjectWorkspaceFile']>>
+  Awaited<
+    ReturnType<
+      import('@owndesign/core/workspace-store').WorkspaceStore['writeProjectWorkspaceFile']
+    >
+  >
 > {
   return {
     description:
@@ -23,10 +27,7 @@ export function createCopyFileToolDefinition(): WorkspaceToolDefinition<
       .strict(),
     name: 'copyFile',
     parallelSafe: false,
-    execute: async (
-      { sourcePath, targetPath },
-      { projectId, workspaceStore },
-    ) => {
+    execute: async ({ sourcePath, targetPath }, { projectId, workspaceStore }) => {
       const normalizedSourcePath = normalizeToolPath(sourcePath);
       const normalizedTargetPath = normalizeToolPath(targetPath);
 
@@ -45,7 +46,11 @@ export function createCopyFileToolDefinition(): WorkspaceToolDefinition<
         normalizedSourcePath,
       );
 
-      return workspaceStore.writeProjectWorkspaceFile(projectId, normalizedTargetPath, sourceContent);
+      return workspaceStore.writeProjectWorkspaceFile(
+        projectId,
+        normalizedTargetPath,
+        sourceContent,
+      );
     },
   };
 }

@@ -1,8 +1,8 @@
 import { loadTemplate } from '@owndesign/core/templates';
 import { z } from 'zod';
 
-import { isHtmlPath, normalizeToolPath, readProjectWorkspaceFileIfExists } from './cdn-guard';
 import type { WorkspaceToolDefinition } from './core';
+import { isHtmlPath, normalizeToolPath, readProjectWorkspaceFileIfExists } from './tool-paths';
 import type { CreateHtmlInput } from './types';
 
 const DEFAULT_TITLE = 'OwnDesign Preview';
@@ -80,8 +80,5 @@ function renderTemplate(template: string, values: Record<string, string>) {
 }
 
 function escapeHtmlText(value: string) {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;');
+  return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
 }

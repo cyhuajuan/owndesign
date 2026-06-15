@@ -6,8 +6,8 @@ import {
 } from '@owndesign/core/html-shared-components';
 import { z } from 'zod';
 
-import { readProjectWorkspaceFileIfExists } from './cdn-guard';
 import type { WorkspaceToolDefinition } from './core';
+import { readProjectWorkspaceFileIfExists } from './tool-paths';
 import type { SyncSharedComponentInput } from './types';
 
 type SyncSharedComponentOutput = {

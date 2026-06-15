@@ -152,7 +152,6 @@ export function createDesignPageWorkspaceTools(context: DesignAgentContext) {
   const { frontendTabId, projectId, resources, workspaceStore } = context;
 
   return createWorkspaceToolRegistry(createProjectWorkspaceToolDefinitions(), {
-    approvedCdnUrls: buildApprovedCdnUrls(resources),
     frontendTabId,
     model: context.model,
     projectId,
@@ -367,15 +366,6 @@ export function buildResourcePolicyPrompt(resources: ResourceSettings) {
     iconLines.length ? iconLines.join('\n') : '- none',
     'Use regular inline CSS as the primary styling method.',
   ].join('\n');
-}
-
-export function buildApprovedCdnUrls(resources: ResourceSettings) {
-  return [
-    ...resources.fontLibraries.map((library) => library.cdn),
-    ...resources.iconLibraries.map((library) => library.cdn),
-  ]
-    .map((url) => url.trim())
-    .filter(Boolean);
 }
 
 function getDefaultResourceLibrary(libraries: ResourceLibrary[]) {

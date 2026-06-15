@@ -3,7 +3,6 @@ import type { ResourceSettings } from '@owndesign/core/settings/settings-service
 import type { LanguageModel, ToolLoopAgentSettings } from 'ai';
 
 export type ProjectWorkspaceToolContext = {
-  approvedCdnUrls?: string[];
   frontendTabId?: string;
   projectId: string;
   resources: ResourceSettings;

@@ -45,6 +45,7 @@ export const zhCN = {
   'conversation.roleAssistant': '助手',
   'conversation.roleUser': '用户',
   'conversation.screenshot': '截取屏幕截图',
+  'conversation.taskElapsed': '耗时 {duration}',
   'conversation.thinking': '正在思考',
   'conversation.titleHint': '发送第一条消息后，会自动生成会话标题。',
   'conversation.uploadFile': '上传文件',
@@ -269,6 +270,7 @@ export const enUS: Translations = {
   'conversation.roleAssistant': 'Assistant',
   'conversation.roleUser': 'User',
   'conversation.screenshot': 'Take Screenshot',
+  'conversation.taskElapsed': 'Elapsed {duration}',
   'conversation.thinking': 'Thinking',
   'conversation.titleHint':
     'A conversation title will be generated automatically after sending your first message.',

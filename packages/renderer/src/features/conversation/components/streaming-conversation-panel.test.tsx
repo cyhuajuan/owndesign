@@ -147,6 +147,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.mocked(useChat).mockReset();
   vi.unstubAllGlobals();
 });
@@ -1526,6 +1527,113 @@ describe('MessageParts', () => {
     await user.click(screen.getByRole('button', { name: '停止' }));
 
     expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('shows live elapsed time for an active task', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-01-01T00:01:05.000Z'));
+    const messages: UIMessage[] = [
+      createUserMessage('user-1', '生成页面'),
+      {
+        id: 'assistant-1',
+        parts: [{ text: '正在生成页面。', type: 'text' }],
+        role: 'assistant',
+      },
+    ];
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (String(input).includes('/runs/active/snapshot')) {
+          return new Response(null, { status: 204 });
+        }
+
+        if (String(input).includes('/checkpoints')) {
+          return Response.json([]);
+        }
+
+        return Response.json({
+          defaultModelId: 'model-1',
+          interfaceLanguage: 'zh-CN',
+          modelConfigurations: [],
+        });
+      }),
+    );
+
+    vi.mocked(useChat).mockReturnValue({
+      addToolApprovalResponse: vi.fn(),
+      error: undefined,
+      messages,
+      sendMessage: vi.fn(),
+      status: 'streaming',
+      stop: vi.fn(),
+    } as unknown as ReturnType<typeof useChat>);
+
+    render(
+      <StreamingConversationPanel
+        conversationId="conversation-1"
+        conversationTitle="新建会话"
+        initialMessages={messages}
+        projectActiveRun={{
+          chunkCount: 1,
+          conversationId: 'conversation-1',
+          createdAt: '2026-01-01T00:00:00.000Z',
+          projectId: 'project-1',
+          runId: 'run-1',
+          status: 'running',
+        }}
+        projectId="project-1"
+      />,
+    );
+
+    expect(screen.getByText('耗时 1:05')).toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+
+    expect(screen.getByText('耗时 1:07')).toBeInTheDocument();
+  });
+
+  it('keeps completed task elapsed time hidden until the assistant message is hovered', () => {
+    vi.mocked(useChat).mockReturnValue({
+      addToolApprovalResponse: vi.fn(),
+      error: undefined,
+      messages: [
+        createUserMessage('user-1', '生成页面'),
+        {
+          id: 'assistant-1',
+          metadata: {
+            taskTiming: {
+              completedAt: '2026-01-01T00:02:03.000Z',
+              elapsedMs: 123000,
+              startedAt: '2026-01-01T00:00:00.000Z',
+            },
+          },
+          parts: [{ text: '已完成。', type: 'text' }],
+          role: 'assistant',
+        },
+      ],
+      sendMessage: vi.fn(),
+      status: 'ready',
+      stop: vi.fn(),
+    } as unknown as ReturnType<typeof useChat>);
+
+    render(
+      <StreamingConversationPanel
+        conversationId="conversation-1"
+        conversationTitle="新建会话"
+        initialMessages={[]}
+        projectId="project-1"
+      />,
+    );
+
+    const elapsedText = screen.getByText('耗时 2:03');
+    const elapsedContainer = elapsedText.closest('div');
+
+    expect(elapsedText).toBeInTheDocument();
+    expect(elapsedContainer).toHaveClass('opacity-0');
+    expect(elapsedContainer).toHaveClass('group-hover/message:opacity-100');
   });
 
   it('stops streaming generation from the composer submit button', async () => {

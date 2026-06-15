@@ -2,7 +2,7 @@
 
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport, type FileUIPart, type UIMessage } from 'ai';
-import { AlertCircleIcon, RotateCcwIcon } from 'lucide-react';
+import { AlertCircleIcon, Clock3Icon, RotateCcwIcon } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
@@ -190,6 +190,8 @@ export function StreamingConversationPanel({
   const canSend = Boolean(selectedModel) && !isGenerating && !isProjectBusy;
   const submitStatus = isProjectBusy && !isGenerating ? 'streaming' : status;
   const busyMessage = t('conversation.busyMessage');
+  const activeRunElapsedDuration = useRunElapsedDuration(projectActiveRun);
+  const lastAssistantMessageIndex = getLastAssistantMessageIndex(messages);
   const checkpointByUserMessageId = useMemo(() => {
     const map = new Map<string, CheckpointRecord>();
 
@@ -263,7 +265,7 @@ export function StreamingConversationPanel({
 
       const snapshot = (await response.json()) as ActiveRunSnapshot;
 
-      if (!isActive || snapshot.activeRun.runId !== activeRunId) {
+      if (!isActive || snapshot.activeRun?.runId !== activeRunId) {
         return;
       }
 
@@ -340,9 +342,14 @@ export function StreamingConversationPanel({
           ) : (
             messages.map((message, index) => {
               const isLastMessage = index === messages.length - 1;
+              const isActiveRunMessage =
+                activeRunBelongsToConversation &&
+                message.role === 'assistant' &&
+                index === lastAssistantMessageIndex;
 
               return (
                 <ConversationMessageItem
+                  activeElapsedMs={isActiveRunMessage ? activeRunElapsedDuration : undefined}
                   isLastMessage={isLastMessage}
                   isStreaming={status === 'streaming' && isLastMessage}
                   key={getMessageKey(message, index)}
@@ -385,10 +392,7 @@ export function StreamingConversationPanel({
           onSubmit={async ({ files, text }) => {
             const trimmedText = text.trim();
 
-            if (
-              (!trimmedText && files.length === 0) ||
-              !canSend
-            ) {
+            if ((!trimmedText && files.length === 0) || !canSend) {
               return;
             }
 
@@ -440,7 +444,10 @@ export function StreamingConversationPanel({
     </>
   );
 
-  async function handleCheckpointRestore(checkpoint: CheckpointRecord, mode: CheckpointRestoreMode) {
+  async function handleCheckpointRestore(
+    checkpoint: CheckpointRecord,
+    mode: CheckpointRestoreMode,
+  ) {
     setRestoringCheckpointId(checkpoint.id);
 
     try {
@@ -527,6 +534,7 @@ function isAnthropicEffort(value: unknown): value is AnthropicEffort {
 
 const ConversationMessageItem = memo(
   function ConversationMessageItem({
+    activeElapsedMs,
     checkpoint,
     isRestoreDisabled,
     isLastMessage,
@@ -534,6 +542,7 @@ const ConversationMessageItem = memo(
     message,
     onRestore,
   }: {
+    activeElapsedMs?: number;
     checkpoint?: CheckpointRecord;
     isRestoreDisabled: boolean;
     isLastMessage: boolean;
@@ -541,8 +550,12 @@ const ConversationMessageItem = memo(
     message: UIMessage;
     onRestore: (checkpoint: CheckpointRecord, mode: CheckpointRestoreMode) => void;
   }) {
+    const taskTiming = getMessageTaskTiming(message);
+    const elapsedMs = activeElapsedMs ?? taskTiming?.elapsedMs;
+    const isTimingVisible = activeElapsedMs !== undefined;
+
     return (
-      <div>
+      <div className="group/message">
         <Message from={message.role}>
           <MessageContent className={message.role === 'assistant' ? 'w-full' : undefined}>
             <MessageParts
@@ -552,6 +565,17 @@ const ConversationMessageItem = memo(
             />
           </MessageContent>
         </Message>
+        {message.role === 'assistant' && elapsedMs !== undefined ? (
+          <div
+            className={
+              isTimingVisible
+                ? 'mt-1 flex justify-start pl-0'
+                : 'mt-1 flex justify-start pl-0 opacity-0 transition-opacity duration-150 group-focus-within/message:opacity-100 group-hover/message:opacity-100'
+            }
+          >
+            <TaskElapsedBadge elapsedMs={elapsedMs} />
+          </div>
+        ) : null}
         {checkpoint ? (
           <CheckpointRestoreMenu
             checkpoint={checkpoint}
@@ -563,6 +587,7 @@ const ConversationMessageItem = memo(
     );
   },
   (previousProps, nextProps) =>
+    previousProps.activeElapsedMs === nextProps.activeElapsedMs &&
     previousProps.message === nextProps.message &&
     previousProps.checkpoint === nextProps.checkpoint &&
     previousProps.isRestoreDisabled === nextProps.isRestoreDisabled &&
@@ -614,6 +639,92 @@ function CheckpointRestoreMenu({
       </DropdownMenu>
     </div>
   );
+}
+
+function TaskElapsedBadge({ elapsedMs }: { elapsedMs: number }) {
+  const { t } = useI18n();
+
+  return (
+    <span className="inline-flex h-6 shrink-0 items-center gap-1.5 text-[12px] text-muted-foreground">
+      <Clock3Icon className="size-3.5" />
+      <span className="tabular-nums">
+        {t('conversation.taskElapsed', { duration: formatElapsedDuration(elapsedMs) })}
+      </span>
+    </span>
+  );
+}
+
+function useRunElapsedDuration(run: ActiveRun | undefined) {
+  const [now, setNow] = useState(() => Date.now());
+  const startedAt = run?.status === 'running' ? Date.parse(run.createdAt) : Number.NaN;
+
+  useEffect(() => {
+    if (!Number.isFinite(startedAt)) {
+      return;
+    }
+
+    setNow(Date.now());
+    const intervalId = window.setInterval(() => {
+      setNow(Date.now());
+    }, 1000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [startedAt]);
+
+  if (!Number.isFinite(startedAt)) {
+    return undefined;
+  }
+
+  return Math.max(0, now - startedAt);
+}
+
+function getMessageTaskTiming(message: UIMessage) {
+  const metadata = message.metadata;
+
+  if (
+    typeof metadata !== 'object' ||
+    metadata === null ||
+    !('taskTiming' in metadata) ||
+    typeof metadata.taskTiming !== 'object' ||
+    metadata.taskTiming === null
+  ) {
+    return undefined;
+  }
+
+  const taskTiming = metadata.taskTiming as Record<string, unknown>;
+
+  return typeof taskTiming.elapsedMs === 'number' && Number.isFinite(taskTiming.elapsedMs)
+    ? { elapsedMs: taskTiming.elapsedMs }
+    : undefined;
+}
+
+function getLastAssistantMessageIndex(messages: UIMessage[]) {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index]?.role === 'assistant') {
+      return index;
+    }
+  }
+
+  return -1;
+}
+
+function formatElapsedDuration(elapsedMs: number) {
+  const totalSeconds = Math.floor(elapsedMs / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours > 0) {
+    return `${hours}:${padTime(minutes)}:${padTime(seconds)}`;
+  }
+
+  return `${minutes}:${padTime(seconds)}`;
+}
+
+function padTime(value: number) {
+  return String(value).padStart(2, '0');
 }
 
 function getMessageKey(message: UIMessage, index: number) {

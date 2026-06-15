@@ -363,6 +363,7 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
     agentContext.agentInstructions = conversation.agentInstructions;
     const agent = createDesignPageAgent(agentContext);
     let latestStepUsage: LanguageModelUsage | undefined;
+    const runStartedAt = new Date().toISOString();
 
     const run = chatRunManager.startRun({
       conversationId,
@@ -383,12 +384,21 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
             latestStepUsage = step.usage;
           },
           messageMetadata: ({ part }) => {
-            if (part.type !== 'finish' || !latestStepUsage) {
+            if (part.type !== 'finish') {
               return undefined;
             }
 
-            return {
-              contextUsage: {
+            const completedAt = new Date().toISOString();
+            const metadata: Record<string, unknown> = {
+              taskTiming: {
+                completedAt,
+                elapsedMs: Math.max(0, Date.parse(completedAt) - Date.parse(runStartedAt)),
+                startedAt: runStartedAt,
+              },
+            };
+
+            if (latestStepUsage) {
+              metadata.contextUsage = {
                 inputTokens: latestStepUsage.inputTokens,
                 outputTokens: latestStepUsage.outputTokens,
                 totalTokens: latestStepUsage.totalTokens,
@@ -398,8 +408,10 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
                 cachedInputTokens:
                   latestStepUsage.inputTokenDetails?.cacheReadTokens ??
                   latestStepUsage.cachedInputTokens,
-              },
-            };
+              };
+            }
+
+            return metadata;
           },
           onError: (error) =>
             error instanceof Error ? `生成失败：${error.message}` : '生成失败：Unknown error',

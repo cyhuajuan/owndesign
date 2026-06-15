@@ -115,9 +115,9 @@ describe('createOwnDesignApp static hosting', () => {
 
     expect(response.status).toBe(200);
     expect(project.projectType).toBe('single_html');
-    await expect(workspaceStore.readProjectWorkspaceFile(projectId, 'index.html')).resolves.toContain(
-      '<main id="app"></main>',
-    );
+    await expect(
+      workspaceStore.readProjectWorkspaceFile(projectId, 'index.html'),
+    ).resolves.toContain('<main id="app"></main>');
   });
 
   it('rejects reserved react project creation', async () => {
@@ -159,6 +159,8 @@ describe('createOwnDesignApp static hosting', () => {
     const workspaceStore = createWorkspaceStore({ workspaceRoot });
     const conversation = await workspaceStore.getConversation(projectId, conversationId);
     const streamInput = aiMocks.createAgentUIStream.mock.calls[0]?.[0] as {
+      messageMetadata: (input: { part: { type: string } }) => unknown;
+      onStepFinish: (step: { usage: Record<string, unknown> }) => void;
       originalMessages: UIMessage[];
       uiMessages: UIMessage[];
     };
@@ -170,13 +172,34 @@ describe('createOwnDesignApp static hosting', () => {
     expect(conversation.agentPromptVersion).toBe(1);
     expect(conversation.agentInstructions).toContain('# OwnDesign Single HTML Page Agent');
     expect(conversation.agentInstructions).toContain('Plan the first viewport, key workflow');
-    expect(conversation.agentInstructions).toContain('Use `<main id="app">` for the visible app/page body');
+    expect(conversation.agentInstructions).toContain(
+      'Use `<main id="app">` for the visible app/page body',
+    );
     expect(conversation.agentInstructions).toContain('Generic AI-style layouts');
     expect(conversation.agentInstructions).not.toContain('page_edit_mode_policy');
     expect(agentConfig.instructions).toBe(conversation.agentInstructions);
     expect(streamInput.uiMessages).toHaveLength(1);
     expect(getMessageText(streamInput.uiMessages[0])).toBe('设计一个 CRM 仪表盘');
     expect(streamInput.originalMessages).toEqual(streamInput.uiMessages);
+    streamInput.onStepFinish({
+      usage: {
+        inputTokens: 10,
+        outputTokens: 20,
+        totalTokens: 30,
+      },
+    });
+    expect(streamInput.messageMetadata({ part: { type: 'finish' } })).toMatchObject({
+      contextUsage: {
+        inputTokens: 10,
+        outputTokens: 20,
+        totalTokens: 30,
+      },
+      taskTiming: {
+        completedAt: expect.any(String),
+        elapsedMs: expect.any(Number),
+        startedAt: expect.any(String),
+      },
+    });
     await expect(workspaceStore.listCheckpoints(projectId)).resolves.toMatchObject([
       {
         conversationId,
@@ -228,9 +251,10 @@ describe('createOwnDesignApp static hosting', () => {
       'stored-user-1',
       'user-2',
     ]);
-    expect((aiMocks.toolLoopAgent.mock.calls[0]?.[0] as { instructions: string }).instructions).toBe(
-      'persisted instructions',
-    );
+    expect(aiMocks.toolLoopAgent).toHaveBeenCalled();
+    const agentConfig = aiMocks.toolLoopAgent.mock.calls[0]![0] as { instructions: string };
+
+    expect(agentConfig.instructions).toBe('persisted instructions');
     expect(getMessageText(streamInput.uiMessages[1])).toBe('current input');
   });
 
@@ -476,14 +500,11 @@ function restoreCheckpoint(
   mode: 'files' | 'conversation' | 'both',
 ) {
   return app.fetch(
-    new Request(
-      `http://localhost/api/projects/${projectId}/checkpoints/${checkpointId}/restore`,
-      {
-        body: JSON.stringify({ mode }),
-        headers: { 'Content-Type': 'application/json' },
-        method: 'POST',
-      },
-    ),
+    new Request(`http://localhost/api/projects/${projectId}/checkpoints/${checkpointId}/restore`, {
+      body: JSON.stringify({ mode }),
+      headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+    }),
   );
 }
 

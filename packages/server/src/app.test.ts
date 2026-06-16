@@ -38,6 +38,7 @@ vi.mock('@ai-sdk/openai-compatible', () => ({
 
 import { createOwnDesignApp } from './app';
 import { createWorkspaceStore } from './services';
+import { DESIGN_PAGE_AGENT_PROMPT_VERSION } from '@owndesign/core/agent/design-page-agent';
 
 const tempRoots: string[] = [];
 
@@ -169,13 +170,17 @@ describe('createOwnDesignApp static hosting', () => {
     };
 
     expect(response.status).toBe(200);
-    expect(conversation.agentPromptVersion).toBe(1);
+    expect(conversation.agentPromptVersion).toBe(DESIGN_PAGE_AGENT_PROMPT_VERSION);
     expect(conversation.agentInstructions).toContain('# OwnDesign Single HTML Page Agent');
-    expect(conversation.agentInstructions).toContain('Plan the first viewport, key workflow');
+    expect(conversation.agentInstructions).toContain('Before editing, form a compact design brief');
+    expect(conversation.agentInstructions).toContain('When instructions pull in different directions');
     expect(conversation.agentInstructions).toContain(
       'Use `<main id="app">` for the visible app/page body',
     );
+    expect(conversation.agentInstructions).toContain('## Quality Gate');
     expect(conversation.agentInstructions).toContain('Generic AI-style layouts');
+    expect(conversation.agentInstructions).not.toContain('You are Codex');
+    expect(conversation.agentInstructions).not.toContain('apply_patch');
     expect(conversation.agentInstructions).not.toContain('page_edit_mode_policy');
     expect(agentConfig.instructions).toBe(conversation.agentInstructions);
     expect(streamInput.uiMessages).toHaveLength(1);

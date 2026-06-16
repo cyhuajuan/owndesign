@@ -19,7 +19,7 @@ import { createWorkspaceToolRegistry } from '@owndesign/core/agent/tools/core';
 import { loadPrompt } from '@owndesign/core/prompts';
 import { buildFrontendCapabilityPrompt } from '@owndesign/core/realtime/frontend-capabilities';
 
-export const DESIGN_PAGE_AGENT_PROMPT_VERSION = 2;
+export const DESIGN_PAGE_AGENT_PROMPT_VERSION = 3;
 
 export type DesignPageAgentInput = {
   content: string;
@@ -261,14 +261,10 @@ export function buildDesignPageConversationInstructions(resources?: ResourceSett
       tag: 'frontend_capabilities',
       content: buildFrontendCapabilityPrompt(),
     },
-    ...(resources
-      ? [
-          {
-            tag: 'resource_policy',
-            content: buildResourcePolicyPrompt(resources),
-          },
-        ]
-      : []),
+    {
+      tag: 'resource_policy',
+      content: resources ? buildResourcePolicyPrompt(resources) : buildResourcePolicyFallbackPrompt(),
+    },
   ];
 
   return renderDesignPromptSections(sections);
@@ -364,6 +360,18 @@ export function buildResourcePolicyPrompt(resources: ResourceSettings) {
     fontLines.length ? fontLines.join('\n') : '- none',
     'Configured icon libraries:',
     iconLines.length ? iconLines.join('\n') : '- none',
+    'Use regular inline CSS as the primary styling method.',
+  ].join('\n');
+}
+
+function buildResourcePolicyFallbackPrompt() {
+  return [
+    '## Resource Policy',
+    'No global resource settings were provided for this run.',
+    'Use resources already present in the existing `index.html` or the default HTML template.',
+    'Prefer local CSS and built-in browser capabilities before adding any external resource.',
+    'Do not add a new font, icon, image, script, or CDN dependency unless the user explicitly requests it or it is necessary for prototype quality.',
+    'If no icon library is configured, use text labels or simple CSS shapes instead of assuming a specific icon system.',
     'Use regular inline CSS as the primary styling method.',
   ].join('\n');
 }

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   AiSdkDesignPageAgent,
+  DESIGN_PAGE_AGENT_PROMPT_VERSION,
   buildDesignPageAgentInstructions,
   createDesignPageAgent,
   createDesignPageAgentContext,
@@ -114,7 +115,10 @@ afterEach(async () => {
 describe('AiSdkDesignPageAgent', () => {
   it('loads the single HTML prompt from the prompt registry', () => {
     expect(loadPrompt('agents/design-page')).toContain('# OwnDesign Single HTML Page Agent');
-    expect(loadPrompt('agents/design-page')).toContain('single `index.html` file');
+    expect(loadPrompt('agents/design-page')).toContain(
+      "OwnDesign's single HTML page design agent",
+    );
+    expect(DESIGN_PAGE_AGENT_PROMPT_VERSION).toBe(3);
   });
 
   it('builds single HTML conversation instructions without old architecture terms', () => {
@@ -129,14 +133,25 @@ describe('AiSdkDesignPageAgent', () => {
     expect(instructions).toContain('createHtml({ path: "index.html" })');
     expect(instructions).toContain('previewRefresh');
     expect(instructions).toContain('retry with a smaller, exact edit');
-    expect(instructions).toContain('Identify the interface purpose, target user, primary task');
-    expect(instructions).toContain('Choose one clear visual direction');
-    expect(instructions).toContain('Plan the first viewport, key workflow');
-    expect(instructions).toContain('Then implement the design in `index.html`');
+    expect(instructions).toContain("OwnDesign's single HTML page design agent");
+    expect(instructions).toContain('When instructions pull in different directions');
+    expect(instructions).toContain('User requests guide the design intent');
+    expect(instructions).toContain('Before editing, form a compact design brief');
+    expect(instructions).toContain('What product tone fits the domain');
+    expect(instructions).toContain('Choose one strong visual direction');
+    expect(instructions).toContain('Do not inherit assumptions from general coding agents');
+    expect(instructions).toContain('Do not create additional HTML pages');
     expect(instructions).toContain('Use `<main id="app">` for the visible app/page body');
-    expect(instructions).toContain('reset, tokens, layout, components, responsive rules, and motion');
-    expect(instructions).toContain('use `[data-view]` sections with a single active state');
-    expect(instructions).toContain('only prototype behavior that is needed');
+    expect(instructions).toContain(
+      'reset, tokens, layout, components, states, responsive rules, and motion',
+    );
+    expect(instructions).toContain('implement internal views in `index.html` using state');
+    expect(instructions).toContain('only prototype behavior that is needed for visible interaction');
+    expect(instructions).toContain('Every rendered `index.html` should feel like a complete product-quality prototype');
+    expect(instructions).toContain('Let the subject matter shape the interface');
+    expect(instructions).toContain('Build with stable layout dimensions');
+    expect(instructions).toContain('Use CSS variables or an obvious reusable scale');
+    expect(instructions).toContain('Match display type to context');
     expect(instructions).toContain('Interactions should demonstrate interface states, user flows, and visual feedback');
     expect(instructions).toContain('Good prototype interactions include active tabs, modal open/close, drawer visibility');
     expect(instructions).toContain('filter chips, selected rows, toast messages, simple steppers, hash/view switching');
@@ -155,15 +170,19 @@ describe('AiSdkDesignPageAgent', () => {
     expect(instructions).toContain('never fill the page by generating many items');
     expect(instructions).toContain('For content-heavy interfaces, use short excerpts and visual placeholders');
     expect(instructions).toContain('Avoid data-first implementation');
-    expect(instructions).toContain('## Pre-Output Checklist');
-    expect(instructions).toContain('Before calling `previewRefresh`, re-read the rendered `index.html`');
+    expect(instructions).toContain('## Quality Gate');
+    expect(instructions).toContain(
+      'Before calling `previewRefresh`, review the current `index.html` source',
+    );
     expect(instructions).toContain('Generic AI-style layouts');
     expect(instructions).toContain('Repeated same-looking rounded cards');
-    expect(instructions).toContain('mobile horizontal overflow');
-    expect(instructions).toContain('Icons that are vertically misaligned');
-    expect(instructions).toContain('Use CSS variables or clear repeated values');
-    expect(instructions).toContain('Do not add simulated system status bars');
+    expect(instructions).toContain('Controls that look clickable but do nothing');
+    expect(instructions).toContain('accidental horizontal overflow');
+    expect(instructions).toContain('configured icons are aligned with adjacent text and controls');
+    expect(instructions).toContain('Use a deliberate visual system');
+    expect(instructions).toContain('Do not add simulated status bars');
     expect(instructions).toContain('phone frames, device chrome, browser chrome');
+    expect(instructions).toContain('defer concrete resource choices to that section');
     expect(instructions).toContain('do not change `font-family`');
     expect(instructions).toContain('<i data-lucide="menu"></i>');
     expect(instructions).toContain('Do not use other icon systems, inline SVG icons, emoji icons');
@@ -171,6 +190,12 @@ describe('AiSdkDesignPageAgent', () => {
     expect(instructions).toContain('.nav-icon svg { width: 18px; height: 18px; stroke-width: 2; }');
     expect(instructions).toContain('call `lucide.createIcons()` after updating the DOM');
     expect(instructions).toContain('Add an extra external resource only when the user explicitly requests it');
+    expect(instructions).not.toContain('You are Codex');
+    expect(instructions).not.toContain('shell');
+    expect(instructions).not.toContain('git');
+    expect(instructions).not.toContain('apply_patch');
+    expect(instructions).not.toContain('commentary channel');
+    expect(instructions).not.toContain('final channel');
     expect(instructions).not.toContain('Do not add new CDN resources');
     expect(instructions).not.toContain('Web Components');
     expect(instructions).not.toContain(':host');
@@ -181,6 +206,15 @@ describe('AiSdkDesignPageAgent', () => {
     expect(instructions).not.toContain('componentAudit');
     expect(instructions).not.toContain('Use `patch`');
     expect(instructions).not.toContain('retry with a smaller edit or patch');
+  });
+
+  it('includes a fallback resource policy when resources are unavailable', () => {
+    const instructions = buildDesignPageAgentInstructions();
+
+    expect(instructions).toContain('<resource_policy>');
+    expect(instructions).toContain('No global resource settings were provided for this run');
+    expect(instructions).toContain('Use resources already present in the existing `index.html`');
+    expect(instructions).toContain('instead of assuming a specific icon system');
   });
 
   it('creates an agent context for single_html projects', async () => {

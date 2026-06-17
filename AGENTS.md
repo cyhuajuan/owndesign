@@ -80,3 +80,7 @@ Key invariants baked into the prompt and worth preserving when editing:
 - User-visible/error strings are bilingual (zh-CN / en-US); some server error text is Chinese. UI text goes through the i18n layer in `renderer/src/features/i18n`.
 - Prompt edits live in markdown under `core/src/prompts/agents/`; the loader (`prompts/index.ts`) reads them at runtime, so they must be copied into build output (handled by the server/cli build scripts).
 - `packages/renderer/src/components/ai-elements/**` is generated/vendored and excluded from lint — don't hand-tune it for lint rules.
+
+## Git commits
+
+- Use Conventional Commits. Keep messages concise. For non-trivial changes, include a body describing what changed and why.

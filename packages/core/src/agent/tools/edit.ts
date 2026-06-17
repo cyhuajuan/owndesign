@@ -12,6 +12,7 @@ const DESCRIPTION = [
   '- When editing text from read tool output, preserve the exact indentation after the line number prefix.',
   '- The line number prefix format is `<line>: `. Everything after that prefix is the actual file content to match.',
   '- Never include any part of the line number prefix in oldString or newString.',
+  '- Provide oldString as the literal file content. Do not add backslash escapes to quotes or backticks (\\" \\\' \\`), even when the text is inside a JavaScript template literal or string.',
   '- Prefer editing existing files. Only create new files when the user request explicitly requires it.',
   '- Only use emojis if the user explicitly requests them.',
   '- The edit will fail if oldString is not found in the file.',

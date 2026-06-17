@@ -44,6 +44,14 @@ export function applyTextEdit(
   const firstIndex = content.indexOf(normalizedOldText);
 
   if (firstIndex === -1) {
+    const deEscaped = deEscapeQuotes(normalizedOldText);
+
+    if (deEscaped !== normalizedOldText && content.includes(deEscaped)) {
+      throw new Error(
+        `oldText was not found in Project Workspace file: ${relativePath}. It looks like oldText contains backslash-escaped quotes/backticks (\\" \\' \\\`) that are not in the file. Provide oldText as the literal file content without adding escape characters.`,
+      );
+    }
+
     throw new Error(`oldText was not found in Project Workspace file: ${relativePath}`);
   }
 
@@ -61,6 +69,10 @@ export function applyTextEdit(
         content.slice(firstIndex + normalizedOldText.length),
     replacements: replaceAll ? replacements : 1,
   };
+}
+
+function deEscapeQuotes(text: string) {
+  return text.replaceAll('\\"', '"').replaceAll("\\'", "'").replaceAll('\\`', '`');
 }
 
 function detectLineEnding(text: string): '\n' | '\r\n' {

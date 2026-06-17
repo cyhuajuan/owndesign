@@ -496,6 +496,28 @@ describe('WorkspaceStore', () => {
     ).rejects.toThrow('oldText appears more than once');
   });
 
+  it('hints when an exact edit fails only because oldText over-escapes quotes', async () => {
+    const workspaceRoot = path.join(await createTempWorkspaceRoot(), '.owndesign');
+    const store = new WorkspaceStore({ workspaceRoot });
+    const project = buildProject({ id: 'project-edit-escapes' });
+
+    await store.createProject(project);
+    await store.writeProjectWorkspaceFile(project.id, 'index.html', '<div class="lib-empty">');
+
+    await expect(
+      store.editProjectWorkspaceFile(
+        project.id,
+        'index.html',
+        '<div class=\\"lib-empty\\">',
+        '<div class="lib-full">',
+      ),
+    ).rejects.toThrow(/backslash-escaped quotes/);
+
+    await expect(
+      store.editProjectWorkspaceFile(project.id, 'index.html', '<div class="missing">', 'link'),
+    ).rejects.toThrow(/^oldText was not found in Project Workspace file: index\.html$/);
+  });
+
   it('returns truncation and skipped-file metadata for large reads and greps', async () => {
     const workspaceRoot = path.join(await createTempWorkspaceRoot(), '.owndesign');
     const store = new WorkspaceStore({ workspaceRoot });

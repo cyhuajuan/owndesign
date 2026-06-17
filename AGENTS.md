@@ -30,7 +30,7 @@ pnpm dev              # server (port 3711) + web (port 3710) concurrently — ma
 pnpm desktop:dev      # Tauri desktop app
 pnpm build            # build all packages, desktop, and the CLI
 pnpm lint             # oxlint .
-pnpm format           # oxfmt . --write   (format:check to verify only)
+pnpm format           # oxfmt . --write
 pnpm typecheck        # tsc -p across every package
 pnpm test             # vitest run across every package
 pnpm test:watch

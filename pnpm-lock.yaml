@@ -120,6 +120,10 @@ importers:
         version: 4.3.0
 
   packages/cli:
+    dependencies:
+      playwright-core:
+        specifier: ^1.61.0
+        version: 1.61.0
     devDependencies:
       esbuild:
         specifier: ^0.28.0
@@ -244,6 +248,9 @@ importers:
       hono:
         specifier: ^4.12.22
         version: 4.12.23
+      playwright-core:
+        specifier: ^1.61.0
+        version: 1.61.0
       yazl:
         specifier: ^3.3.1
         version: 3.3.1
@@ -2770,6 +2777,11 @@ packages:
   pinkie@2.0.4:
     resolution: {integrity: sha512-MnUuEycAemtSaeFSjXKW/aroV7akBbY+Sv+RkyqFjgAe73F+MR0TBWKBRDkmfWq/HiFmdavfZ1G7h4SPZXaCSg==}
     engines: {node: '>=0.10.0'}
+
+  playwright-core@1.61.0:
+    resolution: {integrity: sha512-caX7TrY3Ml6egyDX0WUcTHDxodl/b51y5wJOdCEA36QviK/s2g081hvmGs8eaE3DWb6NYZQ6BjO/QkNRPenoPA==}
+    engines: {node: '>=18'}
+    hasBin: true
 
   points-on-curve@0.2.0:
     resolution: {integrity: sha512-0mYKnYYe9ZcqMCWhUjItv/oHjvgEsfKvnUTg8sAtnHr3GVy7rGkXCb6d5cSyqrWqL4k81b9CPg3urd+T7aop3A==}
@@ -5906,6 +5918,8 @@ snapshots:
       pinkie: 2.0.4
 
   pinkie@2.0.4: {}
+
+  playwright-core@1.61.0: {}
 
   points-on-curve@0.2.0: {}
 

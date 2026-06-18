@@ -1,5 +1,6 @@
 import { createWriteStream, statSync } from 'node:fs';
 import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -44,6 +45,11 @@ import {
 } from './services';
 import { createChatRunStreamResponse, getChatRunManager } from './chat-run-manager';
 import { sanitizePublicConversation } from './sanitize-ui-message';
+import {
+  captureProjectScreenshot,
+  ScreenshotBrowserUnavailableError,
+  type ScreenshotDevice,
+} from './screenshot';
 
 type ChatRequestBody = {
   conversationId?: unknown;
@@ -654,6 +660,15 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
       return downloadWorkspaceZip(workspaceStore, projectId);
     }
 
+    if (kind === 'current-screenshot') {
+      return downloadCurrentScreenshot(
+        workspaceStore,
+        projectId,
+        context.req.query('previewPath') ?? null,
+        parseScreenshotDevice(context.req.query('device')),
+      );
+    }
+
     return context.text('Invalid download request.', 400);
   });
 
@@ -746,7 +761,7 @@ async function downloadCurrentHtml(
   try {
     const content = await workspaceStore.readProjectWorkspaceFileBuffer(projectId, previewPath);
 
-    return new Response(content, {
+    return new Response(new Uint8Array(content), {
       headers: {
         'Content-Disposition': createAttachmentDisposition(path.basename(previewPath)),
         'Content-Type': 'text/html; charset=utf-8',
@@ -795,6 +810,56 @@ async function downloadWorkspaceZip(
   }
 }
 
+async function downloadCurrentScreenshot(
+  workspaceStore: ReturnType<typeof createWorkspaceStore>,
+  projectId: string,
+  previewPath: string | null,
+  device: ScreenshotDevice | undefined,
+) {
+  if (!previewPath?.trim() || !previewPath.toLowerCase().endsWith('.html') || !device) {
+    return new Response('Invalid download request.', { status: 400 });
+  }
+
+  const clientId = `screenshot-${randomUUID()}`;
+  const previewManager = getPreviewServerManager(workspaceStore);
+
+  try {
+    await workspaceStore.readProjectWorkspaceFileBuffer(projectId, previewPath);
+    const session = await previewManager.ensure(projectId, clientId, previewPath);
+
+    if (!session.activePath || session.activePath !== previewPath) {
+      return new Response('Project file not found.', { status: 404 });
+    }
+
+    const content = await captureProjectScreenshot({
+      device,
+      url: session.url,
+    });
+
+    return new Response(new Uint8Array(content), {
+      headers: {
+        'Content-Disposition': createAttachmentDisposition(
+          replaceDownloadExtension(path.basename(previewPath), '.png'),
+        ),
+        'Content-Type': 'image/png',
+      },
+      status: 200,
+    });
+  } catch (error) {
+    if (error instanceof ScreenshotBrowserUnavailableError) {
+      return new Response(error.message, { status: 503 });
+    }
+
+    try {
+      return mapWorkspaceErrorToResponse(error);
+    } catch {
+      return new Response('Screenshot capture failed.', { status: 500 });
+    }
+  } finally {
+    await previewManager.release(projectId, clientId).catch(() => {});
+  }
+}
+
 async function writeWorkspaceZip(
   workspaceStore: ReturnType<typeof createWorkspaceStore>,
   projectId: string,
@@ -830,6 +895,20 @@ function createAttachmentDisposition(filename: string) {
   const encodedFilename = encodeRFC5987Value(filename);
 
   return `attachment; filename="${fallbackFilename}"; filename*=UTF-8''${encodedFilename}`;
+}
+
+function parseScreenshotDevice(value: string | undefined): ScreenshotDevice | undefined {
+  return value === 'desktop' || value === 'mobile' ? value : undefined;
+}
+
+function replaceDownloadExtension(filename: string, extension: string) {
+  const currentExtension = path.extname(filename);
+
+  if (!currentExtension) {
+    return `${filename}${extension}`;
+  }
+
+  return `${filename.slice(0, -currentExtension.length)}${extension}`;
 }
 
 function sanitizeDownloadFilename(value: string | undefined) {

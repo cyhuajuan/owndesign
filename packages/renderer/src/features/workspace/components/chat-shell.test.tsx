@@ -161,7 +161,7 @@ describe('ChatShell', () => {
     expect(window.location.search).toBe('');
   });
 
-  it('renders icon-only download menu before refresh button and shows both download actions', async () => {
+  it('renders icon-only download menu before refresh button and shows download actions', async () => {
     const user = userEvent.setup();
 
     render(<ChatShell previewProjectId="project-1" />);
@@ -187,6 +187,7 @@ describe('ChatShell', () => {
     await user.click(downloadButton);
 
     expect(await screen.findByText('下载当前HTML')).toBeInTheDocument();
+    expect(await screen.findByText('下载界面图片PNG')).toBeInTheDocument();
     expect(await screen.findByText('下载全部打包成ZIP')).toBeInTheDocument();
   });
 
@@ -279,6 +280,18 @@ describe('ChatShell', () => {
     expect(screen.getByRole('button', { name: '下载' })).toBeDisabled();
   });
 
+  it('disables screenshot download when no active preview path exists', async () => {
+    const user = userEvent.setup();
+
+    render(<ChatShell previewProjectId="project-1" />);
+
+    await user.click(screen.getByRole('button', { name: '下载' }));
+
+    expect(await screen.findByRole('menuitem', { name: '下载界面图片PNG' })).toHaveAttribute(
+      'data-disabled',
+    );
+  });
+
   it('downloads current preview html using the active preview path', async () => {
     const user = userEvent.setup();
 
@@ -299,6 +312,55 @@ describe('ChatShell', () => {
 
     expect(anchorClicks).toEqual([
       'http://localhost:3000/api/projects/project-1/download?kind=current-html&previewPath=pages%2Fdetail.html',
+    ]);
+  });
+
+  it('downloads current preview screenshot using the active preview path and desktop device', async () => {
+    const user = userEvent.setup();
+
+    render(<ChatShell previewProjectId="project-1" />);
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent('owndesign:preview-files-updated', {
+          detail: {
+            activePath: 'pages/detail.html',
+            files: ['index.html', 'pages/detail.html'],
+          },
+        }),
+      );
+    });
+
+    await user.click(screen.getByRole('button', { name: '下载' }));
+    await user.click(await screen.findByText('下载界面图片PNG'));
+
+    expect(anchorClicks).toEqual([
+      'http://localhost:3000/api/projects/project-1/download?kind=current-screenshot&previewPath=pages%2Fdetail.html&device=desktop',
+    ]);
+  });
+
+  it('downloads current preview screenshot using the mobile device', async () => {
+    const user = userEvent.setup();
+
+    render(<ChatShell previewProjectId="project-1" />);
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent('owndesign:preview-files-updated', {
+          detail: {
+            activePath: 'index.html',
+            files: ['index.html'],
+          },
+        }),
+      );
+    });
+
+    const previewPane = screen.getByRole('region', { name: '预览面板' });
+    await user.click(within(previewPane).getByRole('combobox', { name: '预览设备' }));
+    await user.click(await screen.findByRole('option', { name: '移动端' }));
+    await user.click(screen.getByRole('button', { name: '下载' }));
+    await user.click(await screen.findByText('下载界面图片PNG'));
+
+    expect(anchorClicks).toEqual([
+      'http://localhost:3000/api/projects/project-1/download?kind=current-screenshot&previewPath=index.html&device=mobile',
     ]);
   });
 });

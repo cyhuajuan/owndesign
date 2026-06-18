@@ -13,6 +13,22 @@ const aiMocks = vi.hoisted(() => ({
   }),
 }));
 
+const screenshotMocks = vi.hoisted(() => {
+  class ScreenshotBrowserUnavailableError extends Error {
+    constructor() {
+      super(
+        'No supported browser was found. Install Chrome/Edge or set OWNDESIGN_SCREENSHOT_BROWSER_EXECUTABLE.',
+      );
+      this.name = 'ScreenshotBrowserUnavailableError';
+    }
+  }
+
+  return {
+    captureProjectScreenshot: vi.fn(),
+    ScreenshotBrowserUnavailableError,
+  };
+});
+
 vi.mock('ai', () => ({
   createAgentUIStream: aiMocks.createAgentUIStream,
   createUIMessageStreamResponse: vi.fn(() => new Response('')),
@@ -36,6 +52,11 @@ vi.mock('@ai-sdk/openai-compatible', () => ({
   ),
 }));
 
+vi.mock('./screenshot', () => ({
+  captureProjectScreenshot: screenshotMocks.captureProjectScreenshot,
+  ScreenshotBrowserUnavailableError: screenshotMocks.ScreenshotBrowserUnavailableError,
+}));
+
 import { createOwnDesignApp } from './app';
 import { createWorkspaceStore } from './services';
 import { DESIGN_PAGE_AGENT_PROMPT_VERSION } from '@owndesign/core/agent/design-page-agent';
@@ -52,6 +73,8 @@ afterEach(async () => {
     }),
   );
   aiMocks.toolLoopAgent.mockClear();
+  screenshotMocks.captureProjectScreenshot.mockReset();
+  await stopPreviewServerManager();
   await Promise.all(
     tempRoots.splice(0).map((tempRoot) => rm(tempRoot, { force: true, recursive: true })),
   );
@@ -173,7 +196,9 @@ describe('createOwnDesignApp static hosting', () => {
     expect(conversation.agentPromptVersion).toBe(DESIGN_PAGE_AGENT_PROMPT_VERSION);
     expect(conversation.agentInstructions).toContain('# OwnDesign Single HTML Page Agent');
     expect(conversation.agentInstructions).toContain('Before editing, form a compact design brief');
-    expect(conversation.agentInstructions).toContain('When instructions pull in different directions');
+    expect(conversation.agentInstructions).toContain(
+      'When instructions pull in different directions',
+    );
     expect(conversation.agentInstructions).toContain(
       'Use `<main id="app">` for the visible app/page body',
     );
@@ -417,6 +442,93 @@ describe('createOwnDesignApp static hosting', () => {
   });
 });
 
+describe('createOwnDesignApp project downloads', () => {
+  it('rejects screenshot downloads with missing or invalid params', async () => {
+    const { app } = await createAppWithTempOptions();
+    const { projectId } = await setupProject(app);
+
+    const missingPreviewPathResponse = await app.fetch(
+      new Request(
+        `http://localhost/api/projects/${projectId}/download?kind=current-screenshot&device=desktop`,
+      ),
+    );
+    const invalidDeviceResponse = await app.fetch(
+      new Request(
+        `http://localhost/api/projects/${projectId}/download?kind=current-screenshot&previewPath=index.html&device=tablet`,
+      ),
+    );
+
+    expect(missingPreviewPathResponse.status).toBe(400);
+    expect(invalidDeviceResponse.status).toBe(400);
+    expect(screenshotMocks.captureProjectScreenshot).not.toHaveBeenCalled();
+  });
+
+  it('downloads a desktop screenshot png for the current html', async () => {
+    const { app, root } = await createAppWithTempOptions();
+    const workspaceStore = createWorkspaceStore({ workspaceRoot: path.join(root, 'workspace') });
+    const { projectId } = await setupProject(app);
+
+    await workspaceStore.writeProjectWorkspaceFile(
+      projectId,
+      'pages/detail.html',
+      '<h1>Detail</h1>',
+    );
+    screenshotMocks.captureProjectScreenshot.mockResolvedValue(Buffer.from('png-detail'));
+
+    const response = await app.fetch(
+      new Request(
+        `http://localhost/api/projects/${projectId}/download?kind=current-screenshot&previewPath=pages%2Fdetail.html&device=desktop`,
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('Content-Type')).toBe('image/png');
+    expect(response.headers.get('Content-Disposition')).toContain('detail.png');
+    expect(Buffer.from(await response.arrayBuffer())).toEqual(Buffer.from('png-detail'));
+    expect(screenshotMocks.captureProjectScreenshot).toHaveBeenCalledWith({
+      device: 'desktop',
+      url: expect.stringMatching(/\/pages\/detail\.html$/),
+    });
+  });
+
+  it('passes the mobile device through screenshot downloads', async () => {
+    const { app } = await createAppWithTempOptions();
+    const { projectId } = await setupProject(app);
+
+    screenshotMocks.captureProjectScreenshot.mockResolvedValue(Buffer.from('png-mobile'));
+
+    const response = await app.fetch(
+      new Request(
+        `http://localhost/api/projects/${projectId}/download?kind=current-screenshot&previewPath=index.html&device=mobile`,
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    expect(screenshotMocks.captureProjectScreenshot).toHaveBeenCalledWith({
+      device: 'mobile',
+      url: expect.stringMatching(/\/index\.html$/),
+    });
+  });
+
+  it('returns 503 when no supported screenshot browser is available', async () => {
+    const { app } = await createAppWithTempOptions();
+    const { projectId } = await setupProject(app);
+
+    screenshotMocks.captureProjectScreenshot.mockRejectedValue(
+      new screenshotMocks.ScreenshotBrowserUnavailableError(),
+    );
+
+    const response = await app.fetch(
+      new Request(
+        `http://localhost/api/projects/${projectId}/download?kind=current-screenshot&previewPath=index.html&device=desktop`,
+      ),
+    );
+
+    expect(response.status).toBe(503);
+    expect(await response.text()).toContain('Install Chrome/Edge');
+  });
+});
+
 async function createAppWithStaticRoot() {
   const root = await createTempRoot();
   const staticRoot = path.join(root, 'web');
@@ -535,4 +647,15 @@ async function waitFor(assertion: () => void) {
   }
 
   assertion();
+}
+
+async function stopPreviewServerManager() {
+  const globalWithPreviewManager = globalThis as typeof globalThis & {
+    __owndesignPreviewServerManager?: {
+      stopAll: () => Promise<void>;
+    };
+  };
+
+  await globalWithPreviewManager.__owndesignPreviewServerManager?.stopAll();
+  globalWithPreviewManager.__owndesignPreviewServerManager = undefined;
 }

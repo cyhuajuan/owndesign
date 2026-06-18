@@ -30,7 +30,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { SettingsControl } from '@/features/settings/components/settings-control';
@@ -193,6 +192,17 @@ export function ChatShell({
     previewProjectId && activePreviewPath
       ? api.buildUrl(buildProjectDownloadPath(previewProjectId, 'current-html', activePreviewPath))
       : undefined;
+  const currentScreenshotDownloadUrl =
+    previewProjectId && activePreviewPath
+      ? api.buildUrl(
+          buildProjectDownloadPath(
+            previewProjectId,
+            'current-screenshot',
+            activePreviewPath,
+            previewDevice,
+          ),
+        )
+      : undefined;
   const workspaceZipDownloadUrl = previewProjectId
     ? api.buildUrl(buildProjectDownloadPath(previewProjectId, 'workspace-zip'))
     : undefined;
@@ -317,10 +327,7 @@ export function ChatShell({
                 <div className="flex items-center gap-1">
                   {previewActions ?? (
                     <>
-                      <Select
-                        onValueChange={handlePreviewDeviceChange}
-                        value={previewDevice}
-                      >
+                      <Select onValueChange={handlePreviewDeviceChange} value={previewDevice}>
                         <SelectTrigger
                           aria-label={t('preview.device')}
                           className="h-7 w-22 px-2 text-xs"
@@ -363,6 +370,16 @@ export function ChatShell({
                             }}
                           >
                             {t('download.currentHtml')}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            disabled={!currentScreenshotDownloadUrl}
+                            onClick={() => {
+                              if (currentScreenshotDownloadUrl) {
+                                triggerBrowserDownload(currentScreenshotDownloadUrl);
+                              }
+                            }}
+                          >
+                            {t('download.screenshotPng')}
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             disabled={!workspaceZipDownloadUrl}
@@ -461,7 +478,10 @@ function writeConversationPaneState(value: boolean) {
   window.dispatchEvent(new Event(CONVERSATION_PANE_EVENT));
 }
 
-function readStoredPreviewDevice(projectId: string, previewPath: string): PreviewDevice | undefined {
+function readStoredPreviewDevice(
+  projectId: string,
+  previewPath: string,
+): PreviewDevice | undefined {
   const storedDevices = readStoredPreviewDevices();
   const value = storedDevices[buildPreviewDeviceStorageKey(projectId, previewPath)];
 
@@ -506,13 +526,19 @@ function isPreviewDevice(value: unknown): value is PreviewDevice {
 
 function buildProjectDownloadPath(
   projectId: string,
-  kind: 'current-html' | 'workspace-zip',
+  kind: 'current-html' | 'current-screenshot' | 'workspace-zip',
   previewPath?: string,
+  device?: PreviewDevice,
 ) {
   const params = new URLSearchParams({ kind });
 
   if (kind === 'current-html' && previewPath) {
     params.set('previewPath', previewPath);
+  }
+
+  if (kind === 'current-screenshot' && previewPath) {
+    params.set('previewPath', previewPath);
+    params.set('device', device ?? 'desktop');
   }
 
   return `/api/projects/${encodeURIComponent(projectId)}/download?${params.toString()}`;

@@ -20,6 +20,7 @@ await build({
   },
   bundle: true,
   entryPoints: [path.join(packageRoot, 'src/index.ts')],
+  external: ['playwright-core'],
   format: 'esm',
   outfile: path.join(distDir, 'index.js'),
   platform: 'node',

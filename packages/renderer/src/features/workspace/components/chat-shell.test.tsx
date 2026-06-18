@@ -187,7 +187,7 @@ describe('ChatShell', () => {
     await user.click(downloadButton);
 
     expect(await screen.findByText('下载当前HTML')).toBeInTheDocument();
-    expect(await screen.findByText('下载界面图片PNG')).toBeInTheDocument();
+    expect(await screen.findByText('下载当前界面图片PNG')).toBeInTheDocument();
     expect(await screen.findByText('下载全部打包成ZIP')).toBeInTheDocument();
   });
 
@@ -287,7 +287,7 @@ describe('ChatShell', () => {
 
     await user.click(screen.getByRole('button', { name: '下载' }));
 
-    expect(await screen.findByRole('menuitem', { name: '下载界面图片PNG' })).toHaveAttribute(
+    expect(await screen.findByRole('menuitem', { name: '下载当前界面图片PNG' })).toHaveAttribute(
       'data-disabled',
     );
   });
@@ -331,7 +331,7 @@ describe('ChatShell', () => {
     });
 
     await user.click(screen.getByRole('button', { name: '下载' }));
-    await user.click(await screen.findByText('下载界面图片PNG'));
+    await user.click(await screen.findByText('下载当前界面图片PNG'));
 
     expect(anchorClicks).toEqual([
       'http://localhost:3000/api/projects/project-1/download?kind=current-screenshot&previewPath=pages%2Fdetail.html&device=desktop',
@@ -365,7 +365,7 @@ describe('ChatShell', () => {
     });
 
     await user.click(screen.getByRole('button', { name: '下载' }));
-    await user.click(await screen.findByText('下载界面图片PNG'));
+    await user.click(await screen.findByText('下载当前界面图片PNG'));
 
     expect(anchorClicks).toEqual([
       'http://localhost:3000/api/projects/project-1/download?kind=current-screenshot&previewPath=index.html&device=desktop&route=%23%2Fpricing',
@@ -402,7 +402,7 @@ describe('ChatShell', () => {
     await user.click(within(previewPane).getByRole('combobox', { name: '预览设备' }));
     await user.click(await screen.findByRole('option', { name: '移动端' }));
     await user.click(screen.getByRole('button', { name: '下载' }));
-    await user.click(await screen.findByText('下载界面图片PNG'));
+    await user.click(await screen.findByText('下载当前界面图片PNG'));
 
     expect(anchorClicks).toEqual([
       'http://localhost:3000/api/projects/project-1/download?kind=current-screenshot&previewPath=index.html&device=mobile&route=%23%2Forders%3Ftab%3Dkanban',
@@ -446,7 +446,7 @@ describe('ChatShell', () => {
     });
 
     await user.click(screen.getByRole('button', { name: '下载' }));
-    await user.click(await screen.findByText('下载界面图片PNG'));
+    await user.click(await screen.findByText('下载当前界面图片PNG'));
 
     expect(anchorClicks).toEqual([
       'http://localhost:3000/api/projects/project-1/download?kind=current-screenshot&previewPath=detail.html&device=desktop',

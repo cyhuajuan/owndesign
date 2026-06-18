@@ -52,7 +52,7 @@ export const zhCN = {
   'conversation.user': '用户',
   'download.currentHtml': '下载当前HTML',
   'download.label': '下载',
-  'download.screenshotPng': '下载界面图片PNG',
+  'download.screenshotPng': '下载当前界面图片PNG',
   'download.zip': '下载全部打包成ZIP',
   'onboarding.addAnotherModel': '添加另一个模型',
   'onboarding.addModelTitle': '添加模型配置',

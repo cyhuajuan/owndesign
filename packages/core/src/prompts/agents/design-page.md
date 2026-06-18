@@ -41,11 +41,26 @@ Choose one strong visual direction that fits the product instead of blending gen
 - `index.html` is the only previewable page and the main design canvas.
 - Put the page structure, CSS, and local prototype JavaScript directly in `index.html`.
 - Do not create additional HTML pages, React/Vue/Svelte apps, framework build files, custom elements, Shadow DOM, component module folders, or reuse metadata.
-- For multiple pages, screens, routes, or steps, implement internal views in `index.html` using state, hash routing, tabs, buttons, or `[data-view]` sections.
+- For multiple pages, page-level screens, or route-like navigation, use hash routing inside `index.html`.
+- Do not use path-based browser routing.
 - Use `<main id="app">` for the visible app/page body.
 - Keep CSS in the file's `<style>` block and organize it clearly: reset, tokens, layout, components, states, responsive rules, and motion.
 - Keep JavaScript in the file's `<script>` block and include only prototype behavior that is needed for visible interaction.
 - Prefer one coherent, finished file over abstractions that make the prototype harder to inspect.
+
+## Hash-addressable UI State
+
+Every design state that a viewer would want to link to or return to directly should be restorable from `location.hash`, so the same state appears on direct load.
+
+- Use stable semantic hash routes such as `#/dashboard`, `#/orders`, `#/settings`, and `#/detail/123`.
+- Encode deep-link-worthy route state in the hash query when it changes the designed screen, such as `#/orders?tab=kanban&drawer=filters`, `#/settings?tab=billing&modal=invite-member`, or `#/products/42?panel=details`.
+- The current page-level view and any deep-link-worthy UI state must be derived from `location.hash`, not only from in-memory variables or prior click history.
+- A direct load of `index.html#/route?...` must render the matching route and any material active tab, open modal, open drawer or side panel, selected detail, filter, mode, and route-specific mock content without requiring previous clicks.
+- Render the current hash state on initial load, such as `DOMContentLoaded`, as well as on `hashchange`; do not rely on `hashchange` firing for the first paint.
+- Use normal hash navigation for page-level route changes. For in-page sub-state such as active tabs, open modals, drawers, side panels, filters, modes, and selected details, update the hash with `history.replaceState` so the Back button moves between pages instead of every toggle.
+- Navigation links, tab controls, modal open and close controls, drawer toggles, side-panel controls, filters, modes, and selected-detail controls should update `location.hash` when they control a deep-link-worthy design state.
+- Provide a sensible default route and default UI state when the hash is empty, incomplete, or unknown.
+- Keep ephemeral micro-interactions in local state only, such as hover, focus, pressed button feedback, transient toasts, loading spinners, and unsubmitted form typing.
 
 ## Frontend Taste Model
 
@@ -86,7 +101,7 @@ Avoid data-first implementation. Start from the visible interface structure, the
 
 Build frontend prototypes. Interactions should demonstrate interface states, user flows, and visual feedback; they should not turn the prototype into a real browser, OS, local file tool, or business workflow unless the user explicitly asks for that capability.
 
-Good prototype interactions include active tabs, modal open/close, drawer visibility, filter chips, selected rows, toast messages, simple steppers, hash/view switching, local preview toggles, and small local state changes that make the UI intention clear.
+Good prototype interactions include hash-addressable routes and UI states, active tabs, modal open/close, drawer visibility, side-panel state, filter chips, selected rows, toast messages, simple steppers, local preview toggles, and small local state changes that make the UI intention clear. Follow the Hash-addressable UI State rules for direct-load recovery.
 
 For complex actions such as Add, Import, Upload, Select folder, Connect source, Sync, Export, Pay, Sign in, or Publish, default to a mock UI flow: open a modal, show sample items, update a visible state, or display a credible simulated result. Do not access local files or external services by default.
 
@@ -120,6 +135,7 @@ Before calling `previewRefresh`, review the current `index.html` source and veri
 
 - First viewport: the product purpose, visual direction, and at least one primary action or workflow entry point are visible without scrolling.
 - Single target: the complete previewable prototype lives in `index.html` and uses `<main id="app">` for the visible body.
+- Hash recovery: any route, tab, modal, drawer, panel, filter, mode, or selected-detail state that materially changes the design can be restored by direct-loading the current URL hash.
 - Readability: body text is at least 14px, contrast is comfortable, and no important text is clipped, hidden, or overlapping.
 - Layout: desktop and any required mobile layout have no accidental horizontal overflow, cramped controls, or incoherent stacking.
 - States: navigation, filters, tabs, buttons, modals, drawers, and form controls produce visible feedback when included.

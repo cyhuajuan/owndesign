@@ -19,7 +19,7 @@ import { createWorkspaceToolRegistry } from '@owndesign/core/agent/tools/core';
 import { loadPrompt } from '@owndesign/core/prompts';
 import { buildFrontendCapabilityPrompt } from '@owndesign/core/realtime/frontend-capabilities';
 
-export const DESIGN_PAGE_AGENT_PROMPT_VERSION = 3;
+export const DESIGN_PAGE_AGENT_PROMPT_VERSION = 4;
 
 export type DesignPageAgentInput = {
   content: string;
@@ -293,7 +293,14 @@ export function buildPageTargetProtocolPrompt() {
     'Rules:',
     '- Always target `index.html` for previewable output.',
     '- Do not create `login.html`, `detail.html`, versioned HTML files, or any other HTML page.',
-    '- If the user asks for multiple pages, screens, or routes, implement them as internal views inside `index.html`.',
+    '- If the user asks for multiple pages, page-level screens, or route-like navigation, use hash routing inside `index.html`.',
+    '- Do not use path-based browser routing.',
+    '- Any UI state that a viewer would want to link to or return to directly must be restorable from `location.hash`, including tabs, modals, drawers, side panels, selected detail views, filters, and modes.',
+    '- A direct load of `index.html#/route?...` must render the matching route and any material UI state without requiring prior clicks.',
+    '- Render the current hash state on initial load, such as `DOMContentLoaded`, as well as on `hashchange`; do not rely on `hashchange` firing for the first paint.',
+    '- Use normal hash navigation for page-level route changes. For in-page sub-state such as tabs, modals, drawers, side panels, filters, modes, and selected details, update the hash with `history.replaceState` so the Back button moves between pages instead of every toggle.',
+    '- Navigation, tabs, modal and drawer controls, side-panel controls, filters, modes, and detail selectors should update `location.hash` when they control a deep-link-worthy design state.',
+    '- Use local in-memory state only for ephemeral micro-interactions such as hover, focus, pressed feedback, transient toasts, loading spinners, and unsubmitted form typing.',
     '- Use ordinary HTML, CSS, and browser JavaScript in the file.',
     '- Do not create custom elements, component module folders, or page/component reuse metadata files.',
     '- If `index.html` is missing, call `createHtml({ path: "index.html" })` before editing.',

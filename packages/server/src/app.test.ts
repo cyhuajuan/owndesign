@@ -202,6 +202,8 @@ describe('createOwnDesignApp static hosting', () => {
     expect(conversation.agentInstructions).toContain(
       'Use `<main id="app">` for the visible app/page body',
     );
+    expect(conversation.agentInstructions).toContain('## Hash-addressable UI State');
+    expect(conversation.agentInstructions).toContain('restorable from `location.hash`');
     expect(conversation.agentInstructions).toContain('## Quality Gate');
     expect(conversation.agentInstructions).toContain('Generic AI-style layouts');
     expect(conversation.agentInstructions).not.toContain('You are Codex');

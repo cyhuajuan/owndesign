@@ -118,7 +118,7 @@ describe('AiSdkDesignPageAgent', () => {
     expect(loadPrompt('agents/design-page')).toContain(
       "OwnDesign's single HTML page design agent",
     );
-    expect(DESIGN_PAGE_AGENT_PROMPT_VERSION).toBe(3);
+    expect(DESIGN_PAGE_AGENT_PROMPT_VERSION).toBe(4);
   });
 
   it('builds single HTML conversation instructions without old architecture terms', () => {
@@ -145,7 +145,24 @@ describe('AiSdkDesignPageAgent', () => {
     expect(instructions).toContain(
       'reset, tokens, layout, components, states, responsive rules, and motion',
     );
-    expect(instructions).toContain('implement internal views in `index.html` using state');
+    expect(instructions).toContain('For multiple pages, page-level screens, or route-like navigation');
+    expect(instructions).toContain('Do not use path-based browser routing');
+    expect(instructions).toContain('## Hash-addressable UI State');
+    expect(instructions).toContain('restorable from `location.hash`');
+    expect(instructions).toContain('a viewer would want to link to or return to directly');
+    expect(instructions).toContain(
+      'Use stable semantic hash routes such as `#/dashboard`, `#/orders`, `#/settings`, and `#/detail/123`',
+    );
+    expect(instructions).toContain('`#/orders?tab=kanban&drawer=filters`');
+    expect(instructions).toContain('The current page-level view and any deep-link-worthy UI state');
+    expect(instructions).toContain('A direct load of `index.html#/route?...`');
+    expect(instructions).toContain('Render the current hash state on initial load');
+    expect(instructions).toContain('do not rely on `hashchange` firing for the first paint');
+    expect(instructions).toContain('update the hash with `history.replaceState`');
+    expect(instructions).toContain('the Back button moves between pages instead of every toggle');
+    expect(instructions).toContain('modal open and close controls');
+    expect(instructions).toContain('deep-link-worthy design state');
+    expect(instructions).toContain('Hash recovery: any route, tab, modal, drawer, panel');
     expect(instructions).toContain('only prototype behavior that is needed for visible interaction');
     expect(instructions).toContain('Every rendered `index.html` should feel like a complete product-quality prototype');
     expect(instructions).toContain('Let the subject matter shape the interface');
@@ -153,8 +170,9 @@ describe('AiSdkDesignPageAgent', () => {
     expect(instructions).toContain('Use CSS variables or an obvious reusable scale');
     expect(instructions).toContain('Match display type to context');
     expect(instructions).toContain('Interactions should demonstrate interface states, user flows, and visual feedback');
-    expect(instructions).toContain('Good prototype interactions include active tabs, modal open/close, drawer visibility');
-    expect(instructions).toContain('filter chips, selected rows, toast messages, simple steppers, hash/view switching');
+    expect(instructions).toContain('Good prototype interactions include hash-addressable routes');
+    expect(instructions).toContain('side-panel state, filter chips, selected rows');
+    expect(instructions).toContain('Follow the Hash-addressable UI State rules');
     expect(instructions).toContain('default to a mock UI flow');
     expect(instructions).toContain('Do not use `<input type="file">`, `webkitdirectory`, `showOpenFilePicker`, `FileReader`');
     expect(instructions).toContain('drag-and-drop file reading, real file counting, or real local file previews');

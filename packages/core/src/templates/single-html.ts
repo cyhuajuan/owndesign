@@ -1,8 +1,10 @@
 import { loadTemplate } from './index';
+import { OWNDESIGN_RUNTIME_SCRIPT_TAG } from './owndesign-runtime';
 
 export function buildSingleHtmlTemplate({ title }: { title: string }) {
   return renderTemplate(loadTemplate('html/page-shell'), {
     lang: 'zh-CN',
+    runtimeScript: OWNDESIGN_RUNTIME_SCRIPT_TAG,
     title: escapeHtmlText(title),
   });
 }

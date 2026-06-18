@@ -512,6 +512,72 @@ describe('createOwnDesignApp project downloads', () => {
     });
   });
 
+  it('downloads a screenshot for a hash route and includes the route in the filename', async () => {
+    const { app } = await createAppWithTempOptions();
+    const { projectId } = await setupProject(app);
+
+    screenshotMocks.captureProjectScreenshot.mockResolvedValue(Buffer.from('png-route'));
+
+    const response = await app.fetch(
+      new Request(
+        `http://localhost/api/projects/${projectId}/download?kind=current-screenshot&previewPath=index.html&device=desktop&route=%23%2Fpricing`,
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('Content-Disposition')).toContain('index-pricing.png');
+    expect(screenshotMocks.captureProjectScreenshot).toHaveBeenCalledWith({
+      device: 'desktop',
+      url: expect.stringMatching(/\/index\.html#\/pricing$/),
+    });
+  });
+
+  it('preserves hash query state for screenshot downloads', async () => {
+    const { app } = await createAppWithTempOptions();
+    const { projectId } = await setupProject(app);
+
+    screenshotMocks.captureProjectScreenshot.mockResolvedValue(Buffer.from('png-route-state'));
+
+    const response = await app.fetch(
+      new Request(
+        `http://localhost/api/projects/${projectId}/download?kind=current-screenshot&previewPath=index.html&device=desktop&route=%23%2Forders%3Ftab%3Dkanban`,
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('Content-Disposition')).toContain('index-orders-tab-kanban.png');
+    expect(screenshotMocks.captureProjectScreenshot).toHaveBeenCalledWith({
+      device: 'desktop',
+      url: expect.stringMatching(/\/index\.html#\/orders\?tab=kanban$/),
+    });
+  });
+
+  it('rejects screenshot routes that are not hash routes', async () => {
+    const { app } = await createAppWithTempOptions();
+    const { projectId } = await setupProject(app);
+
+    const pathRouteResponse = await app.fetch(
+      new Request(
+        `http://localhost/api/projects/${projectId}/download?kind=current-screenshot&previewPath=index.html&device=desktop&route=%2Fpricing`,
+      ),
+    );
+    const absoluteRouteResponse = await app.fetch(
+      new Request(
+        `http://localhost/api/projects/${projectId}/download?kind=current-screenshot&previewPath=index.html&device=desktop&route=https%3A%2F%2Fexample.test`,
+      ),
+    );
+    const controlCharacterRouteResponse = await app.fetch(
+      new Request(
+        `http://localhost/api/projects/${projectId}/download?kind=current-screenshot&previewPath=index.html&device=desktop&route=%23%2Fpricing%0A`,
+      ),
+    );
+
+    expect(pathRouteResponse.status).toBe(400);
+    expect(absoluteRouteResponse.status).toBe(400);
+    expect(controlCharacterRouteResponse.status).toBe(400);
+    expect(screenshotMocks.captureProjectScreenshot).not.toHaveBeenCalled();
+  });
+
   it('returns 503 when no supported screenshot browser is available', async () => {
     const { app } = await createAppWithTempOptions();
     const { projectId } = await setupProject(app);

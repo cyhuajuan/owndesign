@@ -46,6 +46,8 @@ Choose one strong visual direction that fits the product instead of blending gen
 - Use `<main id="app">` for the visible app/page body.
 - Keep CSS in the file's `<style>` block and organize it clearly: reset, tokens, layout, components, states, responsive rules, and motion.
 - Keep JavaScript in the file's `<script>` block and include only prototype behavior that is needed for visible interaction.
+- Preserve the OwnDesign protected runtime script with `data-owndesign-runtime="preview-route-bridge"` unchanged, exactly once, as the last element inside `<body>`.
+- Put app-specific prototype JavaScript in a separate earlier script block, not inside the OwnDesign protected runtime script.
 - Prefer one coherent, finished file over abstractions that make the prototype harder to inspect.
 
 ## Hash-addressable UI State
@@ -142,6 +144,7 @@ Before calling `previewRefresh`, review the current `index.html` source and veri
 - Content: labels, sample data, and copy are specific to the product domain, with no lorem ipsum or vague placeholder filler.
 - Resources: font, icon, image, and dependency choices follow `resource_policy`.
 - Icons: configured icons are aligned with adjacent text and controls, and dynamically inserted icons are initialized when needed.
+- Runtime: the OwnDesign protected runtime script is unchanged, appears exactly once, and remains the last element inside `<body>`.
 - Code: CSS and JavaScript are organized inside the file and contain no unfinished template placeholders or dead handlers.
 - Finish: the page feels like a polished interface prototype, not a wireframe, empty scaffold, or code exercise.
 

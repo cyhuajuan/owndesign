@@ -78,6 +78,88 @@ describe('ProjectPreviewFrame', () => {
     });
   });
 
+  it('publishes preview hash route messages from the current iframe origin', async () => {
+    mockPreviewFetch();
+    const previewRouteEvents: CustomEvent[] = [];
+    window.addEventListener('owndesign:preview-route-updated', (event) => {
+      previewRouteEvents.push(event as CustomEvent);
+    });
+
+    render(
+      <ProjectPreviewFrame
+        initialUpdatedAt="2026-05-15T00:00:00.000Z"
+        projectId="project-1"
+        projectName="Project One"
+      />,
+    );
+
+    const iframe = (await screen.findByTitle('Project One HTML 预览')) as HTMLIFrameElement;
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        data: {
+          hash: '#/pricing',
+          source: 'owndesign-preview',
+          type: 'route-changed',
+          version: 1,
+        },
+        origin: 'http://127.0.0.1:3000',
+        source: iframe.contentWindow,
+      }),
+    );
+
+    expect(previewRouteEvents.at(-1)?.detail).toEqual({
+      activePath: 'index.html',
+      hash: '#/pricing',
+      projectId: 'project-1',
+    });
+  });
+
+  it('ignores preview hash route messages from the wrong origin or payload', async () => {
+    mockPreviewFetch();
+    const previewRouteEvents: CustomEvent[] = [];
+    window.addEventListener('owndesign:preview-route-updated', (event) => {
+      previewRouteEvents.push(event as CustomEvent);
+    });
+
+    render(
+      <ProjectPreviewFrame
+        initialUpdatedAt="2026-05-15T00:00:00.000Z"
+        projectId="project-1"
+        projectName="Project One"
+      />,
+    );
+
+    const iframe = (await screen.findByTitle('Project One HTML 预览')) as HTMLIFrameElement;
+    const baselineEvents = previewRouteEvents.length;
+
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        data: {
+          hash: '#/pricing',
+          source: 'owndesign-preview',
+          type: 'route-changed',
+          version: 1,
+        },
+        origin: 'http://malicious.test',
+        source: iframe.contentWindow,
+      }),
+    );
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        data: {
+          hash: '/pricing',
+          source: 'owndesign-preview',
+          type: 'route-changed',
+          version: 1,
+        },
+        origin: 'http://127.0.0.1:3000',
+        source: iframe.contentWindow,
+      }),
+    );
+
+    expect(previewRouteEvents).toHaveLength(baselineEvents);
+  });
+
   it('renders the desktop preview iframe with the existing full-size class by default', async () => {
     mockPreviewFetch();
 

@@ -2,6 +2,10 @@ import { z } from 'zod';
 
 import type { WorkspaceToolDefinition } from './core';
 import type { WriteInput } from './types';
+import {
+  assertOwnDesignRuntimeScript,
+  isProtectedSingleHtmlPath,
+} from '@owndesign/core/templates/owndesign-runtime';
 
 const DESCRIPTION = [
   'Writes a file in the current Project Workspace.',
@@ -12,6 +16,7 @@ const DESCRIPTION = [
   '- If this is an existing file, you must use the read tool first to read the file contents.',
   '- Prefer editing existing files with the edit tool. Only write full files when intentional.',
   '- Use write to create index.html only when it is missing and the file content is complete.',
+  '- For index.html, preserve the OwnDesign protected runtime script unchanged, exactly once, as the last element inside <body>.',
   '- Never proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the user.',
   '- Only use emojis if the user explicitly requests them.',
 ].join('\n');
@@ -32,7 +37,12 @@ export function createWriteToolDefinition(): WorkspaceToolDefinition<
       .strict(),
     name: 'write',
     parallelSafe: false,
-    execute: async ({ content, path }, { projectId, workspaceStore }) =>
-      workspaceStore.writeProjectWorkspaceFile(projectId, path, content),
+    execute: async ({ content, path }, { projectId, workspaceStore }) => {
+      if (isProtectedSingleHtmlPath(path)) {
+        assertOwnDesignRuntimeScript(content);
+      }
+
+      return workspaceStore.writeProjectWorkspaceFile(projectId, path, content);
+    },
   };
 }

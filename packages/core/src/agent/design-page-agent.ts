@@ -19,7 +19,7 @@ import { createWorkspaceToolRegistry } from '@owndesign/core/agent/tools/core';
 import { loadPrompt } from '@owndesign/core/prompts';
 import { buildFrontendCapabilityPrompt } from '@owndesign/core/realtime/frontend-capabilities';
 
-export const DESIGN_PAGE_AGENT_PROMPT_VERSION = 5;
+export const DESIGN_PAGE_AGENT_PROMPT_VERSION = 6;
 
 export type DesignPageAgentInput = {
   content: string;
@@ -301,6 +301,8 @@ export function buildPageTargetProtocolPrompt() {
     '- Use normal hash navigation for page-level route changes. For in-page sub-state such as tabs, modals, drawers, side panels, filters, modes, and selected details, update the hash with `history.replaceState` so the Back button moves between pages instead of every toggle.',
     '- Navigation, tabs, modal and drawer controls, side-panel controls, filters, modes, and detail selectors should update `location.hash` when they control a deep-link-worthy design state.',
     '- Use local in-memory state only for ephemeral micro-interactions such as hover, focus, pressed feedback, transient toasts, loading spinners, and unsubmitted form typing.',
+    '- Preserve the OwnDesign protected runtime script with `data-owndesign-runtime="preview-route-bridge"` unchanged, exactly once, as the last element inside `<body>`.',
+    '- Put app-specific prototype JavaScript in a separate earlier script block, not inside the OwnDesign protected runtime script.',
     '- Use ordinary HTML, CSS, and browser JavaScript in the file.',
     '- Do not create custom elements, component module folders, or page/component reuse metadata files.',
     '- If `index.html` is missing, use `write` to create a complete `index.html` before refreshing preview.',
@@ -350,12 +352,13 @@ export function buildResourcePolicyPrompt(resources: ResourceSettings) {
       : 'Default icon library: none configured.',
     'The default HTML template already configures Inter and Noto Sans SC on the `html` element.',
     'Unless the user explicitly asks for a different typeface, do not change `font-family`; adjust typography with size, weight, line-height, spacing, and hierarchy.',
-    'Lucide icons are already configured by the default HTML template.',
+    'Lucide icons are already configured by the default HTML template and initialized by the protected OwnDesign runtime script.',
     'Use Lucide icons with `<i data-lucide="menu"></i>` syntax, replacing `menu` with the appropriate Lucide icon name.',
     'Do not use other icon systems, inline SVG icons, emoji icons, or decorative emoji as UI icons.',
     'When styling Lucide icons, do not target `i`, `i[data-lucide]`, or tag selectors because Lucide replaces the placeholder with inline `svg` elements.',
     'Give icons a semantic class or wrap them in a classed element, then style the class and child `svg`, such as `.nav-icon svg { width: 18px; height: 18px; stroke-width: 2; }`.',
     'If JavaScript dynamically inserts markup that contains Lucide placeholders, call `lucide.createIcons()` after updating the DOM.',
+    'Do not edit, move after another element, remove, duplicate, or add app logic inside the protected OwnDesign runtime script.',
     'Prefer configured resources and local CSS before adding any external resource.',
     'Add an extra external resource only when the user explicitly requests it or when it is necessary for the prototype quality.',
     'When a configured library has no CDN, follow the library choice in CSS naming only.',

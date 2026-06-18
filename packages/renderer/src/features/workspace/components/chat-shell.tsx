@@ -61,6 +61,7 @@ const CONVERSATION_PANE_EVENT = 'owndesign:conversation-pane';
 const PREVIEW_REFRESH_EVENT = 'owndesign:preview-refresh';
 const PREVIEW_HREF_EVENT = 'owndesign:preview-href-updated';
 const PREVIEW_FILES_EVENT = 'owndesign:preview-files-updated';
+const PREVIEW_ROUTE_EVENT = 'owndesign:preview-route-updated';
 
 type PreviewStatus = 'ready' | 'loading' | 'error';
 
@@ -104,6 +105,7 @@ export function ChatShell({
   const [previewDevice, setPreviewDevice] = useState<PreviewDevice>('desktop');
   const previewDeviceRef = useRef<PreviewDevice>('desktop');
   const [activePreviewPath, setActivePreviewPath] = useState<string>();
+  const [activePreviewRoute, setActivePreviewRoute] = useState('');
   const isConversationCollapsed = useSyncExternalStore(
     subscribeToConversationPaneState,
     readConversationPaneState,
@@ -167,6 +169,7 @@ export function ChatShell({
       const activePath =
         typeof event.detail?.activePath === 'string' ? event.detail.activePath : undefined;
       setActivePreviewPath(activePath);
+      setActivePreviewRoute('');
     };
 
     window.addEventListener(PREVIEW_FILES_EVENT, handlePreviewFilesUpdated);
@@ -175,6 +178,40 @@ export function ChatShell({
       window.removeEventListener(PREVIEW_FILES_EVENT, handlePreviewFilesUpdated);
     };
   }, []);
+
+  useEffect(() => {
+    setActivePreviewRoute('');
+  }, [activePreviewPath, previewProjectId]);
+
+  useEffect(() => {
+    const handlePreviewRouteUpdated = (event: Event) => {
+      if (!(event instanceof CustomEvent)) {
+        return;
+      }
+
+      const projectId =
+        typeof event.detail?.projectId === 'string' ? event.detail.projectId : undefined;
+      const activePath =
+        typeof event.detail?.activePath === 'string' ? event.detail.activePath : undefined;
+      const hash = typeof event.detail?.hash === 'string' ? event.detail.hash : undefined;
+
+      if (projectId !== previewProjectId || activePath !== activePreviewPath || hash === undefined) {
+        return;
+      }
+
+      if (hash !== '' && !hash.startsWith('#')) {
+        return;
+      }
+
+      setActivePreviewRoute(hash);
+    };
+
+    window.addEventListener(PREVIEW_ROUTE_EVENT, handlePreviewRouteUpdated);
+
+    return () => {
+      window.removeEventListener(PREVIEW_ROUTE_EVENT, handlePreviewRouteUpdated);
+    };
+  }, [activePreviewPath, previewProjectId]);
 
   const handlePreviewDeviceChange = (value: string | null) => {
     if (value !== 'desktop' && value !== 'mobile') {
@@ -200,6 +237,7 @@ export function ChatShell({
             'current-screenshot',
             activePreviewPath,
             previewDevice,
+            activePreviewRoute,
           ),
         )
       : undefined;
@@ -529,6 +567,7 @@ function buildProjectDownloadPath(
   kind: 'current-html' | 'current-screenshot' | 'workspace-zip',
   previewPath?: string,
   device?: PreviewDevice,
+  route?: string,
 ) {
   const params = new URLSearchParams({ kind });
 
@@ -539,6 +578,9 @@ function buildProjectDownloadPath(
   if (kind === 'current-screenshot' && previewPath) {
     params.set('previewPath', previewPath);
     params.set('device', device ?? 'desktop');
+    if (route) {
+      params.set('route', route);
+    }
   }
 
   return `/api/projects/${encodeURIComponent(projectId)}/download?${params.toString()}`;

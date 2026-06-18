@@ -661,11 +661,18 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
     }
 
     if (kind === 'current-screenshot') {
+      const route = parseScreenshotRoute(context.req.query('route'));
+
+      if (!route.ok) {
+        return context.text('Invalid download request.', 400);
+      }
+
       return downloadCurrentScreenshot(
         workspaceStore,
         projectId,
         context.req.query('previewPath') ?? null,
         parseScreenshotDevice(context.req.query('device')),
+        route.value,
       );
     }
 
@@ -815,6 +822,7 @@ async function downloadCurrentScreenshot(
   projectId: string,
   previewPath: string | null,
   device: ScreenshotDevice | undefined,
+  route: string | undefined,
 ) {
   if (!previewPath?.trim() || !previewPath.toLowerCase().endsWith('.html') || !device) {
     return new Response('Invalid download request.', { status: 400 });
@@ -833,13 +841,13 @@ async function downloadCurrentScreenshot(
 
     const content = await captureProjectScreenshot({
       device,
-      url: session.url,
+      url: buildScreenshotUrl(session.url, route),
     });
 
     return new Response(new Uint8Array(content), {
       headers: {
         'Content-Disposition': createAttachmentDisposition(
-          replaceDownloadExtension(path.basename(previewPath), '.png'),
+          createScreenshotDownloadFilename(previewPath, route),
         ),
         'Content-Type': 'image/png',
       },
@@ -901,14 +909,56 @@ function parseScreenshotDevice(value: string | undefined): ScreenshotDevice | un
   return value === 'desktop' || value === 'mobile' ? value : undefined;
 }
 
-function replaceDownloadExtension(filename: string, extension: string) {
-  const currentExtension = path.extname(filename);
-
-  if (!currentExtension) {
-    return `${filename}${extension}`;
+function parseScreenshotRoute(value: string | undefined) {
+  if (value === undefined || value === '') {
+    return { ok: true as const, value: undefined };
   }
 
-  return `${filename.slice(0, -currentExtension.length)}${extension}`;
+  if (!value.startsWith('#') || hasControlCharacter(value)) {
+    return { ok: false as const };
+  }
+
+  return { ok: true as const, value };
+}
+
+function hasControlCharacter(value: string) {
+  for (const character of value) {
+    const codePoint = character.codePointAt(0) ?? 0;
+
+    if (codePoint <= 0x1f || codePoint === 0x7f) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function buildScreenshotUrl(url: string, route: string | undefined) {
+  if (!route) {
+    return url;
+  }
+
+  const screenshotUrl = new URL(url);
+  screenshotUrl.hash = route;
+
+  return screenshotUrl.toString();
+}
+
+function createScreenshotDownloadFilename(previewPath: string, route: string | undefined) {
+  const extension = path.extname(previewPath);
+  const basename = path.basename(previewPath, extension) || 'screenshot';
+
+  if (!route) {
+    return `${basename}.png`;
+  }
+
+  const routeSlug = route
+    .slice(1)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
+  return `${basename}${routeSlug ? `-${routeSlug}` : ''}.png`;
 }
 
 function sanitizeDownloadFilename(value: string | undefined) {

@@ -5,6 +5,7 @@ import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { ProjectService } from './project-service';
+import { assertOwnDesignRuntimeScript } from '@owndesign/core/templates/owndesign-runtime';
 import { WorkspaceStore } from '@owndesign/core/workspace-store';
 
 const tempRoots: string[] = [];
@@ -61,18 +62,19 @@ describe('ProjectService', () => {
     expect(conversationJson.projectId).toBe(createdProject.id);
     expect(conversationJson.title).toBe('新建会话');
     expect(conversationJson.messages).toEqual([]);
-    await expect(
-      readFile(
-        path.join(
-          workspaceStore.getWorkspaceRoot(),
-          'projects',
-          createdProject.id,
-          'workspace',
-          'index.html',
-        ),
-        'utf8',
+    const indexHtml = await readFile(
+      path.join(
+        workspaceStore.getWorkspaceRoot(),
+        'projects',
+        createdProject.id,
+        'workspace',
+        'index.html',
       ),
-    ).resolves.toContain('<main id="app"></main>');
+      'utf8',
+    );
+
+    expect(indexHtml).toContain('<main id="app"></main>');
+    expect(() => assertOwnDesignRuntimeScript(indexHtml)).not.toThrow();
   });
 
   it('rejects reserved React projects', async () => {

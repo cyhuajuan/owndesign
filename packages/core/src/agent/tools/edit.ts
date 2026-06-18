@@ -2,6 +2,13 @@ import { z } from 'zod';
 
 import type { WorkspaceToolDefinition } from './core';
 import type { EditInput } from './types';
+import { buildUnifiedDiff } from '@owndesign/core/workspace-store/diff';
+import { normalizeWorkspaceRelativePath } from '@owndesign/core/workspace-store/paths';
+import { applyTextEdit } from '@owndesign/core/workspace-store/text';
+import {
+  assertOwnDesignRuntimeScript,
+  isProtectedSingleHtmlPath,
+} from '@owndesign/core/templates/owndesign-runtime';
 
 const DESCRIPTION = [
   'Performs exact string replacements in Project Workspace files.',
@@ -14,6 +21,7 @@ const DESCRIPTION = [
   '- Never include any part of the line number prefix in oldString or newString.',
   '- Provide oldString as the literal file content. Do not add backslash escapes to quotes or backticks (\\" \\\' \\`), even when the text is inside a JavaScript template literal or string.',
   '- Prefer editing existing files. Only create new files when the user request explicitly requires it.',
+  '- For index.html, preserve the OwnDesign protected runtime script unchanged, exactly once, as the last element inside <body>.',
   '- Only use emojis if the user explicitly requests them.',
   '- The edit will fail if oldString is not found in the file.',
   '- The edit will fail if oldString is found multiple times unless replaceAll is true.',
@@ -46,7 +54,27 @@ export function createEditToolDefinition(): WorkspaceToolDefinition<
       .strict(),
     name: 'edit',
     parallelSafe: false,
-    execute: async ({ newString, oldString, path, replaceAll }, { projectId, workspaceStore }) =>
-      workspaceStore.editProjectWorkspaceFile(projectId, path, oldString, newString, replaceAll),
+    execute: async ({ newString, oldString, path, replaceAll }, { projectId, workspaceStore }) => {
+      const content = await workspaceStore.readProjectWorkspaceFile(projectId, path);
+      const { content: updatedContent, replacements } = applyTextEdit(
+        content,
+        oldString,
+        newString,
+        replaceAll,
+        path,
+      );
+
+      if (isProtectedSingleHtmlPath(path)) {
+        assertOwnDesignRuntimeScript(updatedContent);
+      }
+
+      await workspaceStore.writeProjectWorkspaceFile(projectId, path, updatedContent);
+
+      return {
+        diff: buildUnifiedDiff(content, updatedContent, normalizeWorkspaceRelativePath(path)),
+        path: normalizeWorkspaceRelativePath(path),
+        replacements: replaceAll ? replacements : 1,
+      };
+    },
   };
 }

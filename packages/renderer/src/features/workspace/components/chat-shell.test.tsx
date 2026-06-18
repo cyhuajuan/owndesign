@@ -338,6 +338,40 @@ describe('ChatShell', () => {
     ]);
   });
 
+  it('downloads current preview screenshot using the current hash route', async () => {
+    const user = userEvent.setup();
+
+    render(<ChatShell previewProjectId="project-1" />);
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent('owndesign:preview-files-updated', {
+          detail: {
+            activePath: 'index.html',
+            files: ['index.html'],
+          },
+        }),
+      );
+    });
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent('owndesign:preview-route-updated', {
+          detail: {
+            activePath: 'index.html',
+            hash: '#/pricing',
+            projectId: 'project-1',
+          },
+        }),
+      );
+    });
+
+    await user.click(screen.getByRole('button', { name: '下载' }));
+    await user.click(await screen.findByText('下载界面图片PNG'));
+
+    expect(anchorClicks).toEqual([
+      'http://localhost:3000/api/projects/project-1/download?kind=current-screenshot&previewPath=index.html&device=desktop&route=%23%2Fpricing',
+    ]);
+  });
+
   it('downloads current preview screenshot using the mobile device', async () => {
     const user = userEvent.setup();
 
@@ -352,6 +386,17 @@ describe('ChatShell', () => {
         }),
       );
     });
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent('owndesign:preview-route-updated', {
+          detail: {
+            activePath: 'index.html',
+            hash: '#/orders?tab=kanban',
+            projectId: 'project-1',
+          },
+        }),
+      );
+    });
 
     const previewPane = screen.getByRole('region', { name: '预览面板' });
     await user.click(within(previewPane).getByRole('combobox', { name: '预览设备' }));
@@ -360,7 +405,51 @@ describe('ChatShell', () => {
     await user.click(await screen.findByText('下载界面图片PNG'));
 
     expect(anchorClicks).toEqual([
-      'http://localhost:3000/api/projects/project-1/download?kind=current-screenshot&previewPath=index.html&device=mobile',
+      'http://localhost:3000/api/projects/project-1/download?kind=current-screenshot&previewPath=index.html&device=mobile&route=%23%2Forders%3Ftab%3Dkanban',
+    ]);
+  });
+
+  it('clears the screenshot hash route when the active preview path changes', async () => {
+    const user = userEvent.setup();
+
+    render(<ChatShell previewProjectId="project-1" />);
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent('owndesign:preview-files-updated', {
+          detail: {
+            activePath: 'index.html',
+            files: ['index.html', 'detail.html'],
+          },
+        }),
+      );
+    });
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent('owndesign:preview-route-updated', {
+          detail: {
+            activePath: 'index.html',
+            hash: '#/pricing',
+            projectId: 'project-1',
+          },
+        }),
+      );
+    });
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent('owndesign:preview-files-updated', {
+          detail: {
+            activePath: 'detail.html',
+            files: ['index.html', 'detail.html'],
+          },
+        }),
+      );
+    });
+
+    await user.click(screen.getByRole('button', { name: '下载' }));
+    await user.click(await screen.findByText('下载界面图片PNG'));
+
+    expect(anchorClicks).toEqual([
+      'http://localhost:3000/api/projects/project-1/download?kind=current-screenshot&previewPath=detail.html&device=desktop',
     ]);
   });
 });

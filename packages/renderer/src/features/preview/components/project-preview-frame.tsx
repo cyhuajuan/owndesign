@@ -29,6 +29,7 @@ type PreviewSessionStatus = 'empty' | 'loading' | 'ready';
 const PREVIEW_HREF_EVENT = 'owndesign:preview-href-updated';
 const PREVIEW_FILES_EVENT = 'owndesign:preview-files-updated';
 const PREVIEW_MANUAL_SWITCH_EVENT = 'owndesign:preview-manual-switch';
+const PREVIEW_ROUTE_EVENT = 'owndesign:preview-route-updated';
 const HEARTBEAT_INTERVAL_MS = 30_000;
 
 export function ProjectPreviewFrame({
@@ -42,7 +43,9 @@ export function ProjectPreviewFrame({
   const clientId = useRef(createClientId());
   const [selectedPreviewPath, setPreviewPath] = usePreviewPath();
   const pendingRouteSyncPathRef = useRef<string | undefined>(undefined);
+  const previewFrameRef = useRef<HTMLIFrameElement | null>(null);
   const previewProjectIdRef = useRef<string | undefined>(undefined);
+  const activePreviewPathRef = useRef<string | undefined>(undefined);
   const previewUrlRef = useRef<string | undefined>(undefined);
   const [previewUrl, setPreviewUrl] = useState<string>();
   const [previewSessionStatus, setPreviewSessionStatus] =
@@ -78,19 +81,26 @@ export function ProjectPreviewFrame({
       previewProjectIdRef.current = projectId;
       if (session.files.length === 0) {
         previewUrlRef.current = undefined;
+        activePreviewPathRef.current = undefined;
         setCurrentPreviewPath(undefined);
         publishPreviewHref(undefined);
         publishPreviewFiles([]);
+        publishPreviewRoute(projectId, undefined, '');
         setPreviewUrl(undefined);
         setPreviewSessionStatus('empty');
         return;
       }
 
       const hadPreviewUrl = Boolean(previewUrlRef.current);
+      const previousPreviewPath = activePreviewPathRef.current;
       previewUrlRef.current = session.url;
+      activePreviewPathRef.current = session.activePath;
       setCurrentPreviewPath(session.activePath);
       publishPreviewHref(session.url);
       publishPreviewFiles(session.files, session.activePath, session.pageManifest);
+      if (session.activePath !== previousPreviewPath) {
+        publishPreviewRoute(projectId, session.activePath, '');
+      }
       setPreviewSessionStatus('ready');
 
       if (updateFrameSrc || !hadPreviewUrl) {
@@ -116,7 +126,9 @@ export function ProjectPreviewFrame({
       if (!canKeepCurrentPreview) {
         setPreviewUrl(undefined);
         previewUrlRef.current = undefined;
+        activePreviewPathRef.current = undefined;
         publishPreviewHref(undefined);
+        publishPreviewRoute(projectId, undefined, '');
       }
 
       try {
@@ -134,9 +146,11 @@ export function ProjectPreviewFrame({
         if (isActive && !canKeepCurrentPreview) {
           setPreviewUrl(undefined);
           previewUrlRef.current = undefined;
+          activePreviewPathRef.current = undefined;
           setPreviewSessionStatus('loading');
           publishPreviewHref(undefined);
           publishPreviewFiles([]);
+          publishPreviewRoute(projectId, undefined, '');
         }
       }
     }
@@ -160,9 +174,11 @@ export function ProjectPreviewFrame({
           if (isActive) {
             setPreviewUrl(undefined);
             previewUrlRef.current = undefined;
+            activePreviewPathRef.current = undefined;
             setPreviewSessionStatus('loading');
             publishPreviewHref(undefined);
             publishPreviewFiles([]);
+            publishPreviewRoute(projectId, undefined, '');
           }
         });
     }, HEARTBEAT_INTERVAL_MS);
@@ -204,9 +220,11 @@ export function ProjectPreviewFrame({
     } catch {
       setPreviewUrl(undefined);
       previewUrlRef.current = undefined;
+      activePreviewPathRef.current = undefined;
       setPreviewSessionStatus('loading');
       publishPreviewHref(undefined);
       publishPreviewFiles([]);
+      publishPreviewRoute(projectId, undefined, '');
     }
   };
 
@@ -214,9 +232,11 @@ export function ProjectPreviewFrame({
     const currentClientId = clientId.current;
 
     return () => {
+      activePreviewPathRef.current = undefined;
       setCurrentPreviewPath(undefined);
       publishPreviewHref(undefined);
       publishPreviewFiles([]);
+      publishPreviewRoute(projectId, undefined, '');
       void fetch(api.buildUrl(`/api/projects/${encodeURIComponent(projectId)}/preview-session`), {
         body: JSON.stringify({
           clientId: currentClientId,
@@ -294,6 +314,34 @@ export function ProjectPreviewFrame({
     };
   }, []);
 
+  useEffect(() => {
+    const handlePreviewRouteMessage = (event: MessageEvent) => {
+      const frameWindow = previewFrameRef.current?.contentWindow;
+
+      if (!frameWindow || event.source !== frameWindow) {
+        return;
+      }
+
+      const previewOrigin = getUrlOrigin(previewUrlRef.current);
+
+      if (!previewOrigin || event.origin !== previewOrigin) {
+        return;
+      }
+
+      if (!isPreviewRouteMessage(event.data)) {
+        return;
+      }
+
+      publishPreviewRoute(projectId, activePreviewPathRef.current, event.data.hash);
+    };
+
+    window.addEventListener('message', handlePreviewRouteMessage);
+
+    return () => {
+      window.removeEventListener('message', handlePreviewRouteMessage);
+    };
+  }, [projectId]);
+
   if (previewSessionStatus === 'empty') {
     return (
       <PreviewEmptyState
@@ -325,6 +373,7 @@ export function ProjectPreviewFrame({
       }}
       sandbox="allow-scripts allow-same-origin"
       src={previewUrl}
+      ref={previewFrameRef}
       title={t('preview.htmlTitle', { projectName })}
     />
   );
@@ -366,4 +415,58 @@ function publishPreviewFiles(
       detail: { activePath, files, pageManifest },
     }),
   );
+}
+
+function publishPreviewRoute(projectId: string, activePath: string | undefined, hash: string) {
+  window.dispatchEvent(
+    new CustomEvent(PREVIEW_ROUTE_EVENT, {
+      detail: { activePath, hash, projectId },
+    }),
+  );
+}
+
+function getUrlOrigin(url: string | undefined) {
+  if (!url) {
+    return undefined;
+  }
+
+  try {
+    return new URL(url).origin;
+  } catch {
+    return undefined;
+  }
+}
+
+function isPreviewRouteMessage(value: unknown): value is {
+  hash: string;
+  source: 'owndesign-preview';
+  type: 'route-changed';
+  version: 1;
+} {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const record = value as Record<string, unknown>;
+
+  return (
+    record.source === 'owndesign-preview' &&
+    record.type === 'route-changed' &&
+    record.version === 1 &&
+    typeof record.hash === 'string' &&
+    (record.hash === '' || record.hash.startsWith('#')) &&
+    !hasControlCharacter(record.hash)
+  );
+}
+
+function hasControlCharacter(value: string) {
+  for (const character of value) {
+    const codePoint = character.codePointAt(0) ?? 0;
+
+    if (codePoint <= 0x1f || codePoint === 0x7f) {
+      return true;
+    }
+  }
+
+  return false;
 }

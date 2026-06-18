@@ -12,6 +12,8 @@ import {
   createDesignPageAgentContext,
 } from './design-page-agent';
 import { loadPrompt } from '@owndesign/core/prompts';
+import { buildSingleHtmlTemplate } from '@owndesign/core/templates/single-html';
+import { OWNDESIGN_RUNTIME_SCRIPT_TAG } from '@owndesign/core/templates/owndesign-runtime';
 import { WorkspaceStore } from '@owndesign/core/workspace-store';
 
 const aiMocks = vi.hoisted(() => {
@@ -118,7 +120,7 @@ describe('AiSdkDesignPageAgent', () => {
     expect(loadPrompt('agents/design-page')).toContain(
       "OwnDesign's single HTML page design agent",
     );
-    expect(DESIGN_PAGE_AGENT_PROMPT_VERSION).toBe(5);
+    expect(DESIGN_PAGE_AGENT_PROMPT_VERSION).toBe(6);
   });
 
   it('builds single HTML conversation instructions without old architecture terms', () => {
@@ -142,6 +144,8 @@ describe('AiSdkDesignPageAgent', () => {
     expect(instructions).toContain('Do not inherit assumptions from general coding agents');
     expect(instructions).toContain('Do not create additional HTML pages');
     expect(instructions).toContain('Use `<main id="app">` for the visible app/page body');
+    expect(instructions).toContain('data-owndesign-runtime="preview-route-bridge"');
+    expect(instructions).toContain('as the last element inside `<body>`');
     expect(instructions).toContain(
       'reset, tokens, layout, components, states, responsive rules, and motion',
     );
@@ -163,6 +167,7 @@ describe('AiSdkDesignPageAgent', () => {
     expect(instructions).toContain('modal open and close controls');
     expect(instructions).toContain('deep-link-worthy design state');
     expect(instructions).toContain('Hash recovery: any route, tab, modal, drawer, panel');
+    expect(instructions).toContain('Runtime: the OwnDesign protected runtime script');
     expect(instructions).toContain('only prototype behavior that is needed for visible interaction');
     expect(instructions).toContain('Every rendered `index.html` should feel like a complete product-quality prototype');
     expect(instructions).toContain('Let the subject matter shape the interface');
@@ -207,6 +212,7 @@ describe('AiSdkDesignPageAgent', () => {
     expect(instructions).toContain('do not target `i`, `i[data-lucide]`, or tag selectors');
     expect(instructions).toContain('.nav-icon svg { width: 18px; height: 18px; stroke-width: 2; }');
     expect(instructions).toContain('call `lucide.createIcons()` after updating the DOM');
+    expect(instructions).toContain('Do not edit, move after another element, remove, duplicate');
     expect(instructions).toContain('Add an extra external resource only when the user explicitly requests it');
     expect(instructions).not.toContain('You are Codex');
     expect(instructions).not.toContain('shell');
@@ -317,8 +323,10 @@ describe('AiSdkDesignPageAgent', () => {
     const workspaceStore = await createWorkspaceStore();
     await createProject(workspaceStore, { initializeIndex: false });
     const tools = await createTools(workspaceStore);
-    const html =
-      '<!doctype html><html><head><title>CRM</title></head><body><main id="app">Dashboard</main></body></html>';
+    const html = buildSingleHtmlTemplate({ title: 'CRM' }).replace(
+      '<main id="app"></main>',
+      '<main id="app">Dashboard</main>',
+    );
 
     await expectWorkspaceToolOk(tools.write.execute({ content: html, path: 'index.html' }));
 
@@ -334,14 +342,15 @@ describe('AiSdkDesignPageAgent', () => {
     const workspaceStore = await createWorkspaceStore();
     await createProject(workspaceStore);
     const tools = await createTools(workspaceStore);
-    const html =
-      '<!doctype html><html><head><script src="https://cdn.tailwindcss.com"></script></head><body><main>Old</main></body></html>';
+    const html = buildSingleHtmlTemplate({ title: 'CRM' })
+      .replace('</head>', '<script src="https://cdn.tailwindcss.com"></script>\n</head>')
+      .replace('<main id="app"></main>', '<main id="app">Old</main>');
 
     await expectWorkspaceToolOk(tools.write.execute({ content: html, path: 'index.html' }));
     await expectWorkspaceToolOk(
       tools.edit.execute({
         newString: '<main>New</main>',
-        oldString: '<main>Old</main>',
+        oldString: '<main id="app">Old</main>',
         path: 'index.html',
       }),
     );
@@ -351,6 +360,79 @@ describe('AiSdkDesignPageAgent', () => {
     );
     await expect(workspaceStore.readProjectWorkspaceFile('project-1', 'index.html')).resolves.toContain(
       '<main>New</main>',
+    );
+  });
+
+  it('rejects agent writes that change the protected runtime script', async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    const tools = await createTools(workspaceStore);
+    const html = buildSingleHtmlTemplate({ title: 'CRM' });
+
+    for (const content of [
+      html.replace(OWNDESIGN_RUNTIME_SCRIPT_TAG, ''),
+      html.replace('route-changed', 'route-updated'),
+      html.replace('</body>', `${OWNDESIGN_RUNTIME_SCRIPT_TAG}\n</body>`),
+    ]) {
+      await expectWorkspaceToolError(
+        tools.write.execute({
+          content,
+          path: 'index.html',
+        }),
+        'OwnDesign runtime script',
+      );
+    }
+
+    await expect(workspaceStore.readProjectWorkspaceFile('project-1', 'index.html')).resolves.toBe(
+      '<!doctype html><html><body><main>Initial</main></body></html>',
+    );
+  });
+
+  it('rejects agent edits that move content after the protected runtime script', async () => {
+    const workspaceStore = await createWorkspaceStore();
+    const html = buildSingleHtmlTemplate({ title: 'CRM' });
+    await createProject(workspaceStore, { content: html });
+    const tools = await createTools(workspaceStore);
+
+    await expectWorkspaceToolError(
+      tools.edit.execute({
+        newString: '<div>After</div>\n</body>',
+        oldString: '</body>',
+        path: 'index.html',
+      }),
+      'last element',
+    );
+
+    await expect(workspaceStore.readProjectWorkspaceFile('project-1', 'index.html')).resolves.toBe(
+      html,
+    );
+  });
+
+  it('allows agent edits outside the protected runtime script and non-index writes', async () => {
+    const workspaceStore = await createWorkspaceStore();
+    const html = buildSingleHtmlTemplate({ title: 'CRM' });
+    await createProject(workspaceStore, { content: html });
+    const tools = await createTools(workspaceStore);
+
+    await expectWorkspaceToolOk(
+      tools.edit.execute({
+        newString: '<main id="app">Updated</main>',
+        oldString: '<main id="app"></main>',
+        path: 'index.html',
+      }),
+    );
+    await expectWorkspaceToolOk(
+      tools.write.execute({
+        content: '<main>No runtime needed</main>',
+        path: 'notes.html',
+      }),
+    );
+
+    await expect(workspaceStore.readProjectWorkspaceFile('project-1', 'index.html')).resolves.toContain(
+      '<main id="app">Updated</main>',
+    );
+    await expect(workspaceStore.readProjectWorkspaceFile('project-1', 'notes.html')).resolves.toBe(
+      '<main>No runtime needed</main>',
     );
   });
 
@@ -379,7 +461,7 @@ async function createWorkspaceStore() {
 
 async function createProject(
   workspaceStore: WorkspaceStore,
-  options: { initializeIndex?: boolean } = {},
+  options: { content?: string; initializeIndex?: boolean } = {},
 ) {
   await workspaceStore.createProject({
     id: 'project-1',
@@ -394,7 +476,7 @@ async function createProject(
     await workspaceStore.writeProjectWorkspaceFile(
       'project-1',
       'index.html',
-      '<!doctype html><html><body><main>Initial</main></body></html>',
+      options.content ?? '<!doctype html><html><body><main>Initial</main></body></html>',
     );
   }
 }
@@ -408,7 +490,13 @@ async function createTools(workspaceStore: WorkspaceStore) {
 
   createDesignPageAgent(context);
 
-  return (aiMocks.toolLoopAgent.mock.calls.at(-1)?.[0] as {
+  const agentConfig = aiMocks.toolLoopAgent.mock.calls.at(-1)?.[0];
+
+  if (!agentConfig) {
+    throw new Error('Expected ToolLoopAgent to be constructed.');
+  }
+
+  return (agentConfig as {
     tools: Record<
       string,
       {
@@ -423,6 +511,18 @@ async function expectWorkspaceToolOk(promise: Promise<unknown>) {
 
   expect(result).toMatchObject({
     ok: true,
+    wallTimeMs: expect.any(Number),
+  });
+
+  return result;
+}
+
+async function expectWorkspaceToolError(promise: Promise<unknown>, message: string) {
+  const result = await promise;
+
+  expect(result).toMatchObject({
+    error: expect.stringContaining(message),
+    ok: false,
     wallTimeMs: expect.any(Number),
   });
 

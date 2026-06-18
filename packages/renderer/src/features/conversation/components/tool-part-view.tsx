@@ -108,14 +108,10 @@ function getToolAction(
   t: ReturnType<typeof useI18n>['t'],
 ) {
   const actionKeys: Record<string, Parameters<typeof t>[0]> = {
-    copyFile: 'tool.action.copyFile',
-    createHtml: 'tool.action.createHtml',
-    delete: 'tool.action.delete',
     edit: isIndexHtmlPath(target) ? 'tool.action.editPage' : 'tool.action.editFile',
     glob: 'tool.action.glob',
     grep: 'tool.action.grep',
     previewRefresh: 'tool.action.previewRefresh',
-    previewSwitchHtml: 'tool.action.previewSwitchHtml',
     read: isIndexHtmlPath(target) ? 'tool.action.readPage' : 'tool.action.readFile',
     write: isIndexHtmlPath(target) ? 'tool.action.writePage' : 'tool.action.writeFile',
   };

@@ -5,7 +5,7 @@ import {
   WorkspaceStore,
 } from '@owndesign/core/workspace-store';
 import { normalizeDefaultConversationTitle } from '@owndesign/core/conversations/default-title';
-import { buildSingleHtmlTemplate } from '@owndesign/core/agent/tools/create-html';
+import { buildSingleHtmlTemplate } from '@owndesign/core/templates/single-html';
 
 type CreateProjectInput = {
   defaultConversationTitle?: string;

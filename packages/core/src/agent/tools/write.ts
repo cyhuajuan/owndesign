@@ -11,7 +11,7 @@ const DESCRIPTION = [
   '- The path parameter must be a relative file path inside the Project Workspace.',
   '- If this is an existing file, you must use the read tool first to read the file contents.',
   '- Prefer editing existing files with the edit tool. Only write full files when intentional.',
-  '- Do not use write to create the initial index.html; use createHtml first.',
+  '- Use write to create index.html only when it is missing and the file content is complete.',
   '- Never proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the user.',
   '- Only use emojis if the user explicitly requests them.',
 ].join('\n');

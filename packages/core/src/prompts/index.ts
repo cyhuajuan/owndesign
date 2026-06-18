@@ -3,7 +3,6 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const PROMPT_FILES = {
-  'agents/component-audit': 'agents/component-audit.md',
   'agents/design-page': 'agents/design-page.md',
 } as const;
 

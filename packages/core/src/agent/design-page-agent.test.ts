@@ -118,7 +118,7 @@ describe('AiSdkDesignPageAgent', () => {
     expect(loadPrompt('agents/design-page')).toContain(
       "OwnDesign's single HTML page design agent",
     );
-    expect(DESIGN_PAGE_AGENT_PROMPT_VERSION).toBe(4);
+    expect(DESIGN_PAGE_AGENT_PROMPT_VERSION).toBe(5);
   });
 
   it('builds single HTML conversation instructions without old architecture terms', () => {
@@ -130,7 +130,7 @@ describe('AiSdkDesignPageAgent', () => {
     expect(instructions).toContain('<frontend_capabilities>');
     expect(instructions).toContain('<resource_policy>');
     expect(instructions).toContain('The project has one previewable file: `index.html`');
-    expect(instructions).toContain('createHtml({ path: "index.html" })');
+    expect(instructions).toContain('use `write` to create a complete `index.html`');
     expect(instructions).toContain('previewRefresh');
     expect(instructions).toContain('retry with a smaller, exact edit');
     expect(instructions).toContain("OwnDesign's single HTML page design agent");
@@ -219,6 +219,8 @@ describe('AiSdkDesignPageAgent', () => {
     expect(instructions).not.toContain(':host');
     expect(instructions).not.toContain('pages/od-');
     expect(instructions).not.toContain('manifest');
+    expect(instructions).not.toContain('copyFile');
+    expect(instructions).not.toContain('createHtml');
     expect(instructions).not.toContain('syncSharedComponent');
     expect(instructions).not.toContain('previewSwitchHtml');
     expect(instructions).not.toContain('componentAudit');
@@ -280,9 +282,6 @@ describe('AiSdkDesignPageAgent', () => {
     expect(config.maxRetries).toBe(5);
     expect(Object.keys(config.tools)).toEqual(
       expect.arrayContaining([
-        'copyFile',
-        'createHtml',
-        'delete',
         'edit',
         'glob',
         'grep',
@@ -291,6 +290,10 @@ describe('AiSdkDesignPageAgent', () => {
         'write',
       ]),
     );
+    expect(Object.keys(config.tools)).toHaveLength(6);
+    expect(config.tools).not.toHaveProperty('copyFile');
+    expect(config.tools).not.toHaveProperty('createHtml');
+    expect(config.tools).not.toHaveProperty('delete');
     expect(config.tools).not.toHaveProperty('patch');
     expect(config.tools).not.toHaveProperty('previewSwitchHtml');
     expect(config.tools).not.toHaveProperty('syncSharedComponent');
@@ -310,37 +313,21 @@ describe('AiSdkDesignPageAgent', () => {
     expect(tools.write.description).toContain('Prefer editing existing files with the edit tool');
   });
 
-  it('creates only index.html from the single HTML template', async () => {
+  it('creates missing index.html with write', async () => {
     const workspaceStore = await createWorkspaceStore();
     await createProject(workspaceStore, { initializeIndex: false });
     const tools = await createTools(workspaceStore);
+    const html =
+      '<!doctype html><html><head><title>CRM</title></head><body><main id="app">Dashboard</main></body></html>';
 
-    await expectWorkspaceToolOk(tools.createHtml.execute({ path: 'index.html', title: 'CRM' }));
+    await expectWorkspaceToolOk(tools.write.execute({ content: html, path: 'index.html' }));
 
-    const html = await workspaceStore.readProjectWorkspaceFile('project-1', 'index.html');
+    const writtenHtml = await workspaceStore.readProjectWorkspaceFile('project-1', 'index.html');
     const entries = await workspaceStore.listProjectWorkspace('project-1');
 
-    expect(html).toContain('<main id="app"></main>');
-    expect(html).toContain('body {');
-    expect(html).toContain('margin: 0;');
-    expect(html).toContain('<script>');
-    expect(html).not.toContain('customElements.define');
+    expect(writtenHtml).toBe(html);
+    expect(entries.map((entry) => entry.path)).toContain('index.html');
     expect(entries.map((entry) => entry.path)).not.toContain('pages/od-index-page.js');
-  });
-
-  it('rejects non-index createHtml targets and existing index.html', async () => {
-    const workspaceStore = await createWorkspaceStore();
-    await createProject(workspaceStore);
-    const tools = await createTools(workspaceStore);
-
-    await expectWorkspaceToolError(
-      tools.createHtml.execute({ path: 'detail.html' }),
-      'Single HTML projects can only create index.html',
-    );
-    await expectWorkspaceToolError(
-      tools.createHtml.execute({ path: 'index.html' }),
-      'Project Workspace HTML file already exists',
-    );
   });
 
   it('allows HTML writes and edits without CDN guard rejection', async () => {
@@ -440,12 +427,4 @@ async function expectWorkspaceToolOk(promise: Promise<unknown>) {
   });
 
   return result;
-}
-
-async function expectWorkspaceToolError(promise: Promise<unknown>, message: string) {
-  await expect(promise).resolves.toMatchObject({
-    error: expect.stringContaining(message),
-    ok: false,
-    wallTimeMs: expect.any(Number),
-  });
 }

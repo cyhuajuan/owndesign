@@ -575,13 +575,6 @@ describe('MessageParts', () => {
               toolCallId: 'call-1',
               type: 'tool-previewRefresh',
             },
-            {
-              input: { path: 'index.html' },
-              output: { path: 'index.html' },
-              state: 'output-available',
-              toolCallId: 'call-2',
-              type: 'tool-previewSwitchHtml',
-            },
           ],
           role: 'assistant',
         }}
@@ -589,7 +582,6 @@ describe('MessageParts', () => {
     );
 
     expect(screen.getByText('已刷新预览')).toBeInTheDocument();
-    expect(screen.getByText('已切换预览')).toBeInTheDocument();
     expect(screen.queryByText('已刷新预览文件')).not.toBeInTheDocument();
   });
 
@@ -1006,46 +998,6 @@ describe('MessageParts', () => {
 
     expect(screen.queryByText('正在思考')).not.toBeInTheDocument();
     expect(screen.queryByText('历史思考不应显示。')).not.toBeInTheDocument();
-  });
-
-  it('does not dispatch preview refresh after createHtml output completes', () => {
-    const dispatchEventSpy = vi.spyOn(window, 'dispatchEvent');
-    vi.mocked(useChat).mockReturnValue({
-      addToolApprovalResponse: vi.fn(),
-      error: undefined,
-      messages: [
-        {
-          id: 'assistant-1',
-          parts: [
-            {
-              input: { path: 'index.html' },
-              output: {
-                path: 'index.html',
-                title: 'OwnDesign Preview',
-              },
-              state: 'output-available',
-              toolCallId: 'call-1',
-              type: 'tool-createHtml',
-            },
-          ],
-          role: 'assistant',
-        },
-      ],
-      sendMessage: vi.fn(),
-      status: 'ready',
-    } as unknown as ReturnType<typeof useChat>);
-
-    render(
-      <StreamingConversationPanel
-        conversationId="conversation-1"
-        conversationTitle="新建会话"
-        initialMessages={[]}
-        projectId="project-1"
-      />,
-    );
-
-    expect(getProjectOutputUpdatedEvents(dispatchEventSpy)).toHaveLength(0);
-    dispatchEventSpy.mockRestore();
   });
 
   it('includes current preview path in the chat transport body', () => {

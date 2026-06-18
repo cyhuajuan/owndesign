@@ -1,7 +1,4 @@
 import { createWorkspaceToolRegistry } from './core';
-import { createCopyFileToolDefinition } from './copy-file';
-import { createCreateHtmlToolDefinition } from './create-html';
-import { createDeleteToolDefinition } from './delete';
 import { createEditToolDefinition } from './edit';
 import { createGlobToolDefinition } from './glob';
 import { createGrepToolDefinition } from './grep';
@@ -12,9 +9,6 @@ import { createWriteToolDefinition } from './write';
 
 export function createProjectWorkspaceToolDefinitions() {
   return [
-    createCopyFileToolDefinition(),
-    createCreateHtmlToolDefinition(),
-    createDeleteToolDefinition(),
     createEditToolDefinition(),
     createGlobToolDefinition(),
     createGrepToolDefinition(),

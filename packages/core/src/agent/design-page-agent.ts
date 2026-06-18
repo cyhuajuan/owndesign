@@ -19,7 +19,7 @@ import { createWorkspaceToolRegistry } from '@owndesign/core/agent/tools/core';
 import { loadPrompt } from '@owndesign/core/prompts';
 import { buildFrontendCapabilityPrompt } from '@owndesign/core/realtime/frontend-capabilities';
 
-export const DESIGN_PAGE_AGENT_PROMPT_VERSION = 4;
+export const DESIGN_PAGE_AGENT_PROMPT_VERSION = 5;
 
 export type DesignPageAgentInput = {
   content: string;
@@ -303,7 +303,7 @@ export function buildPageTargetProtocolPrompt() {
     '- Use local in-memory state only for ephemeral micro-interactions such as hover, focus, pressed feedback, transient toasts, loading spinners, and unsubmitted form typing.',
     '- Use ordinary HTML, CSS, and browser JavaScript in the file.',
     '- Do not create custom elements, component module folders, or page/component reuse metadata files.',
-    '- If `index.html` is missing, call `createHtml({ path: "index.html" })` before editing.',
+    '- If `index.html` is missing, use `write` to create a complete `index.html` before refreshing preview.',
     '- If `index.html` exists, read it before editing and continue from the current design.',
   ].join('\n');
 }
@@ -319,16 +319,12 @@ export function buildToolWorkflowPrompt() {
     '- Use `read` before editing an existing file.',
     '',
     'Choose tools by intent:',
-    '- Use `createHtml` only to create a missing `index.html` file.',
     '- Use `edit` for small, focused replacements in one existing file.',
-    '- Use `write` only for deliberate full-file replacement of `index.html`.',
-    '- Do not use `write` to create the initial `index.html`; use `createHtml` first.',
-    '- Use `copyFile` only when the current user message explicitly asks you to duplicate an existing file.',
-    '- Use `delete` only after confirming the file is not referenced.',
+    '- Use `write` only for deliberate full-file replacement of `index.html` or to create a missing `index.html` with complete content.',
     '',
     'Single HTML create vs update flow:',
-    '- When `index.html` is missing, call `createHtml({ path: "index.html" })`, then read it and replace the default placeholder markup, CSS, and script with a complete designed prototype.',
-    '- When `index.html` exists, read it before editing and do not call `createHtml`.',
+    '- When `index.html` is missing, use `write` with a complete designed prototype.',
+    '- When `index.html` exists, read it before editing.',
     '',
     'Recover from tool failures:',
     '- If an edit fails, read the file again and retry with a smaller, exact edit.',

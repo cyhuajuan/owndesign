@@ -57,7 +57,6 @@ type ChatRequestBody = {
   message?: unknown;
   messages?: unknown;
   modelConfigurationId?: unknown;
-  previewPath?: unknown;
   projectId?: unknown;
   projectType?: unknown;
   providerOptionsSelection?: unknown;
@@ -306,7 +305,6 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
     const body = (await context.req.json()) as ChatRequestBody;
     const projectId = asNonEmptyString(body.projectId);
     const conversationId = asNonEmptyString(body.conversationId);
-    const requestedPreviewPath = asNonEmptyString(body.previewPath);
     const currentUserMessage = createCurrentUserMessage(body.message);
 
     if (!projectId || !conversationId || !currentUserMessage) {
@@ -315,11 +313,6 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
 
     const workspaceStore = createWorkspaceStore(options);
     const project = await workspaceStore.getProject(projectId);
-    const previewPath = await resolveExistingPreviewPath(
-      workspaceStore,
-      projectId,
-      requestedPreviewPath,
-    );
 
     if (chatRunManager.getActiveRun(projectId)) {
       return context.text('当前项目已有任务正在执行。', 409);
@@ -342,7 +335,6 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
 
     try {
       agentContext = await createDesignPageAgentContext({
-        currentPreviewPath: previewPath,
         frontendTabId: asNonEmptyString(body.frontendTabId),
         modelConfigurationId: asNonEmptyString(body.modelConfigurationId),
         projectType: project.projectType ?? 'single_html',
@@ -559,13 +551,13 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
       return context.text('Invalid preview session request.', 400);
     }
 
+    if (hasPreviewPath(body)) {
+      return context.text('Invalid preview session request.', 400);
+    }
+
     const workspaceStore = createWorkspaceStore(options);
     const manager = getPreviewServerManager(workspaceStore);
-    const session = await manager.ensure(
-      context.req.param('projectId'),
-      clientId,
-      asNonEmptyString(body?.previewPath),
-    );
+    const session = await manager.ensure(context.req.param('projectId'), clientId);
 
     return context.json(session);
   });
@@ -594,13 +586,13 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
       return context.text('Invalid preview heartbeat request.', 400);
     }
 
+    if (hasPreviewPath(body)) {
+      return context.text('Invalid preview heartbeat request.', 400);
+    }
+
     const workspaceStore = createWorkspaceStore(options);
     const manager = getPreviewServerManager(workspaceStore);
-    const session = await manager.heartbeat(
-      context.req.param('projectId'),
-      clientId,
-      asNonEmptyString(body?.previewPath),
-    );
+    const session = await manager.heartbeat(context.req.param('projectId'), clientId);
 
     return context.json(session);
   });
@@ -649,11 +641,11 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
     const kind = context.req.query('kind');
 
     if (kind === 'current-html') {
-      return downloadCurrentHtml(
-        workspaceStore,
-        projectId,
-        context.req.query('previewPath') ?? null,
-      );
+      if (context.req.query('previewPath') !== undefined) {
+        return context.text('Invalid download request.', 400);
+      }
+
+      return downloadCurrentHtml(workspaceStore, projectId);
     }
 
     if (kind === 'workspace-zip') {
@@ -661,6 +653,10 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
     }
 
     if (kind === 'current-screenshot') {
+      if (context.req.query('previewPath') !== undefined) {
+        return context.text('Invalid download request.', 400);
+      }
+
       const route = parseScreenshotRoute(context.req.query('route'));
 
       if (!route.ok) {
@@ -670,7 +666,6 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
       return downloadCurrentScreenshot(
         workspaceStore,
         projectId,
-        context.req.query('previewPath') ?? null,
         parseScreenshotDevice(context.req.query('device')),
         route.value,
       );
@@ -759,18 +754,13 @@ function htmlResponse(html: string) {
 async function downloadCurrentHtml(
   workspaceStore: ReturnType<typeof createWorkspaceStore>,
   projectId: string,
-  previewPath: string | null,
 ) {
-  if (!previewPath?.trim() || !previewPath.toLowerCase().endsWith('.html')) {
-    return new Response('Invalid download request.', { status: 400 });
-  }
-
   try {
-    const content = await workspaceStore.readProjectWorkspaceFileBuffer(projectId, previewPath);
+    const content = await workspaceStore.readProjectWorkspaceFileBuffer(projectId, 'index.html');
 
     return new Response(new Uint8Array(content), {
       headers: {
-        'Content-Disposition': createAttachmentDisposition(path.basename(previewPath)),
+        'Content-Disposition': createAttachmentDisposition('index.html'),
         'Content-Type': 'text/html; charset=utf-8',
       },
       status: 200,
@@ -820,11 +810,10 @@ async function downloadWorkspaceZip(
 async function downloadCurrentScreenshot(
   workspaceStore: ReturnType<typeof createWorkspaceStore>,
   projectId: string,
-  previewPath: string | null,
   device: ScreenshotDevice | undefined,
   route: string | undefined,
 ) {
-  if (!previewPath?.trim() || !previewPath.toLowerCase().endsWith('.html') || !device) {
+  if (!device) {
     return new Response('Invalid download request.', { status: 400 });
   }
 
@@ -832,10 +821,10 @@ async function downloadCurrentScreenshot(
   const previewManager = getPreviewServerManager(workspaceStore);
 
   try {
-    await workspaceStore.readProjectWorkspaceFileBuffer(projectId, previewPath);
-    const session = await previewManager.ensure(projectId, clientId, previewPath);
+    await workspaceStore.readProjectWorkspaceFileBuffer(projectId, 'index.html');
+    const session = await previewManager.ensure(projectId, clientId);
 
-    if (!session.activePath || session.activePath !== previewPath) {
+    if (!session.previewFileExists || !session.url) {
       return new Response('Project file not found.', { status: 404 });
     }
 
@@ -847,7 +836,7 @@ async function downloadCurrentScreenshot(
     return new Response(new Uint8Array(content), {
       headers: {
         'Content-Disposition': createAttachmentDisposition(
-          createScreenshotDownloadFilename(previewPath, route),
+          createScreenshotDownloadFilename(route),
         ),
         'Content-Type': 'image/png',
       },
@@ -944,9 +933,8 @@ function buildScreenshotUrl(url: string, route: string | undefined) {
   return screenshotUrl.toString();
 }
 
-function createScreenshotDownloadFilename(previewPath: string, route: string | undefined) {
-  const extension = path.extname(previewPath);
-  const basename = path.basename(previewPath, extension) || 'screenshot';
+function createScreenshotDownloadFilename(route: string | undefined) {
+  const basename = 'index';
 
   if (!route) {
     return `${basename}.png`;
@@ -1065,22 +1053,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
-async function resolveExistingPreviewPath(
-  workspaceStore: ReturnType<typeof createWorkspaceStore>,
-  projectId: string,
-  previewPath?: string,
-) {
-  if (!previewPath) {
-    return undefined;
-  }
-
-  const htmlFiles = await workspaceStore.listProjectHtmlFiles(projectId);
-
-  return htmlFiles.includes(previewPath) ? previewPath : undefined;
-}
-
 function asNonEmptyString(value: unknown) {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function hasPreviewPath(value: unknown) {
+  return isRecord(value) && Object.hasOwn(value, 'previewPath');
 }
 
 function parseProjectType(value: unknown) {

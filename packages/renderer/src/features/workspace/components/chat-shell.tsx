@@ -56,11 +56,11 @@ import { cn } from '@/lib/utils';
 import { useApiClient } from '@/api/context';
 
 const CONVERSATION_PANE_STORAGE_KEY = 'owndesign.app.conversation-pane-collapsed';
-const PREVIEW_DEVICE_BY_HTML_STORAGE_KEY = 'owndesign.app.preview-device-by-html';
+const PREVIEW_DEVICE_BY_PROJECT_STORAGE_KEY = 'owndesign.app.preview-device-by-project';
+const LEGACY_PREVIEW_DEVICE_BY_HTML_STORAGE_KEY = 'owndesign.app.preview-device-by-html';
 const CONVERSATION_PANE_EVENT = 'owndesign:conversation-pane';
 const PREVIEW_REFRESH_EVENT = 'owndesign:preview-refresh';
 const PREVIEW_HREF_EVENT = 'owndesign:preview-href-updated';
-const PREVIEW_FILES_EVENT = 'owndesign:preview-files-updated';
 const PREVIEW_ROUTE_EVENT = 'owndesign:preview-route-updated';
 
 type PreviewStatus = 'ready' | 'loading' | 'error';
@@ -104,7 +104,6 @@ export function ChatShell({
   const [sessionPreviewHref, setSessionPreviewHref] = useState<string>();
   const [previewDevice, setPreviewDevice] = useState<PreviewDevice>('desktop');
   const previewDeviceRef = useRef<PreviewDevice>('desktop');
-  const [activePreviewPath, setActivePreviewPath] = useState<string>();
   const [activePreviewRoute, setActivePreviewRoute] = useState('');
   const isConversationCollapsed = useSyncExternalStore(
     subscribeToConversationPaneState,
@@ -129,11 +128,11 @@ export function ChatShell({
   }, [previewDevice]);
 
   useEffect(() => {
-    if (!previewProjectId || !activePreviewPath) {
+    if (!previewProjectId) {
       return;
     }
 
-    const storedDevice = readStoredPreviewDevice(previewProjectId, activePreviewPath);
+    const storedDevice = readStoredPreviewDevice(previewProjectId);
 
     if (storedDevice) {
       previewDeviceRef.current = storedDevice;
@@ -141,8 +140,8 @@ export function ChatShell({
       return;
     }
 
-    writeStoredPreviewDevice(previewProjectId, activePreviewPath, previewDeviceRef.current);
-  }, [activePreviewPath, previewProjectId]);
+    writeStoredPreviewDevice(previewProjectId, previewDeviceRef.current);
+  }, [previewProjectId]);
 
   useEffect(() => {
     const handlePreviewHrefUpdated = (event: Event) => {
@@ -161,27 +160,8 @@ export function ChatShell({
   }, []);
 
   useEffect(() => {
-    const handlePreviewFilesUpdated = (event: Event) => {
-      if (!(event instanceof CustomEvent)) {
-        return;
-      }
-
-      const activePath =
-        typeof event.detail?.activePath === 'string' ? event.detail.activePath : undefined;
-      setActivePreviewPath(activePath);
-      setActivePreviewRoute('');
-    };
-
-    window.addEventListener(PREVIEW_FILES_EVENT, handlePreviewFilesUpdated);
-
-    return () => {
-      window.removeEventListener(PREVIEW_FILES_EVENT, handlePreviewFilesUpdated);
-    };
-  }, []);
-
-  useEffect(() => {
     setActivePreviewRoute('');
-  }, [activePreviewPath, previewProjectId]);
+  }, [previewProjectId]);
 
   useEffect(() => {
     const handlePreviewRouteUpdated = (event: Event) => {
@@ -191,11 +171,9 @@ export function ChatShell({
 
       const projectId =
         typeof event.detail?.projectId === 'string' ? event.detail.projectId : undefined;
-      const activePath =
-        typeof event.detail?.activePath === 'string' ? event.detail.activePath : undefined;
       const hash = typeof event.detail?.hash === 'string' ? event.detail.hash : undefined;
 
-      if (projectId !== previewProjectId || activePath !== activePreviewPath || hash === undefined) {
+      if (projectId !== previewProjectId || hash === undefined) {
         return;
       }
 
@@ -211,7 +189,7 @@ export function ChatShell({
     return () => {
       window.removeEventListener(PREVIEW_ROUTE_EVENT, handlePreviewRouteUpdated);
     };
-  }, [activePreviewPath, previewProjectId]);
+  }, [previewProjectId]);
 
   const handlePreviewDeviceChange = (value: string | null) => {
     if (value !== 'desktop' && value !== 'mobile') {
@@ -221,21 +199,20 @@ export function ChatShell({
     previewDeviceRef.current = value;
     setPreviewDevice(value);
 
-    if (previewProjectId && activePreviewPath) {
-      writeStoredPreviewDevice(previewProjectId, activePreviewPath, value);
+    if (previewProjectId) {
+      writeStoredPreviewDevice(previewProjectId, value);
     }
   };
   const currentHtmlDownloadUrl =
-    previewProjectId && activePreviewPath
-      ? api.buildUrl(buildProjectDownloadPath(previewProjectId, 'current-html', activePreviewPath))
+    previewProjectId && effectivePreviewHref
+      ? api.buildUrl(buildProjectDownloadPath(previewProjectId, 'current-html'))
       : undefined;
   const currentScreenshotDownloadUrl =
-    previewProjectId && activePreviewPath
+    previewProjectId && effectivePreviewHref
       ? api.buildUrl(
           buildProjectDownloadPath(
             previewProjectId,
             'current-screenshot',
-            activePreviewPath,
             previewDevice,
             activePreviewRoute,
           ),
@@ -360,6 +337,14 @@ export function ChatShell({
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <span className={statusClassName} />
                   <span>{statusLabels[previewStatus]}</span>
+                  {activePreviewRoute ? (
+                    <span
+                      className="max-w-[min(320px,32vw)] truncate font-mono text-[11px] text-foreground/70"
+                      title={activePreviewRoute}
+                    >
+                      {activePreviewRoute}
+                    </span>
+                  ) : null}
                 </div>
                 <div className="min-w-0 flex-1" />
                 <div className="flex items-center gap-1">
@@ -516,35 +501,36 @@ function writeConversationPaneState(value: boolean) {
   window.dispatchEvent(new Event(CONVERSATION_PANE_EVENT));
 }
 
-function readStoredPreviewDevice(
-  projectId: string,
-  previewPath: string,
-): PreviewDevice | undefined {
-  const storedDevices = readStoredPreviewDevices();
-  const value = storedDevices[buildPreviewDeviceStorageKey(projectId, previewPath)];
+function readStoredPreviewDevice(projectId: string): PreviewDevice | undefined {
+  const storedDevices = readStoredPreviewDevices(PREVIEW_DEVICE_BY_PROJECT_STORAGE_KEY);
+  const value = storedDevices[projectId];
 
-  return isPreviewDevice(value) ? value : undefined;
+  if (isPreviewDevice(value)) {
+    return value;
+  }
+
+  const legacyStoredDevices = readStoredPreviewDevices(LEGACY_PREVIEW_DEVICE_BY_HTML_STORAGE_KEY);
+  const legacyValue = legacyStoredDevices[buildLegacyPreviewDeviceStorageKey(projectId)];
+
+  return isPreviewDevice(legacyValue) ? legacyValue : undefined;
 }
 
-function writeStoredPreviewDevice(
-  projectId: string,
-  previewPath: string,
-  previewDevice: PreviewDevice,
-) {
+function writeStoredPreviewDevice(projectId: string, previewDevice: PreviewDevice) {
   try {
-    const storedDevices = readStoredPreviewDevices();
-    storedDevices[buildPreviewDeviceStorageKey(projectId, previewPath)] = previewDevice;
-    window.localStorage.setItem(PREVIEW_DEVICE_BY_HTML_STORAGE_KEY, JSON.stringify(storedDevices));
+    const storedDevices = readStoredPreviewDevices(PREVIEW_DEVICE_BY_PROJECT_STORAGE_KEY);
+    storedDevices[projectId] = previewDevice;
+    window.localStorage.setItem(
+      PREVIEW_DEVICE_BY_PROJECT_STORAGE_KEY,
+      JSON.stringify(storedDevices),
+    );
   } catch {
     // Ignore storage failures; runtime selection still works for this session.
   }
 }
 
-function readStoredPreviewDevices() {
+function readStoredPreviewDevices(storageKey: string) {
   try {
-    const parsed = JSON.parse(
-      window.localStorage.getItem(PREVIEW_DEVICE_BY_HTML_STORAGE_KEY) ?? '{}',
-    );
+    const parsed = JSON.parse(window.localStorage.getItem(storageKey) ?? '{}');
 
     return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
       ? (parsed as Record<string, unknown>)
@@ -554,8 +540,8 @@ function readStoredPreviewDevices() {
   }
 }
 
-function buildPreviewDeviceStorageKey(projectId: string, previewPath: string) {
-  return JSON.stringify([projectId, previewPath]);
+function buildLegacyPreviewDeviceStorageKey(projectId: string) {
+  return JSON.stringify([projectId, 'index.html']);
 }
 
 function isPreviewDevice(value: unknown): value is PreviewDevice {
@@ -565,18 +551,12 @@ function isPreviewDevice(value: unknown): value is PreviewDevice {
 function buildProjectDownloadPath(
   projectId: string,
   kind: 'current-html' | 'current-screenshot' | 'workspace-zip',
-  previewPath?: string,
   device?: PreviewDevice,
   route?: string,
 ) {
   const params = new URLSearchParams({ kind });
 
-  if (kind === 'current-html' && previewPath) {
-    params.set('previewPath', previewPath);
-  }
-
-  if (kind === 'current-screenshot' && previewPath) {
-    params.set('previewPath', previewPath);
+  if (kind === 'current-screenshot') {
     params.set('device', device ?? 'desktop');
     if (route) {
       params.set('route', route);

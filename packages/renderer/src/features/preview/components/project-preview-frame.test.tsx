@@ -2,13 +2,11 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ProjectPreviewFrame } from './project-preview-frame';
-import { getCurrentPreviewPath, setCurrentPreviewPath } from '@/features/preview/preview-path';
 
 describe('ProjectPreviewFrame', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     window.history.replaceState(null, '', '/');
-    setCurrentPreviewPath(undefined);
     vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})) as typeof fetch);
   });
 
@@ -28,8 +26,8 @@ describe('ProjectPreviewFrame', () => {
     expect(screen.getByText('Loading')).toBeInTheDocument();
   });
 
-  it('requests a preview session with the selected preview path', async () => {
-    window.history.replaceState(null, '', '/?previewPath=dashboard.html');
+  it('clears legacy preview path query and requests a single index preview session', async () => {
+    window.history.replaceState(null, '', '/?previewPath=dashboard.html&panel=right');
     const fetchMock = mockPreviewFetch();
 
     render(
@@ -44,16 +42,17 @@ describe('ProjectPreviewFrame', () => {
       expect(getSessionPosts(fetchMock)).toHaveLength(1);
     });
 
-    expect(parseBody(getSessionPosts(fetchMock)[0])).toMatchObject({
-      previewPath: 'dashboard.html',
+    expect(parseBody(getSessionPosts(fetchMock)[0])).toEqual({
+      clientId: expect.any(String),
     });
+    expect(window.location.search).toBe('?panel=right');
   });
 
-  it('publishes the active preview path returned by the initial preview session', async () => {
-    const fetchMock = mockPreviewFetch('generated.html');
-    const previewFilesEvents: CustomEvent[] = [];
-    window.addEventListener('owndesign:preview-files-updated', (event) => {
-      previewFilesEvents.push(event as CustomEvent);
+  it('publishes the preview href returned by the initial preview session', async () => {
+    const fetchMock = mockPreviewFetch();
+    const publishedHrefs: unknown[] = [];
+    window.addEventListener('owndesign:preview-href-updated', (event) => {
+      publishedHrefs.push(event instanceof CustomEvent ? event.detail?.href : undefined);
     });
 
     render(
@@ -67,15 +66,7 @@ describe('ProjectPreviewFrame', () => {
     await screen.findByTitle('Project One HTML 预览');
 
     expect(getSessionPosts(fetchMock)).toHaveLength(1);
-    expect(window.location.search).toBe('');
-    expect(getCurrentPreviewPath()).toBe('generated.html');
-    expect(previewFilesEvents.at(-1)?.detail).toMatchObject({
-      activePath: 'generated.html',
-      files: ['index.html', 'dashboard.html'],
-      pageManifest: {
-        pages: [{ displayName: '小说首页', slug: 'index' }],
-      },
-    });
+    expect(publishedHrefs.at(-1)).toBe('http://127.0.0.1:3000/index.html');
   });
 
   it('publishes preview hash route messages from the current iframe origin', async () => {
@@ -108,7 +99,6 @@ describe('ProjectPreviewFrame', () => {
     );
 
     expect(previewRouteEvents.at(-1)?.detail).toEqual({
-      activePath: 'index.html',
       hash: '#/pricing',
       projectId: 'project-1',
     });
@@ -212,7 +202,7 @@ describe('ProjectPreviewFrame', () => {
     });
   });
 
-  it('does not publish a fake current preview path for an empty workspace', async () => {
+  it('does not publish a preview href for an empty workspace', async () => {
     const fetchMock = mockEmptyPreviewFetch();
     const publishedHrefs: unknown[] = [];
     const handlePreviewHref = (event: Event) => {
@@ -233,7 +223,6 @@ describe('ProjectPreviewFrame', () => {
     await screen.findByText('尚无预览内容');
 
     expect(getSessionPosts(fetchMock)).toHaveLength(1);
-    expect(getCurrentPreviewPath()).toBeUndefined();
     expect(window.location.search).toBe('');
     expect(screen.queryByTitle('Project One HTML 预览')).not.toBeInTheDocument();
     expect(publishedHrefs.at(-1)).toBeUndefined();
@@ -259,8 +248,7 @@ describe('ProjectPreviewFrame', () => {
       }
 
       return Response.json({
-        activePath: 'index.html',
-        files: ['index.html'],
+        previewFileExists: true,
         url: 'http://127.0.0.1:3000/index.html',
       });
     });
@@ -269,101 +257,6 @@ describe('ProjectPreviewFrame', () => {
 
     await screen.findByTitle('Project One HTML 预览');
     expect(getHeartbeatPosts(fetchMock)).toHaveLength(1);
-    expect(getCurrentPreviewPath()).toBe('index.html');
-  });
-
-  it('does not release the preview session when only the preview path changes', async () => {
-    window.history.replaceState(null, '', '/?previewPath=index.html');
-    const fetchMock = mockPreviewFetch();
-
-    const { rerender } = render(
-      <ProjectPreviewFrame
-        initialUpdatedAt="2026-05-15T00:00:00.000Z"
-        projectId="project-1"
-        projectName="Project One"
-      />,
-    );
-
-    await waitFor(() => {
-      expect(getSessionPosts(fetchMock)).toHaveLength(1);
-    });
-
-    window.history.replaceState(null, '', '/?previewPath=dashboard.html');
-    rerender(
-      <ProjectPreviewFrame
-        initialUpdatedAt="2026-05-15T00:00:00.000Z"
-        projectId="project-1"
-        projectName="Project One"
-      />,
-    );
-
-    await waitFor(() => {
-      expect(getSessionPosts(fetchMock)).toHaveLength(2);
-    });
-
-    expect(getDeletes(fetchMock)).toHaveLength(0);
-    expect(parseBody(getSessionPosts(fetchMock)[1])).toMatchObject({
-      previewPath: 'dashboard.html',
-    });
-  });
-
-  it('keeps the current iframe visible while switching preview paths', async () => {
-    window.history.replaceState(null, '', '/?previewPath=index.html');
-    const fetchMock = mockPreviewFetch();
-
-    const { rerender } = render(
-      <ProjectPreviewFrame
-        initialUpdatedAt="2026-05-15T00:00:00.000Z"
-        projectId="project-1"
-        projectName="Project One"
-      />,
-    );
-
-    const iframe = await screen.findByTitle('Project One HTML 预览');
-    expect(screen.queryByText('预览服务启动中')).not.toBeInTheDocument();
-
-    fetchMock.mockImplementation(() => new Promise(() => {}) as Promise<Response>);
-
-    window.history.replaceState(null, '', '/?previewPath=dashboard.html');
-    rerender(
-      <ProjectPreviewFrame
-        initialUpdatedAt="2026-05-15T00:00:00.000Z"
-        projectId="project-1"
-        projectName="Project One"
-      />,
-    );
-
-    await waitFor(() => {
-      expect(getSessionPosts(fetchMock)).toHaveLength(2);
-    });
-
-    expect(screen.getByTitle('Project One HTML 预览')).toBe(iframe);
-    expect(screen.queryByText('预览服务启动中')).not.toBeInTheDocument();
-  });
-
-  it('remounts the iframe after a manual preview file switch', async () => {
-    mockPreviewFetch();
-
-    render(
-      <ProjectPreviewFrame
-        initialUpdatedAt="2026-05-15T00:00:00.000Z"
-        projectId="project-1"
-        projectName="Project One"
-      />,
-    );
-
-    const iframe = await screen.findByTitle('Project One HTML 预览');
-
-    fireEvent(
-      window,
-      new CustomEvent('owndesign:preview-manual-switch', {
-        detail: { key: 'manual-switch-1' },
-      }),
-    );
-
-    await waitFor(() => {
-      expect(screen.getByTitle('Project One HTML 预览')).not.toBe(iframe);
-    });
   });
 
   it('releases the preview session when the frame unmounts', async () => {
@@ -424,58 +317,7 @@ describe('ProjectPreviewFrame', () => {
     );
   });
 
-  it('syncs the route when the iframe load heartbeat reports a new HTML path', async () => {
-    const fetchMock = mockPreviewFetch();
-
-    const { rerender } = render(
-      <ProjectPreviewFrame
-        initialUpdatedAt="2026-05-15T00:00:00.000Z"
-        projectId="project-1"
-        projectName="Project One"
-      />,
-    );
-
-    const iframe = await screen.findByTitle('Project One HTML 预览');
-    fetchMock.mockImplementation(async (_input, init) => {
-      const body = JSON.parse(String(init?.body ?? '{}')) as {
-        previewPath?: string;
-      };
-
-      return Response.json({
-        activePath: body.previewPath ?? 'pages/about.html',
-        files: ['index.html', 'pages/about.html'],
-        url: `http://127.0.0.1:3000/${body.previewPath ?? 'pages/about.html'}`,
-      });
-    });
-
-    fireEvent.load(iframe);
-
-    await waitFor(() => {
-      expect(window.location.search).toBe('?previewPath=pages%2Fabout.html');
-    });
-
-    const heartbeatCalls = getHeartbeatPosts(fetchMock);
-    expect(parseBody(heartbeatCalls.at(-1)!)).toEqual({
-      clientId: expect.any(String),
-    });
-
-    window.history.replaceState(null, '', '/?previewPath=pages%2Fabout.html');
-    rerender(
-      <ProjectPreviewFrame
-        initialUpdatedAt="2026-05-15T00:00:00.000Z"
-        projectId="project-1"
-        projectName="Project One"
-      />,
-    );
-
-    await new Promise((resolve) => setTimeout(resolve, 0));
-
-    expect(getSessionPosts(fetchMock)).toHaveLength(1);
-    expect(screen.getByTitle('Project One HTML 预览')).toBe(iframe);
-  });
-
-  it('does not replace the route when iframe load keeps the same HTML path', async () => {
-    window.history.replaceState(null, '', '/?previewPath=dashboard.html');
+  it('syncs the preview session on iframe load without writing a preview path query', async () => {
     const fetchMock = mockPreviewFetch();
 
     render(
@@ -487,45 +329,28 @@ describe('ProjectPreviewFrame', () => {
     );
 
     const iframe = await screen.findByTitle('Project One HTML 预览');
-    fetchMock.mockImplementation(async (_input, init) => {
-      const body = JSON.parse(String(init?.body ?? '{}')) as {
-        previewPath?: string;
-      };
-
-      return Response.json({
-        activePath: body.previewPath ?? 'dashboard.html',
-        files: ['index.html', 'dashboard.html'],
-        url: `http://127.0.0.1:3000/${body.previewPath ?? 'dashboard.html'}`,
-      });
-    });
     fireEvent.load(iframe);
 
     await waitFor(() => {
       expect(getHeartbeatPosts(fetchMock)).toHaveLength(1);
     });
 
-    expect(window.location.search).toBe('?previewPath=dashboard.html');
+    expect(parseBody(getHeartbeatPosts(fetchMock).at(-1)!)).toEqual({
+      clientId: expect.any(String),
+    });
+    expect(window.location.search).toBe('');
   });
 });
 
-function mockPreviewFetch(defaultActivePath = 'index.html') {
-  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+function mockPreviewFetch() {
+  const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
     if (init?.method === 'DELETE') {
       return new Response(null, { status: 204 });
     }
 
-    const body = JSON.parse(String(init?.body ?? '{}')) as {
-      previewPath?: string;
-    };
-    const activePath = body.previewPath ?? defaultActivePath;
-
     return Response.json({
-      activePath,
-      files: ['index.html', 'dashboard.html'],
-      pageManifest: {
-        pages: [{ displayName: '小说首页', slug: 'index' }],
-      },
-      url: `http://127.0.0.1:3000/${activePath}`,
+      previewFileExists: true,
+      url: 'http://127.0.0.1:3000/index.html',
     });
   }) as unknown as typeof fetch & ReturnType<typeof vi.fn>;
 
@@ -541,8 +366,7 @@ function mockEmptyPreviewFetch() {
     }
 
     return Response.json({
-      files: [],
-      url: 'http://127.0.0.1:3000',
+      previewFileExists: false,
     });
   }) as unknown as typeof fetch & ReturnType<typeof vi.fn>;
 

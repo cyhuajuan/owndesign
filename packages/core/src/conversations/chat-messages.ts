@@ -11,7 +11,6 @@ export type TurnPromptRewriteMetadata = {
     kind: 'turn-prompt-rewriter';
     pageEditMode?: string;
     previewFileExists: boolean;
-    previewPath?: string;
   };
 };
 

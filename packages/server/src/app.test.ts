@@ -449,47 +449,72 @@ describe('createOwnDesignApp project downloads', () => {
     const { app } = await createAppWithTempOptions();
     const { projectId } = await setupProject(app);
 
-    const missingPreviewPathResponse = await app.fetch(
+    const missingDeviceResponse = await app.fetch(
       new Request(
-        `http://localhost/api/projects/${projectId}/download?kind=current-screenshot&device=desktop`,
+        `http://localhost/api/projects/${projectId}/download?kind=current-screenshot`,
       ),
     );
     const invalidDeviceResponse = await app.fetch(
       new Request(
-        `http://localhost/api/projects/${projectId}/download?kind=current-screenshot&previewPath=index.html&device=tablet`,
+        `http://localhost/api/projects/${projectId}/download?kind=current-screenshot&device=tablet`,
+      ),
+    );
+    const legacyPreviewPathResponse = await app.fetch(
+      new Request(
+        `http://localhost/api/projects/${projectId}/download?kind=current-screenshot&previewPath=index.html&device=desktop`,
       ),
     );
 
-    expect(missingPreviewPathResponse.status).toBe(400);
+    expect(missingDeviceResponse.status).toBe(400);
     expect(invalidDeviceResponse.status).toBe(400);
+    expect(legacyPreviewPathResponse.status).toBe(400);
     expect(screenshotMocks.captureProjectScreenshot).not.toHaveBeenCalled();
   });
 
-  it('downloads a desktop screenshot png for the current html', async () => {
-    const { app, root } = await createAppWithTempOptions();
-    const workspaceStore = createWorkspaceStore({ workspaceRoot: path.join(root, 'workspace') });
+  it('downloads the current index html without a preview path', async () => {
+    const { app } = await createAppWithTempOptions();
     const { projectId } = await setupProject(app);
 
-    await workspaceStore.writeProjectWorkspaceFile(
-      projectId,
-      'pages/detail.html',
-      '<h1>Detail</h1>',
+    const response = await app.fetch(
+      new Request(`http://localhost/api/projects/${projectId}/download?kind=current-html`),
     );
-    screenshotMocks.captureProjectScreenshot.mockResolvedValue(Buffer.from('png-detail'));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('Content-Type')).toContain('text/html');
+    expect(response.headers.get('Content-Disposition')).toContain('index.html');
+    await expect(response.text()).resolves.toContain('<!doctype html>');
+  });
+
+  it('rejects legacy preview paths for current html downloads', async () => {
+    const { app } = await createAppWithTempOptions();
+    const { projectId } = await setupProject(app);
 
     const response = await app.fetch(
       new Request(
-        `http://localhost/api/projects/${projectId}/download?kind=current-screenshot&previewPath=pages%2Fdetail.html&device=desktop`,
+        `http://localhost/api/projects/${projectId}/download?kind=current-html&previewPath=index.html`,
       ),
+    );
+
+    expect(response.status).toBe(400);
+  });
+
+  it('downloads a desktop screenshot png for index.html', async () => {
+    const { app } = await createAppWithTempOptions();
+    const { projectId } = await setupProject(app);
+
+    screenshotMocks.captureProjectScreenshot.mockResolvedValue(Buffer.from('png-index'));
+
+    const response = await app.fetch(
+      new Request(`http://localhost/api/projects/${projectId}/download?kind=current-screenshot&device=desktop`),
     );
 
     expect(response.status).toBe(200);
     expect(response.headers.get('Content-Type')).toBe('image/png');
-    expect(response.headers.get('Content-Disposition')).toContain('detail.png');
-    expect(Buffer.from(await response.arrayBuffer())).toEqual(Buffer.from('png-detail'));
+    expect(response.headers.get('Content-Disposition')).toContain('index.png');
+    expect(Buffer.from(await response.arrayBuffer())).toEqual(Buffer.from('png-index'));
     expect(screenshotMocks.captureProjectScreenshot).toHaveBeenCalledWith({
       device: 'desktop',
-      url: expect.stringMatching(/\/pages\/detail\.html$/),
+      url: expect.stringMatching(/\/index\.html$/),
     });
   });
 
@@ -501,7 +526,7 @@ describe('createOwnDesignApp project downloads', () => {
 
     const response = await app.fetch(
       new Request(
-        `http://localhost/api/projects/${projectId}/download?kind=current-screenshot&previewPath=index.html&device=mobile`,
+        `http://localhost/api/projects/${projectId}/download?kind=current-screenshot&device=mobile`,
       ),
     );
 
@@ -520,7 +545,7 @@ describe('createOwnDesignApp project downloads', () => {
 
     const response = await app.fetch(
       new Request(
-        `http://localhost/api/projects/${projectId}/download?kind=current-screenshot&previewPath=index.html&device=desktop&route=%23%2Fpricing`,
+        `http://localhost/api/projects/${projectId}/download?kind=current-screenshot&device=desktop&route=%23%2Fpricing`,
       ),
     );
 
@@ -540,7 +565,7 @@ describe('createOwnDesignApp project downloads', () => {
 
     const response = await app.fetch(
       new Request(
-        `http://localhost/api/projects/${projectId}/download?kind=current-screenshot&previewPath=index.html&device=desktop&route=%23%2Forders%3Ftab%3Dkanban`,
+        `http://localhost/api/projects/${projectId}/download?kind=current-screenshot&device=desktop&route=%23%2Forders%3Ftab%3Dkanban`,
       ),
     );
 
@@ -558,17 +583,17 @@ describe('createOwnDesignApp project downloads', () => {
 
     const pathRouteResponse = await app.fetch(
       new Request(
-        `http://localhost/api/projects/${projectId}/download?kind=current-screenshot&previewPath=index.html&device=desktop&route=%2Fpricing`,
+        `http://localhost/api/projects/${projectId}/download?kind=current-screenshot&device=desktop&route=%2Fpricing`,
       ),
     );
     const absoluteRouteResponse = await app.fetch(
       new Request(
-        `http://localhost/api/projects/${projectId}/download?kind=current-screenshot&previewPath=index.html&device=desktop&route=https%3A%2F%2Fexample.test`,
+        `http://localhost/api/projects/${projectId}/download?kind=current-screenshot&device=desktop&route=https%3A%2F%2Fexample.test`,
       ),
     );
     const controlCharacterRouteResponse = await app.fetch(
       new Request(
-        `http://localhost/api/projects/${projectId}/download?kind=current-screenshot&previewPath=index.html&device=desktop&route=%23%2Fpricing%0A`,
+        `http://localhost/api/projects/${projectId}/download?kind=current-screenshot&device=desktop&route=%23%2Fpricing%0A`,
       ),
     );
 
@@ -588,7 +613,7 @@ describe('createOwnDesignApp project downloads', () => {
 
     const response = await app.fetch(
       new Request(
-        `http://localhost/api/projects/${projectId}/download?kind=current-screenshot&previewPath=index.html&device=desktop`,
+        `http://localhost/api/projects/${projectId}/download?kind=current-screenshot&device=desktop`,
       ),
     );
 

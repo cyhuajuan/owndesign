@@ -207,61 +207,6 @@ describe('WorkspaceStore', () => {
     await expect(store.restoreCheckpointFiles(project.id, 'cp_missing')).rejects.toThrow();
   });
 
-  it('lists HTML files recursively with index first', async () => {
-    const workspaceRoot = path.join(await createTempWorkspaceRoot(), '.owndesign');
-    const store = new WorkspaceStore({ workspaceRoot });
-    const project = buildProject({ id: 'project-html-files' });
-
-    await store.createProject(project);
-    await store.writeProjectWorkspaceFile(project.id, 'dashboard.html', '<main />');
-    await store.writeProjectWorkspaceFile(project.id, 'index.html', '<main />');
-    await store.writeProjectWorkspaceFile(project.id, 'pages/detail.HTML', '<main />');
-    await store.writeProjectWorkspaceFile(project.id, 'assets/app.js', '');
-
-    await expect(store.listProjectHtmlFiles(project.id)).resolves.toEqual([
-      'index.html',
-      'dashboard.html',
-      'pages/detail.HTML',
-    ]);
-  });
-
-  it('reads the Project HTML page manifest with empty fallback', async () => {
-    const workspaceRoot = path.join(await createTempWorkspaceRoot(), '.owndesign');
-    const store = new WorkspaceStore({ workspaceRoot });
-    const project = buildProject({ id: 'project-page-manifest' });
-
-    await store.createProject(project);
-    await expect(store.readProjectHtmlPageManifest(project.id)).resolves.toEqual({ pages: [] });
-
-    await store.writeProjectWorkspaceFile(
-      project.id,
-      '.owndesign-pages.json',
-      JSON.stringify({
-        pages: [
-          {
-            componentSource: 'pages/od-index-page.js',
-            componentTag: 'od-index-page',
-            displayName: '小说阅读器首页',
-            htmlPath: 'index.html',
-            slug: 'index',
-          },
-        ],
-      }),
-    );
-
-    await expect(store.readProjectHtmlPageManifest(project.id)).resolves.toEqual({
-      pages: [
-        {
-          componentSource: 'pages/od-index-page.js',
-          componentTag: 'od-index-page',
-          displayName: '小说阅读器首页',
-          htmlPath: 'index.html',
-          slug: 'index',
-        },
-      ],
-    });
-  });
-
   it('searches Project Workspace text files with line previews', async () => {
     const workspaceRoot = path.join(await createTempWorkspaceRoot(), '.owndesign');
     const store = new WorkspaceStore({ workspaceRoot });

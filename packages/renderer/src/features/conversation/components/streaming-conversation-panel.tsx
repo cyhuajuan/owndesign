@@ -41,7 +41,6 @@ import {
 import { FRONTEND_TAB_ID } from '@/features/preview/components/frontend-capability-bridge';
 import { useApiClient } from '@/api/context';
 import { useI18n } from '@/features/i18n/context';
-import { useCurrentPreviewPath } from '@/features/preview/preview-path';
 import type { ActiveRun, ActiveRunSnapshot } from '@/api/client';
 import type { AnthropicEffort } from '@/features/conversation/types';
 import type { CheckpointRecord, CheckpointRestoreMode } from '@owndesign/core/workspace-store';
@@ -111,7 +110,6 @@ export function StreamingConversationPanel({
 
     return undefined;
   }, [selectedAnthropicEffort, selectedDeepSeekThinkingMode, selectedModel?.provider]);
-  const currentPreviewPath = useCurrentPreviewPath();
   const hasProjectActiveRun = projectActiveRun?.status === 'running';
   const activeRunId = projectActiveRun?.runId;
   const activeRunBelongsToConversation =
@@ -124,18 +122,11 @@ export function StreamingConversationPanel({
       frontendTabId: FRONTEND_TAB_ID,
       modelConfigurationId: selectedModelId,
       projectId,
-      ...(currentPreviewPath ? { previewPath: currentPreviewPath } : {}),
       ...(selectedProviderOptionsSelection
         ? { providerOptionsSelection: selectedProviderOptionsSelection }
         : {}),
     }),
-    [
-      conversationId,
-      currentPreviewPath,
-      projectId,
-      selectedProviderOptionsSelection,
-      selectedModelId,
-    ],
+    [conversationId, projectId, selectedProviderOptionsSelection, selectedModelId],
   );
   const transport = useMemo(
     () =>

@@ -5,7 +5,6 @@ import { serve, type ServerType } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { Hono } from 'hono';
 
-import type { HtmlPageManifest } from '@owndesign/core/html-page-manifest';
 import { WorkspaceStore } from '@owndesign/core/workspace-store';
 
 type PreviewServerManagerOptions = {
@@ -16,7 +15,6 @@ type PreviewServerManagerOptions = {
 };
 
 type PreviewServerEntry = {
-  activePath?: string;
   baseUrl: string;
   expiresAt: number;
   key: string;
@@ -25,10 +23,8 @@ type PreviewServerEntry = {
 };
 
 export type PreviewSession = {
-  activePath?: string;
-  files: string[];
-  pageManifest?: HtmlPageManifest;
-  url: string;
+  previewFileExists: boolean;
+  url?: string;
 };
 
 const DEFAULT_CLEANUP_INTERVAL_MS = 30_000;
@@ -56,32 +52,23 @@ export class PreviewServerManager {
     this.workspaceStore = options.workspaceStore;
   }
 
-  async ensure(projectId: string, clientId: string, previewPath?: string) {
+  async ensure(projectId: string, clientId: string) {
     const entry = await this.getOrStartEntry(projectId, clientId);
-    const [files, pageManifest] = await Promise.all([
-      this.workspaceStore.listProjectHtmlFiles(projectId),
-      this.workspaceStore.readProjectHtmlPageManifest(projectId),
-    ]);
-    const activePath = resolveActivePreviewPath(
-      files,
-      pageManifest,
-      previewPath ?? entry.activePath,
+    const previewFileExists = await indexHtmlExists(
+      this.workspaceStore.getProjectWorkspaceDirectory(projectId),
     );
 
-    entry.activePath = activePath;
     this.touchLease(entry);
     this.ensureCleanupTimer();
 
     return {
-      ...(activePath ? { activePath } : {}),
-      files,
-      pageManifest,
-      url: buildPreviewUrl(entry.baseUrl, activePath),
+      previewFileExists,
+      ...(previewFileExists ? { url: buildPreviewUrl(entry.baseUrl) } : {}),
     } satisfies PreviewSession;
   }
 
-  async heartbeat(projectId: string, clientId: string, previewPath?: string) {
-    return this.ensure(projectId, clientId, previewPath);
+  async heartbeat(projectId: string, clientId: string) {
+    return this.ensure(projectId, clientId);
   }
 
   async release(projectId: string, clientId: string) {
@@ -171,18 +158,27 @@ export class PreviewServerManager {
       projectId,
     };
 
-    app.get('/', async () => readIndexHtmlOrNotFound(workspaceDirectory, entry));
-    app.get('/index.html', async () => readIndexHtmlOrNotFound(workspaceDirectory, entry));
+    app.get('/', async () => readIndexHtmlOrNotFound(workspaceDirectory));
+    app.get('/index.html', async () => readIndexHtmlOrNotFound(workspaceDirectory));
     app.use('*', async (context, next) => {
       context.header('Cache-Control', PREVIEW_CACHE_CONTROL);
+      await next();
+    });
+    app.use('*', async (context, next) => {
+      if (context.req.path.toLowerCase().endsWith('.html')) {
+        return new Response(null, {
+          headers: {
+            'Cache-Control': PREVIEW_CACHE_CONTROL,
+          },
+          status: 404,
+        });
+      }
+
       await next();
     });
     app.use(
       '*',
       serveStatic({
-        onFound: (filePath) => {
-          recordServedStaticPath(entry, workspaceDirectory, filePath);
-        },
         root: workspaceDirectory,
       }),
     );
@@ -282,12 +278,11 @@ export function getPreviewServerManager(workspaceStore: WorkspaceStore) {
   return globalThis.__owndesignPreviewServerManager;
 }
 
-async function readIndexHtmlOrNotFound(workspaceDirectory: string, entry: PreviewServerEntry) {
+async function readIndexHtmlOrNotFound(workspaceDirectory: string) {
   const indexPath = path.join(workspaceDirectory, 'index.html');
 
   try {
     await access(indexPath);
-    entry.activePath = 'index.html';
     return htmlResponse(await readFile(indexPath, 'utf8'));
   } catch {
     return new Response(null, {
@@ -299,66 +294,19 @@ async function readIndexHtmlOrNotFound(workspaceDirectory: string, entry: Previe
   }
 }
 
-function resolveActivePreviewPath(
-  files: string[],
-  pageManifest: HtmlPageManifest,
-  previewPath?: string,
-) {
-  if (previewPath && files.includes(previewPath)) {
-    return previewPath;
+async function indexHtmlExists(workspaceDirectory: string) {
+  try {
+    await access(path.join(workspaceDirectory, 'index.html'));
+    return true;
+  } catch {
+    return false;
   }
-
-  if (files.includes('index.html')) {
-    return 'index.html';
-  }
-
-  const manifestPath = pageManifest.pages.find((page) => files.includes(page.htmlPath))?.htmlPath;
-
-  if (manifestPath) {
-    return manifestPath;
-  }
-
-  return files[0];
 }
 
-function buildPreviewUrl(baseUrl: string, previewPath?: string) {
-  if (!previewPath) {
-    return baseUrl;
-  }
-
-  return `${baseUrl}/${previewPath.split('/').map(encodeURIComponent).join('/')}`;
+function buildPreviewUrl(baseUrl: string) {
+  return `${baseUrl}/index.html`;
 }
 
 function buildEntryKey(projectId: string, clientId: string) {
   return `${projectId}:${clientId}`;
-}
-
-function recordServedHtmlPath(
-  entry: PreviewServerEntry,
-  workspaceDirectory: string,
-  filePath: string,
-) {
-  if (!filePath.toLowerCase().endsWith('.html')) {
-    return;
-  }
-
-  const relativePath = path.relative(workspaceDirectory, filePath).split(path.sep).join('/');
-
-  if (!relativePath || relativePath.startsWith('..')) {
-    return;
-  }
-
-  entry.activePath = relativePath;
-}
-
-function recordServedStaticPath(
-  entry: PreviewServerEntry,
-  workspaceDirectory: string,
-  servedPath: string,
-) {
-  const filePath = path.isAbsolute(servedPath)
-    ? servedPath
-    : path.join(workspaceDirectory, servedPath.replace(/^[/\\]+/, ''));
-
-  recordServedHtmlPath(entry, workspaceDirectory, filePath);
 }

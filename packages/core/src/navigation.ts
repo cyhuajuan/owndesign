@@ -1,27 +1,18 @@
 export type WorkspaceHrefInput = {
   conversationId?: string;
-  previewPath?: string;
   projectId?: string;
 };
 
-export function buildWorkspaceHref({ conversationId, previewPath, projectId }: WorkspaceHrefInput) {
+export function buildWorkspaceHref({ conversationId, projectId }: WorkspaceHrefInput) {
   if (!projectId) {
     return '/';
   }
 
-  const pathname = conversationId
+  return conversationId
     ? `/projects/${encodeURIComponent(projectId)}/conversations/${encodeURIComponent(
         conversationId,
       )}`
     : `/projects/${encodeURIComponent(projectId)}`;
-
-  if (!previewPath) {
-    return pathname;
-  }
-
-  const params = new URLSearchParams({ previewPath });
-
-  return `${pathname}?${params.toString()}`;
 }
 
 export function getWorkspaceProjectId(href: string) {

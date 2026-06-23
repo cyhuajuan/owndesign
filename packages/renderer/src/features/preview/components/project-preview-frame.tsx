@@ -7,8 +7,6 @@ import { PreviewEmptyState } from '@/features/preview/components/preview-empty-s
 import { useApiClient } from '@/api/context';
 import { useI18n } from '@/features/i18n/context';
 import type { PreviewDevice } from '@/features/preview/preview-device';
-import { setCurrentPreviewPath, usePreviewPath } from '@/features/preview/preview-path';
-import type { HtmlPageManifest } from '@owndesign/core/html-page-manifest';
 
 type ProjectPreviewFrameProps = {
   initialUpdatedAt: string;
@@ -18,17 +16,13 @@ type ProjectPreviewFrameProps = {
 };
 
 type PreviewSessionResponse = {
-  activePath?: string;
-  files: string[];
-  pageManifest?: HtmlPageManifest;
-  url: string;
+  previewFileExists: boolean;
+  url?: string;
 };
 
 type PreviewSessionStatus = 'empty' | 'loading' | 'ready';
 
 const PREVIEW_HREF_EVENT = 'owndesign:preview-href-updated';
-const PREVIEW_FILES_EVENT = 'owndesign:preview-files-updated';
-const PREVIEW_MANUAL_SWITCH_EVENT = 'owndesign:preview-manual-switch';
 const PREVIEW_ROUTE_EVENT = 'owndesign:preview-route-updated';
 const HEARTBEAT_INTERVAL_MS = 30_000;
 
@@ -41,66 +35,46 @@ export function ProjectPreviewFrame({
   const api = useApiClient();
   const { t } = useI18n();
   const clientId = useRef(createClientId());
-  const [selectedPreviewPath, setPreviewPath] = usePreviewPath();
-  const pendingRouteSyncPathRef = useRef<string | undefined>(undefined);
   const previewFrameRef = useRef<HTMLIFrameElement | null>(null);
   const previewProjectIdRef = useRef<string | undefined>(undefined);
-  const activePreviewPathRef = useRef<string | undefined>(undefined);
   const previewUrlRef = useRef<string | undefined>(undefined);
   const [previewUrl, setPreviewUrl] = useState<string>();
   const [previewSessionStatus, setPreviewSessionStatus] =
     useState<PreviewSessionStatus>('loading');
   const [refreshKey, setRefreshKey] = useState(initialUpdatedAt);
-  const [manualSwitchKey, setManualSwitchKey] = useState('');
-  const requestPreviewSession = useCallback(
-    async (endpoint: string, previewPath?: string) => {
-      const body: { clientId: string; previewPath?: string } = {
+
+  const requestPreviewSession = useCallback(async (endpoint: string) => {
+    const response = await fetch(endpoint, {
+      body: JSON.stringify({
         clientId: clientId.current,
-      };
+      }),
+      headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+    });
 
-      if (previewPath) {
-        body.previewPath = previewPath;
-      }
+    if (!response.ok) {
+      throw new Error(`Preview session request failed: ${response.status}`);
+    }
 
-      const response = await fetch(endpoint, {
-        body: JSON.stringify(body),
-        headers: { 'Content-Type': 'application/json' },
-        method: 'POST',
-      });
+    return (await response.json()) as PreviewSessionResponse;
+  }, []);
 
-      if (!response.ok) {
-        throw new Error(`Preview session request failed: ${response.status}`);
-      }
-
-      return (await response.json()) as PreviewSessionResponse;
-    },
-    [],
-  );
   const applyPreviewSession = useCallback(
     (session: PreviewSessionResponse, { updateFrameSrc }: { updateFrameSrc: boolean }) => {
       previewProjectIdRef.current = projectId;
-      if (session.files.length === 0) {
+
+      if (!session.previewFileExists || !session.url) {
         previewUrlRef.current = undefined;
-        activePreviewPathRef.current = undefined;
-        setCurrentPreviewPath(undefined);
         publishPreviewHref(undefined);
-        publishPreviewFiles([]);
-        publishPreviewRoute(projectId, undefined, '');
+        publishPreviewRoute(projectId, '');
         setPreviewUrl(undefined);
         setPreviewSessionStatus('empty');
         return;
       }
 
       const hadPreviewUrl = Boolean(previewUrlRef.current);
-      const previousPreviewPath = activePreviewPathRef.current;
       previewUrlRef.current = session.url;
-      activePreviewPathRef.current = session.activePath;
-      setCurrentPreviewPath(session.activePath);
       publishPreviewHref(session.url);
-      publishPreviewFiles(session.files, session.activePath, session.pageManifest);
-      if (session.activePath !== previousPreviewPath) {
-        publishPreviewRoute(projectId, session.activePath, '');
-      }
       setPreviewSessionStatus('ready');
 
       if (updateFrameSrc || !hadPreviewUrl) {
@@ -111,13 +85,11 @@ export function ProjectPreviewFrame({
   );
 
   useEffect(() => {
-    let isActive = true;
-    const shouldAcquirePreviewSession =
-      !selectedPreviewPath || pendingRouteSyncPathRef.current !== selectedPreviewPath;
+    clearLegacyPreviewPathQuery();
+  }, [projectId]);
 
-    if (selectedPreviewPath && pendingRouteSyncPathRef.current === selectedPreviewPath) {
-      pendingRouteSyncPathRef.current = undefined;
-    }
+  useEffect(() => {
+    let isActive = true;
 
     async function acquirePreviewSession() {
       const canKeepCurrentPreview =
@@ -126,59 +98,47 @@ export function ProjectPreviewFrame({
       if (!canKeepCurrentPreview) {
         setPreviewUrl(undefined);
         previewUrlRef.current = undefined;
-        activePreviewPathRef.current = undefined;
         publishPreviewHref(undefined);
-        publishPreviewRoute(projectId, undefined, '');
+        publishPreviewRoute(projectId, '');
       }
 
       try {
         const session = await requestPreviewSession(
           api.buildUrl(`/api/projects/${encodeURIComponent(projectId)}/preview-session`),
-          selectedPreviewPath,
         );
 
-        if (!isActive) {
-          return;
+        if (isActive) {
+          applyPreviewSession(session, { updateFrameSrc: true });
         }
-
-        applyPreviewSession(session, { updateFrameSrc: true });
       } catch {
         if (isActive && !canKeepCurrentPreview) {
           setPreviewUrl(undefined);
           previewUrlRef.current = undefined;
-          activePreviewPathRef.current = undefined;
           setPreviewSessionStatus('loading');
           publishPreviewHref(undefined);
-          publishPreviewFiles([]);
-          publishPreviewRoute(projectId, undefined, '');
+          publishPreviewRoute(projectId, '');
         }
       }
     }
 
-    if (shouldAcquirePreviewSession) {
-      void acquirePreviewSession();
-    }
+    void acquirePreviewSession();
 
     const heartbeatTimer = window.setInterval(() => {
       void requestPreviewSession(
         api.buildUrl(`/api/projects/${encodeURIComponent(projectId)}/preview-session/heartbeat`),
       )
         .then((session) => {
-          if (!isActive) {
-            return;
+          if (isActive) {
+            applyPreviewSession(session, { updateFrameSrc: false });
           }
-
-          applyPreviewSession(session, { updateFrameSrc: false });
         })
         .catch(() => {
           if (isActive) {
             setPreviewUrl(undefined);
             previewUrlRef.current = undefined;
-            activePreviewPathRef.current = undefined;
             setPreviewSessionStatus('loading');
             publishPreviewHref(undefined);
-            publishPreviewFiles([]);
-            publishPreviewRoute(projectId, undefined, '');
+            publishPreviewRoute(projectId, '');
           }
         });
     }, HEARTBEAT_INTERVAL_MS);
@@ -187,44 +147,21 @@ export function ProjectPreviewFrame({
       isActive = false;
       window.clearInterval(heartbeatTimer);
     };
-  }, [api, applyPreviewSession, projectId, requestPreviewSession, selectedPreviewPath]);
+  }, [api, applyPreviewSession, projectId, requestPreviewSession]);
 
   const syncPreviewSession = async () => {
     try {
-      const response = await fetch(
+      const session = await requestPreviewSession(
         api.buildUrl(`/api/projects/${encodeURIComponent(projectId)}/preview-session/heartbeat`),
-        {
-          body: JSON.stringify({
-            clientId: clientId.current,
-          }),
-          headers: { 'Content-Type': 'application/json' },
-          method: 'POST',
-        },
       );
 
-      if (!response.ok) {
-        throw new Error(`Preview session request failed: ${response.status}`);
-      }
-
-      const session = (await response.json()) as PreviewSessionResponse;
-
       applyPreviewSession(session, { updateFrameSrc: false });
-
-      if (session.activePath && session.activePath !== selectedPreviewPath) {
-        pendingRouteSyncPathRef.current = session.activePath;
-        setPreviewPath(session.activePath);
-      } else if (!session.activePath && selectedPreviewPath) {
-        pendingRouteSyncPathRef.current = undefined;
-        setPreviewPath(undefined);
-      }
     } catch {
       setPreviewUrl(undefined);
       previewUrlRef.current = undefined;
-      activePreviewPathRef.current = undefined;
       setPreviewSessionStatus('loading');
       publishPreviewHref(undefined);
-      publishPreviewFiles([]);
-      publishPreviewRoute(projectId, undefined, '');
+      publishPreviewRoute(projectId, '');
     }
   };
 
@@ -232,11 +169,8 @@ export function ProjectPreviewFrame({
     const currentClientId = clientId.current;
 
     return () => {
-      activePreviewPathRef.current = undefined;
-      setCurrentPreviewPath(undefined);
       publishPreviewHref(undefined);
-      publishPreviewFiles([]);
-      publishPreviewRoute(projectId, undefined, '');
+      publishPreviewRoute(projectId, '');
       void fetch(api.buildUrl(`/api/projects/${encodeURIComponent(projectId)}/preview-session`), {
         body: JSON.stringify({
           clientId: currentClientId,
@@ -298,23 +232,6 @@ export function ProjectPreviewFrame({
   }, [api, applyPreviewSession, projectId, requestPreviewSession]);
 
   useEffect(() => {
-    const handleManualPreviewSwitch = (event: Event) => {
-      const nextKey =
-        event instanceof CustomEvent && typeof event.detail?.key === 'string'
-          ? event.detail.key
-          : String(Date.now());
-
-      setManualSwitchKey(nextKey);
-    };
-
-    window.addEventListener(PREVIEW_MANUAL_SWITCH_EVENT, handleManualPreviewSwitch);
-
-    return () => {
-      window.removeEventListener(PREVIEW_MANUAL_SWITCH_EVENT, handleManualPreviewSwitch);
-    };
-  }, []);
-
-  useEffect(() => {
     const handlePreviewRouteMessage = (event: MessageEvent) => {
       const frameWindow = previewFrameRef.current?.contentWindow;
 
@@ -332,7 +249,7 @@ export function ProjectPreviewFrame({
         return;
       }
 
-      publishPreviewRoute(projectId, activePreviewPathRef.current, event.data.hash);
+      publishPreviewRoute(projectId, event.data.hash);
     };
 
     window.addEventListener('message', handlePreviewRouteMessage);
@@ -367,7 +284,7 @@ export function ProjectPreviewFrame({
   const previewFrame = (
     <iframe
       className="size-full border-0 bg-white"
-      key={`${refreshKey}:${manualSwitchKey}`}
+      key={refreshKey}
       onLoad={() => {
         void syncPreviewSession();
       }}
@@ -397,6 +314,17 @@ function createClientId() {
     : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
+function clearLegacyPreviewPathQuery() {
+  const url = new URL(window.location.href);
+
+  if (!url.searchParams.has('previewPath')) {
+    return;
+  }
+
+  url.searchParams.delete('previewPath');
+  window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+}
+
 function publishPreviewHref(href: string | undefined) {
   window.dispatchEvent(
     new CustomEvent(PREVIEW_HREF_EVENT, {
@@ -405,22 +333,10 @@ function publishPreviewHref(href: string | undefined) {
   );
 }
 
-function publishPreviewFiles(
-  files: string[],
-  activePath?: string,
-  pageManifest?: HtmlPageManifest,
-) {
-  window.dispatchEvent(
-    new CustomEvent(PREVIEW_FILES_EVENT, {
-      detail: { activePath, files, pageManifest },
-    }),
-  );
-}
-
-function publishPreviewRoute(projectId: string, activePath: string | undefined, hash: string) {
+function publishPreviewRoute(projectId: string, hash: string) {
   window.dispatchEvent(
     new CustomEvent(PREVIEW_ROUTE_EVENT, {
-      detail: { activePath, hash, projectId },
+      detail: { hash, projectId },
     }),
   );
 }

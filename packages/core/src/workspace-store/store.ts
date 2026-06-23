@@ -4,7 +4,6 @@ import path from 'node:path';
 import process from 'node:process';
 
 import { buildUnifiedDiff } from './diff';
-import { HTML_PAGE_MANIFEST_PATH, parseHtmlPageManifest } from '../html-page-manifest';
 import { isProbablyBinary, readFilePrefix, readTextFileIfExists } from './files';
 import { isMissingPathError, normalizeWorkspaceRelativePath } from './paths';
 import { globToRegExp } from './search';
@@ -426,44 +425,6 @@ export class WorkspaceStore {
     });
 
     return entries.sort((left, right) => left.path.localeCompare(right.path));
-  }
-
-  async listProjectHtmlFiles(projectId: string) {
-    const entries: WorkspaceEntry[] = [];
-
-    await this.walkProjectWorkspace(projectId, '', async (entry) => {
-      if (entry.type === 'file' && entry.path.toLowerCase().endsWith('.html')) {
-        entries.push(entry);
-      }
-    });
-
-    return entries
-      .map((entry) => entry.path)
-      .sort((left, right) => {
-        if (left === 'index.html') {
-          return -1;
-        }
-
-        if (right === 'index.html') {
-          return 1;
-        }
-
-        return left.localeCompare(right);
-      });
-  }
-
-  async readProjectHtmlPageManifest(projectId: string) {
-    try {
-      return parseHtmlPageManifest(
-        await this.readProjectWorkspaceFile(projectId, HTML_PAGE_MANIFEST_PATH),
-      );
-    } catch (error) {
-      if (isMissingPathError(error)) {
-        return parseHtmlPageManifest(undefined);
-      }
-
-      throw error;
-    }
   }
 
   async readProjectWorkspaceEntry(

@@ -38,7 +38,6 @@ export type DesignPageAgent = {
 
 type CreateDesignPageAgentInput = {
   agentInstructions?: string;
-  currentPreviewPath?: string;
   frontendTabId?: string;
   model: LanguageModel;
   outputType?: ProjectOutputType;
@@ -57,7 +56,6 @@ export type DesignPromptSection = {
 };
 
 type CreateDesignPageAgentContextInput = {
-  currentPreviewPath?: string;
   frontendTabId?: string;
   modelConfigurationId?: string;
   outputType?: ProjectOutputType;
@@ -100,7 +98,6 @@ export class AiSdkDesignPageAgent implements DesignPageAgent {
 }
 
 export async function createDesignPageAgentContext({
-  currentPreviewPath,
   frontendTabId,
   modelConfigurationId,
   outputType,
@@ -123,7 +120,6 @@ export async function createDesignPageAgentContext({
   ]);
 
   return {
-    currentPreviewPath,
     frontendTabId,
     model: buildLanguageModel(modelConfiguration),
     projectType,

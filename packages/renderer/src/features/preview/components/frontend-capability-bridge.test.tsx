@@ -30,7 +30,7 @@ describe('FrontendCapabilityBridge', () => {
     );
   });
 
-  it('ignores unsupported preview switch commands', () => {
+  it('ignores unsupported preview commands', () => {
     const dispatchEventSpy = vi.spyOn(window, 'dispatchEvent');
     render(<FrontendCapabilityBridge projectId="project-1" />);
 
@@ -38,9 +38,9 @@ describe('FrontendCapabilityBridge', () => {
       MockEventSource.instances[0]?.dispatchEvent(
         new MessageEvent('frontend-command', {
           data: JSON.stringify({
-            capability: 'preview.switchHtml',
+            capability: 'preview.unknown',
             id: 'command-1',
-            payload: { path: 'pages/detail.html' },
+            payload: {},
           }),
         }),
       );

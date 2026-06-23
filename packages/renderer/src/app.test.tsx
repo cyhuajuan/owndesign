@@ -27,19 +27,13 @@ vi.mock('@/features/workspace/components/workspace-shell', async () => {
             {activeProject?.id}:{activeConversationId}
           </div>
           <button
-            onClick={() =>
-              navigate(`${window.location.pathname}?previewPath=dashboard.html`, { replace: true })
-            }
+            onClick={() => navigate(`${window.location.pathname}?panel=preview`, { replace: true })}
             type="button"
           >
-            Switch preview
+            Switch query
           </button>
           <button
-            onClick={() =>
-              navigate(
-                '/projects/project-1/conversations/conversation-2?previewPath=dashboard.html',
-              )
-            }
+            onClick={() => navigate('/projects/project-1/conversations/conversation-2')}
             type="button"
           >
             Switch conversation
@@ -155,7 +149,7 @@ describe('OwnDesignApp routing', () => {
     );
   });
 
-  it('does not reload workspace when only previewPath changes', async () => {
+  it('does not reload workspace when only an unrelated query changes', async () => {
     const user = userEvent.setup();
 
     render(<OwnDesignApp />);
@@ -165,8 +159,8 @@ describe('OwnDesignApp routing', () => {
       '/api/workspace?projectId=project-1&conversationId=conversation-1',
     ]);
 
-    await user.click(screen.getByRole('button', { name: 'Switch preview' }));
-    await waitFor(() => expect(window.location.search).toBe('?previewPath=dashboard.html'));
+    await user.click(screen.getByRole('button', { name: 'Switch query' }));
+    await waitFor(() => expect(window.location.search).toBe('?panel=preview'));
 
     expect(workspaceRequests).toHaveLength(1);
 

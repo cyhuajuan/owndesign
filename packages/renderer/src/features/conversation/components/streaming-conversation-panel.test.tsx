@@ -5,7 +5,6 @@ import type { UIMessage } from 'ai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MessageParts, StreamingConversationPanel } from './streaming-conversation-panel';
-import { setCurrentPreviewPath } from '@/features/preview/preview-path';
 
 function getProjectOutputUpdatedEvents(dispatchEventSpy: ReturnType<typeof vi.spyOn>) {
   return dispatchEventSpy.mock.calls.filter(
@@ -111,7 +110,6 @@ vi.mock('ai', async () => {
 beforeEach(() => {
   window.history.replaceState(null, '', '/');
   window.localStorage.clear();
-  setCurrentPreviewPath(undefined);
   Object.defineProperty(URL, 'createObjectURL', {
     configurable: true,
     value: vi.fn((file: File) => `blob:${file.name}`),
@@ -1000,8 +998,7 @@ describe('MessageParts', () => {
     expect(screen.queryByText('历史思考不应显示。')).not.toBeInTheDocument();
   });
 
-  it('includes current preview path in the chat transport body', () => {
-    setCurrentPreviewPath('dashboard.html');
+  it('omits preview path from the chat transport body', () => {
     vi.mocked(useChat).mockReturnValue({
       addToolApprovalResponse: vi.fn(),
       error: undefined,
@@ -1036,12 +1033,12 @@ describe('MessageParts', () => {
           id: 'user-1',
           text: '生成页面',
         },
-        previewPath: 'dashboard.html',
         projectId: 'project-1',
       }),
     );
     expect(prepareChatRequestBody(transport)).not.toHaveProperty('messages');
     expect(prepareChatRequestBody(transport)).not.toHaveProperty('pageEditMode');
+    expect(prepareChatRequestBody(transport)).not.toHaveProperty('previewPath');
   });
 
   it('extracts only the current user text and files for the chat request body', () => {
@@ -1237,7 +1234,6 @@ describe('MessageParts', () => {
   });
 
   it('does not send page edit mode in the chat transport body', () => {
-    setCurrentPreviewPath('index.html');
     vi.mocked(useChat).mockReturnValue({
       addToolApprovalResponse: vi.fn(),
       error: undefined,
@@ -1266,7 +1262,6 @@ describe('MessageParts', () => {
   it('submits without page edit mode in the send request body', async () => {
     const user = userEvent.setup();
     const sendMessage = vi.fn();
-    setCurrentPreviewPath('index.html');
     vi.mocked(useChat).mockReturnValue({
       addToolApprovalResponse: vi.fn(),
       error: undefined,
@@ -1292,50 +1287,11 @@ describe('MessageParts', () => {
       expect(sendMessage).toHaveBeenCalledTimes(1);
     });
     expect(sendMessage.mock.calls[0]?.[1]).toEqual({
-      body: expect.objectContaining({
-        previewPath: 'index.html',
-      }),
+      body: expect.any(Object),
     });
     expect(sendMessage.mock.calls[0]?.[1]?.body).not.toHaveProperty('pageEditMode');
-  });
-
-  it('uses current preview path published after render without page edit mode', async () => {
-    const user = userEvent.setup();
-    const sendMessage = vi.fn();
-    vi.mocked(useChat).mockReturnValue({
-      addToolApprovalResponse: vi.fn(),
-      error: undefined,
-      messages: [],
-      sendMessage,
-      status: 'ready',
-      stop: vi.fn(),
-    } as unknown as ReturnType<typeof useChat>);
-
-    render(
-      <StreamingConversationPanel
-        conversationId="conversation-1"
-        conversationTitle="新建会话"
-        initialMessages={[]}
-        projectId="project-1"
-      />,
-    );
-
-    act(() => {
-      setCurrentPreviewPath('generated.html');
-    });
-
-    await user.type(screen.getByPlaceholderText(/输入消息/), '移除标题');
-    await user.click(screen.getByRole('button', { name: '提交' }));
-
-    await waitFor(() => {
-      expect(sendMessage).toHaveBeenCalledTimes(1);
-    });
-    expect(sendMessage.mock.calls[0]?.[1]).toEqual({
-      body: expect.objectContaining({
-        previewPath: 'generated.html',
-      }),
-    });
     expect(sendMessage.mock.calls[0]?.[1]?.body).not.toHaveProperty('pageEditMode');
+    expect(sendMessage.mock.calls[0]?.[1]?.body).not.toHaveProperty('previewPath');
   });
 
   it('configures stream resume for the current conversation active run', async () => {

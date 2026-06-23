@@ -110,24 +110,14 @@ describe('ChatShell', () => {
     expect(screen.getAllByRole('button', { name: '展开会话面板' })).not.toHaveLength(0);
   });
 
-  it('does not render the active preview filename from preview file events', () => {
+  it('keeps the preview header free of fixed html filenames', () => {
     render(<ChatShell />);
-    act(() => {
-      window.dispatchEvent(
-        new CustomEvent('owndesign:preview-files-updated', {
-          detail: {
-            activePath: 'index.html',
-            files: ['index.html', 'detail.html', 'legacy.html'],
-          },
-        }),
-      );
-    });
 
     expect(screen.queryByText('index.html')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '切换预览 HTML' })).not.toBeInTheDocument();
   });
 
-  it('keeps the preview header free of fixed html filenames', () => {
+  it('ignores legacy preview file events', () => {
     render(<ChatShell />);
     act(() => {
       window.dispatchEvent(
@@ -141,23 +131,6 @@ describe('ChatShell', () => {
     });
 
     expect(screen.queryByText('index.html')).not.toBeInTheDocument();
-  });
-
-  it('does not show or switch other HTML files from the preview header', () => {
-    render(<ChatShell />);
-    act(() => {
-      window.dispatchEvent(
-        new CustomEvent('owndesign:preview-files-updated', {
-          detail: {
-            activePath: 'index.html',
-            files: ['index.html', 'legacy.html'],
-          },
-        }),
-      );
-    });
-
-    expect(screen.queryByText('index.html')).not.toBeInTheDocument();
-    expect(screen.queryByText('legacy.html')).not.toBeInTheDocument();
     expect(window.location.search).toBe('');
   });
 
@@ -207,69 +180,35 @@ describe('ChatShell', () => {
     expect(deviceSelect).toHaveTextContent('移动端');
   });
 
-  it('persists preview device per project html and uses the current device for new html', async () => {
+  it('persists preview device per project and falls back from the old index html key', async () => {
     const user = userEvent.setup();
+    window.localStorage.setItem(
+      'owndesign.app.preview-device-by-html',
+      JSON.stringify({
+        [JSON.stringify(['project-1', 'index.html'])]: 'mobile',
+      }),
+    );
 
-    render(<ChatShell previewProjectId="project-1" />);
-
-    act(() => {
-      window.dispatchEvent(
-        new CustomEvent('owndesign:preview-files-updated', {
-          detail: {
-            activePath: 'index.html',
-            files: ['index.html', 'dashboard.html'],
-          },
-        }),
-      );
-    });
+    const { rerender } = render(<ChatShell previewProjectId="project-1" />);
 
     const previewPane = screen.getByRole('region', { name: '预览面板' });
     const deviceSelect = within(previewPane).getByRole('combobox', { name: '预览设备' });
 
-    await user.click(deviceSelect);
-    await user.click(await screen.findByRole('option', { name: '移动端' }));
     expect(deviceSelect).toHaveTextContent('移动端');
-
-    act(() => {
-      window.dispatchEvent(
-        new CustomEvent('owndesign:preview-files-updated', {
-          detail: {
-            activePath: 'dashboard.html',
-            files: ['index.html', 'dashboard.html'],
-          },
-        }),
-      );
-    });
-
-    await waitFor(() => expect(deviceSelect).toHaveTextContent('移动端'));
 
     await user.click(deviceSelect);
     await user.click(await screen.findByRole('option', { name: '桌面端' }));
     expect(deviceSelect).toHaveTextContent('桌面端');
 
-    act(() => {
-      window.dispatchEvent(
-        new CustomEvent('owndesign:preview-files-updated', {
-          detail: {
-            activePath: 'index.html',
-            files: ['index.html', 'dashboard.html'],
-          },
-        }),
-      );
-    });
+    rerender(<ChatShell previewProjectId="project-2" />);
 
-    await waitFor(() => expect(deviceSelect).toHaveTextContent('移动端'));
+    await waitFor(() => expect(deviceSelect).toHaveTextContent('桌面端'));
 
-    act(() => {
-      window.dispatchEvent(
-        new CustomEvent('owndesign:preview-files-updated', {
-          detail: {
-            activePath: 'dashboard.html',
-            files: ['index.html', 'dashboard.html'],
-          },
-        }),
-      );
-    });
+    await user.click(deviceSelect);
+    await user.click(await screen.findByRole('option', { name: '移动端' }));
+    expect(deviceSelect).toHaveTextContent('移动端');
+
+    rerender(<ChatShell previewProjectId="project-1" />);
 
     await waitFor(() => expect(deviceSelect).toHaveTextContent('桌面端'));
   });
@@ -280,7 +219,7 @@ describe('ChatShell', () => {
     expect(screen.getByRole('button', { name: '下载' })).toBeDisabled();
   });
 
-  it('disables screenshot download when no active preview path exists', async () => {
+  it('disables screenshot download when no preview href exists', async () => {
     const user = userEvent.setup();
 
     render(<ChatShell previewProjectId="project-1" />);
@@ -292,49 +231,35 @@ describe('ChatShell', () => {
     );
   });
 
-  it('downloads current preview html using the active preview path', async () => {
+  it('downloads current index html without a preview path', async () => {
     const user = userEvent.setup();
 
     render(<ChatShell previewProjectId="project-1" />);
     act(() => {
-      window.dispatchEvent(
-        new CustomEvent('owndesign:preview-files-updated', {
-          detail: {
-            activePath: 'pages/detail.html',
-            files: ['index.html', 'pages/detail.html'],
-          },
-        }),
-      );
+      publishPreviewHref('http://127.0.0.1:3000/index.html');
     });
 
     await user.click(screen.getByRole('button', { name: '下载' }));
     await user.click(await screen.findByText('下载当前HTML'));
 
     expect(anchorClicks).toEqual([
-      'http://localhost:3000/api/projects/project-1/download?kind=current-html&previewPath=pages%2Fdetail.html',
+      'http://localhost:3000/api/projects/project-1/download?kind=current-html',
     ]);
   });
 
-  it('downloads current preview screenshot using the active preview path and desktop device', async () => {
+  it('downloads current index screenshot using the desktop device', async () => {
     const user = userEvent.setup();
 
     render(<ChatShell previewProjectId="project-1" />);
     act(() => {
-      window.dispatchEvent(
-        new CustomEvent('owndesign:preview-files-updated', {
-          detail: {
-            activePath: 'pages/detail.html',
-            files: ['index.html', 'pages/detail.html'],
-          },
-        }),
-      );
+      publishPreviewHref('http://127.0.0.1:3000/index.html');
     });
 
     await user.click(screen.getByRole('button', { name: '下载' }));
     await user.click(await screen.findByText('下载当前界面图片PNG'));
 
     expect(anchorClicks).toEqual([
-      'http://localhost:3000/api/projects/project-1/download?kind=current-screenshot&previewPath=pages%2Fdetail.html&device=desktop',
+      'http://localhost:3000/api/projects/project-1/download?kind=current-screenshot&device=desktop',
     ]);
   });
 
@@ -343,32 +268,15 @@ describe('ChatShell', () => {
 
     render(<ChatShell previewProjectId="project-1" />);
     act(() => {
-      window.dispatchEvent(
-        new CustomEvent('owndesign:preview-files-updated', {
-          detail: {
-            activePath: 'index.html',
-            files: ['index.html'],
-          },
-        }),
-      );
-    });
-    act(() => {
-      window.dispatchEvent(
-        new CustomEvent('owndesign:preview-route-updated', {
-          detail: {
-            activePath: 'index.html',
-            hash: '#/pricing',
-            projectId: 'project-1',
-          },
-        }),
-      );
+      publishPreviewHref('http://127.0.0.1:3000/index.html');
+      publishPreviewRoute('project-1', '#/pricing');
     });
 
     await user.click(screen.getByRole('button', { name: '下载' }));
     await user.click(await screen.findByText('下载当前界面图片PNG'));
 
     expect(anchorClicks).toEqual([
-      'http://localhost:3000/api/projects/project-1/download?kind=current-screenshot&previewPath=index.html&device=desktop&route=%23%2Fpricing',
+      'http://localhost:3000/api/projects/project-1/download?kind=current-screenshot&device=desktop&route=%23%2Fpricing',
     ]);
   });
 
@@ -377,23 +285,8 @@ describe('ChatShell', () => {
 
     render(<ChatShell previewProjectId="project-1" />);
     act(() => {
-      window.dispatchEvent(
-        new CustomEvent('owndesign:preview-files-updated', {
-          detail: {
-            activePath: 'index.html',
-            files: ['index.html'],
-          },
-        }),
-      );
-      window.dispatchEvent(
-        new CustomEvent('owndesign:preview-route-updated', {
-          detail: {
-            activePath: 'index.html',
-            hash: '#/pricing',
-            projectId: 'project-1',
-          },
-        }),
-      );
+      publishPreviewHref('http://127.0.0.1:3000/index.html');
+      publishPreviewRoute('project-1', '#/pricing');
     });
 
     const previewPane = screen.getByRole('region', { name: '预览面板' });
@@ -404,7 +297,28 @@ describe('ChatShell', () => {
     await user.click(await screen.findByText('下载当前界面图片PNG'));
 
     expect(anchorClicks).toEqual([
-      'http://localhost:3000/api/projects/project-1/download?kind=current-screenshot&previewPath=index.html&device=desktop&route=%23%2Fpricing',
+      'http://localhost:3000/api/projects/project-1/download?kind=current-screenshot&device=desktop&route=%23%2Fpricing',
+    ]);
+  });
+
+  it('keeps the displayed hash route when the preview href is republished', async () => {
+    const user = userEvent.setup();
+
+    render(<ChatShell previewProjectId="project-1" />);
+    act(() => {
+      publishPreviewHref('http://127.0.0.1:3000/index.html');
+      publishPreviewRoute('project-1', '#/pricing');
+      publishPreviewHref('http://127.0.0.1:3000/index.html');
+    });
+
+    const previewPane = screen.getByRole('region', { name: '预览面板' });
+    expect(within(previewPane).getByText('#/pricing')).toBeInTheDocument();
+
+    await user.click(within(previewPane).getByRole('button', { name: '下载' }));
+    await user.click(await screen.findByText('下载当前界面图片PNG'));
+
+    expect(anchorClicks).toEqual([
+      'http://localhost:3000/api/projects/project-1/download?kind=current-screenshot&device=desktop&route=%23%2Fpricing',
     ]);
   });
 
@@ -413,25 +327,8 @@ describe('ChatShell', () => {
 
     render(<ChatShell previewProjectId="project-1" />);
     act(() => {
-      window.dispatchEvent(
-        new CustomEvent('owndesign:preview-files-updated', {
-          detail: {
-            activePath: 'index.html',
-            files: ['index.html'],
-          },
-        }),
-      );
-    });
-    act(() => {
-      window.dispatchEvent(
-        new CustomEvent('owndesign:preview-route-updated', {
-          detail: {
-            activePath: 'index.html',
-            hash: '#/orders?tab=kanban',
-            projectId: 'project-1',
-          },
-        }),
-      );
+      publishPreviewHref('http://127.0.0.1:3000/index.html');
+      publishPreviewRoute('project-1', '#/orders?tab=kanban');
     });
 
     const previewPane = screen.getByRole('region', { name: '预览面板' });
@@ -441,51 +338,42 @@ describe('ChatShell', () => {
     await user.click(await screen.findByText('下载当前界面图片PNG'));
 
     expect(anchorClicks).toEqual([
-      'http://localhost:3000/api/projects/project-1/download?kind=current-screenshot&previewPath=index.html&device=mobile&route=%23%2Forders%3Ftab%3Dkanban',
+      'http://localhost:3000/api/projects/project-1/download?kind=current-screenshot&device=mobile&route=%23%2Forders%3Ftab%3Dkanban',
     ]);
   });
 
-  it('clears the screenshot hash route when the active preview path changes', async () => {
+  it('clears the screenshot hash route when the project changes', async () => {
     const user = userEvent.setup();
 
-    render(<ChatShell previewProjectId="project-1" />);
+    const { rerender } = render(<ChatShell previewProjectId="project-1" />);
     act(() => {
-      window.dispatchEvent(
-        new CustomEvent('owndesign:preview-files-updated', {
-          detail: {
-            activePath: 'index.html',
-            files: ['index.html', 'detail.html'],
-          },
-        }),
-      );
+      publishPreviewHref('http://127.0.0.1:3000/index.html');
+      publishPreviewRoute('project-1', '#/pricing');
     });
-    act(() => {
-      window.dispatchEvent(
-        new CustomEvent('owndesign:preview-route-updated', {
-          detail: {
-            activePath: 'index.html',
-            hash: '#/pricing',
-            projectId: 'project-1',
-          },
-        }),
-      );
-    });
-    act(() => {
-      window.dispatchEvent(
-        new CustomEvent('owndesign:preview-files-updated', {
-          detail: {
-            activePath: 'detail.html',
-            files: ['index.html', 'detail.html'],
-          },
-        }),
-      );
-    });
+    rerender(<ChatShell previewProjectId="project-2" />);
+    act(() => publishPreviewHref('http://127.0.0.1:3001/index.html'));
 
     await user.click(screen.getByRole('button', { name: '下载' }));
     await user.click(await screen.findByText('下载当前界面图片PNG'));
 
     expect(anchorClicks).toEqual([
-      'http://localhost:3000/api/projects/project-1/download?kind=current-screenshot&previewPath=detail.html&device=desktop',
+      'http://localhost:3000/api/projects/project-2/download?kind=current-screenshot&device=desktop',
     ]);
   });
 });
+
+function publishPreviewHref(href: string | undefined) {
+  window.dispatchEvent(
+    new CustomEvent('owndesign:preview-href-updated', {
+      detail: { href },
+    }),
+  );
+}
+
+function publishPreviewRoute(projectId: string, hash: string) {
+  window.dispatchEvent(
+    new CustomEvent('owndesign:preview-route-updated', {
+      detail: { hash, projectId },
+    }),
+  );
+}

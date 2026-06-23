@@ -99,7 +99,6 @@ export const zhCN = {
   'preview.serviceStartingDescription':
     '正在为当前项目启动预览环境。准备完成后，这里会自动显示最新页面。',
   'preview.serviceStartingTitle': '预览服务启动中',
-  'preview.switchHtml': '切换预览 HTML',
   'promptInput.acceptError': '没有文件符合允许的类型。',
   'promptInput.maxFileSizeError': '所有文件都超过了大小限制。',
   'promptInput.maxFilesError': '文件数量过多，部分文件未添加。',
@@ -318,7 +317,6 @@ export const enUS: Translations = {
   'preview.serviceStartingDescription':
     'Starting the preview environment for the current project. The latest page will be displayed automatically once ready.',
   'preview.serviceStartingTitle': 'Preview Service Starting',
-  'preview.switchHtml': 'Switch Preview HTML',
   'promptInput.acceptError': 'No files match the allowed types.',
   'promptInput.maxFileSizeError': 'All files exceed the size limit.',
   'promptInput.maxFilesError': 'Too many files. Some files were not added.',

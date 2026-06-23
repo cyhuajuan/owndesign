@@ -105,7 +105,9 @@ export function ChatShell({
   const [previewDevice, setPreviewDevice] = useState<PreviewDevice>('desktop');
   const previewDeviceRef = useRef<PreviewDevice>('desktop');
   const [activePreviewPath, setActivePreviewPath] = useState<string>();
+  const activePreviewPathRef = useRef<string | undefined>(undefined);
   const [activePreviewRoute, setActivePreviewRoute] = useState('');
+  const activePreviewRouteRef = useRef('');
   const isConversationCollapsed = useSyncExternalStore(
     subscribeToConversationPaneState,
     readConversationPaneState,
@@ -168,6 +170,8 @@ export function ChatShell({
 
       const activePath =
         typeof event.detail?.activePath === 'string' ? event.detail.activePath : undefined;
+      activePreviewPathRef.current = activePath;
+      activePreviewRouteRef.current = '';
       setActivePreviewPath(activePath);
       setActivePreviewRoute('');
     };
@@ -180,8 +184,11 @@ export function ChatShell({
   }, []);
 
   useEffect(() => {
+    activePreviewPathRef.current = undefined;
+    activePreviewRouteRef.current = '';
+    setActivePreviewPath(undefined);
     setActivePreviewRoute('');
-  }, [activePreviewPath, previewProjectId]);
+  }, [previewProjectId]);
 
   useEffect(() => {
     const handlePreviewRouteUpdated = (event: Event) => {
@@ -195,7 +202,11 @@ export function ChatShell({
         typeof event.detail?.activePath === 'string' ? event.detail.activePath : undefined;
       const hash = typeof event.detail?.hash === 'string' ? event.detail.hash : undefined;
 
-      if (projectId !== previewProjectId || activePath !== activePreviewPath || hash === undefined) {
+      if (
+        projectId !== previewProjectId ||
+        activePath !== activePreviewPathRef.current ||
+        hash === undefined
+      ) {
         return;
       }
 
@@ -203,6 +214,7 @@ export function ChatShell({
         return;
       }
 
+      activePreviewRouteRef.current = hash;
       setActivePreviewRoute(hash);
     };
 
@@ -211,7 +223,7 @@ export function ChatShell({
     return () => {
       window.removeEventListener(PREVIEW_ROUTE_EVENT, handlePreviewRouteUpdated);
     };
-  }, [activePreviewPath, previewProjectId]);
+  }, [previewProjectId]);
 
   const handlePreviewDeviceChange = (value: string | null) => {
     if (value !== 'desktop' && value !== 'mobile') {
@@ -360,6 +372,14 @@ export function ChatShell({
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <span className={statusClassName} />
                   <span>{statusLabels[previewStatus]}</span>
+                  {activePreviewRoute ? (
+                    <span
+                      className="max-w-[min(320px,32vw)] truncate font-mono text-[11px] text-foreground/70"
+                      title={activePreviewRoute}
+                    >
+                      {activePreviewRoute}
+                    </span>
+                  ) : null}
                 </div>
                 <div className="min-w-0 flex-1" />
                 <div className="flex items-center gap-1">
@@ -402,8 +422,16 @@ export function ChatShell({
                           <DropdownMenuItem
                             disabled={!currentHtmlDownloadUrl}
                             onClick={() => {
-                              if (currentHtmlDownloadUrl) {
-                                triggerBrowserDownload(currentHtmlDownloadUrl);
+                              if (previewProjectId && activePreviewPathRef.current) {
+                                triggerBrowserDownload(
+                                  api.buildUrl(
+                                    buildProjectDownloadPath(
+                                      previewProjectId,
+                                      'current-html',
+                                      activePreviewPathRef.current,
+                                    ),
+                                  ),
+                                );
                               }
                             }}
                           >
@@ -412,8 +440,18 @@ export function ChatShell({
                           <DropdownMenuItem
                             disabled={!currentScreenshotDownloadUrl}
                             onClick={() => {
-                              if (currentScreenshotDownloadUrl) {
-                                triggerBrowserDownload(currentScreenshotDownloadUrl);
+                              if (previewProjectId && activePreviewPathRef.current) {
+                                triggerBrowserDownload(
+                                  api.buildUrl(
+                                    buildProjectDownloadPath(
+                                      previewProjectId,
+                                      'current-screenshot',
+                                      activePreviewPathRef.current,
+                                      previewDeviceRef.current,
+                                      activePreviewRouteRef.current,
+                                    ),
+                                  ),
+                                );
                               }
                             }}
                           >

@@ -372,6 +372,42 @@ describe('ChatShell', () => {
     ]);
   });
 
+  it('shows the current hash route next to the preview status and downloads the same route', async () => {
+    const user = userEvent.setup();
+
+    render(<ChatShell previewProjectId="project-1" />);
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent('owndesign:preview-files-updated', {
+          detail: {
+            activePath: 'index.html',
+            files: ['index.html'],
+          },
+        }),
+      );
+      window.dispatchEvent(
+        new CustomEvent('owndesign:preview-route-updated', {
+          detail: {
+            activePath: 'index.html',
+            hash: '#/pricing',
+            projectId: 'project-1',
+          },
+        }),
+      );
+    });
+
+    const previewPane = screen.getByRole('region', { name: '预览面板' });
+    expect(within(previewPane).getByText('就绪')).toBeInTheDocument();
+    expect(within(previewPane).getByText('#/pricing')).toBeInTheDocument();
+
+    await user.click(within(previewPane).getByRole('button', { name: '下载' }));
+    await user.click(await screen.findByText('下载当前界面图片PNG'));
+
+    expect(anchorClicks).toEqual([
+      'http://localhost:3000/api/projects/project-1/download?kind=current-screenshot&previewPath=index.html&device=desktop&route=%23%2Fpricing',
+    ]);
+  });
+
   it('downloads current preview screenshot using the mobile device', async () => {
     const user = userEvent.setup();
 

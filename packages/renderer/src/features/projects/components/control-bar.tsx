@@ -50,6 +50,7 @@ type ControlBarProps = {
   onCreateProject: (
     name: string,
     description?: string,
+    designDocument?: string | null,
   ) => Promise<ControlBarActionResult> | ControlBarActionResult;
   onDeleteConversation: (
     conversationId: string,
@@ -63,6 +64,7 @@ type ControlBarProps = {
     projectId: string,
     name: string,
     description?: string,
+    designDocument?: string | null,
   ) => Promise<ControlBarActionResult> | ControlBarActionResult;
   onSelectConversation: (
     conversationId: string,
@@ -107,11 +109,15 @@ export function ControlBar({
   const [projectQuery, setProjectQuery] = useState('');
   const [conversationQuery, setConversationQuery] = useState('');
   const [projectName, setProjectName] = useState('');
+  const [projectDesignDocument, setProjectDesignDocument] = useState<string | null>();
   const [renameName, setRenameName] = useState('');
   const [renameDescription, setRenameDescription] = useState('');
+  const [renameDesignDocument, setRenameDesignDocument] = useState<string | null>();
   const projectNameId = useId();
+  const projectDesignDocumentId = useId();
   const renameNameId = useId();
   const renameDescriptionId = useId();
+  const renameDesignDocumentId = useId();
   const deferredProjectQuery = useDeferredValue(projectQuery);
   const deferredConversationQuery = useDeferredValue(conversationQuery);
 
@@ -220,6 +226,7 @@ export function ControlBar({
                         setOpenMenu(null);
                         setRenameName(project.name);
                         setRenameDescription(project.description ?? '');
+                        setRenameDesignDocument(project.designDocument);
                         setRenameTarget({ type: 'project', project });
                       }}
                     />
@@ -360,6 +367,7 @@ export function ControlBar({
           setIsProjectCreateOpen(open);
           if (!open) {
             setProjectName('');
+            setProjectDesignDocument(undefined);
           }
         }}
         open={isProjectCreateOpen}
@@ -381,6 +389,26 @@ export function ControlBar({
                   value={projectName}
                 />
               </Field>
+              <Field>
+                <FieldLabel htmlFor={projectDesignDocumentId}>
+                  {t('projects.designDocument')}
+                </FieldLabel>
+                <Input
+                  accept=".md,text/markdown,text/plain"
+                  id={projectDesignDocumentId}
+                  onChange={(event) => {
+                    void readDesignDocumentFile(event.currentTarget.files?.[0]).then(
+                      setProjectDesignDocument,
+                    );
+                  }}
+                  type="file"
+                />
+                {projectDesignDocument ? (
+                  <div className="text-xs text-muted-foreground">
+                    {t('projects.designDocumentAttached')}
+                  </div>
+                ) : null}
+              </Field>
             </FieldGroup>
             <DialogFooter className="mt-5 border-t-0">
               <Button type="submit">{t('projects.create')}</Button>
@@ -395,6 +423,7 @@ export function ControlBar({
             setRenameTarget(null);
             setRenameName('');
             setRenameDescription('');
+            setRenameDesignDocument(undefined);
           }
         }}
         open={renameTarget !== null}
@@ -420,16 +449,47 @@ export function ControlBar({
                 />
               </Field>
               {renameTarget?.type === 'project' ? (
-                <Field>
-                  <FieldLabel htmlFor={renameDescriptionId}>
-                    {t('projects.projectDescription')}
-                  </FieldLabel>
-                  <Textarea
-                    id={renameDescriptionId}
-                    onChange={(event) => setRenameDescription(event.target.value)}
-                    value={renameDescription}
-                  />
-                </Field>
+                <>
+                  <Field>
+                    <FieldLabel htmlFor={renameDescriptionId}>
+                      {t('projects.projectDescription')}
+                    </FieldLabel>
+                    <Textarea
+                      id={renameDescriptionId}
+                      onChange={(event) => setRenameDescription(event.target.value)}
+                      value={renameDescription}
+                    />
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor={renameDesignDocumentId}>
+                      {t('projects.designDocument')}
+                    </FieldLabel>
+                    <Input
+                      accept=".md,text/markdown,text/plain"
+                      id={renameDesignDocumentId}
+                      onChange={(event) => {
+                        void readDesignDocumentFile(event.currentTarget.files?.[0]).then(
+                          setRenameDesignDocument,
+                        );
+                      }}
+                      type="file"
+                    />
+                    {renameDesignDocument ? (
+                      <div className="text-xs text-muted-foreground">
+                        {t('projects.designDocumentAttached')}
+                      </div>
+                    ) : null}
+                    {renameDesignDocument !== undefined ? (
+                      <Button
+                        onClick={() => setRenameDesignDocument(null)}
+                        type="button"
+                        variant="outline"
+                      >
+                        {t('projects.removeDesignDocument')}
+                      </Button>
+                    ) : null}
+                  </Field>
+                </>
               ) : null}
             </FieldGroup>
             <DialogFooter className="mt-5">
@@ -504,8 +564,9 @@ export function ControlBar({
 
     setIsProjectCreateOpen(false);
     setProjectName('');
+    setProjectDesignDocument(undefined);
     startTransition(() => {
-      void runAction(onCreateProject(trimmedName));
+      void runAction(onCreateProject(trimmedName, undefined, projectDesignDocument));
     });
   }
 
@@ -527,10 +588,16 @@ export function ControlBar({
     setRenameTarget(null);
     setRenameName('');
     setRenameDescription('');
+    setRenameDesignDocument(undefined);
     startTransition(() => {
       if (target.type === 'project') {
         void runAction(
-          onRenameProject(target.project.id, trimmedName, trimmedDescription || undefined),
+          onRenameProject(
+            target.project.id,
+            trimmedName,
+            trimmedDescription || undefined,
+            renameDesignDocument,
+          ),
         );
       } else {
         void runAction(onRenameConversation(target.conversation.id, trimmedName));
@@ -548,4 +615,12 @@ export function ControlBar({
 
     window.dispatchEvent(new Event('owndesign:workspace-refresh'));
   }
+}
+
+async function readDesignDocumentFile(file: File | undefined) {
+  if (!file) {
+    return undefined;
+  }
+
+  return file.text();
 }

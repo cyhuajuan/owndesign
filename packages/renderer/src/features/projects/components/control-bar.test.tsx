@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, type ComponentProps } from 'react';
 
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { ControlBar } from './control-bar';
 
@@ -180,6 +180,39 @@ describe('ControlBar', () => {
     ).toBeInTheDocument();
   });
 
+  it('uploads a design document when creating a project', async () => {
+    const user = userEvent.setup();
+    const onCreateProject = vi.fn(async () => undefined);
+
+    renderControlBar({
+      onCreateProject,
+      projects: [],
+    });
+
+    await user.click(
+      screen.getByRole('button', {
+        name: '项目切换器 暂无当前项目',
+      }),
+    );
+    await user.click(screen.getByRole('option', { name: '新建项目' }));
+    await user.type(screen.getByLabelText('项目名称'), 'Design Project');
+    await user.upload(
+      screen.getByLabelText('DESIGN.md'),
+      new File(['# Brand\n\nUse focused layouts.'], 'DESIGN.md', {
+        type: 'text/markdown',
+      }),
+    );
+    await user.click(screen.getByRole('button', { name: '创建项目' }));
+
+    await waitFor(() =>
+      expect(onCreateProject).toHaveBeenCalledWith(
+        'Design Project',
+        undefined,
+        '# Brand\n\nUse focused layouts.',
+      ),
+    );
+  });
+
   it('creates Conversation from Conversation switcher action', async () => {
     const user = userEvent.setup();
 
@@ -220,6 +253,82 @@ describe('ControlBar', () => {
         name: '项目切换器 Alpha Redesign',
       }),
     ).toBeInTheDocument();
+  });
+
+  it('updates a project design document from project settings', async () => {
+    const user = userEvent.setup();
+    const onRenameProject = vi.fn(async () => undefined);
+
+    renderControlBar({
+      activeProjectId: 'project-1',
+      onRenameProject,
+      projects: [
+        {
+          createdAt: '2026-06-29T00:00:00.000Z',
+          designDocument: '# Old',
+          id: 'project-1',
+          name: 'Project One',
+          projectType: 'single_html',
+          updatedAt: '2026-06-29T00:00:00.000Z',
+        },
+      ],
+    });
+
+    await user.click(
+      screen.getByRole('button', {
+        name: '项目切换器 Project One',
+      }),
+    );
+    await user.click(screen.getByRole('button', { name: '重命名' }));
+    await user.upload(
+      screen.getByLabelText('DESIGN.md'),
+      new File(['# New\n\nUse clear contrast.'], 'DESIGN.md', {
+        type: 'text/markdown',
+      }),
+    );
+    await user.click(screen.getByRole('button', { name: '保存' }));
+
+    await waitFor(() =>
+      expect(onRenameProject).toHaveBeenCalledWith(
+        'project-1',
+        'Project One',
+        undefined,
+        '# New\n\nUse clear contrast.',
+      ),
+    );
+  });
+
+  it('removes a project design document from project settings', async () => {
+    const user = userEvent.setup();
+    const onRenameProject = vi.fn(async () => undefined);
+
+    renderControlBar({
+      activeProjectId: 'project-1',
+      onRenameProject,
+      projects: [
+        {
+          createdAt: '2026-06-29T00:00:00.000Z',
+          designDocument: '# Existing',
+          id: 'project-1',
+          name: 'Project One',
+          projectType: 'single_html',
+          updatedAt: '2026-06-29T00:00:00.000Z',
+        },
+      ],
+    });
+
+    await user.click(
+      screen.getByRole('button', {
+        name: '项目切换器 Project One',
+      }),
+    );
+    await user.click(screen.getByRole('button', { name: '重命名' }));
+    await user.click(screen.getByRole('button', { name: '移除 DESIGN.md' }));
+    await user.click(screen.getByRole('button', { name: '保存' }));
+
+    await waitFor(() =>
+      expect(onRenameProject).toHaveBeenCalledWith('project-1', 'Project One', undefined, null),
+    );
   });
 
   it('deletes Conversation through confirmation dialog', async () => {
@@ -412,5 +521,24 @@ function ControlBarHarness() {
       }}
       projects={projects}
     />
+  );
+}
+
+function renderControlBar(overrides: Partial<ComponentProps<typeof ControlBar>> = {}) {
+  return render(
+    <ControlBar
+      activeConversationId={overrides.activeConversationId}
+      activeProjectId={overrides.activeProjectId}
+      conversations={overrides.conversations ?? []}
+      onCreateConversation={overrides.onCreateConversation ?? (() => undefined)}
+      onCreateProject={overrides.onCreateProject ?? (() => undefined)}
+      onDeleteConversation={overrides.onDeleteConversation ?? (() => undefined)}
+      onDeleteProject={overrides.onDeleteProject ?? (() => undefined)}
+      onRenameConversation={overrides.onRenameConversation ?? (() => undefined)}
+      onRenameProject={overrides.onRenameProject ?? (() => undefined)}
+      onSelectConversation={overrides.onSelectConversation ?? (() => undefined)}
+      onSelectProject={overrides.onSelectProject ?? (() => undefined)}
+      projects={overrides.projects ?? []}
+    />,
   );
 }

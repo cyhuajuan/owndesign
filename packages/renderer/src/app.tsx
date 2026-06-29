@@ -108,7 +108,7 @@ function WorkspaceRoute({ shellSlots }: { shellSlots?: WorkspaceShellSlots }) {
       onCreateConversation: () =>
         activeProjectId ? api.createConversation(activeProjectId) : undefined,
       onCreateProject: (name: string, description?: string, designDocument?: string | null) =>
-        api.createProject(name, description, 'single_html', designDocument),
+        api.createProject(name, description, designDocument, 'single_html'),
       onDeleteConversation: (targetConversationId: string) =>
         activeProjectId
           ? api.deleteConversation(

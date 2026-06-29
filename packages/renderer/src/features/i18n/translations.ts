@@ -106,6 +106,7 @@ export const zhCN = {
   'projects.create': '创建项目',
   'projects.createDescription': '创建后会自动进入新项目的第一段会话。',
   'projects.createTitle': '新建项目',
+  'projects.clearDesignDocument': '清除 DESIGN.md',
   'projects.designDocument': 'DESIGN.md',
   'projects.designDocumentAttached': '已选择 DESIGN.md',
   'projects.deleteDescription': '将移入系统回收站，而非永久删除。',
@@ -328,6 +329,7 @@ export const enUS: Translations = {
   'projects.createDescription':
     'You will automatically enter the first conversation of the new project after creation.',
   'projects.createTitle': 'New Project',
+  'projects.clearDesignDocument': 'Clear DESIGN.md',
   'projects.designDocument': 'DESIGN.md',
   'projects.designDocumentAttached': 'DESIGN.md selected',
   'projects.deleteDescription': 'Will be moved to the system trash instead of permanent deletion.',

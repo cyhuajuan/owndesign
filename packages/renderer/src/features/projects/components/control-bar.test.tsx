@@ -168,16 +168,20 @@ describe('ControlBar', () => {
     await user.type(screen.getByLabelText('项目名称'), 'Control Bar Launch');
     await user.click(screen.getByRole('button', { name: '创建项目' }));
 
-    expect(
-      screen.getByRole('button', {
-        name: '项目切换器 Control Bar Launch',
-      }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', {
-        name: '会话切换器 新建会话',
-      }),
-    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', {
+          name: '项目切换器 Control Bar Launch',
+        }),
+      ).toBeInTheDocument(),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', {
+          name: '会话切换器 新建会话',
+        }),
+      ).toBeInTheDocument(),
+    );
   });
 
   it('uploads a design document when creating a project', async () => {
@@ -211,6 +215,56 @@ describe('ControlBar', () => {
         '# Brand\n\nUse focused layouts.',
       ),
     );
+  });
+
+  it('waits for design document reading before creating a project', async () => {
+    const user = userEvent.setup();
+    const onCreateProject = vi.fn(async () => undefined);
+    const textDeferred = createDeferred<string>();
+    const fileTextSpy = vi
+      .spyOn(File.prototype, 'text')
+      .mockImplementationOnce(() => textDeferred.promise);
+
+    renderControlBar({
+      onCreateProject,
+      projects: [],
+    });
+
+    await user.click(
+      screen.getByRole('button', {
+        name: '项目切换器 暂无当前项目',
+      }),
+    );
+    await user.click(screen.getByRole('option', { name: '新建项目' }));
+    await user.type(screen.getByLabelText('项目名称'), 'Design Project');
+    await user.upload(
+      screen.getByLabelText('DESIGN.md'),
+      new File(['ignored'], 'DESIGN.md', {
+        type: 'text/markdown',
+      }),
+    );
+
+    const createButton = screen.getByRole('button', { name: '创建项目' });
+
+    expect(createButton).toBeDisabled();
+
+    await user.click(createButton);
+    expect(onCreateProject).not.toHaveBeenCalled();
+
+    textDeferred.resolve('# Exact\n\nPreserve trailing spaces.  \n');
+
+    await waitFor(() => expect(createButton).toBeEnabled());
+    await user.click(createButton);
+
+    await waitFor(() =>
+      expect(onCreateProject).toHaveBeenCalledWith(
+        'Design Project',
+        undefined,
+        '# Exact\n\nPreserve trailing spaces.  \n',
+      ),
+    );
+
+    fileTextSpy.mockRestore();
   });
 
   it('creates Conversation from Conversation switcher action', async () => {
@@ -248,11 +302,13 @@ describe('ControlBar', () => {
     await user.type(screen.getByLabelText('新名称'), 'Alpha Redesign');
     await user.click(screen.getByRole('button', { name: '保存' }));
 
-    expect(
-      screen.getByRole('button', {
-        name: '项目切换器 Alpha Redesign',
-      }),
-    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', {
+          name: '项目切换器 Alpha Redesign',
+        }),
+      ).toBeInTheDocument(),
+    );
   });
 
   it('updates a project design document from project settings', async () => {
@@ -296,6 +352,66 @@ describe('ControlBar', () => {
         '# New\n\nUse clear contrast.',
       ),
     );
+  });
+
+  it('waits for design document reading before saving project settings', async () => {
+    const user = userEvent.setup();
+    const onRenameProject = vi.fn(async () => undefined);
+    const textDeferred = createDeferred<string>();
+    const fileTextSpy = vi
+      .spyOn(File.prototype, 'text')
+      .mockImplementationOnce(() => textDeferred.promise);
+
+    renderControlBar({
+      activeProjectId: 'project-1',
+      onRenameProject,
+      projects: [
+        {
+          createdAt: '2026-06-29T00:00:00.000Z',
+          designDocument: '# Old',
+          id: 'project-1',
+          name: 'Project One',
+          projectType: 'single_html',
+          updatedAt: '2026-06-29T00:00:00.000Z',
+        },
+      ],
+    });
+
+    await user.click(
+      screen.getByRole('button', {
+        name: '项目切换器 Project One',
+      }),
+    );
+    await user.click(screen.getByRole('button', { name: '重命名' }));
+    await user.upload(
+      screen.getByLabelText('DESIGN.md'),
+      new File(['ignored'], 'DESIGN.md', {
+        type: 'text/markdown',
+      }),
+    );
+
+    const saveButton = screen.getByRole('button', { name: '保存' });
+
+    expect(saveButton).toBeDisabled();
+
+    await user.click(saveButton);
+    expect(onRenameProject).not.toHaveBeenCalled();
+
+    textDeferred.resolve('# Updated\n\nKeep final newline.\n');
+
+    await waitFor(() => expect(saveButton).toBeEnabled());
+    await user.click(saveButton);
+
+    await waitFor(() =>
+      expect(onRenameProject).toHaveBeenCalledWith(
+        'project-1',
+        'Project One',
+        undefined,
+        '# Updated\n\nKeep final newline.\n',
+      ),
+    );
+
+    fileTextSpy.mockRestore();
   });
 
   it('removes a project design document from project settings', async () => {
@@ -541,4 +657,15 @@ function renderControlBar(overrides: Partial<ComponentProps<typeof ControlBar>> 
       projects={overrides.projects ?? []}
     />,
   );
+}
+
+function createDeferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve;
+    reject = promiseReject;
+  });
+
+  return { promise, reject, resolve };
 }

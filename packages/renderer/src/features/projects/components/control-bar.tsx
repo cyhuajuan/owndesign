@@ -1,6 +1,14 @@
 'use client';
 
-import { startTransition, useDeferredValue, useId, useMemo, useState, type FormEvent } from 'react';
+import {
+  startTransition,
+  useDeferredValue,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from 'react';
 import { useAppNavigate } from '@/lib/router';
 import { ChevronDownIcon, MessageSquareIcon, PlusIcon } from 'lucide-react';
 
@@ -110,9 +118,17 @@ export function ControlBar({
   const [conversationQuery, setConversationQuery] = useState('');
   const [projectName, setProjectName] = useState('');
   const [projectDesignDocument, setProjectDesignDocument] = useState<string | null>();
+  const [isProjectDesignDocumentReading, setIsProjectDesignDocumentReading] = useState(false);
   const [renameName, setRenameName] = useState('');
   const [renameDescription, setRenameDescription] = useState('');
   const [renameDesignDocument, setRenameDesignDocument] = useState<string | null>();
+  const [isRenameDesignDocumentReading, setIsRenameDesignDocumentReading] = useState(false);
+  const projectDesignDocumentReadIdRef = useRef(0);
+  const projectDesignDocumentReadPromiseRef = useRef<Promise<string | undefined> | null>(null);
+  const renameDesignDocumentReadIdRef = useRef(0);
+  const renameDesignDocumentReadPromiseRef = useRef<Promise<string | null | undefined> | null>(
+    null,
+  );
   const projectNameId = useId();
   const projectDesignDocumentId = useId();
   const renameNameId = useId();
@@ -367,7 +383,7 @@ export function ControlBar({
           setIsProjectCreateOpen(open);
           if (!open) {
             setProjectName('');
-            setProjectDesignDocument(undefined);
+            clearProjectDesignDocument();
           }
         }}
         open={isProjectCreateOpen}
@@ -397,21 +413,29 @@ export function ControlBar({
                   accept=".md,text/markdown,text/plain"
                   id={projectDesignDocumentId}
                   onChange={(event) => {
-                    void readDesignDocumentFile(event.currentTarget.files?.[0]).then(
-                      setProjectDesignDocument,
-                    );
+                    updateProjectDesignDocument(event.currentTarget.files?.[0]);
                   }}
                   type="file"
                 />
-                {projectDesignDocument ? (
-                  <div className="text-xs text-muted-foreground">
-                    {t('projects.designDocumentAttached')}
+                {projectDesignDocument !== undefined ? (
+                  <div className="flex items-center gap-2">
+                    <div className="text-xs text-muted-foreground">
+                      {t('projects.designDocumentAttached')}
+                    </div>
+                    <Button onClick={clearProjectDesignDocument} type="button" variant="outline">
+                      {t('projects.clearDesignDocument')}
+                    </Button>
                   </div>
+                ) : null}
+                {isProjectDesignDocumentReading ? (
+                  <div className="text-xs text-muted-foreground">{t('common.loading')}</div>
                 ) : null}
               </Field>
             </FieldGroup>
             <DialogFooter className="mt-5 border-t-0">
-              <Button type="submit">{t('projects.create')}</Button>
+              <Button disabled={isProjectDesignDocumentReading} type="submit">
+                {t('projects.create')}
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -423,7 +447,7 @@ export function ControlBar({
             setRenameTarget(null);
             setRenameName('');
             setRenameDescription('');
-            setRenameDesignDocument(undefined);
+            resetRenameDesignDocument();
           }
         }}
         open={renameTarget !== null}
@@ -468,23 +492,20 @@ export function ControlBar({
                       accept=".md,text/markdown,text/plain"
                       id={renameDesignDocumentId}
                       onChange={(event) => {
-                        void readDesignDocumentFile(event.currentTarget.files?.[0]).then(
-                          setRenameDesignDocument,
-                        );
+                        updateRenameDesignDocument(event.currentTarget.files?.[0]);
                       }}
                       type="file"
                     />
-                    {renameDesignDocument ? (
+                    {renameDesignDocument !== undefined ? (
                       <div className="text-xs text-muted-foreground">
                         {t('projects.designDocumentAttached')}
                       </div>
                     ) : null}
+                    {isRenameDesignDocumentReading ? (
+                      <div className="text-xs text-muted-foreground">{t('common.loading')}</div>
+                    ) : null}
                     {renameDesignDocument !== undefined ? (
-                      <Button
-                        onClick={() => setRenameDesignDocument(null)}
-                        type="button"
-                        variant="outline"
-                      >
+                      <Button onClick={removeRenameDesignDocument} type="button" variant="outline">
                         {t('projects.removeDesignDocument')}
                       </Button>
                     ) : null}
@@ -493,7 +514,9 @@ export function ControlBar({
               ) : null}
             </FieldGroup>
             <DialogFooter className="mt-5">
-              <Button type="submit">{t('common.save')}</Button>
+              <Button disabled={isRenameDesignDocumentReading} type="submit">
+                {t('common.save')}
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -553,7 +576,7 @@ export function ControlBar({
     </div>
   );
 
-  function handleProjectCreate(event: FormEvent<HTMLFormElement>) {
+  async function handleProjectCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const trimmedName = projectName.trim();
@@ -562,15 +585,17 @@ export function ControlBar({
       return;
     }
 
+    const designDocument = await resolveProjectDesignDocument();
+
     setIsProjectCreateOpen(false);
     setProjectName('');
-    setProjectDesignDocument(undefined);
+    clearProjectDesignDocument();
     startTransition(() => {
-      void runAction(onCreateProject(trimmedName, undefined, projectDesignDocument));
+      void runAction(onCreateProject(trimmedName, undefined, designDocument));
     });
   }
 
-  function handleRename(event: FormEvent<HTMLFormElement>) {
+  async function handleRename(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (!renameTarget) {
@@ -584,11 +609,12 @@ export function ControlBar({
       return;
     }
 
+    const designDocument = await resolveRenameDesignDocument();
     const target = renameTarget;
     setRenameTarget(null);
     setRenameName('');
     setRenameDescription('');
-    setRenameDesignDocument(undefined);
+    resetRenameDesignDocument();
     startTransition(() => {
       if (target.type === 'project') {
         void runAction(
@@ -596,7 +622,7 @@ export function ControlBar({
             target.project.id,
             trimmedName,
             trimmedDescription || undefined,
-            renameDesignDocument,
+            designDocument,
           ),
         );
       } else {
@@ -615,12 +641,79 @@ export function ControlBar({
 
     window.dispatchEvent(new Event('owndesign:workspace-refresh'));
   }
-}
 
-async function readDesignDocumentFile(file: File | undefined) {
-  if (!file) {
-    return undefined;
+  function updateProjectDesignDocument(file: File | undefined) {
+    const readId = ++projectDesignDocumentReadIdRef.current;
+
+    if (!file) {
+      clearProjectDesignDocument();
+      return;
+    }
+
+    setIsProjectDesignDocumentReading(true);
+    const readPromise = file.text().then((text) => {
+      if (projectDesignDocumentReadIdRef.current === readId) {
+        setProjectDesignDocument(text);
+        setIsProjectDesignDocumentReading(false);
+      }
+
+      return text;
+    });
+
+    projectDesignDocumentReadPromiseRef.current = readPromise;
   }
 
-  return file.text();
+  function clearProjectDesignDocument() {
+    projectDesignDocumentReadIdRef.current += 1;
+    projectDesignDocumentReadPromiseRef.current = Promise.resolve(undefined);
+    setProjectDesignDocument(undefined);
+    setIsProjectDesignDocumentReading(false);
+  }
+
+  async function resolveProjectDesignDocument() {
+    return projectDesignDocumentReadPromiseRef.current
+      ? await projectDesignDocumentReadPromiseRef.current
+      : projectDesignDocument;
+  }
+
+  function updateRenameDesignDocument(file: File | undefined) {
+    const readId = ++renameDesignDocumentReadIdRef.current;
+
+    if (!file) {
+      resetRenameDesignDocument();
+      return;
+    }
+
+    setIsRenameDesignDocumentReading(true);
+    const readPromise = file.text().then((text) => {
+      if (renameDesignDocumentReadIdRef.current === readId) {
+        setRenameDesignDocument(text);
+        setIsRenameDesignDocumentReading(false);
+      }
+
+      return text;
+    });
+
+    renameDesignDocumentReadPromiseRef.current = readPromise;
+  }
+
+  function removeRenameDesignDocument() {
+    renameDesignDocumentReadIdRef.current += 1;
+    renameDesignDocumentReadPromiseRef.current = Promise.resolve(null);
+    setRenameDesignDocument(null);
+    setIsRenameDesignDocumentReading(false);
+  }
+
+  function resetRenameDesignDocument() {
+    renameDesignDocumentReadIdRef.current += 1;
+    renameDesignDocumentReadPromiseRef.current = Promise.resolve(undefined);
+    setRenameDesignDocument(undefined);
+    setIsRenameDesignDocumentReading(false);
+  }
+
+  async function resolveRenameDesignDocument() {
+    return renameDesignDocumentReadPromiseRef.current
+      ? await renameDesignDocumentReadPromiseRef.current
+      : renameDesignDocument;
+  }
 }

@@ -167,3 +167,29 @@ Results:
 
 - targeted test suite passed: `17 passed`
 - core typecheck passed
+
+## Review Fix Addendum 4
+
+Addressed the remaining prompt-safety review findings for XML-like section delimiters and whitespace-only content:
+
+- Kept JSON string literal embedding for `DESIGN.md` content.
+- Escaped literal backticks, `<`, and `>` inside the serialized JSON string as `\u0060`, `\u003c`, and `\u003e`.
+- Prevented raw `</project_design_document>` from appearing inside user-controlled content while preserving exact document semantics when the encoded string is decoded with JSON parsing.
+- Kept `null` and `undefined` as the only absent values.
+- Added regression coverage proving:
+  - a document containing triple backticks and `</project_design_document>` is preserved semantically via the encoded JSON string
+  - the rendered prompt contains no raw triple backticks
+  - the rendered prompt contains exactly one raw `</project_design_document>` closing tag, which is the outer section terminator
+  - a whitespace-only document still renders the project design section and preserves encoded spaces
+
+Verification:
+
+```bash
+pnpm --filter @owndesign/core test -- src/agent/design-page-agent.test.ts
+pnpm --filter @owndesign/core typecheck
+```
+
+Results:
+
+- targeted test suite passed: `19 passed`
+- core typecheck passed

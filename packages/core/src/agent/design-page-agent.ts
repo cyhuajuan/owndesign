@@ -301,7 +301,10 @@ export function buildProjectDesignDocumentPrompt(designDocument: string | null |
 }
 
 function encodeDesignDocumentForPrompt(designDocument: string) {
-  return JSON.stringify(designDocument).replaceAll('`', '\\u0060');
+  return JSON.stringify(designDocument)
+    .replaceAll('`', '\\u0060')
+    .replaceAll('<', '\\u003c')
+    .replaceAll('>', '\\u003e');
 }
 
 export function renderDesignPromptSections(sections: DesignPromptSection[]) {

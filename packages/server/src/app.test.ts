@@ -144,6 +144,57 @@ describe('createOwnDesignApp static hosting', () => {
     ).resolves.toContain('<main id="app"></main>');
   });
 
+  it('creates projects with user-managed design documents', async () => {
+    const { app, root } = await createAppWithTempOptions();
+    const workspaceRoot = path.join(root, 'workspace');
+
+    const response = await app.fetch(
+      new Request('http://localhost/api/projects', {
+        body: JSON.stringify({
+          designDocument: '# Brand\n\nUse restrained SaaS styling.',
+          name: 'With Design',
+          projectType: 'single_html',
+        }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as { href: string };
+    const match = /\/projects\/([^/]+)\/conversations\/([^/?]+)/.exec(body.href);
+    const workspaceStore = createWorkspaceStore({ workspaceRoot });
+
+    await expect(workspaceStore.getProject(match?.[1] ?? '')).resolves.toMatchObject({
+      designDocument: '# Brand\n\nUse restrained SaaS styling.',
+      name: 'With Design',
+    });
+  });
+
+  it('updates project design documents through project settings', async () => {
+    const { app, root } = await createAppWithTempOptions();
+    const workspaceRoot = path.join(root, 'workspace');
+    const { projectId } = await setupProject(app);
+    const workspaceStore = createWorkspaceStore({ workspaceRoot });
+
+    const response = await app.fetch(
+      new Request(`http://localhost/api/projects/${projectId}`, {
+        body: JSON.stringify({
+          designDocument: '# Updated\n\nUse compact admin surfaces.',
+          name: 'Updated Project',
+        }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'PATCH',
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(workspaceStore.getProject(projectId)).resolves.toMatchObject({
+      designDocument: '# Updated\n\nUse compact admin surfaces.',
+      name: 'Updated Project',
+    });
+  });
+
   it('rejects reserved react project creation', async () => {
     const { app } = await createAppWithTempOptions();
 
@@ -241,6 +292,94 @@ describe('createOwnDesignApp static hosting', () => {
         userPrompt: '设计一个 CRM 仪表盘',
       },
     ]);
+  });
+
+  it('freezes project design documents into agent instructions on first chat', async () => {
+    const { app, root } = await createAppWithTempOptions();
+    const workspaceRoot = path.join(root, 'workspace');
+    const { conversationId, projectId } = await setupProject(app);
+    const workspaceStore = createWorkspaceStore({ workspaceRoot });
+    const project = await workspaceStore.getProject(projectId);
+
+    await workspaceStore.updateProject(projectId, {
+      ...project,
+      designDocument: '# Design Rules\n\nUse warm neutrals and dense forms.',
+    });
+
+    const response = await app.fetch(
+      new Request('http://localhost/api/chat', {
+        body: JSON.stringify({
+          conversationId,
+          message: createChatRequestMessage('msg-1', 'Design a dashboard'),
+          projectId,
+        }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+      }),
+    );
+    await response.text();
+    await waitFor(() => expect(aiMocks.createAgentUIStream).toHaveBeenCalled());
+
+    const conversation = await workspaceStore.getConversation(projectId, conversationId);
+
+    expect(response.status).toBe(200);
+    expect(conversation.agentPromptVersion).toBe(DESIGN_PAGE_AGENT_PROMPT_VERSION);
+    expect(conversation.agentInstructions).toContain('<project_design_document>');
+    expect(conversation.agentInstructions).toContain('# Design Rules');
+    expect(conversation.agentInstructions).toContain('Use warm neutrals and dense forms.');
+  });
+
+  it('does not rebuild frozen agent instructions after project design document changes', async () => {
+    const { app, root } = await createAppWithTempOptions();
+    const workspaceRoot = path.join(root, 'workspace');
+    const { conversationId, projectId } = await setupProject(app);
+    const workspaceStore = createWorkspaceStore({ workspaceRoot });
+    const project = await workspaceStore.getProject(projectId);
+
+    await workspaceStore.updateProject(projectId, {
+      ...project,
+      designDocument: '# First Rules',
+    });
+
+    const firstResponse = await app.fetch(
+      new Request('http://localhost/api/chat', {
+        body: JSON.stringify({
+          conversationId,
+          message: createChatRequestMessage('msg-1', 'Design a landing page'),
+          projectId,
+        }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+      }),
+    );
+    await firstResponse.text();
+    await waitFor(() => expect(aiMocks.createAgentUIStream).toHaveBeenCalledTimes(1));
+
+    await workspaceStore.updateProject(projectId, {
+      ...(await workspaceStore.getProject(projectId)),
+      designDocument: '# Second Rules',
+    });
+
+    const secondResponse = await app.fetch(
+      new Request('http://localhost/api/chat', {
+        body: JSON.stringify({
+          conversationId,
+          message: createChatRequestMessage('msg-2', 'Adjust spacing'),
+          projectId,
+        }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+      }),
+    );
+    await secondResponse.text();
+    await waitFor(() => expect(aiMocks.createAgentUIStream).toHaveBeenCalledTimes(2));
+
+    const conversation = await workspaceStore.getConversation(projectId, conversationId);
+
+    expect(firstResponse.status).toBe(200);
+    expect(secondResponse.status).toBe(200);
+    expect(conversation.agentInstructions).toContain('# First Rules');
+    expect(conversation.agentInstructions).not.toContain('# Second Rules');
   });
 
   it('ignores frontend message history and appends only submitted user input', async () => {

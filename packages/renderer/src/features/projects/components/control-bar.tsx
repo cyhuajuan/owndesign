@@ -93,6 +93,11 @@ type DeleteTarget =
   | { type: 'project'; project: ProjectRecord }
   | null;
 
+type RenameDesignDocumentState =
+  | { kind: 'unchanged' }
+  | { kind: 'replace'; text: string }
+  | { kind: 'remove' };
+
 export function ControlBar({
   activeConversationId,
   activeProjectId,
@@ -121,12 +126,13 @@ export function ControlBar({
   const [isProjectDesignDocumentReading, setIsProjectDesignDocumentReading] = useState(false);
   const [renameName, setRenameName] = useState('');
   const [renameDescription, setRenameDescription] = useState('');
-  const [renameDesignDocument, setRenameDesignDocument] = useState<string | null>();
+  const [renameDesignDocumentState, setRenameDesignDocumentState] =
+    useState<RenameDesignDocumentState>({ kind: 'unchanged' });
   const [isRenameDesignDocumentReading, setIsRenameDesignDocumentReading] = useState(false);
   const projectDesignDocumentReadIdRef = useRef(0);
   const projectDesignDocumentReadPromiseRef = useRef<Promise<string | undefined> | null>(null);
   const renameDesignDocumentReadIdRef = useRef(0);
-  const renameDesignDocumentReadPromiseRef = useRef<Promise<string | null | undefined> | null>(
+  const renameDesignDocumentReadPromiseRef = useRef<Promise<RenameDesignDocumentState> | null>(
     null,
   );
   const projectNameId = useId();
@@ -159,6 +165,14 @@ export function ControlBar({
       ),
     [conversations, deferredConversationQuery, isProjectSwitchPending],
   );
+  const renameTargetProject = renameTarget?.type === 'project' ? renameTarget.project : undefined;
+  const renameHasPersistedDesignDocument = renameTargetProject?.designDocument != null;
+  const showRenameDesignDocumentStatus =
+    renameDesignDocumentState.kind === 'replace' ||
+    (renameHasPersistedDesignDocument && renameDesignDocumentState.kind === 'unchanged');
+  const showRenameDesignDocumentRemove =
+    renameDesignDocumentState.kind !== 'remove' &&
+    (renameDesignDocumentState.kind === 'replace' || renameHasPersistedDesignDocument);
 
   return (
     <div className="flex min-w-0 items-center gap-1.5">
@@ -242,7 +256,7 @@ export function ControlBar({
                         setOpenMenu(null);
                         setRenameName(project.name);
                         setRenameDescription(project.description ?? '');
-                        setRenameDesignDocument(project.designDocument);
+                        resetRenameDesignDocument();
                         setRenameTarget({ type: 'project', project });
                       }}
                     />
@@ -496,15 +510,19 @@ export function ControlBar({
                       }}
                       type="file"
                     />
-                    {renameDesignDocument !== undefined ? (
+                    {showRenameDesignDocumentStatus ? (
                       <div className="text-xs text-muted-foreground">
-                        {t('projects.designDocumentAttached')}
+                        {t(
+                          renameDesignDocumentState.kind === 'replace'
+                            ? 'projects.designDocumentAttached'
+                            : 'projects.designDocumentExisting',
+                        )}
                       </div>
                     ) : null}
                     {isRenameDesignDocumentReading ? (
                       <div className="text-xs text-muted-foreground">{t('common.loading')}</div>
                     ) : null}
-                    {renameDesignDocument !== undefined ? (
+                    {showRenameDesignDocumentRemove ? (
                       <Button onClick={removeRenameDesignDocument} type="button" variant="outline">
                         {t('projects.removeDesignDocument')}
                       </Button>
@@ -687,11 +705,11 @@ export function ControlBar({
     setIsRenameDesignDocumentReading(true);
     const readPromise = file.text().then((text) => {
       if (renameDesignDocumentReadIdRef.current === readId) {
-        setRenameDesignDocument(text);
+        setRenameDesignDocumentState({ kind: 'replace', text });
         setIsRenameDesignDocumentReading(false);
       }
 
-      return text;
+      return { kind: 'replace', text } as const;
     });
 
     renameDesignDocumentReadPromiseRef.current = readPromise;
@@ -699,21 +717,31 @@ export function ControlBar({
 
   function removeRenameDesignDocument() {
     renameDesignDocumentReadIdRef.current += 1;
-    renameDesignDocumentReadPromiseRef.current = Promise.resolve(null);
-    setRenameDesignDocument(null);
+    renameDesignDocumentReadPromiseRef.current = Promise.resolve({ kind: 'remove' });
+    setRenameDesignDocumentState({ kind: 'remove' });
     setIsRenameDesignDocumentReading(false);
   }
 
   function resetRenameDesignDocument() {
     renameDesignDocumentReadIdRef.current += 1;
-    renameDesignDocumentReadPromiseRef.current = Promise.resolve(undefined);
-    setRenameDesignDocument(undefined);
+    renameDesignDocumentReadPromiseRef.current = Promise.resolve({ kind: 'unchanged' });
+    setRenameDesignDocumentState({ kind: 'unchanged' });
     setIsRenameDesignDocumentReading(false);
   }
 
   async function resolveRenameDesignDocument() {
-    return renameDesignDocumentReadPromiseRef.current
+    const state = renameDesignDocumentReadPromiseRef.current
       ? await renameDesignDocumentReadPromiseRef.current
-      : renameDesignDocument;
+      : renameDesignDocumentState;
+
+    switch (state.kind) {
+      case 'replace':
+        return state.text;
+      case 'remove':
+        return null;
+      case 'unchanged':
+      default:
+        return undefined;
+    }
   }
 }

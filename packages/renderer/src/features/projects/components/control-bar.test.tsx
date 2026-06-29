@@ -354,6 +354,45 @@ describe('ControlBar', () => {
     );
   });
 
+  it('omits an untouched existing project design document from project settings', async () => {
+    const user = userEvent.setup();
+    const onRenameProject = vi.fn(async () => undefined);
+
+    renderControlBar({
+      activeProjectId: 'project-1',
+      onRenameProject,
+      projects: [
+        {
+          createdAt: '2026-06-29T00:00:00.000Z',
+          designDocument: '# Existing',
+          id: 'project-1',
+          name: 'Project One',
+          projectType: 'single_html',
+          updatedAt: '2026-06-29T00:00:00.000Z',
+        },
+      ],
+    });
+
+    await user.click(
+      screen.getByRole('button', {
+        name: '项目切换器 Project One',
+      }),
+    );
+    await user.click(screen.getByRole('button', { name: '重命名' }));
+    await user.clear(screen.getByLabelText('新名称'));
+    await user.type(screen.getByLabelText('新名称'), 'Project Prime');
+    await user.click(screen.getByRole('button', { name: '保存' }));
+
+    await waitFor(() =>
+      expect(onRenameProject).toHaveBeenCalledWith(
+        'project-1',
+        'Project Prime',
+        undefined,
+        undefined,
+      ),
+    );
+  });
+
   it('waits for design document reading before saving project settings', async () => {
     const user = userEvent.setup();
     const onRenameProject = vi.fn(async () => undefined);

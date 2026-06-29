@@ -527,6 +527,70 @@ describe('AiSdkDesignPageAgent', () => {
     );
   });
 
+  it('rejects agent writes to root-level DESIGN.md and preserves existing content', async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    await workspaceStore.writeProjectWorkspaceFile(
+      'project-1',
+      'DESIGN.md',
+      '# Existing Design\n\nKeep this intact.\n',
+    );
+    const tools = await createTools(workspaceStore);
+
+    await expectWorkspaceToolError(
+      tools.write.execute({
+        content: '# Replacement Design\n',
+        path: './design.md',
+      }),
+      'DESIGN.md',
+    );
+
+    await expect(workspaceStore.readProjectWorkspaceFile('project-1', 'DESIGN.md')).resolves.toBe(
+      '# Existing Design\n\nKeep this intact.\n',
+    );
+  });
+
+  it('rejects agent edits to root-level DESIGN.md and preserves existing content', async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    await workspaceStore.writeProjectWorkspaceFile(
+      'project-1',
+      'DESIGN.md',
+      '# Existing Design\n\nKeep this intact.\n',
+    );
+    const tools = await createTools(workspaceStore);
+
+    await expectWorkspaceToolError(
+      tools.edit.execute({
+        newString: 'Replace this',
+        oldString: 'Keep this intact.',
+        path: 'DESIGN.md',
+      }),
+      'DESIGN.md',
+    );
+
+    await expect(workspaceStore.readProjectWorkspaceFile('project-1', 'DESIGN.md')).resolves.toBe(
+      '# Existing Design\n\nKeep this intact.\n',
+    );
+  });
+
+  it('allows agent writes to nested DESIGN.md paths', async () => {
+    const workspaceStore = await createWorkspaceStore();
+    await createProject(workspaceStore);
+    const tools = await createTools(workspaceStore);
+
+    await expectWorkspaceToolOk(
+      tools.write.execute({
+        content: '# Nested Design\n',
+        path: 'docs/DESIGN.md',
+      }),
+    );
+
+    await expect(workspaceStore.readProjectWorkspaceFile('project-1', 'docs/DESIGN.md')).resolves.toBe(
+      '# Nested Design\n',
+    );
+  });
+
   it('generates project output with the single_html project type', async () => {
     const workspaceStore = await createWorkspaceStore();
     await createProject(workspaceStore);

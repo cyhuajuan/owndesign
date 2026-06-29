@@ -1,0 +1,24 @@
+## Task 5 - Protect DESIGN.md from agent workspace mutation
+
+- Scope: core agent workspace mutation tools only.
+- Change summary:
+  - Added a shared mutation-path guard at `packages/core/src/agent/tools/protected-paths.ts`.
+  - Enforced the guard in agent-exposed `write` and `edit` tools before any workspace mutation happens.
+  - The guard normalizes workspace-relative paths with slash normalization plus `path.posix.normalize()`, then blocks a case-insensitive root-level match on `design.md`.
+- Why root-only:
+  - The requirement explicitly called out the workspace `DESIGN.md` file and asked not to block unrelated nested paths unless needed.
+  - Current agent-exposed mutation surface is `write` and `edit`; blocking normalized root-level `design.md` closes the review issue without expanding the restriction to nested documentation files such as `docs/DESIGN.md`.
+- Covered cases:
+  - Rejects `write({ path: "./design.md" })` against an existing root `DESIGN.md`.
+  - Rejects `edit({ path: "DESIGN.md" })`.
+  - Confirms blocked mutations leave existing `DESIGN.md` content unchanged.
+  - Confirms nested `docs/DESIGN.md` remains writable.
+- Agent-exposed mutation tools reviewed:
+  - `write`
+  - `edit`
+  - No agent-exposed `delete` or `patch` tool is currently registered in `createProjectWorkspaceToolDefinitions()`.
+- Verification:
+  - `pnpm --filter @owndesign/core test -- src/agent/design-page-agent.test.ts`
+    - Passed: 22/22 tests
+  - `pnpm --filter @owndesign/core typecheck`
+    - Passed

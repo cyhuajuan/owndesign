@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import type { WorkspaceToolDefinition } from './core';
+import { assertAgentWorkspaceMutationPathAllowed } from './protected-paths';
 import type { WriteInput } from './types';
 import {
   assertOwnDesignRuntimeScript,
@@ -38,6 +39,8 @@ export function createWriteToolDefinition(): WorkspaceToolDefinition<
     name: 'write',
     parallelSafe: false,
     execute: async ({ content, path }, { projectId, workspaceStore }) => {
+      assertAgentWorkspaceMutationPathAllowed(path);
+
       if (isProtectedSingleHtmlPath(path)) {
         assertOwnDesignRuntimeScript(content);
       }

@@ -195,6 +195,90 @@ describe('createOwnDesignApp static hosting', () => {
     });
   });
 
+  it('preserves an existing design document when PATCH omits it', async () => {
+    const { app, root } = await createAppWithTempOptions();
+    const workspaceRoot = path.join(root, 'workspace');
+    const { projectId } = await setupProject(app);
+    const workspaceStore = createWorkspaceStore({ workspaceRoot });
+    const project = await workspaceStore.getProject(projectId);
+
+    await workspaceStore.updateProject(projectId, {
+      ...project,
+      designDocument: '# Keep\n\nPreserve this document.',
+    });
+
+    const response = await app.fetch(
+      new Request(`http://localhost/api/projects/${projectId}`, {
+        body: JSON.stringify({
+          name: 'Renamed Project',
+        }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'PATCH',
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(workspaceStore.getProject(projectId)).resolves.toMatchObject({
+      designDocument: '# Keep\n\nPreserve this document.',
+      name: 'Renamed Project',
+    });
+  });
+
+  it('removes an existing design document when PATCH sets it to null', async () => {
+    const { app, root } = await createAppWithTempOptions();
+    const workspaceRoot = path.join(root, 'workspace');
+    const { projectId } = await setupProject(app);
+    const workspaceStore = createWorkspaceStore({ workspaceRoot });
+    const project = await workspaceStore.getProject(projectId);
+
+    await workspaceStore.updateProject(projectId, {
+      ...project,
+      designDocument: '# Remove\n\nThis document should be cleared.',
+    });
+
+    const response = await app.fetch(
+      new Request(`http://localhost/api/projects/${projectId}`, {
+        body: JSON.stringify({
+          designDocument: null,
+          name: 'Cleared Project',
+        }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'PATCH',
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    const updatedProject = await workspaceStore.getProject(projectId);
+
+    expect(updatedProject.name).toBe('Cleared Project');
+    expect(updatedProject.designDocument).toBeUndefined();
+  });
+
+  it('preserves whitespace-only design documents on PATCH without trimming', async () => {
+    const { app, root } = await createAppWithTempOptions();
+    const workspaceRoot = path.join(root, 'workspace');
+    const { projectId } = await setupProject(app);
+    const workspaceStore = createWorkspaceStore({ workspaceRoot });
+    const whitespaceDesignDocument = '  \n\t  ';
+
+    const response = await app.fetch(
+      new Request(`http://localhost/api/projects/${projectId}`, {
+        body: JSON.stringify({
+          designDocument: whitespaceDesignDocument,
+          name: 'Whitespace Project',
+        }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'PATCH',
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(workspaceStore.getProject(projectId)).resolves.toMatchObject({
+      designDocument: whitespaceDesignDocument,
+      name: 'Whitespace Project',
+    });
+  });
+
   it('rejects reserved react project creation', async () => {
     const { app } = await createAppWithTempOptions();
 

@@ -282,7 +282,7 @@ export function buildDesignPageConversationInstructions(
 }
 
 export function buildProjectDesignDocumentPrompt(designDocument: string | null | undefined) {
-  if (designDocument == null || designDocument === '') {
+  if (designDocument == null) {
     return undefined;
   }
 

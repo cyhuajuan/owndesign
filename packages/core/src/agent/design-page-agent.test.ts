@@ -9,6 +9,7 @@ import {
   DESIGN_PAGE_AGENT_PROMPT_VERSION,
   buildDesignPageAgentInstructions,
   buildDesignPageConversationInstructions,
+  buildProjectDesignDocumentPrompt,
   createDesignPageAgent,
   createDesignPageAgentContext,
 } from './design-page-agent';
@@ -146,6 +147,22 @@ describe('AiSdkDesignPageAgent', () => {
 
     expect(instructions).not.toContain('<project_design_document>');
     expect(instructions).not.toContain('## Project DESIGN.md');
+  });
+
+  it('includes project DESIGN.md section for empty design document strings', () => {
+    const instructions = buildDesignPageConversationInstructions(undefined, '');
+
+    expect(instructions).toContain('<project_design_document>');
+    expect(instructions).toContain('## Project DESIGN.md');
+    expect(instructions).toContain('```md\n\n```');
+    expect(instructions).toContain('</project_design_document>');
+  });
+
+  it('preserves whitespace-only design document content inside the fenced block', () => {
+    const prompt = buildProjectDesignDocumentPrompt('  \n\t');
+
+    expect(prompt).toContain('## Project DESIGN.md');
+    expect(prompt).toContain('```md\n  \n\t\n```');
   });
 
   it('increments the prompt version for project DESIGN.md behavior', () => {

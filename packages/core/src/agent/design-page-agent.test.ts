@@ -8,6 +8,7 @@ import {
   AiSdkDesignPageAgent,
   DESIGN_PAGE_AGENT_PROMPT_VERSION,
   buildDesignPageAgentInstructions,
+  buildDesignPageConversationInstructions,
   createDesignPageAgent,
   createDesignPageAgentContext,
 } from './design-page-agent';
@@ -120,7 +121,35 @@ describe('AiSdkDesignPageAgent', () => {
     expect(loadPrompt('agents/design-page')).toContain(
       "OwnDesign's single HTML page design agent",
     );
-    expect(DESIGN_PAGE_AGENT_PROMPT_VERSION).toBe(6);
+    expect(DESIGN_PAGE_AGENT_PROMPT_VERSION).toBe(7);
+  });
+
+  it('freezes project DESIGN.md into conversation instructions when provided', () => {
+    const instructions = buildDesignPageConversationInstructions(
+      undefined,
+      ['# Brand System', '', 'Use dense dashboard layouts and avoid playful illustration.'].join(
+        '\n',
+      ),
+    );
+
+    expect(instructions).toContain('<project_design_document>');
+    expect(instructions).toContain('## Project DESIGN.md');
+    expect(instructions).toContain('user-maintained project design document');
+    expect(instructions).toContain('read-only design guidance');
+    expect(instructions).toContain('# Brand System');
+    expect(instructions).toContain('Use dense dashboard layouts');
+    expect(instructions).toContain('</project_design_document>');
+  });
+
+  it('omits project DESIGN.md section when document is undefined', () => {
+    const instructions = buildDesignPageConversationInstructions(undefined, undefined);
+
+    expect(instructions).not.toContain('<project_design_document>');
+    expect(instructions).not.toContain('## Project DESIGN.md');
+  });
+
+  it('increments the prompt version for project DESIGN.md behavior', () => {
+    expect(DESIGN_PAGE_AGENT_PROMPT_VERSION).toBe(7);
   });
 
   it('builds single HTML conversation instructions without old architecture terms', () => {

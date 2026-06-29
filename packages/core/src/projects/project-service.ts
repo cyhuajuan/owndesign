@@ -11,12 +11,14 @@ type CreateProjectInput = {
   defaultConversationTitle?: string;
   name: string;
   description?: string;
+  designDocument?: string;
   projectType?: ProjectType;
 };
 
 type RenameProjectInput = {
   name: string;
   description?: string;
+  designDocument?: string;
 };
 
 type ProjectServiceOptions = {
@@ -57,6 +59,7 @@ export class ProjectService {
       id: this.createId(),
       name: input.name,
       description: input.description,
+      designDocument: normalizeDesignDocument(input.designDocument),
       projectType,
       outputType: 'html',
       createdAt: timestamp,
@@ -88,6 +91,7 @@ export class ProjectService {
       ...existingProject,
       name: input.name,
       description: input.description,
+      designDocument: normalizeDesignDocument(input.designDocument),
       updatedAt: this.now(),
     };
 
@@ -106,4 +110,8 @@ export class ProjectService {
       projects,
     };
   }
+}
+
+function normalizeDesignDocument(value: string | undefined) {
+  return value?.trim() ? value : undefined;
 }

@@ -22,6 +22,12 @@ async function createTempWorkspaceRoot() {
   return tempRoot;
 }
 
+async function createWorkspaceStore() {
+  const workspaceRoot = path.join(await createTempWorkspaceRoot(), '.owndesign');
+
+  return new WorkspaceStore({ workspaceRoot });
+}
+
 function buildProject(
   overrides: Partial<{
     id: string;
@@ -70,6 +76,32 @@ describe('WorkspaceStore', () => {
     await expect(stat(projectDirectory)).resolves.toBeDefined();
     await expect(stat(path.join(projectDirectory, 'workspace'))).resolves.toBeDefined();
     expect(projectJson).toEqual(project);
+  });
+
+  it('loads older project records without a design document', async () => {
+    const store = await createWorkspaceStore();
+    const project = buildProject({ id: 'legacy-project', name: 'Legacy Project' });
+
+    await store.createProject(project);
+
+    const projectJsonPath = path.join(
+      store.getWorkspaceRoot(),
+      'projects',
+      project.id,
+      'project.json',
+    );
+    const rawProject = JSON.parse(
+      await readFile(projectJsonPath, 'utf8'),
+    ) as Record<string, unknown>;
+
+    delete rawProject.designDocument;
+    await writeFile(projectJsonPath, JSON.stringify(rawProject, null, 2), 'utf8');
+
+    await expect(store.getProject(project.id)).resolves.toMatchObject({
+      id: 'legacy-project',
+      name: 'Legacy Project',
+      projectType: 'single_html',
+    });
   });
 
   it('writes and reads Project Output from the Project Workspace', async () => {

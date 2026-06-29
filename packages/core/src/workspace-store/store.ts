@@ -1216,7 +1216,7 @@ function normalizeProjectRecord(project: ProjectRecord): ProjectRecord {
   return {
     ...project,
     designDocument:
-      typeof project.designDocument === 'string' && project.designDocument.trim()
+      typeof project.designDocument === 'string'
         ? project.designDocument
         : undefined,
     projectType: project.projectType ?? 'single_html',

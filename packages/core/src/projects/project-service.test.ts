@@ -82,7 +82,7 @@ describe('ProjectService', () => {
     expect(() => assertOwnDesignRuntimeScript(indexHtml)).not.toThrow();
   });
 
-  it('stores a user-managed design document when creating a project', async () => {
+  it('stores an exact whitespace design document when creating a project', async () => {
     const workspaceStore = await createWorkspaceStore();
     const projectService = new ProjectService({
       createId: createSequentialId(),
@@ -91,12 +91,12 @@ describe('ProjectService', () => {
     });
 
     const { project } = await projectService.createProject({
-      designDocument: '# Brand\n\nUse quiet enterprise surfaces.',
+      designDocument: '   ',
       name: 'Design System Project',
     });
 
     await expect(workspaceStore.getProject(project.id)).resolves.toMatchObject({
-      designDocument: '# Brand\n\nUse quiet enterprise surfaces.',
+      designDocument: '   ',
       name: 'Design System Project',
     });
   });
@@ -140,7 +140,7 @@ describe('ProjectService', () => {
     await expect(workspaceStore.listProjects()).resolves.toEqual([renamedProject]);
   });
 
-  it('updates the user-managed design document when renaming project settings', async () => {
+  it('preserves the design document when renaming project settings omit it', async () => {
     const workspaceStore = await createWorkspaceStore();
     const projectService = new ProjectService({
       createId: createSequentialId(),
@@ -148,23 +148,22 @@ describe('ProjectService', () => {
       workspaceStore,
     });
     const { project } = await projectService.createProject({
-      designDocument: '# Old',
+      designDocument: '   ',
       name: 'Original',
     });
 
     const updated = await projectService.renameProject(project.id, {
-      designDocument: '# New\n\nUse compact controls.',
       name: 'Renamed',
     });
 
-    expect(updated.designDocument).toBe('# New\n\nUse compact controls.');
+    expect(updated.designDocument).toBe('   ');
     await expect(workspaceStore.getProject(project.id)).resolves.toMatchObject({
-      designDocument: '# New\n\nUse compact controls.',
+      designDocument: '   ',
       name: 'Renamed',
     });
   });
 
-  it('removes the design document when project settings pass undefined', async () => {
+  it('removes the design document when project settings pass null', async () => {
     const workspaceStore = await createWorkspaceStore();
     const projectService = new ProjectService({
       createId: createSequentialId(),
@@ -178,6 +177,7 @@ describe('ProjectService', () => {
 
     const updated = await projectService.renameProject(project.id, {
       name: 'Renamed',
+      designDocument: null,
     });
 
     expect(updated.designDocument).toBeUndefined();

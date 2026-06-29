@@ -51,8 +51,8 @@
 - Consumes: existing `ProjectRecord`, `ProjectService.createProject`, `ProjectService.renameProject`.
 - Produces:
   - `ProjectRecord.designDocument?: string`
-  - `CreateProjectInput.designDocument?: string`
-  - `RenameProjectInput.designDocument?: string`
+  - `CreateProjectInput.designDocument?: string | null`
+  - `RenameProjectInput.designDocument?: string | null`
   - Existing project JSON files without `designDocument` still load successfully.
 
 - [ ] **Step 1: Write failing project service tests**
@@ -76,12 +76,12 @@ it('stores a user-managed design document when creating a project', async () => 
   });
 
   const { project } = await projectService.createProject({
-    designDocument: '# Brand\n\nUse quiet enterprise surfaces.',
+    designDocument: '   ',
     name: 'Design System Project',
   });
 
   await expect(workspaceStore.getProject(project.id)).resolves.toMatchObject({
-    designDocument: '# Brand\n\nUse quiet enterprise surfaces.',
+    designDocument: '   ',
     name: 'Design System Project',
   });
 });
@@ -110,7 +110,7 @@ it('updates the user-managed design document when renaming project settings', as
   });
 });
 
-it('removes the design document when project settings pass undefined', async () => {
+it('removes the design document when project settings pass null', async () => {
   const workspaceStore = await createWorkspaceStore();
   const projectService = new ProjectService({
     createId: createSequentialId(),
@@ -124,6 +124,7 @@ it('removes the design document when project settings pass undefined', async () 
 
   const updated = await projectService.renameProject(project.id, {
     name: 'Renamed',
+    designDocument: null,
   });
 
   expect(updated.designDocument).toBeUndefined();
@@ -181,7 +182,7 @@ export type ProjectRecord = {
   id: string;
   name: string;
   description?: string;
-  designDocument?: string;
+  designDocument?: string | null;
   projectType?: ProjectType;
   outputType?: ProjectOutputType;
   createdAt: string;
@@ -195,10 +196,7 @@ Keep `normalizeProjectRecord` simple and non-mutating:
 function normalizeProjectRecord(project: ProjectRecord): ProjectRecord {
   return {
     ...project,
-    designDocument:
-      typeof project.designDocument === 'string' && project.designDocument.trim()
-        ? project.designDocument
-        : undefined,
+    designDocument: typeof project.designDocument === 'string' ? project.designDocument : undefined,
     projectType: project.projectType ?? 'single_html',
   };
 }
@@ -211,14 +209,14 @@ type CreateProjectInput = {
   defaultConversationTitle?: string;
   name: string;
   description?: string;
-  designDocument?: string;
+  designDocument?: string | null;
   projectType?: ProjectType;
 };
 
 type RenameProjectInput = {
   name: string;
   description?: string;
-  designDocument?: string;
+  designDocument?: string | null;
 };
 ```
 
@@ -229,11 +227,11 @@ const project: ProjectRecord = {
   id: this.createId(),
   name: input.name,
   description: input.description,
-  designDocument: normalizeDesignDocument(input.designDocument),
   projectType,
   outputType: 'html',
   createdAt: timestamp,
   updatedAt: timestamp,
+  ...(typeof input.designDocument === 'string' ? { designDocument: input.designDocument } : {}),
 };
 ```
 
@@ -244,16 +242,15 @@ const renamedProject: ProjectRecord = {
   ...existingProject,
   name: input.name,
   description: input.description,
-  designDocument: normalizeDesignDocument(input.designDocument),
   updatedAt: this.now(),
 };
-```
 
-Add helper:
-
-```ts
-function normalizeDesignDocument(value: string | undefined) {
-  return value?.trim() ? value : undefined;
+if (Object.prototype.hasOwnProperty.call(input, 'designDocument')) {
+  if (input.designDocument === null) {
+    delete renamedProject.designDocument;
+  } else if (typeof input.designDocument === 'string') {
+    renamedProject.designDocument = input.designDocument;
+  }
 }
 ```
 
@@ -286,8 +283,8 @@ git commit -m "feat: store project design document"
 - Consumes: `ProjectRecord.designDocument?: string` from server code.
 - Produces:
   - `DESIGN_PAGE_AGENT_PROMPT_VERSION = 7`
-  - `buildDesignPageConversationInstructions(resources?: ResourceSettings, designDocument?: string): string`
-  - `buildProjectDesignDocumentPrompt(designDocument: string): string`
+  - `buildDesignPageConversationInstructions(resources?: ResourceSettings, designDocument?: string | null): string`
+  - `buildProjectDesignDocumentPrompt(designDocument: string | null | undefined): string`
 
 - [ ] **Step 1: Write failing prompt tests**
 
@@ -310,8 +307,8 @@ it('freezes project DESIGN.md into conversation instructions when provided', () 
   expect(instructions).toContain('</project_design_document>');
 });
 
-it('omits project DESIGN.md section when document is empty', () => {
-  const instructions = buildDesignPageConversationInstructions(undefined, '   ');
+it('omits project DESIGN.md section when document is undefined', () => {
+  const instructions = buildDesignPageConversationInstructions(undefined, undefined);
 
   expect(instructions).not.toContain('<project_design_document>');
   expect(instructions).not.toContain('## Project DESIGN.md');
@@ -345,14 +342,14 @@ Change instruction builders:
 ```ts
 export function buildDesignPageAgentInstructions(
   resources?: ResourceSettings,
-  designDocument?: string,
+  designDocument?: string | null,
 ) {
   return buildDesignPageConversationInstructions(resources, designDocument);
 }
 
 export function buildDesignPageConversationInstructions(
   resources?: ResourceSettings,
-  designDocument?: string,
+  designDocument?: string | null,
 ) {
   const sections: DesignPromptSection[] = [
     {
@@ -393,10 +390,8 @@ export function buildDesignPageConversationInstructions(
 Add helper:
 
 ```ts
-export function buildProjectDesignDocumentPrompt(designDocument: string | undefined) {
-  const trimmedDocument = designDocument?.trim();
-
-  if (!trimmedDocument) {
+export function buildProjectDesignDocumentPrompt(designDocument: string | null | undefined) {
+  if (designDocument == null) {
     return undefined;
   }
 
@@ -410,7 +405,7 @@ export function buildProjectDesignDocumentPrompt(designDocument: string | undefi
     'If the user asks for a change that conflicts with this document, explain the conflict briefly and follow the user request only as a one-off change unless they update project settings.',
     '',
     '```md',
-    trimmedDocument,
+    designDocument,
     '```',
   ].join('\n');
 }
@@ -603,8 +598,12 @@ Expected: FAIL because API parsing and prompt freezing are not wired.
 In `packages/server/src/app.ts`, add helper:
 
 ```ts
-function asOptionalString(value: unknown) {
-  return typeof value === 'string' && value.trim() ? value : undefined;
+function asDesignDocument(value: unknown) {
+  if (typeof value === 'string') {
+    return value;
+  }
+
+  return value === null ? null : undefined;
 }
 ```
 
@@ -615,7 +614,7 @@ const result = await services.projectService.createProject({
   defaultConversationTitle: getDefaultConversationTitle(settings.interfaceLanguage),
   name: trimmedName,
   description: asNonEmptyString(body.description),
-  designDocument: asOptionalString(body.designDocument),
+  designDocument: asDesignDocument(body.designDocument),
   projectType,
 });
 ```
@@ -626,7 +625,7 @@ In `PATCH /api/projects/:projectId`, pass the body field:
 await createProjectService(options).renameProject(projectId, {
   name: trimmedName,
   description: asNonEmptyString(body.description),
-  designDocument: asOptionalString(body.designDocument),
+  designDocument: asDesignDocument(body.designDocument),
 });
 ```
 
@@ -770,7 +769,7 @@ it('removes a project design document from project settings', async () => {
   await user.click(screen.getByRole('button', { name: 'Remove DESIGN.md' }));
   await user.click(screen.getByRole('button', { name: 'Save' }));
 
-  expect(onRenameProject).toHaveBeenCalledWith('project-1', 'Project One', undefined, undefined);
+  expect(onRenameProject).toHaveBeenCalledWith('project-1', 'Project One', undefined, null);
 });
 ```
 
@@ -792,7 +791,7 @@ In `packages/renderer/src/api/client.ts`:
 createProject(
   name: string,
   description?: string,
-  designDocument?: string,
+  designDocument?: string | null,
   projectType = 'single_html',
 ) {
   return requestJson<ActionResult>('/api/projects', {
@@ -804,7 +803,7 @@ createProject(
 ```
 
 ```ts
-renameProject(projectId: string, name: string, description?: string, designDocument?: string) {
+renameProject(projectId: string, name: string, description?: string, designDocument?: string | null) {
   return requestJson<ActionResult>(`/api/projects/${encodeURIComponent(projectId)}`, {
     body: JSON.stringify({ description, designDocument, name }),
     headers: { 'Content-Type': 'application/json' },
@@ -823,7 +822,7 @@ In `packages/renderer/src/features/projects/components/control-bar.tsx`, update 
 onCreateProject: (
   name: string,
   description?: string,
-  designDocument?: string,
+  designDocument?: string | null,
 ) => Promise<ControlBarActionResult> | ControlBarActionResult;
 ```
 
@@ -832,15 +831,15 @@ onRenameProject: (
   projectId: string,
   name: string,
   description?: string,
-  designDocument?: string,
+  designDocument?: string | null,
 ) => Promise<ControlBarActionResult> | ControlBarActionResult;
 ```
 
 Add state:
 
 ```ts
-const [projectDesignDocument, setProjectDesignDocument] = useState<string>();
-const [renameDesignDocument, setRenameDesignDocument] = useState<string>();
+const [projectDesignDocument, setProjectDesignDocument] = useState<string | null>();
+const [renameDesignDocument, setRenameDesignDocument] = useState<string | null>();
 const projectDesignDocumentId = useId();
 const renameDesignDocumentId = useId();
 ```
@@ -1059,4 +1058,4 @@ Expected: only compatibility or test fixes are committed here.
 
 - Spec coverage: The plan covers user upload/maintenance, project setting persistence, create/edit flows, first-chat freezing, non-retroactive updates, prompt rules, and tool non-mutability by keeping the document outside Project Workspace.
 - Placeholder scan: No task uses TBD/TODO/fill-later language. Each implementation step includes concrete file paths, signatures, code, commands, and expected outcomes.
-- Type consistency: The plan consistently uses `designDocument?: string` on `ProjectRecord`, service inputs, server body parsing, API client calls, and renderer callback signatures.
+- Type consistency: The plan consistently uses `designDocument?: string | null` on Task 1 service inputs, with `null` meaning removal and exact string content preserved without trimming or normalization.

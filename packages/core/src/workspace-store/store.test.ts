@@ -104,6 +104,22 @@ describe('WorkspaceStore', () => {
     });
   });
 
+  it('preserves whitespace-only project design documents when loading records', async () => {
+    const store = await createWorkspaceStore();
+    const project = buildProject({ id: 'whitespace-project', name: 'Whitespace Project' });
+
+    await store.createProject({
+      ...project,
+      designDocument: '   ',
+    });
+
+    await expect(store.getProject(project.id)).resolves.toMatchObject({
+      designDocument: '   ',
+      id: 'whitespace-project',
+      name: 'Whitespace Project',
+    });
+  });
+
   it('writes and reads Project Output from the Project Workspace', async () => {
     const workspaceRoot = path.join(await createTempWorkspaceRoot(), '.owndesign');
     const store = new WorkspaceStore({ workspaceRoot });

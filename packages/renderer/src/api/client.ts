@@ -6,6 +6,7 @@ import type {
   CheckpointRestoreMode,
   ConversationRecord,
   ProjectRecord,
+  ProjectType,
 } from '@owndesign/core/workspace-store';
 import type { PublicAppSettings } from '@owndesign/core/settings/settings-service';
 import type {
@@ -67,8 +68,8 @@ export function createApiClient(baseUrl = '') {
     createProject(
       name: string,
       description?: string,
+      projectType: ProjectType = 'single_html',
       designDocument?: string | null,
-      projectType = 'single_html',
     ) {
       return requestJson<ActionResult>('/api/projects', {
         body: JSON.stringify({

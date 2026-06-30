@@ -791,8 +791,8 @@ In `packages/renderer/src/api/client.ts`:
 createProject(
   name: string,
   description?: string,
-  designDocument?: string | null,
   projectType = 'single_html',
+  designDocument?: string | null,
 ) {
   return requestJson<ActionResult>('/api/projects', {
     body: JSON.stringify({ description, designDocument, name, projectType }),

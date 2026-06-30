@@ -28,7 +28,11 @@ type WorkspaceShellProps = {
   activeRun?: ActiveRun;
   conversations: ConversationRecord[];
   onCreateConversation: () => Promise<ActionResult> | ActionResult;
-  onCreateProject: (name: string, description?: string) => Promise<ActionResult> | ActionResult;
+  onCreateProject: (
+    name: string,
+    description?: string,
+    designDocument?: string | null,
+  ) => Promise<ActionResult> | ActionResult;
   onDeleteConversation: (conversationId: string) => Promise<ActionResult> | ActionResult;
   onDeleteProject: (projectId: string) => Promise<ActionResult> | ActionResult;
   onRenameConversation: (
@@ -39,6 +43,7 @@ type WorkspaceShellProps = {
     projectId: string,
     name: string,
     description?: string,
+    designDocument?: string | null,
   ) => Promise<ActionResult> | ActionResult;
   onSelectConversation: (conversationId: string) => Promise<ActionResult> | ActionResult;
   onSelectProject: (projectId: string) => Promise<ActionResult> | ActionResult;

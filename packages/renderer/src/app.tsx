@@ -107,7 +107,8 @@ function WorkspaceRoute({ shellSlots }: { shellSlots?: WorkspaceShellSlots }) {
     return {
       onCreateConversation: () =>
         activeProjectId ? api.createConversation(activeProjectId) : undefined,
-      onCreateProject: api.createProject,
+      onCreateProject: (name: string, description?: string, designDocument?: string | null) =>
+        api.createProject(name, description, 'single_html', designDocument),
       onDeleteConversation: (targetConversationId: string) =>
         activeProjectId
           ? api.deleteConversation(
@@ -130,7 +131,12 @@ function WorkspaceRoute({ shellSlots }: { shellSlots?: WorkspaceShellSlots }) {
         activeProjectId
           ? api.renameConversation(activeProjectId, targetConversationId, title)
           : undefined,
-      onRenameProject: api.renameProject,
+      onRenameProject: (
+        targetProjectId: string,
+        name: string,
+        description?: string,
+        designDocument?: string | null,
+      ) => api.renameProject(targetProjectId, name, description, designDocument),
       onSelectConversation: (targetConversationId: string) =>
         activeProjectId ? api.selectConversation(activeProjectId, targetConversationId) : undefined,
       onSelectProject: (targetProjectId: string) => ({

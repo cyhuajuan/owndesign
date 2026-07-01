@@ -18,6 +18,7 @@ export type ProjectRecord = {
   id: string;
   name: string;
   description?: string;
+  designDocument?: string;
   projectType?: ProjectType;
   outputType?: ProjectOutputType;
   createdAt: string;
@@ -1214,6 +1215,10 @@ export class WorkspaceStore {
 function normalizeProjectRecord(project: ProjectRecord): ProjectRecord {
   return {
     ...project,
+    designDocument:
+      typeof project.designDocument === 'string'
+        ? project.designDocument
+        : undefined,
     projectType: project.projectType ?? 'single_html',
   };
 }

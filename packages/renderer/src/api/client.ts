@@ -6,6 +6,7 @@ import type {
   CheckpointRestoreMode,
   ConversationRecord,
   ProjectRecord,
+  ProjectType,
 } from '@owndesign/core/workspace-store';
 import type { PublicAppSettings } from '@owndesign/core/settings/settings-service';
 import type {
@@ -64,9 +65,19 @@ export function createApiClient(baseUrl = '') {
         { method: 'POST' },
       );
     },
-    createProject(name: string, description?: string, projectType = 'single_html') {
+    createProject(
+      name: string,
+      description?: string,
+      projectType: ProjectType = 'single_html',
+      designDocument?: string | null,
+    ) {
       return requestJson<ActionResult>('/api/projects', {
-        body: JSON.stringify({ description, name, projectType }),
+        body: JSON.stringify({
+          ...(description !== undefined ? { description } : {}),
+          ...(designDocument !== undefined ? { designDocument } : {}),
+          name,
+          projectType,
+        }),
         headers: { 'Content-Type': 'application/json' },
         method: 'POST',
       });
@@ -140,9 +151,18 @@ export function createApiClient(baseUrl = '') {
         },
       );
     },
-    renameProject(projectId: string, name: string, description?: string) {
+    renameProject(
+      projectId: string,
+      name: string,
+      description?: string,
+      designDocument?: string | null,
+    ) {
       return requestJson<ActionResult>(`/api/projects/${encodeURIComponent(projectId)}`, {
-        body: JSON.stringify({ description, name }),
+        body: JSON.stringify({
+          ...(description !== undefined ? { description } : {}),
+          ...(designDocument !== undefined ? { designDocument } : {}),
+          name,
+        }),
         headers: { 'Content-Type': 'application/json' },
         method: 'PATCH',
       });

@@ -9,6 +9,7 @@ import { assertOwnDesignRuntimeScript } from '@owndesign/core/templates/owndesig
 import { WorkspaceStore } from '@owndesign/core/workspace-store';
 
 const tempRoots: string[] = [];
+let sequentialId = 0;
 
 afterEach(async () => {
   await Promise.all(
@@ -25,6 +26,10 @@ async function createWorkspaceStore() {
   return new WorkspaceStore({
     workspaceRoot: path.join(tempRoot, '.owndesign'),
   });
+}
+
+function createSequentialId() {
+  return () => `id-${++sequentialId}`;
 }
 
 describe('ProjectService', () => {
@@ -77,6 +82,25 @@ describe('ProjectService', () => {
     expect(() => assertOwnDesignRuntimeScript(indexHtml)).not.toThrow();
   });
 
+  it('stores an exact whitespace design document when creating a project', async () => {
+    const workspaceStore = await createWorkspaceStore();
+    const projectService = new ProjectService({
+      createId: createSequentialId(),
+      now: () => '2026-06-29T00:00:00.000Z',
+      workspaceStore,
+    });
+
+    const { project } = await projectService.createProject({
+      designDocument: '   ',
+      name: 'Design System Project',
+    });
+
+    await expect(workspaceStore.getProject(project.id)).resolves.toMatchObject({
+      designDocument: '   ',
+      name: 'Design System Project',
+    });
+  });
+
   it('rejects reserved React projects', async () => {
     const workspaceStore = await createWorkspaceStore();
     const projectService = new ProjectService({ workspaceStore });
@@ -114,6 +138,53 @@ describe('ProjectService', () => {
     expect(renamedProject.updatedAt).toBe('2026-05-14T11:00:00.000Z');
 
     await expect(workspaceStore.listProjects()).resolves.toEqual([renamedProject]);
+  });
+
+  it('preserves the design document when renaming project settings omit it', async () => {
+    const workspaceStore = await createWorkspaceStore();
+    const projectService = new ProjectService({
+      createId: createSequentialId(),
+      now: () => '2026-06-29T00:00:00.000Z',
+      workspaceStore,
+    });
+    const { project } = await projectService.createProject({
+      designDocument: '   ',
+      name: 'Original',
+    });
+
+    const updated = await projectService.renameProject(project.id, {
+      name: 'Renamed',
+    });
+
+    expect(updated.designDocument).toBe('   ');
+    await expect(workspaceStore.getProject(project.id)).resolves.toMatchObject({
+      designDocument: '   ',
+      name: 'Renamed',
+    });
+  });
+
+  it('removes the design document when project settings pass null', async () => {
+    const workspaceStore = await createWorkspaceStore();
+    const projectService = new ProjectService({
+      createId: createSequentialId(),
+      now: () => '2026-06-29T00:00:00.000Z',
+      workspaceStore,
+    });
+    const { project } = await projectService.createProject({
+      designDocument: '# Remove me',
+      name: 'Original',
+    });
+
+    const updated = await projectService.renameProject(project.id, {
+      name: 'Renamed',
+      designDocument: null,
+    });
+
+    expect(updated.designDocument).toBeUndefined();
+    await expect(workspaceStore.getProject(project.id)).resolves.toMatchObject({
+      name: 'Renamed',
+    });
+    expect((await workspaceStore.getProject(project.id)).designDocument).toBeUndefined();
   });
 
   it('lists Projects without restoring global active state after reload', async () => {

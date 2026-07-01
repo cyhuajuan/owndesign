@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import type { WorkspaceToolDefinition } from './core';
+import { assertAgentWorkspaceMutationPathAllowed } from './protected-paths';
 import type { EditInput } from './types';
 import { buildUnifiedDiff } from '@owndesign/core/workspace-store/diff';
 import { normalizeWorkspaceRelativePath } from '@owndesign/core/workspace-store/paths';
@@ -55,6 +56,8 @@ export function createEditToolDefinition(): WorkspaceToolDefinition<
     name: 'edit',
     parallelSafe: false,
     execute: async ({ newString, oldString, path, replaceAll }, { projectId, workspaceStore }) => {
+      assertAgentWorkspaceMutationPathAllowed(path);
+
       const content = await workspaceStore.readProjectWorkspaceFile(projectId, path);
       const { content: updatedContent, replacements } = applyTextEdit(
         content,

@@ -11,12 +11,14 @@ type CreateProjectInput = {
   defaultConversationTitle?: string;
   name: string;
   description?: string;
+  designDocument?: string | null;
   projectType?: ProjectType;
 };
 
 type RenameProjectInput = {
   name: string;
   description?: string;
+  designDocument?: string | null;
 };
 
 type ProjectServiceOptions = {
@@ -53,6 +55,7 @@ export class ProjectService {
     }
 
     const timestamp = this.now();
+    const designDocument = normalizeCreateDesignDocument(input.designDocument);
     const project: ProjectRecord = {
       id: this.createId(),
       name: input.name,
@@ -61,6 +64,7 @@ export class ProjectService {
       outputType: 'html',
       createdAt: timestamp,
       updatedAt: timestamp,
+      ...(designDocument !== undefined ? { designDocument } : {}),
     };
     const conversation: ConversationRecord = {
       id: this.createId(),
@@ -91,6 +95,14 @@ export class ProjectService {
       updatedAt: this.now(),
     };
 
+    if (Object.prototype.hasOwnProperty.call(input, 'designDocument')) {
+      if (input.designDocument === null) {
+        delete renamedProject.designDocument;
+      } else if (typeof input.designDocument === 'string') {
+        renamedProject.designDocument = input.designDocument;
+      }
+    }
+
     return this.workspaceStore.updateProject(projectId, renamedProject);
   }
 
@@ -106,4 +118,8 @@ export class ProjectService {
       projects,
     };
   }
+}
+
+function normalizeCreateDesignDocument(value: string | null | undefined) {
+  return typeof value === 'string' ? value : undefined;
 }

@@ -181,6 +181,7 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
       defaultConversationTitle: getDefaultConversationTitle(settings.interfaceLanguage),
       name: trimmedName,
       description: asNonEmptyString(body.description),
+      designDocument: asDesignDocument(body.designDocument),
       projectType,
     });
 
@@ -204,6 +205,7 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
     await createProjectService(options).renameProject(projectId, {
       name: trimmedName,
       description: asNonEmptyString(body.description),
+      designDocument: asDesignDocument(body.designDocument),
     });
 
     return context.json({});
@@ -353,7 +355,10 @@ export function createOwnDesignApp(options: OwnDesignServerOptions = {}) {
     if (!conversation.agentInstructions) {
       conversation = await workspaceStore.updateConversation(projectId, conversationId, {
         ...conversation,
-        agentInstructions: buildDesignPageConversationInstructions(agentContext.resources),
+        agentInstructions: buildDesignPageConversationInstructions(
+          agentContext.resources,
+          project.designDocument,
+        ),
         agentPromptVersion: DESIGN_PAGE_AGENT_PROMPT_VERSION,
       });
     }
@@ -1055,6 +1060,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function asNonEmptyString(value: unknown) {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function asDesignDocument(value: unknown) {
+  if (typeof value === 'string') {
+    return value;
+  }
+
+  return value === null ? null : undefined;
 }
 
 function hasPreviewPath(value: unknown) {

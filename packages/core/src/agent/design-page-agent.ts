@@ -19,7 +19,7 @@ import { createWorkspaceToolRegistry } from '@owndesign/core/agent/tools/core';
 import { loadPrompt } from '@owndesign/core/prompts';
 import { buildFrontendCapabilityPrompt } from '@owndesign/core/realtime/frontend-capabilities';
 
-export const DESIGN_PAGE_AGENT_PROMPT_VERSION = 6;
+export const DESIGN_PAGE_AGENT_PROMPT_VERSION = 9;
 
 export type DesignPageAgentInput = {
   content: string;
@@ -235,11 +235,17 @@ function normalizeProjectType(projectType?: ProjectType, outputType?: ProjectOut
   return 'single_html';
 }
 
-export function buildDesignPageAgentInstructions(resources?: ResourceSettings) {
-  return buildDesignPageConversationInstructions(resources);
+export function buildDesignPageAgentInstructions(
+  resources?: ResourceSettings,
+  designDocument?: string | null,
+) {
+  return buildDesignPageConversationInstructions(resources, designDocument);
 }
 
-export function buildDesignPageConversationInstructions(resources?: ResourceSettings) {
+export function buildDesignPageConversationInstructions(
+  resources?: ResourceSettings,
+  designDocument?: string | null,
+) {
   const sections: DesignPromptSection[] = [
     {
       tag: 'design_agent_core',
@@ -263,7 +269,42 @@ export function buildDesignPageConversationInstructions(resources?: ResourceSett
     },
   ];
 
+  const projectDesignPrompt = buildProjectDesignDocumentPrompt(designDocument);
+
+  if (projectDesignPrompt) {
+    sections.push({
+      tag: 'project_design_document',
+      content: projectDesignPrompt,
+    });
+  }
+
   return renderDesignPromptSections(sections);
+}
+
+export function buildProjectDesignDocumentPrompt(designDocument: string | null | undefined) {
+  if (designDocument == null) {
+    return undefined;
+  }
+
+  return [
+    '## Project DESIGN.md',
+    '',
+    'The following content is the user-maintained project design document frozen for this conversation.',
+    'It is encoded as a JSON string literal so markdown content inside it cannot break the prompt structure.',
+    'Treat it as read-only design guidance when creating or editing `index.html`.',
+    'OwnDesign must not create, edit, overwrite, normalize, migrate, or summarize this document.',
+    'Do not claim that you changed `DESIGN.md`; only the user can update it in project settings.',
+    'If the user asks for a change that conflicts with this document, explain the conflict briefly and follow the user request only as a one-off change unless they update project settings.',
+    '',
+    encodeDesignDocumentForPrompt(designDocument),
+  ].join('\n');
+}
+
+function encodeDesignDocumentForPrompt(designDocument: string) {
+  return JSON.stringify(designDocument)
+    .replaceAll('`', '\\u0060')
+    .replaceAll('<', '\\u003c')
+    .replaceAll('>', '\\u003e');
 }
 
 export function renderDesignPromptSections(sections: DesignPromptSection[]) {
